@@ -1,0 +1,138 @@
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+
+// POST /api/webinars/[id]/duplicate - Duplicate a webinar
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const { id } = params
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // Get the original webinar with all related data
+    const originalWebinar = await prisma.webinar.findFirst({
+      where: {
+        id,
+        hostId: user.id
+      },
+      include: {
+        schedules: true,
+        offers: true,
+        chatMessages: true,
+        bonusResources: true
+      }
+    })
+
+    if (!originalWebinar) {
+      return NextResponse.json({ error: 'Webinar not found or unauthorized' }, { status: 404 })
+    }
+
+    // Prepare data for duplication
+    const webinarData: any = {
+      title: `${originalWebinar.title} (Copy)`,
+      description: originalWebinar.description,
+      duration: originalWebinar.duration,
+      status: 'DRAFT', // Always start as draft
+      thumbnail: originalWebinar.thumbnail,
+      vimeoVideoId: originalWebinar.vimeoVideoId,
+      videoUrl: originalWebinar.videoUrl,
+      videoDuration: originalWebinar.videoDuration,
+      hasReplay: originalWebinar.hasReplay,
+      hasOffers: originalWebinar.hasOffers,
+      hasChat: originalWebinar.hasChat,
+      hasReactions: originalWebinar.hasReactions,
+      hostId: user.id,
+    }
+
+    // Copy schedules if they exist
+    if (originalWebinar.schedules && originalWebinar.schedules.length > 0) {
+      webinarData.schedules = {
+        create: originalWebinar.schedules.map((schedule: any) => ({
+          scheduleType: schedule.scheduleType,
+          scheduledAt: schedule.scheduledAt ? new Date(new Date(schedule.scheduledAt).getTime() + 7 * 24 * 60 * 60 * 1000) : null,
+          timezone: schedule.timezone,
+          useUserTimezone: schedule.useUserTimezone,
+          minutesFromReg: schedule.minutesFromReg,
+          recurringPattern: schedule.recurringPattern,
+          isActive: schedule.isActive
+        }))
+      }
+    }
+
+    // Copy offers if they exist
+    if (originalWebinar.offers && originalWebinar.offers.length > 0) {
+      webinarData.offers = {
+        create: originalWebinar.offers.map((offer: any) => ({
+          title: offer.title,
+          description: offer.description,
+          price: offer.price,
+          ctaText: offer.ctaText,
+          ctaUrl: offer.ctaUrl,
+          videoTimestamp: offer.videoTimestamp,
+          hideAfter: offer.hideAfter,
+          isActive: offer.isActive
+        }))
+      }
+    }
+
+    // Copy chat messages if they exist
+    if (originalWebinar.chatMessages && originalWebinar.chatMessages.length > 0) {
+      webinarData.chatMessages = {
+        create: originalWebinar.chatMessages.map((message: any) => ({
+          message: message.message,
+          videoTimestamp: message.videoTimestamp,
+          isScripted: message.isScripted || false,
+          isHidden: message.isHidden || false,
+          userId: message.userId
+        }))
+      }
+    }
+
+    // Create duplicate webinar
+    const duplicatedWebinar = await prisma.webinar.create({
+      data: webinarData,
+      include: {
+        schedules: true,
+        offers: true,
+        chatMessages: true
+      }
+    })
+
+    return NextResponse.json({ 
+      webinar: duplicatedWebinar,
+      message: 'Webinar duplicated successfully'
+    }, { status: 201 })
+
+  } catch (error: any) {
+    console.error('Duplicate webinar error:', error)
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    })
+    return NextResponse.json(
+      { 
+        error: 'Failed to duplicate webinar',
+        details: error.message 
+      },
+      { status: 500 }
+    )
+  }
+}
