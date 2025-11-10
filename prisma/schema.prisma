@@ -139,6 +139,7 @@ model Webinar {
   bonusResources BonusResource[]
   chatMessages   ChatMessage[]
   reactions      Reaction[]
+  faqs           WebinarFaq[]
   schedules      WebinarSchedule[] // All schedules (specific, recurring, just-in-time)
 
   @@map("webinars")
@@ -205,6 +206,20 @@ model BonusResource {
   @@map("bonus_resources")
 }
 
+model WebinarFaq {
+  id        String   @id @default(cuid())
+  webinarId String
+  webinar   Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  question  String
+  answer    String   @db.Text
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([webinarId, sortOrder])
+  @@map("webinar_faqs")
+}
+
 model ChatMessage {
   id             String   @id @default(cuid())
   webinarId      String
@@ -267,9 +282,11 @@ model Registration {
   testGroup String? // "A" or "B" - which test group they were in
 
   // Relations
-  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
-  webinar     Webinar        @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  user        User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  webinar     Webinar           @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   testMetrics ABTestMetric[]
+  sessions    AttendeeSession[]
+  pageVisits  PageVisit[]
 
   @@index([email])
   @@index([webinarId])
@@ -307,6 +324,157 @@ model ABTestMetric {
   @@index([webinarId, element, testGroup])
   @@index([visitorId])
   @@map("ab_test_metrics")
+}
+
+// Attendee Session Tracking
+model AttendeeSession {
+  id             String   @id @default(cuid())
+  registrationId String
+  webinarId      String
+  scheduleId     String?
+
+  // Session Times
+  joinedAt    DateTime @default(now())
+  leftAt      DateTime?
+  lastSeenAt  DateTime @default(now()) // For detecting inactive users
+  
+  // Watch Duration
+  totalWatchTime Int @default(0) // Total seconds watched
+  videoPosition  Int @default(0) // Last known position in video (seconds)
+  isWatching     Boolean @default(true)
+  
+  // Status
+  isActive Boolean @default(true) // Currently in webinar
+  completed Boolean @default(false) // Watched to end
+  
+  // Device & Browser
+  userAgent String?
+  device    String? // "mobile" | "desktop" | "tablet"
+  browser   String?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  registration   Registration          @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  engagements    EngagementEvent[]
+  videoEvents    VideoWatchEvent[]
+  pageVisits     PageVisit[]
+
+  @@index([registrationId])
+  @@index([webinarId, scheduleId])
+  @@index([joinedAt])
+  @@map("attendee_sessions")
+}
+
+// Video Watch Events - Track drop-off points
+model VideoWatchEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  webinarId String
+
+  // Video Tracking
+  timestamp    Int      // Position in video (seconds)
+  eventType    String   // "play" | "pause" | "seek" | "ended" | "left"
+  watchedFrom  Int?     // For seek events
+  watchedTo    Int?     // For seek events
+  
+  createdAt DateTime @default(now())
+
+  // Relations
+  session AttendeeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([webinarId, timestamp])
+  @@map("video_watch_events")
+}
+
+// Engagement Events - Chat, Reactions, Offers
+model EngagementEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  webinarId String
+
+  // Event Details
+  eventType String   // "chat" | "reaction" | "question" | "poll" | "offer_view" | "offer_click"
+  eventData String?  @db.Text // JSON data (reaction type, chat message length, etc)
+  timestamp Int      // Position in video when event occurred (seconds)
+  
+  createdAt DateTime @default(now())
+
+  // Relations
+  session AttendeeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@index([webinarId, eventType])
+  @@index([webinarId, timestamp])
+  @@map("engagement_events")
+}
+
+// Page Visit Tracking
+model PageVisit {
+  id             String   @id @default(cuid())
+  sessionId      String?  // Linked after registration
+  registrationId String?  // Linked after registration
+  webinarId      String
+  visitorId      String   // UUID from cookie (for pre-registration tracking)
+
+  // Page Details
+  pageType    String   // "registration" | "countdown" | "webinar" | "thank_you" | "replay"
+  enteredAt   DateTime @default(now())
+  leftAt      DateTime?
+  timeSpent   Int?     // Seconds spent on page
+  
+  // Referrer
+  referrer    String?  @db.Text
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  
+  // Device
+  device      String?
+  browser     String?
+  country     String?
+  
+  createdAt DateTime @default(now())
+
+  // Relations
+  session      AttendeeSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  registration Registration?    @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  @@index([webinarId, pageType])
+  @@index([visitorId])
+  @@index([registrationId])
+  @@map("page_visits")
+}
+
+// Offer Analytics
+model OfferAnalytics {
+  id             String   @id @default(cuid())
+  webinarId      String
+  registrationId String
+
+  // Offer Details
+  offerTitle     String
+  offerUrl       String   @db.Text
+  
+  // Interaction
+  sawOffer       Boolean  @default(false)
+  sawOfferAt     DateTime?
+  clickedOffer   Boolean  @default(false)
+  clickedOfferAt DateTime?
+  videoPosition  Int?     // Where in video they saw/clicked offer
+  
+  // Outcome
+  converted      Boolean  @default(false)
+  convertedAt    DateTime?
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([webinarId])
+  @@index([registrationId])
+  @@map("offer_analytics")
 }
 
 model Post {

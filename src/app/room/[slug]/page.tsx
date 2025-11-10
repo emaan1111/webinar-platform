@@ -188,6 +188,9 @@ export default async function WebinarRoomPage({
           },
         },
       },
+      faqs: {
+        orderBy: { sortOrder: 'asc' },
+      },
     },
   });
 
@@ -319,6 +322,12 @@ export default async function WebinarRoomPage({
     };
   });
 
+  const faqs = webinar.faqs.map((faq) => ({
+    id: faq.id,
+    question: faq.question,
+    answer: faq.answer,
+  }));
+
   return (
     <WebinarLiveClient
       webinar={{
@@ -335,6 +344,7 @@ export default async function WebinarRoomPage({
       offers={offers}
       chatMessages={chatMessages}
       reactionEvents={reactions}
+      faqs={faqs}
       viewer={
         registrationMeta
           ? {

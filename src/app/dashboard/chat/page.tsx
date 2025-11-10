@@ -9,12 +9,9 @@ import {
   Upload,
   Eye,
   EyeOff,
-  Ban,
   Search,
-  Filter,
   MessageSquare,
-  Trash2,
-  RefreshCw
+  Trash2
 } from 'lucide-react'
 
 interface ChatMessage {
@@ -23,6 +20,7 @@ interface ChatMessage {
   message: string
   isHidden: boolean
   isApproved: boolean
+  isScripted: boolean
   videoTimestamp: number | null
   createdAt: string
   user: {
@@ -41,12 +39,14 @@ interface ChatMessage {
   isModerated?: boolean
 }
 
+type StatusFilter = 'all' | 'pending' | 'approved' | 'visible' | 'hidden' | 'scripted'
+
 export default function ChatModerationPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [webinarFilter, setWebinarFilter] = useState('all')
-  const [statusFilter, setStatusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [webinars, setWebinars] = useState<Array<{ id: string; title: string }>>([])
   
   // Pagination state
@@ -104,6 +104,21 @@ export default function ChatModerationPage() {
     fetchMessages()
   }, [webinarFilter, searchQuery])
 
+  const pendingMessages = messages.filter(msg => !msg.isScripted && !msg.isApproved)
+  const approvedMessages = messages.filter(msg => !msg.isScripted && msg.isApproved)
+  const scriptedMessages = messages.filter(msg => msg.isScripted)
+  const visibleMessages = messages.filter(msg => !msg.isHidden)
+  const hiddenMessages = messages.filter(msg => msg.isHidden)
+
+  const statusOptions: Array<{ value: StatusFilter; label: string; count: number }> = [
+    { value: 'all', label: 'All', count: messages.length },
+    { value: 'pending', label: 'Pending', count: pendingMessages.length },
+    { value: 'approved', label: 'Approved', count: approvedMessages.length },
+    { value: 'scripted', label: 'Scripted', count: scriptedMessages.length },
+    { value: 'visible', label: 'Visible', count: visibleMessages.length },
+    { value: 'hidden', label: 'Hidden', count: hiddenMessages.length }
+  ]
+
   const filteredMessages = messages
     .filter(msg => {
       const matchesSearch = 
@@ -117,7 +132,10 @@ export default function ChatModerationPage() {
       const matchesStatus =
         statusFilter === 'all' ||
         (statusFilter === 'visible' && !msg.isHidden) ||
-        (statusFilter === 'hidden' && msg.isHidden)
+        (statusFilter === 'hidden' && msg.isHidden) ||
+        (statusFilter === 'pending' && !msg.isScripted && !msg.isApproved) ||
+        (statusFilter === 'approved' && !msg.isScripted && msg.isApproved) ||
+        (statusFilter === 'scripted' && msg.isScripted)
 
       return matchesSearch && matchesWebinar && matchesStatus
     })
@@ -407,41 +425,52 @@ export default function ChatModerationPage() {
         {/* Filters */}
         <Card>
           <CardBody>
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search messages or users..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+            <div className="space-y-4">
+              <div className="flex flex-col md:flex-row gap-4">
+                {/* Search */}
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search messages or users..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                
+                {/* Webinar Filter */}
+                <select
+                  value={webinarFilter}
+                  onChange={(e) => setWebinarFilter(e.target.value)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Webinars</option>
+                  {uniqueWebinars.map(webinar => (
+                    <option key={webinar} value={webinar}>{webinar}</option>
+                  ))}
+                </select>
               </div>
-              
-              {/* Webinar Filter */}
-              <select
-                value={webinarFilter}
-                onChange={(e) => setWebinarFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Webinars</option>
-                {uniqueWebinars.map(webinar => (
-                  <option key={webinar} value={webinar}>{webinar}</option>
-                ))}
-              </select>
 
-              {/* Status Filter */}
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Messages</option>
-                <option value="visible">Visible</option>
-                <option value="hidden">Hidden</option>
-              </select>
+              <div>
+                <p className="text-sm font-medium text-gray-700 mb-2">Filter by status</p>
+                <div className="flex flex-wrap gap-2">
+                  {statusOptions.map(option => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setStatusFilter(option.value)}
+                      className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
+                        statusFilter === option.value
+                          ? 'bg-blue-600 border-blue-600 text-white shadow-sm'
+                          : 'bg-white border-gray-200 text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {option.label} ({option.count})
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </CardBody>
         </Card>

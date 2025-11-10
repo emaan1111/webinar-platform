@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import styles from './WebinarLivePage.module.css';
+import { WebinarTracker } from '@/lib/tracking';
 
 // Declare Vimeo Player API types
 declare global {
@@ -88,6 +89,12 @@ interface OfferContent {
   ctaUrl: string;
 }
 
+interface WebinarFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 interface WebinarLiveClientProps {
   webinar: WebinarData;
   offers: LiveOffer[];
@@ -95,30 +102,36 @@ interface WebinarLiveClientProps {
   reactionEvents: ReactionEvent[];
   viewer: ViewerInfo | null;
   timing: TimingMeta;
+  faqs?: WebinarFaqItem[];
 }
 
-const defaultFaqs = [
+const fallbackFaqs: WebinarFaqItem[] = [
   {
+    id: 'fallback-faq-1',
     question: 'What is included in the Motherhood Balance Program?',
     answer:
       "The program includes 8 weeks of comprehensive content covering Islamic parenting principles, self-care strategies, time management techniques, and access to our supportive community of Muslim mothers. You'll also receive downloadable resources and lifetime access to all materials.",
   },
   {
+    id: 'fallback-faq-2',
     question: 'Is this program suitable for new mothers?',
     answer:
       'Yes, absolutely! The program is designed for mothers at all stages, including new mothers. We provide specific guidance for different phases of motherhood and help you establish healthy routines from the beginning.',
   },
   {
+    id: 'fallback-faq-3',
     question: 'How much time do I need to commit each week?',
     answer:
       'We recommend 2-3 hours per week for the best results. The content is self-paced, so you can adjust according to your schedule. Many mothers complete the program while managing their regular responsibilities.',
   },
   {
+    id: 'fallback-faq-4',
     question: 'Can I access the content on my mobile device?',
     answer:
       'Yes, the program is fully mobile-responsive. You can access all content, including videos, worksheets, and community discussions, from your smartphone or tablet.',
   },
   {
+    id: 'fallback-faq-5',
     question: 'Is there a payment plan available?',
     answer:
       'Yes, we offer flexible payment plans to make the program accessible to all mothers. You can choose to pay in full for a discount or spread payments over 3 months.',
@@ -344,7 +357,9 @@ export default function WebinarLiveClient({
   reactionEvents,
   viewer,
   timing,
+  faqs = [],
 }: WebinarLiveClientProps) {
+  const faqItems = faqs.length > 0 ? faqs : fallbackFaqs;
   const [isChatOpen, setIsChatOpen] = useState(true); // Changed to true - chat visible by default
   const [isChatMinimized, setIsChatMinimized] = useState(false); // New state for mobile minimization
   const [activeTab, setActiveTab] = useState<'chat' | 'faq'>('chat');
@@ -360,6 +375,7 @@ export default function WebinarLiveClient({
   const [isTabVisible, setIsTabVisible] = useState(true); // Track tab visibility
   const pausedTimeRef = useRef<number | null>(null); // Store elapsed time when tab becomes hidden
   const broadcastStartTimeRef = useRef<number>(0); // Track when broadcast actually started
+  const trackerRef = useRef<WebinarTracker | null>(null); // Analytics tracker
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -663,6 +679,74 @@ export default function WebinarLiveClient({
     return () => clearInterval(interval);
   }, [broadcastStarted]);
 
+  // Initialize analytics tracking
+  useEffect(() => {
+    if (!viewer?.id || !webinar.id) return;
+
+    const device = window.innerWidth <= 768 ? 'mobile' : 'desktop';
+    
+    // Initialize tracker
+    trackerRef.current = new WebinarTracker(
+      viewer.id,
+      webinar.id,
+      null // scheduleId - we can pass this from the parent page if available
+    );
+
+    // Start session tracking
+    trackerRef.current.startSession(device);
+
+    // Track page entry
+    const visitorId = localStorage.getItem('visitorId');
+    WebinarTracker.trackPageVisit(
+      webinar.id,
+      'webinar',
+      'enter',
+      viewer.id,
+      undefined, // sessionId will be set after tracking starts
+      visitorId || undefined
+    );
+
+    console.log('[Analytics] Tracking initialized for viewer:', viewer.email);
+
+    // Cleanup: end session when component unmounts or user leaves
+    return () => {
+      if (trackerRef.current) {
+        trackerRef.current.endSession();
+        WebinarTracker.trackPageVisit(
+          webinar.id,
+          'webinar',
+          'leave',
+          viewer.id,
+          undefined,
+          visitorId || undefined
+        );
+      }
+    };
+  }, [viewer?.id, webinar.id]);
+
+  // Track watch time and video position updates
+  useEffect(() => {
+    if (!trackerRef.current || !broadcastStarted) return;
+
+    const interval = setInterval(() => {
+      if (trackerRef.current && broadcastStarted && isTabVisible) {
+        trackerRef.current.updateWatchTime(elapsedSeconds, true);
+      }
+    }, 5000); // Update every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [broadcastStarted, elapsedSeconds, isTabVisible]);
+
+  // Track when video ends
+  useEffect(() => {
+    if (!trackerRef.current || !totalDuration) return;
+
+    if (elapsedSeconds >= totalDuration - 5 && broadcastStarted) {
+      // Track video ended
+      trackerRef.current.trackVideoEvent('ended', elapsedSeconds);
+    }
+  }, [elapsedSeconds, totalDuration, broadcastStarted]);
+
   useEffect(() => {
     if (webinar.hasChat === false) {
       return;
@@ -776,6 +860,10 @@ export default function WebinarLiveClient({
   ]);
 
   useEffect(() => {
+    if (faqItems.length === 0) {
+      return;
+    }
+
     if (webinar.hasOffers === false || offersSorted.length === 0) {
       return;
     }
@@ -785,6 +873,20 @@ export default function WebinarLiveClient({
 
     if (nextId !== activeOfferId) {
       setActiveOfferId(nextId);
+      
+      // Track offer view
+      if (nextId && latest && trackerRef.current) {
+        trackerRef.current.trackOffer(
+          'view',
+          latest.title,
+          latest.ctaUrl,
+          elapsedSeconds
+        );
+        trackerRef.current.trackEngagement('offer_view', elapsedSeconds, {
+          offerTitle: latest.title,
+          offerId: latest.id
+        });
+      }
       
       // Auto-switch to FAQ tab when offer appears
       if (nextId) {
@@ -799,6 +901,7 @@ export default function WebinarLiveClient({
     offersSorted,
     webinar.hasOffers,
     activeOfferId,
+    faqItems.length,
   ]);
 
   const activeOffer = useMemo(() => {
@@ -904,6 +1007,14 @@ export default function WebinarLiveClient({
       const userName = viewer?.name || 'You';
       spawnReaction(type, origin, userName);
 
+      // Track engagement
+      if (trackerRef.current) {
+        trackerRef.current.trackEngagement('reaction', elapsedSeconds, { 
+          type, 
+          userName 
+        });
+      }
+
       // Save reaction to database (will appear for all future viewers at this timestamp)
       try {
         await fetch(`/api/webinars/${webinar.id}/reactions`, {
@@ -944,6 +1055,14 @@ export default function WebinarLiveClient({
     
     addChatMessage(userMessage);
     setChatInput('');
+
+    // Track engagement
+    if (trackerRef.current) {
+      trackerRef.current.trackEngagement('chat', elapsedSeconds, { 
+        messageLength: text.length,
+        userName 
+      });
+    }
 
     // Save message to database (hidden from others until admin approves)
     try {
@@ -1310,25 +1429,40 @@ export default function WebinarLiveClient({
                   )}
                 </div>
               )}
-
-              {/* Offer CTA Button Overlay - show when offer is active */}
-              {webinar.hasOffers !== false && offerContent && (
-                <div className={styles.videoOfferCTA}>
-                  <button
-                    type="button"
-                    className={styles.videoOfferButton}
-                    onClick={() => {
-                      if (offerContent.ctaUrl && offerContent.ctaUrl !== '#') {
-                        window.open(offerContent.ctaUrl, '_blank');
-                      }
-                    }}
-                  >
-                    <i className="fas fa-gift" />
-                    <span>{offerContent.ctaText}</span>
-                  </button>
-                </div>
-              )}
             </div>
+
+            {/* Offer CTA Button Below Video - show when offer is active */}
+            {webinar.hasOffers !== false && offerContent && (
+              <div className={styles.belowVideoOfferCTA}>
+                <button
+                  type="button"
+                  className={styles.belowVideoOfferButton}
+                  onClick={() => {
+                    // Track offer click
+                    if (trackerRef.current) {
+                      trackerRef.current.trackOffer(
+                        'click',
+                        offerContent.title,
+                        offerContent.ctaUrl || '#',
+                        elapsedSeconds
+                      );
+                      trackerRef.current.trackEngagement('offer_click', elapsedSeconds, {
+                        offerTitle: offerContent.title,
+                        ctaUrl: offerContent.ctaUrl
+                      });
+                    }
+                    
+                    if (offerContent.ctaUrl && offerContent.ctaUrl !== '#') {
+                      window.open(offerContent.ctaUrl, '_blank');
+                    }
+                  }}
+                >
+                  <i className="fas fa-gift" />
+                  <span>{offerContent.ctaText}</span>
+                  <i className="fas fa-arrow-right" />
+                </button>
+              </div>
+            )}
           </div>
 
           {webinar.hasOffers !== false && offerContent && (
@@ -1372,6 +1506,20 @@ export default function WebinarLiveClient({
                       type="button"
                       className={styles.ctaButton}
                       onClick={() => {
+                        // Track offer click
+                        if (trackerRef.current) {
+                          trackerRef.current.trackOffer(
+                            'click',
+                            offerContent.title,
+                            offerContent.ctaUrl || '#',
+                            elapsedSeconds
+                          );
+                          trackerRef.current.trackEngagement('offer_click', elapsedSeconds, {
+                            offerTitle: offerContent.title,
+                            ctaUrl: offerContent.ctaUrl
+                          });
+                        }
+                        
                         if (
                           offerContent.ctaUrl &&
                           offerContent.ctaUrl !== '#'
@@ -1427,8 +1575,8 @@ export default function WebinarLiveClient({
               </div>
             </div>
 
-            {/* Only show tabs when there's an active offer with FAQ */}
-            {activeOffer && offerContent && (
+            {/* Show tabs whenever FAQ content exists */}
+            {faqItems.length > 0 && (
               <div className={styles.chatTabs}>
                 <button
                   type="button"
@@ -1493,11 +1641,12 @@ export default function WebinarLiveClient({
                   activeTab === 'faq' ? styles.chatTabContentActive : ''
                 }`}
               >
-                {defaultFaqs.map((faq, index) => {
+                {faqItems.map((faq, index) => {
                   const isOpen = openFaqs.has(index);
+                  const key = faq.id ?? `faq-${index}`;
                   return (
                     <div
-                      key={faq.question}
+                      key={key}
                       className={`${styles.faqItem} ${
                         isOpen ? styles.faqItemActive : ''
                       }`}
