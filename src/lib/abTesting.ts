@@ -19,20 +19,18 @@ function generateVisitorId(): string {
 }
 
 /**
- * Get or create visitor ID from cookie
+ * Get visitor ID from cookie (read-only for Server Components)
+ * If no visitor ID exists, generates one but doesn't set the cookie
+ * Cookie setting should be handled by client-side or Server Actions
  */
 export async function getVisitorId(): Promise<string> {
   const cookieStore = await cookies();
   let visitorId = cookieStore.get(VISITOR_COOKIE_NAME)?.value;
   
   if (!visitorId) {
+    // Generate a visitor ID but don't set cookie in Server Component
+    // The cookie will be set by the client or Server Action
     visitorId = generateVisitorId();
-    cookieStore.set(VISITOR_COOKIE_NAME, visitorId, {
-      maxAge: COOKIE_MAX_AGE,
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-    });
   }
   
   return visitorId;
@@ -72,6 +70,7 @@ export async function assignTestGroup(
 /**
  * Get visitor's test group for a specific webinar
  * Checks cookie first, then assigns consistently if needed
+ * Note: This is read-only in Server Components. Cookie setting should be done client-side.
  * 
  * @param webinarId Webinar identifier
  * @param trafficSplitPercent Percentage of traffic for Group A (default 50)
@@ -92,13 +91,8 @@ export async function getVisitorTestGroup(
     // Assign test group consistently based on hash
     testGroup = await assignTestGroup(visitorId, webinarId, trafficSplitPercent);
     
-    // Store in cookie for consistency
-    cookieStore.set(cookieName, testGroup, {
-      maxAge: COOKIE_MAX_AGE,
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-    });
+    // Note: Cookie will be set by client-side code
+    // We can't set cookies in Server Components in Next.js 14+
   }
   
   return testGroup;
@@ -116,8 +110,8 @@ export function getTestConfiguration(
   webinar: {
     enableABTesting: boolean;
     testRegistrationPage: boolean;
-    regTemplateAId: string | null;
-    regTemplateBId: string | null;
+    regPageAId: string | null;
+    regPageBId: string | null;
     testSchedule: boolean;
     scheduleAIds: string | null;
     scheduleBIds: string | null;
@@ -133,7 +127,7 @@ export function getTestConfiguration(
   // If A/B testing is disabled, return default configuration
   if (!webinar.enableABTesting) {
     return {
-      registrationTemplateId: null,
+      registrationPageId: null,
       scheduleIds: [],
       offerId: null,
       videoId: null,
@@ -144,8 +138,8 @@ export function getTestConfiguration(
   
   return {
     // Registration Page
-    registrationTemplateId: webinar.testRegistrationPage
-      ? (testGroup === 'A' ? webinar.regTemplateAId : webinar.regTemplateBId)
+    registrationPageId: webinar.testRegistrationPage
+      ? (testGroup === 'A' ? webinar.regPageAId : webinar.regPageBId)
       : null,
     
     // Schedule
@@ -207,8 +201,8 @@ export function validateABTestConfiguration(webinar: {
   enableABTesting: boolean;
   trafficSplitPercent: number;
   testRegistrationPage: boolean;
-  regTemplateAId: string | null;
-  regTemplateBId: string | null;
+  regPageAId: string | null;
+  regPageBId: string | null;
   testSchedule: boolean;
   scheduleAIds: string | null;
   scheduleBIds: string | null;
@@ -236,11 +230,11 @@ export function validateABTestConfiguration(webinar: {
   
   // Validate registration page test
   if (webinar.testRegistrationPage) {
-    if (!webinar.regTemplateAId || !webinar.regTemplateBId) {
-      errors.push('Both registration templates must be selected');
+    if (!webinar.regPageAId || !webinar.regPageBId) {
+      errors.push('Both registration pages must be selected');
     }
-    if (webinar.regTemplateAId === webinar.regTemplateBId) {
-      errors.push('Registration templates must be different');
+    if (webinar.regPageAId === webinar.regPageBId) {
+      errors.push('Registration pages must be different');
     }
   }
   

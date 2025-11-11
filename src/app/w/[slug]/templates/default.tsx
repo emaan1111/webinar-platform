@@ -42,7 +42,7 @@ export default function WebinarRegisterPage() {
     email: '',
     phone: '',
     gdprConsent: false,
-    privacyConsent: false,
+    privacyConsent: true,
     marketingConsent: false
   })
 
@@ -164,13 +164,14 @@ export default function WebinarRegisterPage() {
       newErrors.email = 'Please enter a valid email address'
     }
 
+    // Phone is optional, but if provided, validate it
     const phoneRegex = /^[\d\s\-\+\(\)]+$/
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required'
-    } else if (formData.phone.trim().length < 10) {
-      newErrors.phone = 'Please enter a valid phone number'
-    } else if (!phoneRegex.test(formData.phone)) {
-      newErrors.phone = 'Phone number can only contain numbers, spaces, and + - ( )'
+    if (formData.phone.trim()) {
+      if (formData.phone.trim().length < 10) {
+        newErrors.phone = 'Please enter a valid phone number'
+      } else if (!phoneRegex.test(formData.phone)) {
+        newErrors.phone = 'Phone number can only contain numbers, spaces, and + - ( )'
+      }
     }
 
     if (isEU && !formData.gdprConsent) {
@@ -218,8 +219,15 @@ export default function WebinarRegisterPage() {
         })
       })
 
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned an invalid response. Please try again.')
+      }
+
+      const data = await response.json()
+
       if (!response.ok) {
-        const data = await response.json()
         throw new Error(data.error || 'Registration failed')
       }
 

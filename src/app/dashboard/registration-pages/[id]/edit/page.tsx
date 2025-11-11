@@ -28,7 +28,7 @@ export default function EditTemplatePage() {
 
   const fetchTemplate = async () => {
     try {
-      const response = await fetch(`/api/templates/${templateId}`);
+      const response = await fetch(`/api/registration-pages/${templateId}`);
       if (response.ok) {
         const template = await response.json();
         setName(template.name);
@@ -59,7 +59,7 @@ export default function EditTemplatePage() {
     setSaving(true);
 
     try {
-      const response = await fetch(`/api/templates/${templateId}`, {
+      const response = await fetch(`/api/registration-pages/${templateId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

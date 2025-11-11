@@ -89,12 +89,6 @@ interface OfferContent {
   ctaUrl: string;
 }
 
-interface WebinarFaqItem {
-  id: string;
-  question: string;
-  answer: string;
-}
-
 interface WebinarLiveClientProps {
   webinar: WebinarData;
   offers: LiveOffer[];
@@ -102,36 +96,30 @@ interface WebinarLiveClientProps {
   reactionEvents: ReactionEvent[];
   viewer: ViewerInfo | null;
   timing: TimingMeta;
-  faqs?: WebinarFaqItem[];
 }
 
-const fallbackFaqs: WebinarFaqItem[] = [
+const defaultFaqs = [
   {
-    id: 'fallback-faq-1',
     question: 'What is included in the Motherhood Balance Program?',
     answer:
       "The program includes 8 weeks of comprehensive content covering Islamic parenting principles, self-care strategies, time management techniques, and access to our supportive community of Muslim mothers. You'll also receive downloadable resources and lifetime access to all materials.",
   },
   {
-    id: 'fallback-faq-2',
     question: 'Is this program suitable for new mothers?',
     answer:
       'Yes, absolutely! The program is designed for mothers at all stages, including new mothers. We provide specific guidance for different phases of motherhood and help you establish healthy routines from the beginning.',
   },
   {
-    id: 'fallback-faq-3',
     question: 'How much time do I need to commit each week?',
     answer:
       'We recommend 2-3 hours per week for the best results. The content is self-paced, so you can adjust according to your schedule. Many mothers complete the program while managing their regular responsibilities.',
   },
   {
-    id: 'fallback-faq-4',
     question: 'Can I access the content on my mobile device?',
     answer:
       'Yes, the program is fully mobile-responsive. You can access all content, including videos, worksheets, and community discussions, from your smartphone or tablet.',
   },
   {
-    id: 'fallback-faq-5',
     question: 'Is there a payment plan available?',
     answer:
       'Yes, we offer flexible payment plans to make the program accessible to all mothers. You can choose to pay in full for a discount or spread payments over 3 months.',
@@ -357,9 +345,7 @@ export default function WebinarLiveClient({
   reactionEvents,
   viewer,
   timing,
-  faqs = [],
 }: WebinarLiveClientProps) {
-  const faqItems = faqs.length > 0 ? faqs : fallbackFaqs;
   const [isChatOpen, setIsChatOpen] = useState(true); // Changed to true - chat visible by default
   const [isChatMinimized, setIsChatMinimized] = useState(false); // New state for mobile minimization
   const [activeTab, setActiveTab] = useState<'chat' | 'faq'>('chat');
@@ -860,10 +846,6 @@ export default function WebinarLiveClient({
   ]);
 
   useEffect(() => {
-    if (faqItems.length === 0) {
-      return;
-    }
-
     if (webinar.hasOffers === false || offersSorted.length === 0) {
       return;
     }
@@ -901,7 +883,6 @@ export default function WebinarLiveClient({
     offersSorted,
     webinar.hasOffers,
     activeOfferId,
-    faqItems.length,
   ]);
 
   const activeOffer = useMemo(() => {
@@ -1016,8 +997,9 @@ export default function WebinarLiveClient({
       }
 
       // Save reaction to database (will appear for all future viewers at this timestamp)
+      // Include registrationId for registered attendees
       try {
-        await fetch(`/api/webinars/${webinar.id}/reactions`, {
+        const response = await fetch(`/api/webinars/${webinar.id}/reactions`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1025,13 +1007,20 @@ export default function WebinarLiveClient({
           body: JSON.stringify({
             type,
             videoTimestamp: elapsedSeconds,
+            registrationId: viewer?.id, // Pass registrationId for registered attendees
           }),
         });
+
+        if (!response.ok) {
+          console.error('Failed to save reaction:', await response.text());
+        } else {
+          console.log('✅ Reaction saved:', type, 'at', elapsedSeconds);
+        }
       } catch (error) {
         console.error('Error saving reaction:', error);
       }
     },
-    [spawnReaction, viewer?.name, webinar.id, elapsedSeconds]
+    [spawnReaction, viewer, webinar.id, elapsedSeconds]
   );
 
   const handleSendMessage = useCallback(async () => {
@@ -1064,21 +1053,23 @@ export default function WebinarLiveClient({
       });
     }
 
-    // Save message to database (hidden from others until admin approves)
+    // Save message to database (will be approved for display)
     try {
-      const response = await fetch(`/api/webinars/${webinar.id}/chat/messages`, {
+      const response = await fetch(`/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
+          webinarId: webinar.id,
           message: text,
-          videoTimestamp: elapsedSeconds,
+          registrationId: viewer?.id, // Pass registrationId for registered attendees
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Chat message saved:', data);
         // Update the message with real ID from server
         setMessages((prev) => 
           prev.map((msg) => 
@@ -1086,12 +1077,12 @@ export default function WebinarLiveClient({
           )
         );
       } else {
-        console.error('Failed to save message');
+        console.error('Failed to save message:', await response.text());
       }
     } catch (error) {
       console.error('Error saving message:', error);
     }
-  }, [chatInput, elapsedSeconds, webinar.id, viewer?.name, addChatMessage]);
+  }, [chatInput, elapsedSeconds, webinar.id, viewer, addChatMessage]);
 
   const handleChatKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1575,8 +1566,8 @@ export default function WebinarLiveClient({
               </div>
             </div>
 
-            {/* Show tabs whenever FAQ content exists */}
-            {faqItems.length > 0 && (
+            {/* Only show tabs when there's an active offer with FAQ */}
+            {activeOffer && offerContent && (
               <div className={styles.chatTabs}>
                 <button
                   type="button"
@@ -1641,12 +1632,11 @@ export default function WebinarLiveClient({
                   activeTab === 'faq' ? styles.chatTabContentActive : ''
                 }`}
               >
-                {faqItems.map((faq, index) => {
+                {defaultFaqs.map((faq, index) => {
                   const isOpen = openFaqs.has(index);
-                  const key = faq.id ?? `faq-${index}`;
                   return (
                     <div
-                      key={key}
+                      key={faq.question}
                       className={`${styles.faqItem} ${
                         isOpen ? styles.faqItemActive : ''
                       }`}

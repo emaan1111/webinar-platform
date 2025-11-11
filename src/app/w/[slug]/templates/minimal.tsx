@@ -25,7 +25,7 @@ export default function MinimalTemplate({
     email: '',
     phone: '',
     gdprConsent: false,
-    privacyConsent: false,
+    privacyConsent: true,
     marketingConsent: false
   })
   const [errors, setErrors] = useState<Record<string, string>>({})

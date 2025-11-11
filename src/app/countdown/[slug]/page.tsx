@@ -25,7 +25,12 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
   if (registrationId) {
     registration = await prisma.registration.findUnique({
       where: { id: registrationId },
-      select: { id: true, scheduleId: true, registeredAt: true },
+      select: { 
+        id: true, 
+        scheduleId: true, 
+        registeredAt: true,
+        scheduledStartTime: true, // NEW: Get the stored start time
+      },
     })
     
     // Debug logging
@@ -33,6 +38,7 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
       id: registration?.id,
       scheduleId: registration?.scheduleId,
       registeredAt: registration?.registeredAt,
+      scheduledStartTime: registration?.scheduledStartTime, // NEW
     })
   }
 
@@ -58,7 +64,17 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
   
   if (explicitSchedule) {
     // Use the registered or explicitly specified schedule
-    const scheduledTime = calculateScheduleDateTime(explicitSchedule, registration, now)
+    let scheduledTime: Date
+    
+    // NEW: Use stored scheduledStartTime if available (for all schedule types)
+    if (registration?.scheduledStartTime) {
+      scheduledTime = new Date(registration.scheduledStartTime)
+      console.log('✅ Using stored scheduledStartTime:', scheduledTime.toISOString())
+    } else {
+      // Fallback to calculated time (for old registrations without scheduledStartTime)
+      scheduledTime = calculateScheduleDateTime(explicitSchedule, registration, now)
+      console.log('⚠️ Fallback - calculating scheduledTime:', scheduledTime.toISOString())
+    }
     
     console.log('Calculated schedule time:', {
       scheduledTime: scheduledTime.toISOString(),
@@ -197,9 +213,7 @@ function processCountdownPage(
     timezone.replace(/_/g, ' ')
   )
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3004'
-
+  // Use relative URLs so they work on any port during development
   // Build joinLink with registration and schedule parameters
   const joinLinkParams = new URLSearchParams()
   if (data.registrationId) {
@@ -208,11 +222,14 @@ function processCountdownPage(
   if (schedule?.id) {
     joinLinkParams.set('s', schedule.id)
   }
-  const joinLink = `${baseUrl}/room/${webinar.slug}${joinLinkParams.toString() ? '?' + joinLinkParams.toString() : ''}`
-  const registrationLink = `${baseUrl}/w/${webinar.slug}`
+  const joinLink = `/room/${webinar.slug}${joinLinkParams.toString() ? '?' + joinLinkParams.toString() : ''}`
+  const registrationLink = `/w/${webinar.slug}`
 
   processed = processed.replace(/\{\{joinLink\}\}/g, joinLink)
   processed = processed.replace(/\{\{registrationLink\}\}/g, registrationLink)
+  
+  // For websiteUrl, keep the full URL
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   
   // Process countdown page specific variables
   processed = processed.replace(/\{\{webinarStartDateTime\}\}/g, scheduleDateTime.toISOString())

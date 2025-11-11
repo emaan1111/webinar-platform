@@ -51,7 +51,7 @@ export default function EditWebinarPage() {
     hasChat: true,
     hasReactions: true,
     thumbnail: '',
-    registrationTemplateId: '',
+    registrationPageId: '',
     thankYouTemplateId: '',
     countdownPageId: '',
     registrationPopupStyle: 'center', // center, slide-up, fade, full-screen
@@ -59,8 +59,8 @@ export default function EditWebinarPage() {
     enableABTesting: false,
     trafficSplitPercent: 50,
     testRegistrationPage: false,
-    regTemplateAId: '',
-    regTemplateBId: '',
+    regPageAId: '',
+    regPageBId: '',
     testSchedule: false,
     scheduleAIds: '',
     scheduleBIds: '',
@@ -77,20 +77,20 @@ export default function EditWebinarPage() {
   const [newScheduleType, setNewScheduleType] = useState<'specific' | 'justInTime' | 'recurring'>('specific')
   const [templates, setTemplates] = useState<any[]>([])
 
-  // Load templates on mount
+  // Load registration pages on mount
   useEffect(() => {
-    async function loadTemplates() {
+    async function loadRegistrationPages() {
       try {
-        const response = await fetch('/api/templates')
+        const response = await fetch('/api/registration-pages')
         if (response.ok) {
           const data = await response.json()
           setTemplates(data)
         }
       } catch (error) {
-        console.error('Failed to load templates:', error)
+        console.error('Failed to load registration pages:', error)
       }
     }
-    loadTemplates()
+    loadRegistrationPages()
   }, [])
 
   // Common timezones list
@@ -150,7 +150,7 @@ export default function EditWebinarPage() {
         hasChat: webinar.hasChat !== undefined ? webinar.hasChat : true,
         hasReactions: webinar.hasReactions !== undefined ? webinar.hasReactions : true,
         thumbnail: webinar.thumbnail || '',
-        registrationTemplateId: webinar.registrationTemplateId || '',
+        registrationPageId: webinar.registrationPageId || '',
         thankYouTemplateId: webinar.thankYouTemplateId || '',
         countdownPageId: webinar.countdownPageId || '',
         registrationPopupStyle: webinar.registrationPopupStyle || 'center',
@@ -158,8 +158,8 @@ export default function EditWebinarPage() {
         enableABTesting: webinar.enableABTesting || false,
         trafficSplitPercent: webinar.trafficSplitPercent || 50,
         testRegistrationPage: webinar.testRegistrationPage || false,
-        regTemplateAId: webinar.regTemplateAId || '',
-        regTemplateBId: webinar.regTemplateBId || '',
+        regPageAId: webinar.regPageAId || '',
+        regPageBId: webinar.regPageBId || '',
         testSchedule: webinar.testSchedule || false,
         scheduleAIds: webinar.scheduleAIds || '',
         scheduleBIds: webinar.scheduleBIds || '',
@@ -311,7 +311,7 @@ export default function EditWebinarPage() {
       
       const payload = {
         ...formDataWithoutSlug,
-        registrationTemplateId: formData.registrationTemplateId || null,
+        registrationPageId: formData.registrationPageId || null,
         thankYouTemplateId: formData.thankYouTemplateId || null,
         countdownPageId: formData.countdownPageId || null,
         vimeoVideoId: formData.vimeoVideoId || null,
@@ -323,8 +323,8 @@ export default function EditWebinarPage() {
         enableABTesting: formData.enableABTesting,
         trafficSplitPercent: formData.trafficSplitPercent,
         testRegistrationPage: formData.testRegistrationPage,
-        regTemplateAId: formData.regTemplateAId || null,
-        regTemplateBId: formData.regTemplateBId || null,
+        regPageAId: formData.regPageAId || null,
+        regPageBId: formData.regPageBId || null,
         testSchedule: formData.testSchedule,
         scheduleAIds: formData.scheduleAIds || null,
         scheduleBIds: formData.scheduleBIds || null,
@@ -581,19 +581,19 @@ export default function EditWebinarPage() {
                   )}
                 </div>
 
-                {/* Registration Page Template */}
+                {/* Registration Page */}
                 <div>
-                  <label htmlFor="registrationTemplateId" className="block text-sm font-medium text-gray-700 mb-1">
-                    Registration Page Template
+                  <label htmlFor="registrationPageId" className="block text-sm font-medium text-gray-700 mb-1">
+                    Registration Page
                   </label>
                   <select
-                    id="registrationTemplateId"
-                    name="registrationTemplateId"
-                    value={formData.registrationTemplateId}
+                    id="registrationPageId"
+                    name="registrationPageId"
+                    value={formData.registrationPageId}
                     onChange={handleInputChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   >
-                    <option value="">No template (use default)</option>
+                    <option value="">No registration page (use default)</option>
                     {templates.map((template) => (
                       <option key={template.id} value={template.id}>
                         {template.name} {template.isSystem && '(System)'}
@@ -601,20 +601,20 @@ export default function EditWebinarPage() {
                     ))}
                   </select>
                   <p className="mt-1 text-xs text-gray-500">
-                    {templates.length === 0 && 'No templates found. '}
-                    <Link href="/dashboard/templates" className="text-blue-600 hover:text-blue-700 underline">
-                      Manage templates
+                    {templates.length === 0 && 'No registration pages found. '}
+                    <Link href="/dashboard/registration-pages" className="text-blue-600 hover:text-blue-700 underline">
+                      Manage registration pages
                     </Link>
                     {' '}to customize your registration page design.
-                    {formData.registrationTemplateId && (
+                    {formData.registrationPageId && (
                       <span>
                         {' '}•{' '}
                         <button
                           type="button"
-                          onClick={() => window.open(`/api/templates/${formData.registrationTemplateId}/preview`, '_blank')}
+                          onClick={() => window.open(`/api/registration-pages/${formData.registrationPageId}/preview`, '_blank')}
                           className="text-blue-600 hover:text-blue-700 underline"
                         >
-                          Preview template
+                          Preview page
                         </button>
                       </span>
                     )}
@@ -732,13 +732,13 @@ export default function EditWebinarPage() {
             </CardHeader>
             <CardBody>
               <div>
-                <label htmlFor="registrationTemplateId" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="registrationPageId" className="block text-sm font-medium text-gray-700 mb-1">
                   Page Design
                 </label>
                 <select
-                  id="registrationTemplateId"
-                  name="registrationTemplateId"
-                  value={formData.registrationTemplateId}
+                  id="registrationPageId"
+                  name="registrationPageId"
+                  value={formData.registrationPageId}
                   onChange={handleInputChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
@@ -752,10 +752,10 @@ export default function EditWebinarPage() {
                 <p className="mt-2 text-xs text-gray-500">
                   💡 Use the default design for reliability, or select a custom registration page design.
                 </p>
-                {formData.registrationTemplateId && (
+                {formData.registrationPageId && (
                   <button
                     type="button"
-                    onClick={() => window.open(`/api/templates/${formData.registrationTemplateId}/preview`, '_blank')}
+                    onClick={() => window.open(`/api/registration-pages/${formData.registrationPageId}/preview`, '_blank')}
                     className="mt-2 text-sm text-purple-600 hover:text-purple-700"
                   >
                     Preview Design →
@@ -1135,8 +1135,8 @@ export default function EditWebinarPage() {
               enableABTesting: formData.enableABTesting,
               trafficSplitPercent: formData.trafficSplitPercent,
               testRegistrationPage: formData.testRegistrationPage,
-              regTemplateAId: formData.regTemplateAId,
-              regTemplateBId: formData.regTemplateBId,
+              regPageAId: formData.regPageAId,
+              regPageBId: formData.regPageBId,
               testSchedule: formData.testSchedule,
               scheduleAIds: formData.scheduleAIds,
               scheduleBIds: formData.scheduleBIds,

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Gift, Clock, CheckCircle, X, AlertCircle, Globe } from 'lucide-react'
+import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker'
 
 interface Schedule {
   id: string
@@ -28,17 +29,36 @@ interface Webinar {
   testGroup?: 'A' | 'B' | null
 }
 
-interface Template {
+interface RegistrationPage {
   id: string
   name: string
   htmlCode: string
-  popupStyle?: string
-  popupTheme?: string
+  collectPhone?: boolean
+  collectCompany?: boolean
+  collectCustom1?: boolean
+  customField1Label?: string | null
+  collectCustom2?: boolean
+  customField2Label?: string | null
+  showHostInfo?: boolean
+  showBenefits?: boolean
+  showTestimonials?: boolean
+  showCountdown?: boolean
+  showSocialProof?: boolean
+  showVideo?: boolean
+  videoUrl?: string | null
+  videoTitle?: string | null
+  videoAutoplay?: boolean
+  primaryColor?: string | null
+  secondaryColor?: string | null
+  backgroundColor?: string | null
+  textColor?: string | null
+  ctaButtonText?: string | null
+  ctaButtonStyle?: string | null
 }
 
 interface WebinarRegisterPageProps {
   webinarData: Webinar
-  registrationTemplate?: Template | null
+  registrationPage?: RegistrationPage | null
 }
 
 // Popup Theme Configurations
@@ -93,7 +113,7 @@ const popupThemes = {
   },
 }
 
-export default function WebinarRegisterPage({ webinarData, registrationTemplate }: WebinarRegisterPageProps) {
+export default function WebinarRegisterPage({ webinarData, registrationPage }: WebinarRegisterPageProps) {
   const [webinar, setWebinar] = useState<Webinar | null>(webinarData)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
@@ -106,13 +126,14 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
   const [registering, setRegistering] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showTimezoneSelector, setShowTimezoneSelector] = useState(false)
   
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     countryCode: '+1',
-    privacyConsent: false
+    privacyConsent: true
   })
 
   // Country codes for phone validation
@@ -156,6 +177,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
     { value: 'Europe/Moscow', label: 'Moscow' },
     { value: 'Asia/Dubai', label: 'Dubai' },
     { value: 'Asia/Kolkata', label: 'India' },
+    { value: 'Asia/Calcutta', label: 'India' }, // Alias for Kolkata
     { value: 'Asia/Shanghai', label: 'China' },
     { value: 'Asia/Tokyo', label: 'Tokyo' },
     { value: 'Asia/Singapore', label: 'Singapore' },
@@ -163,6 +185,16 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
     { value: 'Pacific/Auckland', label: 'New Zealand' },
     { value: 'UTC', label: 'UTC' },
   ]
+
+  // Helper function to get friendly timezone name
+  const getTimezoneFriendlyName = (timezoneValue: string): string => {
+    const timezone = timezones.find(tz => tz.value === timezoneValue)
+    if (timezone) {
+      return timezone.label
+    }
+    // Fallback: parse the timezone value
+    return timezoneValue.split('/').pop()?.replace(/_/g, ' ') || timezoneValue
+  }
 
   useEffect(() => {
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
@@ -229,7 +261,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
       delete (window as any).openModal;
       delete (window as any).openRegistrationModal;
     }
-  }, [webinar, registrationTemplate])
+  }, [webinar, registrationPage])
 
   // Set loading to false since data is passed as props
   useEffect(() => {
@@ -238,7 +270,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
 
   // Setup button listeners for custom template (runs after DOM is rendered)
   useEffect(() => {
-    if (!registrationTemplate || registered) return
+    if (!registrationPage || registered) return
     
     console.log('🔧 Setting up button listeners for custom template')
     console.log('🔍 Waiting for DOM to render...')
@@ -304,7 +336,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
     }, 500) // Increased delay to ensure template is rendered
     
     return () => clearTimeout(timer)
-  }, [registrationTemplate, registered, webinar])
+  }, [registrationPage, registered, webinar])
 
   // Generate multiple upcoming time slots for recurring schedules
   const generateRecurringSlots = (schedule: Schedule, count: number = 5) => {
@@ -387,8 +419,8 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
       let currentDate = new Date(now)
       let slotsGenerated = 0
       
-      // Look ahead up to 8 weeks to find enough slots
-      for (let week = 0; week < 8 && slotsGenerated < count; week++) {
+      // Look ahead up to 20 weeks to find enough slots (supports up to 20 occurrences)
+      for (let week = 0; week < 20 && slotsGenerated < count; week++) {
         for (const targetDay of targetDays) {
           if (slotsGenerated >= count) break
           
@@ -435,17 +467,23 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
   const formatScheduleTime = (schedule: Schedule, slotTime?: Date) => {
     const tz = selectedTimezone || userTimezone
     
+    // Get friendly timezone name
+    const tzFriendly = getTimezoneFriendlyName(tz)
+    
     // If a specific slot time is provided, format that
     if (slotTime) {
-      return slotTime.toLocaleString('en-US', {
+      const dateStr = slotTime.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
+        timeZone: tz
+      })
+      const timeStr = slotTime.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        timeZone: tz,
-        timeZoneName: 'short'
+        timeZone: tz
       })
+      return `${dateStr}, ${timeStr} • ${tzFriendly}`
     }
     
     if (schedule.scheduleType === 'justInTime') {
@@ -453,15 +491,18 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
       const futureTime = new Date()
       futureTime.setMinutes(futureTime.getMinutes() + (schedule.minutesFromReg || 0))
       
-      return futureTime.toLocaleString('en-US', {
+      const dateStr = futureTime.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
+        timeZone: tz
+      })
+      const timeStr = futureTime.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        timeZone: tz,
-        timeZoneName: 'short'
+        timeZone: tz
       })
+      return `${dateStr}, ${timeStr} • ${tzFriendly}`
     }
     
     if (schedule.scheduleType === 'recurring') {
@@ -503,29 +544,34 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
         nextDate.setHours(hours, minutes, 0, 0)
       }
       
-      return nextDate.toLocaleString('en-US', {
+      const dateStr = nextDate.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
+        timeZone: tz
+      })
+      const timeStr = nextDate.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        timeZone: tz,
-        timeZoneName: 'short'
+        timeZone: tz
       })
+      return `${dateStr}, ${timeStr} • ${tzFriendly}`
     }
     
     if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
       const date = new Date(schedule.scheduledAt)
-      return date.toLocaleString('en-US', {
+      const dateStr = date.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
-        year: 'numeric',
+        timeZone: tz
+      })
+      const timeStr = date.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
-        timeZone: tz,
-        timeZoneName: 'short'
+        timeZone: tz
       })
+      return `${dateStr}, ${timeStr} • ${tzFriendly}`
     }
     
     return 'Schedule to be determined'
@@ -545,14 +591,14 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
       newErrors.email = 'Please enter a valid email address'
     }
 
-    // Phone validation based on country code
+    // Phone is optional, but if provided, validate it based on country code
     const selectedCountry = countryCodes.find(c => c.code === formData.countryCode)
-    if (!formData.phone.trim()) {
-      newErrors.phone = 'Phone number is required'
-    } else if (selectedCountry && !selectedCountry.pattern.test(formData.phone.replace(/[\s\-]/g, ''))) {
-      newErrors.phone = `Please enter a valid ${selectedCountry.country} phone number`
-    } else if (!/^\d[\d\s\-]*\d$/.test(formData.phone.trim())) {
-      newErrors.phone = 'Phone number can only contain digits, spaces, and hyphens'
+    if (formData.phone.trim()) {
+      if (selectedCountry && !selectedCountry.pattern.test(formData.phone.replace(/[\s\-]/g, ''))) {
+        newErrors.phone = `Please enter a valid ${selectedCountry.country} phone number`
+      } else if (!/^\d[\d\s\-]*\d$/.test(formData.phone.trim())) {
+        newErrors.phone = 'Phone number can only contain digits, spaces, and hyphens'
+      }
     }
 
     if (!formData.privacyConsent) {
@@ -575,9 +621,10 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
     setRegistering(true)
 
     try {
-      // For recurring schedules with slot selection, extract the base schedule ID and datetime
+      // Calculate the exact start time for this registration
       let scheduleId = selectedSchedule!.id
       let selectedDateTime = selectedSchedule!.scheduledAt
+      let scheduledStartTime: string | null = null
       
       // Check if this is a generated slot (contains "-slot-")
       if (scheduleId.includes('-slot-') && webinar) {
@@ -587,15 +634,29 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
         if (baseSchedule && baseSchedule.scheduleType === 'recurring') {
           // Find the slot to get the exact datetime
           const maxSlots = webinar.maxSchedulesToShow || 5
-          const slots = generateRecurringSlots(baseSchedule, maxSlots)
+          const slots = generateRecurringSlots(baseSchedule, maxSlots * 2)
           const selectedSlot = slots.find(s => s.id === scheduleId)
           
           if (selectedSlot) {
             scheduleId = baseScheduleId
             selectedDateTime = selectedSlot.time.toISOString()
+            scheduledStartTime = selectedSlot.time.toISOString() // Store the exact slot time
           }
         }
+      } else if (selectedSchedule!.scheduleType === 'specific') {
+        // Specific schedule - use the scheduled time
+        scheduledStartTime = selectedSchedule!.scheduledAt
+      } else if (selectedSchedule!.scheduleType === 'justInTime') {
+        // Just-in-time - calculate from now
+        const minutesFromReg = selectedSchedule!.minutesFromReg || 5
+        scheduledStartTime = new Date(Date.now() + minutesFromReg * 60000).toISOString()
       }
+      
+      console.log('📅 Registration - Calculated scheduledStartTime:', {
+        scheduleType: selectedSchedule!.scheduleType,
+        scheduleId,
+        scheduledStartTime,
+      })
       
       const response = await fetch(`/api/webinars/${webinar!.id}/register`, {
         method: 'POST',
@@ -606,11 +667,18 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
           phone: `${formData.countryCode} ${formData.phone.trim()}`,
           scheduleId: scheduleId,
           selectedDateTime: selectedDateTime, // For recurring schedules with specific time slot
+          scheduledStartTime: scheduledStartTime, // NEW: The exact start time for this user's session
           timezone: selectedTimezone,
           privacyConsent: formData.privacyConsent,
           country: userCountry
         })
       })
+
+      // Validate content-type before parsing JSON
+      const contentType = response.headers.get('content-type')
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Server returned an invalid response. Please try again.')
+      }
 
       if (!response.ok) {
         const data = await response.json()
@@ -670,12 +738,16 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
   }
 
   // If custom template is provided, render it with registration functionality
-  if (registrationTemplate && !registered) {
-    console.log('✅ Custom template detected:', registrationTemplate.name)
-    console.log('🔍 Template ID:', registrationTemplate.id)
+  if (registrationPage && !registered) {
+    console.log('✅ Custom template detected:', registrationPage.name)
+    console.log('🔍 Template ID:', registrationPage.id)
+    
+    // Track registration page visit
+    const pageId = registrationPage.id
+    const variantGroup = webinar.testGroup || null
     
     // Replace template variables with actual data
-    let templateHtml = registrationTemplate.htmlCode
+    let templateHtml = registrationPage.htmlCode
     console.log('📝 Template HTML length:', templateHtml.length)
     
     // Remove script tags that might interfere with our button handlers
@@ -706,6 +778,14 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
     
     return (
       <div className="custom-template-container">
+        {/* Track registration page visit */}
+        <RegistrationPageTracker
+          webinarId={webinar.id}
+          pageId={pageId}
+          variant={variantGroup}
+          templateName={registrationPage.name}
+        />
+        
         <div dangerouslySetInnerHTML={{ __html: templateHtml }} />
         
         {/* Registration Modal */}
@@ -758,12 +838,6 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                 <div className="overflow-y-auto max-h-[calc(90vh-140px)] px-8 py-6 space-y-5 bg-gradient-to-b from-gray-50 to-white">
                   {/* Name Field */}
                   <div>
-                    <label htmlFor="name" className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                      </svg>
-                      Full Name <span className="text-red-500">*</span>
-                    </label>
                     <input
                       type="text"
                       id="name"
@@ -772,7 +846,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                       className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium ${
                         errors.name ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                       }`}
-                      placeholder="John Doe"
+                      placeholder="Enter your full name *"
                     />
                     {errors.name && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
@@ -784,13 +858,6 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
 
                   {/* Email Field */}
                   <div>
-                    <label htmlFor="email" className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
-                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
-                      </svg>
-                      Email Address <span className="text-red-500">*</span>
-                    </label>
                     <input
                       type="email"
                       id="email"
@@ -799,7 +866,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                       className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium ${
                         errors.email ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                       }`}
-                      placeholder="john@example.com"
+                      placeholder="Enter your email address *"
                     />
                     {errors.email && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
@@ -811,12 +878,6 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
 
                   {/* Phone Field */}
                   <div>
-                    <label htmlFor="phone" className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                      <svg className="w-4 h-4 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z" />
-                      </svg>
-                      Phone Number <span className="text-red-500">*</span>
-                    </label>
                     <div className="flex gap-2">
                       <select
                         value={formData.countryCode}
@@ -841,7 +902,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                         className={`flex-1 px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium ${
                           errors.phone ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                         }`}
-                        placeholder={formData.countryCode === '+1' ? '555 123 4567' : 'Enter phone number'}
+                        placeholder={formData.countryCode === '+1' ? 'Phone number (optional)' : 'Phone number (optional)'}
                       />
                     </div>
                     {errors.phone && (
@@ -850,32 +911,6 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                         {errors.phone}
                       </p>
                     )}
-                  </div>
-
-                  {/* Timezone Selector */}
-                  <div>
-                    <label htmlFor="timezone-custom" className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-gray-600" />
-                      Timezone <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="timezone-custom"
-                      value={selectedTimezone}
-                      onChange={(e) => setSelectedTimezone(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium hover:border-gray-300 bg-white"
-                    >
-                      {timezones.map((tz) => (
-                        <option key={tz.value} value={tz.value}>
-                          {tz.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1.5 text-xs text-gray-500 flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                      </svg>
-                      Times shown in {selectedTimezone.split('/').pop()?.replace(/_/g, ' ')}
-                    </p>
                   </div>
 
                   {/* Schedule Dropdown Selection */}
@@ -907,39 +942,123 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                       } bg-white`}
                     >
                       <option value="">Choose your preferred time...</option>
-                      {webinar.schedules.map((schedule) => {
-                        console.log('🔍 Processing schedule:', {
-                          id: schedule.id,
-                          type: schedule.scheduleType,
-                          maxSlots: webinar.maxSchedulesToShow
+                      {(() => {
+                        const maxSchedulesToShow = webinar.maxSchedulesToShow || 5
+                        
+                        console.log('🎬 Starting schedule generation:', {
+                          totalSchedules: webinar.schedules.length,
+                          maxToShow: maxSchedulesToShow
                         })
                         
-                        if (schedule.scheduleType === 'recurring') {
-                          // Generate multiple slots for recurring schedules
-                          const maxSlots = webinar.maxSchedulesToShow || 5
-                          const slots = generateRecurringSlots(schedule, maxSlots)
-                          console.log(`📅 Generated ${slots.length} slots for recurring schedule:`, slots)
-                          return slots.map((slot) => (
-                            <option key={slot.id} value={slot.id}>
-                              {formatScheduleTime(schedule, slot.time)} • {webinar.duration} min
-                            </option>
-                          ))
-                        } else {
-                          // Just-in-time and specific schedules show once
-                          console.log('⏰ Non-recurring schedule, showing once')
-                          return (
-                            <option key={schedule.id} value={schedule.id}>
-                              {formatScheduleTime(schedule)} • {webinar.duration} min
-                            </option>
-                          )
+                        // Collect all time slots with their dates for sorting
+                        interface TimeSlot {
+                          id: string
+                          time: Date
+                          schedule: Schedule
+                          isRecurring: boolean
                         }
-                      })}
+                        
+                        const allTimeSlots: TimeSlot[] = []
+                        
+                        // STEP 1: Add specific and just-in-time schedules
+                        webinar.schedules.forEach((schedule) => {
+                          if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
+                            allTimeSlots.push({
+                              id: schedule.id,
+                              time: new Date(schedule.scheduledAt),
+                              schedule,
+                              isRecurring: false
+                            })
+                          } else if (schedule.scheduleType === 'justInTime') {
+                            // JIT gets current time (will be sorted first)
+                            allTimeSlots.push({
+                              id: schedule.id,
+                              time: new Date(),
+                              schedule,
+                              isRecurring: false
+                            })
+                          }
+                        })
+                        
+                        // STEP 2: Generate slots from ALL recurring schedules (generate more than needed)
+                        const recurringSchedules = webinar.schedules.filter(s => s.scheduleType === 'recurring')
+                        recurringSchedules.forEach((schedule) => {
+                          // Generate plenty of slots (we'll sort and limit later)
+                          const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 2)
+                          slots.forEach((slot) => {
+                            allTimeSlots.push({
+                              id: slot.id,
+                              time: slot.time,
+                              schedule,
+                              isRecurring: true
+                            })
+                          })
+                        })
+                        
+                        console.log(`📊 Total slots collected: ${allTimeSlots.length}`)
+                        
+                        // STEP 3: Sort all slots by time (earliest first)
+                        allTimeSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
+                        
+                        // STEP 4: Take the first N slots and convert to options
+                        const finalSlots = allTimeSlots.slice(0, maxSchedulesToShow)
+                        const allScheduleOptions = finalSlots.map((slot) => (
+                          <option key={slot.id} value={slot.id}>
+                            {slot.isRecurring 
+                              ? formatScheduleTime(slot.schedule, slot.time)
+                              : formatScheduleTime(slot.schedule)
+                            } • {webinar.duration} min
+                          </option>
+                        ))
+                        
+                        console.log(`✅✅✅ FINAL: ${allScheduleOptions.length} options (max: ${maxSchedulesToShow})`)
+                        return allScheduleOptions
+                      })()}
                     </select>
                     {errors.schedule && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                         <AlertCircle className="w-4 h-4" />
                         {errors.schedule}
                       </p>
+                    )}
+                    
+                    {/* Timezone Info with Change Link */}
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-600 flex items-center gap-1">
+                        <Globe className="w-3 h-3" />
+                        Times shown in {getTimezoneFriendlyName(selectedTimezone)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowTimezoneSelector(!showTimezoneSelector)}
+                        className="text-xs text-purple-600 hover:text-purple-700 font-semibold underline"
+                      >
+                        Change
+                      </button>
+                    </div>
+
+                    {/* Collapsible Timezone Selector */}
+                    {showTimezoneSelector && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <label htmlFor="timezone-custom" className="block text-xs font-semibold text-gray-700 mb-2">
+                          Select Your Timezone
+                        </label>
+                        <select
+                          id="timezone-custom"
+                          value={selectedTimezone}
+                          onChange={(e) => {
+                            setSelectedTimezone(e.target.value)
+                            setShowTimezoneSelector(false)
+                          }}
+                          className="w-full px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white"
+                        >
+                          {timezones.map((tz) => (
+                            <option key={tz.value} value={tz.value}>
+                              {tz.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     )}
                   </div>
 
@@ -1040,6 +1159,14 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
 
   return (
     <>
+      {/* Track registration page visit for default template */}
+      <RegistrationPageTracker
+        webinarId={webinar.id}
+        pageId={null}
+        variant={webinar.testGroup || null}
+        templateName="Default Template"
+      />
+      
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
         body {
@@ -1341,7 +1468,8 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
 
         {/* Registration Modal */}
         {showScheduleModal && (() => {
-          const theme = popupThemes[registrationTemplate?.popupTheme as keyof typeof popupThemes] || popupThemes.purple;
+          // Use default purple theme for all registration modals
+          const theme = popupThemes.purple;
           
           return (
           <div className="fixed inset-0 z-50 overflow-y-auto backdrop-blur-md">
@@ -1351,7 +1479,7 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                 onClick={() => setShowScheduleModal(false)}
               ></div>
               
-              <div className={`relative bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden modal-${registrationTemplate?.popupStyle || 'center'} border-4 border-white/20`} style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
+              <div className="relative bg-white rounded-3xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden modal-center border-4 border-white/20" style={{ boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)' }}>
                 {/* Compact Header with gradient background */}
                 <div className={`${theme.headerBg} px-8 py-4 relative overflow-hidden`}>
                   {/* Decorative elements */}
@@ -1499,32 +1627,6 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                     )}
                   </div>
 
-                  {/* Timezone Selector */}
-                  <div>
-                    <label htmlFor="timezone" className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
-                      <Globe className="w-4 h-4 text-gray-600" />
-                      Timezone <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      id="timezone"
-                      value={selectedTimezone}
-                      onChange={(e) => setSelectedTimezone(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium hover:border-gray-300 bg-white"
-                    >
-                      {timezones.map((tz) => (
-                        <option key={tz.value} value={tz.value}>
-                          {tz.label}
-                        </option>
-                      ))}
-                    </select>
-                    <p className="mt-1.5 text-xs text-gray-500 flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                      </svg>
-                      Times shown in {selectedTimezone.split('/').pop()?.replace(/_/g, ' ')}
-                    </p>
-                  </div>
-
                   {/* Schedule Dropdown Selection */}
                   <div>
                     <label htmlFor="schedule" className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
@@ -1554,39 +1656,123 @@ export default function WebinarRegisterPage({ webinarData, registrationTemplate 
                       } bg-white`}
                     >
                       <option value="">Choose your preferred time...</option>
-                      {webinar.schedules.map((schedule) => {
-                        console.log('🔍 Template modal - Processing schedule:', {
-                          id: schedule.id,
-                          type: schedule.scheduleType,
-                          maxSlots: webinar.maxSchedulesToShow
+                      {(() => {
+                        const maxSchedulesToShow = webinar.maxSchedulesToShow || 5
+                        
+                        console.log('🎬 Template modal - Starting schedule generation:', {
+                          totalSchedules: webinar.schedules.length,
+                          maxToShow: maxSchedulesToShow
                         })
                         
-                        if (schedule.scheduleType === 'recurring') {
-                          // Generate multiple slots for recurring schedules
-                          const maxSlots = webinar.maxSchedulesToShow || 5
-                          const slots = generateRecurringSlots(schedule, maxSlots)
-                          console.log(`📅 Template modal - Generated ${slots.length} slots for recurring schedule:`, slots)
-                          return slots.map((slot) => (
-                            <option key={slot.id} value={slot.id}>
-                              {formatScheduleTime(schedule, slot.time)} • {webinar.duration} min
-                            </option>
-                          ))
-                        } else {
-                          // Just-in-time and specific schedules show once
-                          console.log('⏰ Template modal - Non-recurring schedule, showing once')
-                          return (
-                            <option key={schedule.id} value={schedule.id}>
-                              {formatScheduleTime(schedule)} • {webinar.duration} min
-                            </option>
-                          )
+                        // Collect all time slots with their dates for sorting
+                        interface TimeSlot {
+                          id: string
+                          time: Date
+                          schedule: Schedule
+                          isRecurring: boolean
                         }
-                      })}
+                        
+                        const allTimeSlots: TimeSlot[] = []
+                        
+                        // STEP 1: Add specific and just-in-time schedules
+                        webinar.schedules.forEach((schedule) => {
+                          if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
+                            allTimeSlots.push({
+                              id: schedule.id,
+                              time: new Date(schedule.scheduledAt),
+                              schedule,
+                              isRecurring: false
+                            })
+                          } else if (schedule.scheduleType === 'justInTime') {
+                            // JIT gets current time (will be sorted first)
+                            allTimeSlots.push({
+                              id: schedule.id,
+                              time: new Date(),
+                              schedule,
+                              isRecurring: false
+                            })
+                          }
+                        })
+                        
+                        // STEP 2: Generate slots from ALL recurring schedules (generate more than needed)
+                        const recurringSchedules = webinar.schedules.filter(s => s.scheduleType === 'recurring')
+                        recurringSchedules.forEach((schedule) => {
+                          // Generate plenty of slots (we'll sort and limit later)
+                          const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 2)
+                          slots.forEach((slot) => {
+                            allTimeSlots.push({
+                              id: slot.id,
+                              time: slot.time,
+                              schedule,
+                              isRecurring: true
+                            })
+                          })
+                        })
+                        
+                        console.log(`📊 Template modal - Total slots collected: ${allTimeSlots.length}`)
+                        
+                        // STEP 3: Sort all slots by time (earliest first)
+                        allTimeSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
+                        
+                        // STEP 4: Take the first N slots and convert to options
+                        const finalSlots = allTimeSlots.slice(0, maxSchedulesToShow)
+                        const allScheduleOptions = finalSlots.map((slot) => (
+                          <option key={slot.id} value={slot.id}>
+                            {slot.isRecurring 
+                              ? formatScheduleTime(slot.schedule, slot.time)
+                              : formatScheduleTime(slot.schedule)
+                            } • {webinar.duration} min
+                          </option>
+                        ))
+                        
+                        console.log(`✅✅✅ Template modal - FINAL: ${allScheduleOptions.length} options (max: ${maxSchedulesToShow})`)
+                        return allScheduleOptions
+                      })()}
                     </select>
                     {errors.schedule && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                         <AlertCircle className="w-4 h-4" />
                         {errors.schedule}
                       </p>
+                    )}
+                    
+                    {/* Timezone Info with Change Link */}
+                    <div className="mt-2 flex items-center justify-between">
+                      <p className="text-xs text-gray-600 flex items-center gap-1">
+                        <Globe className="w-3 h-3" />
+                        Times shown in {getTimezoneFriendlyName(selectedTimezone)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowTimezoneSelector(!showTimezoneSelector)}
+                        className="text-xs text-purple-600 hover:text-purple-700 font-semibold underline"
+                      >
+                        Change
+                      </button>
+                    </div>
+
+                    {/* Collapsible Timezone Selector */}
+                    {showTimezoneSelector && (
+                      <div className="mt-3 p-3 bg-gray-50 rounded-lg border border-gray-200">
+                        <label htmlFor="timezone-selector" className="block text-xs font-semibold text-gray-700 mb-2">
+                          Select Your Timezone
+                        </label>
+                        <select
+                          id="timezone-selector"
+                          value={selectedTimezone}
+                          onChange={(e) => {
+                            setSelectedTimezone(e.target.value)
+                            setShowTimezoneSelector(false)
+                          }}
+                          className="w-full px-3 py-2 text-sm border-2 border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all bg-white"
+                        >
+                          {timezones.map((tz) => (
+                            <option key={tz.value} value={tz.value}>
+                              {tz.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     )}
                   </div>
 

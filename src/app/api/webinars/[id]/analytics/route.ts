@@ -136,6 +136,63 @@ export async function GET(
       thankYou: calculateAvgTime(pageVisits.filter((p) => p.pageType === 'thank_you')),
     };
 
+    // Registration page breakdown (per page)
+    const registrationVisits = pageVisits.filter((p) => p.pageType === 'registration');
+    const registrationPageBreakdown: Record<string, { 
+      views: number; 
+      uniqueVisitors: number; 
+      pageId: string | null;
+      variantGroup: string | null;
+    }> = {};
+
+    registrationVisits.forEach((visit: any) => {
+      const key = visit.pageId || 'default';
+      if (!registrationPageBreakdown[key]) {
+        registrationPageBreakdown[key] = {
+          views: 0,
+          uniqueVisitors: 0,
+          pageId: visit.pageId,
+          variantGroup: visit.variantGroup,
+        };
+      }
+      registrationPageBreakdown[key].views++;
+    });
+
+    // Count unique visitors per page
+    for (const key in registrationPageBreakdown) {
+      const pageVisitsFiltered = registrationVisits.filter(
+        (v: any) => (v.pageId || 'default') === key
+      );
+      const uniqueVisitors = new Set(pageVisitsFiltered.map((v: any) => v.visitorId)).size;
+      registrationPageBreakdown[key].uniqueVisitors = uniqueVisitors;
+    }
+
+    // Fetch page names for better display
+    const pageIds = Object.values(registrationPageBreakdown)
+      .map((b) => b.pageId)
+      .filter((id): id is string => id !== null);
+
+    const pages = pageIds.length > 0
+      ? await prisma.template.findMany({
+          where: { id: { in: pageIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+
+    const pageMap = new Map(pages.map((t) => [t.id, t.name]));
+
+    // Format registration page stats
+    const registrationPages = Object.entries(registrationPageBreakdown).map(([key, data]) => ({
+      pageId: data.pageId,
+      pageName: data.pageId ? (pageMap.get(data.pageId) || 'Unknown Page') : 'Default',
+      variantGroup: data.variantGroup,
+      views: data.views,
+      uniqueViews: data.uniqueVisitors,
+      avgTimeOnPage: calculateAvgTime(
+        registrationVisits.filter((v: any) => (v.pageId || 'default') === key)
+      ),
+    }));
+
     return NextResponse.json({
       success: true,
       analytics: {
@@ -189,6 +246,7 @@ export async function GET(
           webinarPageVisits,
           thankYouPageVisits,
           avgTimeOnPages,
+          registrationPages, // Breakdown by template/variant
         },
       },
     });

@@ -82,10 +82,10 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
 
   // Fetch templates
   useEffect(() => {
-    fetch('/api/templates')
+    fetch('/api/registration-pages')
       .then(res => res.json())
-      .then(data => setTemplates(data.templates || []))
-      .catch(err => console.error('Failed to fetch templates:', err))
+      .then(data => setTemplates(data || []))
+      .catch(err => console.error('Failed to fetch registration pages:', err))
   }, [])
 
   // Fetch schedules if editing
@@ -134,10 +134,10 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
     // Validate registration page test
     if (config.testRegistrationPage) {
       if (!config.regTemplateAId || !config.regTemplateBId) {
-        errors.push('Registration: Select both Template A and Template B')
+        errors.push('Registration: Select both Page A and Page B')
       }
       if (config.regTemplateAId === config.regTemplateBId) {
-        errors.push('Registration: Templates must be different')
+        errors.push('Registration: Pages must be different')
       }
     }
 
@@ -332,14 +332,14 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
                     <div className="grid grid-cols-2 gap-4 pl-8">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Template A <span className="text-red-500">*</span>
+                          Page A <span className="text-red-500">*</span>
                         </label>
                         <select
                           value={config.regTemplateAId}
                           onChange={(e) => updateConfig({ regTemplateAId: e.target.value })}
                           className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="">Select template...</option>
+                          <option value="">Select page...</option>
                           {templates.map(template => (
                             <option key={template.id} value={template.id}>
                               {template.name}
@@ -349,14 +349,14 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Template B <span className="text-red-500">*</span>
+                          Page B <span className="text-red-500">*</span>
                         </label>
                         <select
                           value={config.regTemplateBId}
                           onChange={(e) => updateConfig({ regTemplateBId: e.target.value })}
                           className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
-                          <option value="">Select template...</option>
+                          <option value="">Select page...</option>
                           {templates.map(template => (
                             <option key={template.id} value={template.id}>
                               {template.name}

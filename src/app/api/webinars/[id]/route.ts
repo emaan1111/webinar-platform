@@ -60,7 +60,23 @@ export async function PATCH(
 
     const body = await request.json()
     console.log('Received webinar update request for:', params.id, body)
-    console.log('🔍 Template ID in update request:', body.registrationTemplateId)
+    
+    // Map old field names to new ones for backwards compatibility
+    if (body.registrationTemplateId !== undefined) {
+      body.registrationPageId = body.registrationTemplateId
+      delete body.registrationTemplateId
+      console.log('🔄 Mapped registrationTemplateId to registrationPageId:', body.registrationPageId)
+    }
+    
+    // Map A/B testing template fields to page fields
+    if (body.regTemplateAId !== undefined) {
+      body.regPageAId = body.regTemplateAId
+      delete body.regTemplateAId
+    }
+    if (body.regTemplateBId !== undefined) {
+      body.regPageBId = body.regTemplateBId
+      delete body.regTemplateBId
+    }
 
     // Verify ownership
     const existingWebinar = await prisma.webinar.findFirst({
@@ -93,7 +109,7 @@ export async function PATCH(
         schedules: true
       }
     })
-    console.log('✅ Webinar saved with registrationTemplateId:', webinar.registrationTemplateId)
+    console.log('✅ Webinar saved with registrationPageId:', webinar.registrationPageId)
 
     // Update schedules if provided
     if (schedules && Array.isArray(schedules)) {

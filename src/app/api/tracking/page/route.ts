@@ -12,6 +12,8 @@ export async function POST(request: NextRequest) {
       webinarId,
       visitorId,
       pageType, // 'registration' | 'countdown' | 'webinar' | 'thank_you' | 'replay'
+      pageId, // For registration/countdown pages: which specific page was shown
+      variantGroup, // For A/B testing: 'A' or 'B'
       action, // 'enter' | 'leave'
       referrer,
       utmSource,
@@ -40,6 +42,8 @@ export async function POST(request: NextRequest) {
           webinarId,
           visitorId: actualVisitorId,
           pageType,
+          pageId,
+          variantGroup,
           referrer,
           utmSource,
           utmMedium,

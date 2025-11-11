@@ -32,7 +32,7 @@ export default function NewTemplatePage() {
 
   const fetchTemplateForDuplication = async (id: string) => {
     try {
-      const response = await fetch(`/api/templates/${id}`);
+      const response = await fetch(`/api/registration-pages/${id}`);
       if (response.ok) {
         const template = await response.json();
         setName(`${template.name} (Copy)`);
@@ -159,7 +159,7 @@ export default function NewTemplatePage() {
     setSaving(true);
 
     try {
-      const response = await fetch('/api/templates', {
+      const response = await fetch('/api/registration-pages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -228,7 +228,7 @@ export default function NewTemplatePage() {
               <div className="mt-4 flex flex-wrap gap-3">
                 <Button
                   type="button"
-                  onClick={() => window.open(`/api/templates/${createdTemplateId}/preview`, '_blank')}
+                  onClick={() => window.open(`/api/registration-pages/${createdTemplateId}/preview`, '_blank')}
                   variant="primary"
                   className="bg-green-600 hover:bg-green-700"
                 >

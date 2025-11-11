@@ -16,6 +16,7 @@ export async function POST(
       email,
       phone,
       scheduleId,
+      scheduledStartTime,
       timezone,
       gdprConsent,
       privacyConsent,
@@ -24,9 +25,9 @@ export async function POST(
     } = body
 
     // Validation
-    if (!name || !email || !phone) {
+    if (!name || !email) {
       return NextResponse.json(
-        { error: 'Name, email, and phone are required' },
+        { error: 'Name and email are required' },
         { status: 400 }
       )
     }
@@ -37,6 +38,8 @@ export async function POST(
         { status: 400 }
       )
     }
+
+    console.log('📝 Registration API - Received scheduledStartTime:', scheduledStartTime)
 
     // Verify webinar exists and get A/B testing config
     const webinar = await prisma.webinar.findUnique({
@@ -61,29 +64,18 @@ export async function POST(
       testGroup = await getVisitorTestGroup(webinar.id, webinar.trafficSplitPercent)
     }
 
-    // Check if already registered (by email)
-    const existingRegistration = await prisma.registration.findFirst({
-      where: {
-        webinarId: id,
-        email: email.toLowerCase()
-      }
-    })
-
-    if (existingRegistration) {
-      return NextResponse.json(
-        { error: 'You are already registered for this webinar' },
-        { status: 400 }
-      )
-    }
-
+    // Note: Allowing multiple registrations per email
+    // Users can register multiple times for the same webinar with the same email
+    
     // Create registration
     const registration = await prisma.registration.create({
       data: {
         webinarId: id,
         scheduleId,
+        scheduledStartTime: scheduledStartTime ? new Date(scheduledStartTime) : null,
         name: name.trim(),
         email: email.trim().toLowerCase(),
-        phone: phone.trim(),
+        phone: phone ? phone.trim() : null,
         timezone,
         country,
         gdprConsent: gdprConsent || false,
@@ -93,6 +85,8 @@ export async function POST(
         registeredAt: new Date()
       }
     })
+
+    console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
 
     // TODO: Send confirmation email
     // TODO: Send calendar invite

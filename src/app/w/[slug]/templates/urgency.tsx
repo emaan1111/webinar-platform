@@ -27,7 +27,7 @@ export default function UrgencyTemplate({
     email: '',
     phone: '',
     gdprConsent: false,
-    privacyConsent: false,
+    privacyConsent: true,
     marketingConsent: false
   })
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -66,8 +66,9 @@ export default function UrgencyTemplate({
     if (!formData.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
       newErrors.email = 'Valid email required'
     }
-    if (!formData.phone || formData.phone.length < 10) {
-      newErrors.phone = 'Phone required'
+    // Phone is optional, but if provided, validate it
+    if (formData.phone && formData.phone.length < 10) {
+      newErrors.phone = 'Please enter a valid phone number (at least 10 digits)'
     }
     if (!formData.privacyConsent) {
       newErrors.privacyConsent = 'Must accept privacy policy'

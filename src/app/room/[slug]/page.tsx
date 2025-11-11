@@ -171,6 +171,12 @@ export default async function WebinarRoomPage({
               email: true,
             },
           },
+          registration: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
       },
       reactions: {
@@ -186,10 +192,13 @@ export default async function WebinarRoomPage({
               email: true,
             },
           },
+          registration: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
-      },
-      faqs: {
-        orderBy: { sortOrder: 'asc' },
       },
     },
   });
@@ -211,6 +220,7 @@ export default async function WebinarRoomPage({
           scheduleId: true,
           timezone: true,
           webinarId: true,
+          scheduledStartTime: true, // NEW: Get the stored start time
         },
       })
     : null;
@@ -230,11 +240,21 @@ export default async function WebinarRoomPage({
       }
     : null;
 
-  const { startTime: originalStartTime } = findScheduleStart(
-    webinar.schedules,
-    registrationMeta,
-    scheduleParam ?? null
-  );
+  // Use stored scheduledStartTime if available, otherwise calculate it
+  let originalStartTime: Date;
+  if (registration && 'scheduledStartTime' in registration && registration.scheduledStartTime) {
+    originalStartTime = new Date(registration.scheduledStartTime as Date);
+    console.log('✅ [Room] Using stored scheduledStartTime:', originalStartTime.toISOString());
+  } else {
+    // Fallback for old registrations or guests
+    const { startTime } = findScheduleStart(
+      webinar.schedules,
+      registrationMeta,
+      scheduleParam ?? null
+    );
+    originalStartTime = startTime;
+    console.log('⚠️ [Room] Fallback - calculating scheduledTime:', originalStartTime.toISOString());
+  }
 
   const now = new Date();
   const inferredVideoDuration =
@@ -278,11 +298,15 @@ export default async function WebinarRoomPage({
 
   const chatMessages: ChatMessagePayload[] = webinar.chatMessages.map(
     (message) => {
+      // Prefer stored userName, then user info, then registration info
       const displayName =
+        message.userName ||
         message.user?.name ||
         (message.user?.email
           ? message.user.email.split('@')[0]
-          : 'Guest');
+          : null) ||
+        message.registration?.name ||
+        'Guest';
 
       return {
         id: message.id,
@@ -294,6 +318,12 @@ export default async function WebinarRoomPage({
       };
     }
   );
+
+  console.log(`📨 [Room] Loaded ${chatMessages.length} chat messages for webinar ${webinar.id}`);
+  if (chatMessages.length > 0) {
+    console.log(`📨 [Room] First message: "${chatMessages[0].message}" at ${chatMessages[0].videoTimestamp}s`);
+    console.log(`📨 [Room] Last message: "${chatMessages[chatMessages.length - 1].message}" at ${chatMessages[chatMessages.length - 1].videoTimestamp}s`);
+  }
 
   const offers = webinar.offers.map((offer) => ({
     id: offer.id,
@@ -308,11 +338,15 @@ export default async function WebinarRoomPage({
 
   // Load real reactions from database (time-synced, not fake)
   const reactions: ReactionPayload[] = webinar.reactions.map((reaction) => {
+    // Prefer stored userName, then user info, then registration info
     const displayName =
+      reaction.userName ||
       reaction.user?.name ||
       (reaction.user?.email
         ? reaction.user.email.split('@')[0]
-        : 'Guest');
+        : null) ||
+      reaction.registration?.name ||
+      'Guest';
 
     return {
       id: reaction.id,
@@ -322,11 +356,11 @@ export default async function WebinarRoomPage({
     };
   });
 
-  const faqs = webinar.faqs.map((faq) => ({
-    id: faq.id,
-    question: faq.question,
-    answer: faq.answer,
-  }));
+  console.log(`🎉 [Room] Loaded ${reactions.length} reactions for webinar ${webinar.id}`);
+  if (reactions.length > 0) {
+    console.log(`🎉 [Room] First reaction: ${reactions[0].type} at ${reactions[0].videoTimestamp}s`);
+    console.log(`🎉 [Room] Last reaction: ${reactions[reactions.length - 1].type} at ${reactions[reactions.length - 1].videoTimestamp}s`);
+  }
 
   return (
     <WebinarLiveClient
@@ -344,7 +378,6 @@ export default async function WebinarRoomPage({
       offers={offers}
       chatMessages={chatMessages}
       reactionEvents={reactions}
-      faqs={faqs}
       viewer={
         registrationMeta
           ? {

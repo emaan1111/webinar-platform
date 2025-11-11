@@ -36,13 +36,13 @@ export default function CreateWebinarPage() {
   useEffect(() => {
     async function loadTemplates() {
       try {
-        const response = await fetch('/api/templates')
+        const response = await fetch('/api/registration-pages')
         if (response.ok) {
           const data = await response.json()
           setTemplates(data)
         }
       } catch (error) {
-        console.error('Failed to load templates:', error)
+        console.error('Failed to load registration pages:', error)
       }
     }
     loadTemplates()
@@ -72,13 +72,13 @@ export default function CreateWebinarPage() {
     hasReactions: true,
     thumbnail: null as File | null,
     maxSchedulesToShow: 3,
-    registrationTemplateId: '',
+    registrationPageId: '',
     // A/B Testing
     enableABTesting: false,
     trafficSplitPercent: 50,
     testRegistrationPage: false,
-    regTemplateAId: '',
-    regTemplateBId: '',
+    regPageAId: '',
+    regPageBId: '',
     testSchedule: false,
     scheduleAIds: '',
     scheduleBIds: '',
@@ -213,14 +213,14 @@ export default function CreateWebinarPage() {
         hasChat: formData.hasChat,
         hasReactions: formData.hasReactions,
         maxSchedulesToShow: formData.maxSchedulesToShow,
-        registrationTemplateId: formData.registrationTemplateId || null,
+        registrationPageId: formData.registrationPageId || null,
         schedules: allSchedules,
         // A/B Testing
         enableABTesting: formData.enableABTesting,
         trafficSplitPercent: formData.trafficSplitPercent,
         testRegistrationPage: formData.testRegistrationPage,
-        regTemplateAId: formData.regTemplateAId || null,
-        regTemplateBId: formData.regTemplateBId || null,
+        regPageAId: formData.regPageAId || null,
+        regPageBId: formData.regPageBId || null,
         testSchedule: formData.testSchedule,
         scheduleAIds: formData.scheduleAIds || null,
         scheduleBIds: formData.scheduleBIds || null,
@@ -328,14 +328,14 @@ export default function CreateWebinarPage() {
         hasChat: formData.hasChat,
         hasReactions: formData.hasReactions,
         maxSchedulesToShow: formData.maxSchedulesToShow,
-        registrationTemplateId: formData.registrationTemplateId || null,
+        registrationPageId: formData.registrationPageId || null,
         schedules: allSchedules,
         // A/B Testing
         enableABTesting: formData.enableABTesting,
         trafficSplitPercent: formData.trafficSplitPercent,
         testRegistrationPage: formData.testRegistrationPage,
-        regTemplateAId: formData.regTemplateAId || null,
-        regTemplateBId: formData.regTemplateBId || null,
+        regPageAId: formData.regPageAId || null,
+        regPageBId: formData.regPageBId || null,
         testSchedule: formData.testSchedule,
         scheduleAIds: formData.scheduleAIds || null,
         scheduleBIds: formData.scheduleBIds || null,
@@ -1140,26 +1140,26 @@ export default function CreateWebinarPage() {
               </CardBody>
             </Card>
 
-            {/* Registration Page Template */}
+            {/* Registration Page */}
             <Card>
               <CardHeader>
-                <h2 className="text-lg font-semibold text-gray-900">Registration Page Template</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Registration Page</h2>
                 <p className="text-sm text-gray-500">Choose how your registration page will look</p>
               </CardHeader>
               <CardBody>
                 <div className="space-y-6">
-                  {/* Template Selector */}
+                  {/* Registration Page Selector */}
                   <div>
-                    <label htmlFor="registrationTemplateId" className="block text-sm font-medium text-gray-700 mb-2">
-                      Registration Page Template
+                    <label htmlFor="registrationPageId" className="block text-sm font-medium text-gray-700 mb-2">
+                      Registration Page
                     </label>
                     <select
-                      id="registrationTemplateId"
-                      value={formData.registrationTemplateId}
-                      onChange={(e) => setFormData({ ...formData, registrationTemplateId: e.target.value })}
+                      id="registrationPageId"
+                      value={formData.registrationPageId}
+                      onChange={(e) => setFormData({ ...formData, registrationPageId: e.target.value })}
                       className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     >
-                      <option value="">No template (use default)</option>
+                      <option value="">No registration page (use default)</option>
                       {templates.map((template) => (
                         <option key={template.id} value={template.id}>
                           {template.name} {template.isSystem && '(System)'}
@@ -1167,17 +1167,17 @@ export default function CreateWebinarPage() {
                       ))}
                     </select>
                     <p className="mt-2 text-xs text-gray-500">
-                      {templates.length === 0 && 'No templates found. '}
-                      <Link href="/dashboard/templates" className="text-blue-600 hover:text-blue-700 underline">
-                        Create templates
+                      {templates.length === 0 && 'No registration pages found. '}
+                      <Link href="/dashboard/registration-pages" className="text-blue-600 hover:text-blue-700 underline">
+                        Create registration pages
                       </Link>
                       {' '}to customize your registration page design.
                     </p>
-                    {formData.registrationTemplateId && (
+                    {formData.registrationPageId && (
                       <div className="mt-2">
-                        {templates.find(t => t.id === formData.registrationTemplateId)?.description && (
+                        {templates.find(t => t.id === formData.registrationPageId)?.description && (
                           <p className="text-sm text-gray-600">
-                            {templates.find(t => t.id === formData.registrationTemplateId)?.description}
+                            {templates.find(t => t.id === formData.registrationPageId)?.description}
                           </p>
                         )}
                       </div>

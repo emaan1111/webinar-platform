@@ -18,11 +18,14 @@ import {
   Users,
   PlayCircle,
   Ban,
-  Loader2
+  Loader2,
+  Code,
+  X
 } from 'lucide-react'
 
 interface Webinar {
   id: string
+  slug?: string | null
   title: string
   description?: string
   duration: number
@@ -238,6 +241,7 @@ function WebinarCard({
   onDuplicate: (id: string) => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
+  const [showEmbedModal, setShowEmbedModal] = useState(false)
   
   const statusConfig = {
     DRAFT: { color: 'bg-gray-100 text-gray-700', icon: Edit },
@@ -251,6 +255,24 @@ function WebinarCard({
   const StatusIcon = config.icon
   const registrationCount = Array.isArray(webinar.registrations) ? webinar.registrations.length : 0
   const capacity = webinar.maxAttendees ? Math.round((registrationCount / webinar.maxAttendees) * 100) : 0
+
+  const registrationUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/w/${webinar.slug || webinar.id}`
+  const embedUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/embed/${webinar.slug || webinar.id}`
+  
+  const embedCode = `<!-- Webinar Registration Popup Form -->
+<iframe 
+  src="${embedUrl}" 
+  width="100%" 
+  height="700" 
+  frameborder="0" 
+  style="border: none; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); max-width: 500px; margin: 0 auto; display: block;"
+  title="${webinar.title} - Registration Form">
+</iframe>`
+
+  const handleCopyEmbed = () => {
+    navigator.clipboard.writeText(embedCode)
+    alert('Embed code copied to clipboard!')
+  }
 
   return (
     <Card>
@@ -328,7 +350,11 @@ function WebinarCard({
                   Edit
                 </Button>
               </Link>
-              <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/webinars/${webinar.id}`)}>
+              <Button variant="secondary" size="sm" onClick={() => setShowEmbedModal(true)}>
+                <Code className="w-4 h-4 mr-2" />
+                Embed Code
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/w/${webinar.slug || webinar.id}`)}>
                 <Copy className="w-4 h-4 mr-2" />
                 Copy Link
               </Button>
@@ -344,6 +370,143 @@ function WebinarCard({
           </div>
         </div>
       </CardBody>
+
+      {/* Embed Code Modal */}
+      {showEmbedModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-2xl font-bold text-gray-900">Embed Registration Form</h2>
+                <button 
+                  onClick={() => setShowEmbedModal(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              
+              <p className="text-sm text-gray-600 mb-4">
+                Copy and paste this code into your website to embed the registration form as a popup.
+              </p>
+
+              <div className="space-y-4">
+                {/* Embed URL */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Embed Form URL
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={embedUrl}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                    />
+                    <Button 
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(embedUrl)
+                        alert('Embed URL copied!')
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    This URL shows only the registration form without the full page
+                  </p>
+                </div>
+
+                {/* Direct Link */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Full Page URL
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={registrationUrl}
+                      readOnly
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
+                    />
+                    <Button 
+                      size="sm"
+                      onClick={() => {
+                        navigator.clipboard.writeText(registrationUrl)
+                        alert('Link copied!')
+                      }}
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Use this for direct links (includes full page design)
+                  </p>
+                </div>
+
+                {/* Embed Code */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Embed Code (iFrame)
+                  </label>
+                  <div className="relative">
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs font-mono">
+                      {embedCode}
+                    </pre>
+                    <button
+                      onClick={handleCopyEmbed}
+                      className="absolute top-2 right-2 px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 flex items-center gap-1"
+                    >
+                      <Copy className="w-3 h-3" />
+                      Copy
+                    </button>
+                  </div>
+                </div>
+
+                {/* Preview */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Preview
+                  </label>
+                  <div className="border border-gray-300 rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100">
+                    <iframe
+                      src={embedUrl}
+                      width="100%"
+                      height="600"
+                      style={{ border: 'none' }}
+                      title={`${webinar.title} - Preview`}
+                    />
+                  </div>
+                </div>
+
+                {/* Tips */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 Embedding Tips</h3>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• The embed shows a clean, popup-style registration form</li>
+                    <li>• Recommended width: 100% or max-width: 500px for best look</li>
+                    <li>• Recommended height: 700px (adjustable based on your needs)</li>
+                    <li>• The form is fully responsive and mobile-friendly</li>
+                    <li>• Perfect for embedding in modals, sidebars, or inline on pages</li>
+                    <li>• Use <code className="bg-blue-100 px-1 rounded">max-width</code> CSS to control form width</li>
+                  </ul>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setShowEmbedModal(false)}>
+                  Close
+                </Button>
+                <Button onClick={handleCopyEmbed}>
+                  <Copy className="w-4 h-4 mr-2" />
+                  Copy Embed Code
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   )
 }

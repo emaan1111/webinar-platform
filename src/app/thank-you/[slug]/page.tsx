@@ -32,7 +32,8 @@ async function getThankYouData(slug: string, registrationId?: string, scheduleId
         email: true,
         scheduleId: true,
         registeredAt: true,
-        timezone: true
+        timezone: true,
+        scheduledStartTime: true, // NEW: Get the stored start time
       }
     })
   }
@@ -74,7 +75,16 @@ function processTemplate(html: string, data: any) {
   const { webinar, registration, schedule } = data
   
   // Calculate schedule date/time
-  const scheduleDateTime = schedule ? calculateScheduleDateTime(schedule, registration) : new Date()
+  // Use stored scheduledStartTime if available (for all schedule types)
+  let scheduleDateTime: Date
+  if (registration?.scheduledStartTime) {
+    scheduleDateTime = new Date(registration.scheduledStartTime)
+    console.log('✅ [Thank You] Using stored scheduledStartTime:', scheduleDateTime.toISOString())
+  } else {
+    // Fallback to calculation (for old registrations)
+    scheduleDateTime = schedule ? calculateScheduleDateTime(schedule, registration) : new Date()
+    console.log('⚠️ [Thank You] Fallback - calculating scheduledTime:', scheduleDateTime.toISOString())
+  }
   const timezone = registration?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   
   // Webinar information
@@ -126,8 +136,8 @@ function processTemplate(html: string, data: any) {
   const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${calendarTitle}&details=${calendarDetails}&location=${calendarLocation}&dates=${startDate}/${endDate}`
   processed = processed.replace(/\{\{calendarLink\}\}/g, calendarLink)
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3004'
-  const roomLink = `${baseUrl}/room/${webinar.slug}${registration ? `?r=${registration.id}` : ''}`
+  // Use relative URLs so they work on any port during development
+  const roomLink = `/room/${webinar.slug}${registration ? `?r=${registration.id}` : ''}`
   const countdownParams = new URLSearchParams()
   if (registration?.id) {
     countdownParams.set('r', registration.id)
@@ -135,7 +145,7 @@ function processTemplate(html: string, data: any) {
   if (schedule?.id) {
     countdownParams.set('s', schedule.id)
   }
-  const countdownLink = `${baseUrl}/countdown/${webinar.slug}${countdownParams.size > 0 ? `?${countdownParams.toString()}` : ''}`
+  const countdownLink = `/countdown/${webinar.slug}${countdownParams.size > 0 ? `?${countdownParams.toString()}` : ''}`
 
   processed = processed.replace(/\{\{joinLink\}\}/g, countdownLink)
   processed = processed.replace(/\{\{countdownLink\}\}/g, countdownLink)

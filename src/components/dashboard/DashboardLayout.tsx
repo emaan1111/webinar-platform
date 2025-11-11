@@ -24,7 +24,7 @@ interface DashboardLayoutProps {
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Webinars', href: '/dashboard/webinars', icon: Video },
-  { name: 'Registration Pages', href: '/dashboard/templates', icon: Layout },
+  { name: 'Registration Pages', href: '/dashboard/registration-pages', icon: Layout },
   { name: 'Attendees', href: '/dashboard/attendees', icon: Users },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
   { name: 'Chat Moderation', href: '/dashboard/chat', icon: MessageSquare },

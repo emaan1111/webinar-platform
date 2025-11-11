@@ -13,6 +13,9 @@ interface PageProps {
 export default async function WebinarRegisterServerPage({ params }: PageProps) {
   const { slug } = params;
   
+  console.log('=== REGISTRATION PAGE LOADING START ===');
+  console.log('Slug:', slug);
+  
   try {
     // Fetch webinar with A/B testing configuration
     const webinar = await prisma.webinar.findUnique({
@@ -32,22 +35,30 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       );
     }
 
+    console.log('📝 Webinar found:', webinar.title);
+    console.log('🆔 Webinar ID:', webinar.id);
+    console.log('🔧 A/B Testing enabled:', webinar.enableABTesting);
+    console.log('📄 Registration Page ID:', webinar.registrationPageId);
+
     // Get visitor test group if A/B testing is enabled
     let testGroup: 'A' | 'B' | null = null;
     let testConfig = null;
-    let registrationTemplate = null;
+    let registrationPage = null;
 
     if (webinar.enableABTesting) {
+      console.log('🧪 A/B Testing is ENABLED');
       testGroup = await getVisitorTestGroup(webinar.id, webinar.trafficSplitPercent);
       testConfig = getTestConfiguration(webinar, testGroup);
+      console.log('👥 Test Group:', testGroup);
+      console.log('⚙️ Test Registration Page:', webinar.testRegistrationPage);
 
       // Track page view with all active test elements
       const activeElements: Array<{ element: 'registration' | 'schedule' | 'offer' | 'video'; variantShown: string }> = [];
       
-      if (webinar.testRegistrationPage && testConfig.registrationTemplateId) {
+      if (webinar.testRegistrationPage && testConfig.registrationPageId) {
         activeElements.push({
           element: 'registration',
-          variantShown: testConfig.registrationTemplateId,
+          variantShown: testConfig.registrationPageId,
         });
       }
       
@@ -80,36 +91,29 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
         });
       }
 
-      // Load registration template if testing
-      if (webinar.testRegistrationPage && testConfig.registrationTemplateId) {
-        registrationTemplate = await prisma.template.findUnique({
-          where: { id: testConfig.registrationTemplateId },
-          select: {
-            id: true,
-            name: true,
-            htmlCode: true,
-            popupStyle: true,
-            popupTheme: true,
-          },
+      // Load registration page if testing
+      if (webinar.testRegistrationPage && testConfig.registrationPageId) {
+        console.log('📄 Loading A/B test registration page:', testConfig.registrationPageId);
+        registrationPage = await prisma.registrationPage.findUnique({
+          where: { id: testConfig.registrationPageId },
+        });
+      } else if (webinar.registrationPageId) {
+        // Even with A/B testing enabled, if not testing registration page, use the default one
+        console.log('📄 Loading default registration page (A/B testing enabled but not testing reg page):', webinar.registrationPageId);
+        registrationPage = await prisma.registrationPage.findUnique({
+          where: { id: webinar.registrationPageId },
         });
       }
     } else {
-      // Load default template if specified
-      console.log('🔍 Checking for template. registrationTemplateId:', webinar.registrationTemplateId);
-      if (webinar.registrationTemplateId) {
-        registrationTemplate = await prisma.template.findUnique({
-          where: { id: webinar.registrationTemplateId },
-          select: {
-            id: true,
-            name: true,
-            htmlCode: true,
-            popupStyle: true,
-            popupTheme: true,
-          },
+      // Load default registration page if specified
+      console.log('🔍 Checking for registration page. registrationPageId:', webinar.registrationPageId);
+      if (webinar.registrationPageId) {
+        registrationPage = await prisma.registrationPage.findUnique({
+          where: { id: webinar.registrationPageId },
         });
-        console.log('✅ Template fetched:', registrationTemplate ? registrationTemplate.name : 'NULL');
+        console.log('✅ Registration page fetched:', registrationPage ? registrationPage.name : 'NULL');
       } else {
-        console.log('⚠️ No registrationTemplateId set on webinar');
+        console.log('⚠️ No registrationPageId set on webinar');
       }
     }
 
@@ -148,6 +152,13 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
     }
 
     // Prepare webinar data for client
+    console.log('🔧 SERVER: Preparing webinar data:', {
+      id: webinar.id,
+      slug: webinar.slug,
+      maxSchedulesToShow: webinar.maxSchedulesToShow,
+      schedulesCount: filteredSchedules.length
+    });
+    
     const webinarData = {
       id: webinar.id,
       slug: webinar.slug,
@@ -155,6 +166,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       description: webinar.description,
       duration: webinar.duration,
       schedules: filteredSchedules,
+      maxSchedulesToShow: webinar.maxSchedulesToShow,
       videoUrl,
       vimeoVideoId,
       offer: activeOffer,
@@ -165,7 +177,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
     return (
       <WebinarRegisterPage
         webinarData={webinarData}
-        registrationTemplate={registrationTemplate}
+        registrationPage={registrationPage}
       />
     );
   } catch (error) {

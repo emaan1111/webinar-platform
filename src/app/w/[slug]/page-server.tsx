@@ -139,12 +139,21 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
     }
 
     // Prepare webinar data for client
+    console.log('🔧 SERVER: Preparing webinar data:', {
+      id: webinar.id,
+      slug: webinar.slug,
+      maxSchedulesToShow: webinar.maxSchedulesToShow,
+      schedulesCount: filteredSchedules.length
+    });
+    
     const webinarData = {
       id: webinar.id,
+      slug: webinar.slug,
       title: webinar.title,
       description: webinar.description,
       duration: webinar.duration,
       schedules: filteredSchedules,
+      maxSchedulesToShow: webinar.maxSchedulesToShow,
       videoUrl,
       vimeoVideoId,
       offer: activeOffer,
@@ -155,7 +164,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
     return (
       <WebinarRegisterPage
         webinarData={webinarData}
-        registrationTemplate={registrationTemplate}
+        registrationPage={registrationTemplate}
       />
     );
   } catch (error) {

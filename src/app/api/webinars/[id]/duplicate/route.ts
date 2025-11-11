@@ -44,9 +44,21 @@ export async function POST(
       return NextResponse.json({ error: 'Webinar not found or unauthorized' }, { status: 404 })
     }
 
+    // Generate a unique slug for the duplicate
+    const baseSlug = originalWebinar.slug || originalWebinar.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+    let newSlug = `${baseSlug}-copy`
+    let slugCounter = 1
+    
+    // Check if slug exists and make it unique
+    while (await prisma.webinar.findUnique({ where: { slug: newSlug } })) {
+      newSlug = `${baseSlug}-copy-${slugCounter}`
+      slugCounter++
+    }
+
     // Prepare data for duplication
     const webinarData: any = {
       title: `${originalWebinar.title} (Copy)`,
+      slug: newSlug,
       description: originalWebinar.description,
       duration: originalWebinar.duration,
       status: 'DRAFT', // Always start as draft
@@ -59,6 +71,28 @@ export async function POST(
       hasChat: originalWebinar.hasChat,
       hasReactions: originalWebinar.hasReactions,
       hostId: user.id,
+      
+      // Registration Settings
+      maxSchedulesToShow: originalWebinar.maxSchedulesToShow,
+      registrationPageId: originalWebinar.registrationPageId,
+      thankYouTemplateId: originalWebinar.thankYouTemplateId,
+      countdownPageId: originalWebinar.countdownPageId,
+      
+      // A/B Testing Configuration
+      enableABTesting: originalWebinar.enableABTesting,
+      trafficSplitPercent: originalWebinar.trafficSplitPercent,
+      testRegistrationPage: originalWebinar.testRegistrationPage,
+      regPageAId: originalWebinar.regPageAId,
+      regPageBId: originalWebinar.regPageBId,
+      testSchedule: originalWebinar.testSchedule,
+      scheduleAIds: originalWebinar.scheduleAIds,
+      scheduleBIds: originalWebinar.scheduleBIds,
+      testOffer: originalWebinar.testOffer,
+      offerAId: originalWebinar.offerAId,
+      offerBId: originalWebinar.offerBId,
+      testVideo: originalWebinar.testVideo,
+      videoAId: originalWebinar.videoAId,
+      videoBId: originalWebinar.videoBId,
     }
 
     // Copy schedules if they exist

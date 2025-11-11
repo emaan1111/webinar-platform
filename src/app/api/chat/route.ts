@@ -142,40 +142,95 @@ export async function PATCH(request: Request) {
 // POST /api/chat - Send a message
 export async function POST(request: Request) {
   try {
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.email) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const body = await request.json()
+    const { webinarId, message, registrationId } = body
+
+    // Validate required fields
+    if (!webinarId || !message) {
+      return NextResponse.json(
+        { error: 'webinarId and message are required' },
+        { status: 400 }
+      )
     }
 
-    const body = await request.json()
-    const { webinarId, message } = body
+    // Check if user is authenticated OR has a valid registration
+    const session = await getServerSession(authOptions)
+    
+    let userId: string | null = null
+    let userName: string | null = null
+    let regId: string | null = null
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
+    // Priority 1: Authenticated user
+    if (session?.user?.email) {
+      const user = await prisma.user.findUnique({
+        where: { email: session.user.email }
+      })
+      
+      if (user) {
+        userId = user.id
+        userName = user.name || user.email.split('@')[0]
+      }
+    }
+    
+    // Priority 2: Registered attendee (if no authenticated user)
+    if (!userId && registrationId) {
+      const registration = await prisma.registration.findUnique({
+        where: { id: registrationId }
+      })
 
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+      if (!registration) {
+        return NextResponse.json(
+          { error: 'Invalid registration' },
+          { status: 404 }
+        )
+      }
+
+      // Verify registration is for this webinar
+      if (registration.webinarId !== webinarId) {
+        return NextResponse.json(
+          { error: 'Registration does not match webinar' },
+          { status: 403 }
+        )
+      }
+
+      regId = registration.id
+      userName = registration.name
+    }
+
+    // If neither authenticated user nor valid registration, deny access
+    if (!userId && !regId) {
+      return NextResponse.json(
+        { error: 'Must be authenticated or have a valid registration' },
+        { status: 401 }
+      )
     }
 
     // Create message
     const newMessage = await prisma.chatMessage.create({
       data: {
         webinarId,
-        userId: user.id,
+        userId,
+        registrationId: regId,
+        userName,
         message,
-        isHidden: false
+        isHidden: false,
+        isApproved: true // Auto-approve messages from registered attendees
       },
       include: {
-        user: {
+        user: userId ? {
           select: {
             id: true,
             name: true,
             email: true
           }
-        },
+        } : undefined,
+        registration: regId ? {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        } : undefined,
         webinar: {
           select: {
             id: true,
