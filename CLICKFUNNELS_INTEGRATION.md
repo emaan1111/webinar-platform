@@ -2,10 +2,14 @@
 
 ## 🎯 Overview
 
-Integrate your webinar platform with ClickFunnels 2.0 to automatically register users when they submit forms on your funnels.
+**Bi-directional integration** between your webinar platform and ClickFunnels 2.0:
+
+1. **Incoming**: Receive webhooks from ClickFunnels → Auto-register users for webinars
+2. **Outgoing**: Send registrations to ClickFunnels → Tag contacts as `WEBINAR_REGISTERED`
 
 ## ✅ What's Included
 
+### Incoming Webhooks (ClickFunnels → Your Platform)
 - **Webhook Endpoint**: Receives ClickFunnels events
 - **Auto Registration**: Automatically creates webinar registrations
 - **Contact Sync**: Syncs contact info (name, email, phone)
@@ -13,9 +17,49 @@ Integrate your webinar platform with ClickFunnels 2.0 to automatically register 
 - **Error Handling**: Graceful handling of edge cases
 - **Duplicate Prevention**: Checks for existing registrations
 
+### Outgoing API (Your Platform → ClickFunnels)
+- **Contact Sync**: Sends registrant data to ClickFunnels
+- **Auto Tagging**: Tags contacts with `WEBINAR_REGISTERED`
+- **Custom Fields**: Includes webinar details (ID, title, start time)
+- **Update Existing**: Updates existing contacts without duplicating
+- **Non-Blocking**: Async operation doesn't delay registration
+- **Error Resilient**: Failed syncs don't block user registration
+
 ## 🚀 Quick Setup
 
-### Step 1: Get Your Webhook URL
+### Prerequisites
+
+You need:
+1. ClickFunnels 2.0 account (not Classic)
+2. API access enabled in your ClickFunnels account
+3. Your webinar platform deployed (or using ngrok for local testing)
+
+### Step 1: Get ClickFunnels API Credentials
+
+1. **Log into ClickFunnels 2.0**
+2. Go to **Settings** → **API**
+3. Click **Create New API Key**
+4. Copy your:
+   - **API Key** (starts with `pk_` or `sk_`)
+   - **Workspace ID** (find in Settings → General)
+
+### Step 2: Configure Environment Variables
+
+Add to your `.env` file:
+
+```bash
+# ClickFunnels 2.0 API Configuration
+CLICKFUNNELS_API_KEY=your_api_key_here
+CLICKFUNNELS_WORKSPACE_ID=your_workspace_id_here
+```
+
+**Example:**
+```bash
+CLICKFUNNELS_API_KEY=pk_1234567890abcdef
+CLICKFUNNELS_WORKSPACE_ID=ws_0987654321fedcba
+```
+
+### Step 3: Setup Incoming Webhooks (ClickFunnels → Your Platform)
 
 Your webhook endpoint is:
 ```
@@ -24,7 +68,7 @@ https://yourdomain.com/api/integrations/clickfunnels/webhook
 
 Replace `yourdomain.com` with your actual domain.
 
-### Step 2: Configure ClickFunnels Webhook
+### Step 4: Configure ClickFunnels Webhook
 
 1. **Log into ClickFunnels 2.0**
 2. Go to **Settings** → **Webhooks**
@@ -37,7 +81,7 @@ Replace `yourdomain.com` with your actual domain.
      - ✅ `order.created` (optional)
    - **Status**: Active
 
-### Step 3: Add Custom Fields to Your Funnel Forms
+### Step 5: Add Custom Fields to Your Funnel Forms
 
 In your ClickFunnels form, add these hidden fields or custom fields:
 
@@ -56,14 +100,179 @@ schedule_id: "specific-schedule-id"  // Leave empty for auto-selection
 marketing_consent: "true"  // If user opts in to marketing
 ```
 
-### Step 4: Test the Integration
+### Step 6: Test the Integration
 
 1. Submit a test form in ClickFunnels
 2. Check your webinar dashboard
 3. Verify the registration was created
 4. Check the webhook logs in ClickFunnels
 
-## 📋 Detailed Configuration
+---
+
+## � Outgoing API Integration (Your Platform → ClickFunnels)
+
+### How It Works
+
+**Automatic Contact Syncing:**
+
+When someone registers for a webinar on YOUR platform (not through ClickFunnels), their contact information is automatically sent to ClickFunnels and tagged.
+
+```
+User registers on your site
+         ↓
+Registration saved to database
+         ↓
+Contact sent to ClickFunnels API (async)
+         ↓
+Contact created/updated in ClickFunnels
+         ↓
+Tagged with "WEBINAR_REGISTERED"
+         ↓
+Custom fields populated (webinar details)
+```
+
+### What Gets Synced
+
+**Contact Information:**
+- ✅ Email (required)
+- ✅ First Name
+- ✅ Last Name
+- ✅ Phone (optional)
+- ✅ Timezone (optional)
+- ✅ Country (optional)
+
+**Tags Applied:**
+- 🏷️ `WEBINAR_REGISTERED` (always)
+
+**Custom Fields:**
+- `webinar_id` - The webinar ID
+- `webinar_title` - The webinar title
+- `registered_at` - When they registered
+- `scheduled_start_time` - When webinar starts
+
+### Configuration
+
+**Required Environment Variables:**
+```bash
+CLICKFUNNELS_API_KEY=your_api_key
+CLICKFUNNELS_WORKSPACE_ID=your_workspace_id
+```
+
+**If NOT configured:**
+- Feature is disabled (silent)
+- No errors thrown
+- Registrations still work normally
+- Only logs warning: "⚠️ ClickFunnels API not configured"
+
+### Smart Features
+
+**1. Duplicate Prevention:**
+- Checks if contact already exists by email
+- Updates existing contact instead of creating duplicate
+- Merges tags (doesn't overwrite existing tags)
+
+**2. Non-Blocking:**
+- Runs asynchronously (doesn't delay registration)
+- Failed CF sync won't block user registration
+- User gets immediate confirmation
+
+**3. Error Handling:**
+- Gracefully handles API errors
+- Logs errors for debugging
+- Continues operation if CF is down
+
+### Testing Outgoing Sync
+
+**Test 1: Register a New User**
+
+1. Go to your registration page: `https://yourdomain.com/webinar/{webinar-slug}`
+2. Fill out the form and submit
+3. Check ClickFunnels → Contacts
+4. Verify contact exists with:
+   - ✅ Email, name, phone
+   - ✅ Tag: `WEBINAR_REGISTERED`
+   - ✅ Custom fields populated
+
+**Test 2: Register Existing Contact**
+
+1. Register with an email that already exists in CF
+2. Check ClickFunnels → Contacts → View that contact
+3. Verify:
+   - ✅ Contact updated (not duplicated)
+   - ✅ Tag added to existing tags
+   - ✅ Custom fields updated with new webinar info
+
+**Test 3: Check Logs**
+
+In your terminal/logs, you should see:
+```
+📤 Sending contact to ClickFunnels: user@example.com
+✅ Contact sent to ClickFunnels: con_abc123
+✅ Webinar registration synced to ClickFunnels: {
+  contactId: 'con_abc123',
+  email: 'user@example.com',
+  tags: ['WEBINAR_REGISTERED']
+}
+```
+
+### API Reference
+
+**Function:** `syncWebinarRegistrationToClickFunnels()`
+
+**Location:** `src/lib/clickfunnels.ts`
+
+**Usage:**
+```typescript
+import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
+
+await syncWebinarRegistrationToClickFunnels({
+  name: 'John Doe',
+  email: 'john@example.com',
+  phone: '+1234567890',
+  timezone: 'America/New_York',
+  country: 'US',
+  webinarId: 'web_123',
+  webinarTitle: 'Marketing Masterclass',
+  scheduledStartTime: new Date('2025-11-15T14:00:00Z')
+})
+```
+
+**Response:**
+- Returns `true` if successful
+- Returns `false` if failed or not configured
+- Never throws errors (always catches)
+
+### Use Cases
+
+**Use Case 1: Track All Registrants**
+- Every registration automatically synced to CF
+- Build unified contact list
+- Run email campaigns in CF
+- Segment by webinar attended
+
+**Use Case 2: Multi-Touch Attribution**
+- Track registration source
+- See full customer journey in CF
+- Attribute conversions correctly
+- Optimize marketing funnel
+
+**Use Case 3: Automated Follow-Up**
+- Tag triggers automation in CF
+- Send pre-webinar emails
+- Send replay after webinar
+- Offer products based on attendance
+
+**Use Case 4: CRM Integration**
+- CF syncs to your CRM
+- Single source of truth
+- Automated data flow
+- Reduced manual data entry
+
+---
+
+## 📥 Incoming Webhooks (ClickFunnels → Your Platform)
+
+### Detailed Configuration
 
 ### ClickFunnels Form Setup
 
@@ -122,7 +331,54 @@ ClickFunnels sends this data:
 
 ## 🔧 How It Works
 
-### Flow Diagram
+### Complete Integration Flow
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    INCOMING (CF → Platform)                  │
+├─────────────────────────────────────────────────────────────┤
+│  ClickFunnels Form Submission                               │
+│           ↓                                                  │
+│     Webhook Triggered                                        │
+│           ↓                                                  │
+│  Your Webhook Endpoint                                       │
+│  (/api/integrations/clickfunnels/webhook)                   │
+│           ↓                                                  │
+│   Extract Contact Info                                       │
+│           ↓                                                  │
+│  Find Webinar (by ID or slug)                               │
+│           ↓                                                  │
+│  Check for Existing Registration                            │
+│           ↓                                                  │
+│   Create Registration                                        │
+│           ↓                                                  │
+│  Track in Analytics                                          │
+│           ↓                                                  │
+│   Return Success                                             │
+└─────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────┐
+│                   OUTGOING (Platform → CF)                   │
+├─────────────────────────────────────────────────────────────┤
+│  User Registers on Your Site                                │
+│           ↓                                                  │
+│  Registration Saved to Database                             │
+│           ↓                                                  │
+│  Async: Send to ClickFunnels API                            │
+│           ↓                                                  │
+│  Search for Existing Contact by Email                       │
+│           ↓                                                  │
+│  Create New Contact OR Update Existing                      │
+│           ↓                                                  │
+│  Apply Tag: "WEBINAR_REGISTERED"                            │
+│           ↓                                                  │
+│  Add Custom Fields (webinar details)                        │
+│           ↓                                                  │
+│  User Receives Confirmation (non-blocking)                  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Flow Diagram (Incoming)
 ```
 ClickFunnels Form Submission
           ↓
@@ -242,7 +498,9 @@ Triggered when an order is placed.
 
 ## 🔍 Troubleshooting
 
-### Registration Not Created
+### Incoming Webhooks
+
+#### Registration Not Created
 
 **Problem**: Form submitted but no registration appears
 
@@ -280,7 +538,69 @@ Triggered when an order is placed.
 2. Check field names match exactly
 3. Ensure fields are not optional in form
 
-## 📱 Advanced Features
+### Outgoing API
+
+#### Contacts Not Appearing in ClickFunnels
+
+**Problem**: Users register but don't show up in ClickFunnels
+
+**Solutions**:
+1. Check environment variables are set:
+   ```bash
+   echo $CLICKFUNNELS_API_KEY
+   echo $CLICKFUNNELS_WORKSPACE_ID
+   ```
+2. Verify API key is valid (not expired)
+3. Check workspace ID matches your CF account
+4. Look for log message: "⚠️ ClickFunnels API not configured"
+5. Check server logs for API errors
+
+#### Contact Created But Not Tagged
+
+**Problem**: Contact exists but missing `WEBINAR_REGISTERED` tag
+
+**Solutions**:
+1. Check if tags are enabled in your CF workspace
+2. Verify tag name is exactly `WEBINAR_REGISTERED` (case-sensitive)
+3. Manually test the API with Postman/curl
+4. Check CF API rate limits
+
+#### API Rate Limiting
+
+**Problem**: High-volume registrations hitting CF rate limits
+
+**Solutions**:
+1. Implement queue system for API calls
+2. Batch contact updates
+3. Contact ClickFunnels support for higher limits
+4. Cache contact lookups to reduce API calls
+
+#### Duplicate Contacts
+
+**Problem**: Same person appearing multiple times in CF
+
+**Solutions**:
+1. Verify email normalization (lowercase)
+2. Check contact search is working
+3. Review CF duplicate detection settings
+4. Clean up duplicates in CF manually
+
+---
+
+## 🔐 Security
+
+### API Key Security
+
+**Best Practices**:
+1. ✅ Never commit API keys to git
+2. ✅ Use environment variables only
+3. ✅ Rotate keys periodically
+4. ✅ Use separate keys for dev/staging/production
+5. ✅ Restrict API key permissions in CF
+
+### Webhook Security
+
+**Recommended Enhancements**:
 
 ### Multiple Webinars Per Funnel
 
@@ -331,16 +651,16 @@ const signature = request.headers.get('x-clickfunnels-signature');
 // Verify signature matches your webhook secret
 ```
 
-### Best Practices
+**Data Privacy**:
+1. ✅ Only sync necessary contact data
+2. ✅ Respect GDPR/privacy settings
+3. ✅ Don't sync if marketingConsent is false
+4. ✅ Provide opt-out mechanism
+5. ✅ Log all data transfers
 
-1. ✅ Always use HTTPS for webhook endpoint
-2. ✅ Validate email format before creating registration
-3. ✅ Check for duplicates to prevent multiple registrations
-4. ✅ Log all webhook events for debugging
-5. ✅ Handle errors gracefully
-6. ✅ Return proper HTTP status codes
+---
 
-## 📊 Monitoring
+## � Advanced Features
 
 ### Check Webhook Status
 
@@ -364,11 +684,32 @@ Response:
 
 ### Analytics
 
-Track webhook performance in your dashboard:
+Track integration performance in your dashboard:
+
+**Incoming (CF → Platform):**
 - Total registrations from ClickFunnels
 - Conversion rate by funnel
 - Most popular webinars from funnels
 - Registration timing patterns
+
+**Outgoing (Platform → CF):**
+- Sync success rate
+- Failed sync attempts
+- API response times
+- Contact creation vs. updates ratio
+
+**Monitoring Queries:**
+
+```bash
+# Check recent CF syncs in logs
+grep "ClickFunnels" /var/log/yourapp.log | tail -50
+
+# Count successful syncs today
+grep "✅ Contact sent to ClickFunnels" /var/log/yourapp.log | grep "$(date +%Y-%m-%d)" | wc -l
+
+# Find failed syncs
+grep "❌ Failed to send contact to ClickFunnels" /var/log/yourapp.log
+```
 
 ## 🎯 Use Cases
 
@@ -464,22 +805,66 @@ Content-Type: application/json
 
 ## 🚀 Next Steps
 
-1. **Set up webhook** in ClickFunnels
-2. **Add custom fields** to your forms
-3. **Test with sample submission**
-4. **Monitor registrations** in dashboard
-5. **Configure email notifications** (if not already done)
+1. **Set up API credentials** in .env file
+2. **Configure webhook** in ClickFunnels (for incoming)
+3. **Add custom fields** to your forms (for incoming)
+4. **Test registration** from your site (for outgoing)
+5. **Verify contacts** appear in ClickFunnels
+6. **Monitor logs** for sync status
+7. **Configure email notifications** (if not already done)
+8. **Build automations** in ClickFunnels using the tag
 
 ## 📚 Additional Resources
 
 - [ClickFunnels 2.0 API Documentation](https://apidocs.myclickfunnels.com/)
 - [Webhook Best Practices](https://docs.clickfunnels.com/docs/webhooks)
+- [Contact API Reference](https://apidocs.myclickfunnels.com/#tag/Contact)
 - Your Webinar Platform Documentation
 
 ---
 
+## 📋 Implementation Checklist
+
+### Environment Setup
+- [ ] Add `CLICKFUNNELS_API_KEY` to .env
+- [ ] Add `CLICKFUNNELS_WORKSPACE_ID` to .env
+- [ ] Restart application server
+- [ ] Verify environment variables loaded
+
+### Incoming Webhooks (CF → Platform)
+- [ ] Create webhook in ClickFunnels
+- [ ] Test webhook with CF test tool
+- [ ] Add custom fields to CF forms
+- [ ] Submit test registration
+- [ ] Verify registration created in platform
+
+### Outgoing API (Platform → CF)
+- [ ] Register test user on your platform
+- [ ] Check ClickFunnels for new contact
+- [ ] Verify `WEBINAR_REGISTERED` tag applied
+- [ ] Confirm custom fields populated
+- [ ] Test with existing CF contact
+
+### Monitoring & Maintenance
+- [ ] Set up log monitoring
+- [ ] Create dashboard for sync metrics
+- [ ] Test error handling (disable CF temporarily)
+- [ ] Document any custom configurations
+- [ ] Train team on troubleshooting
+
+---
+
 **Status**: ✅ Live and Ready
-**Version**: 1.0
+**Version**: 2.0 (Bi-directional)
 **Last Updated**: November 12, 2025
+
+**Features**:
+- ✅ Incoming webhooks (CF → Platform)
+- ✅ Outgoing API sync (Platform → CF)
+- ✅ Auto-tagging with `WEBINAR_REGISTERED`
+- ✅ Duplicate prevention
+- ✅ Error handling
+- ✅ Custom fields
+- ✅ Non-blocking async operations
 
 Happy Funneling! 🎉

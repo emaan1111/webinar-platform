@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getVisitorTestGroup } from '@/lib/abTesting'
+import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
 
 // POST /api/webinars/[id]/register - Public registration endpoint
 export async function POST(
@@ -46,6 +47,7 @@ export async function POST(
       where: { id },
       select: {
         id: true,
+        title: true,
         enableABTesting: true,
         trafficSplitPercent: true,
       }
@@ -87,6 +89,20 @@ export async function POST(
     })
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
+
+    // Sync to ClickFunnels (async - don't block response)
+    syncWebinarRegistrationToClickFunnels({
+      name: registration.name,
+      email: registration.email,
+      phone: registration.phone,
+      timezone: registration.timezone,
+      country: registration.country,
+      webinarId: webinar.id,
+      webinarTitle: webinar.title,
+      scheduledStartTime: registration.scheduledStartTime,
+    }).catch(error => {
+      console.error('⚠️ ClickFunnels sync failed (non-blocking):', error)
+    })
 
     // TODO: Send confirmation email
     // TODO: Send calendar invite
