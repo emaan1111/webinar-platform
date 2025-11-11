@@ -36,6 +36,8 @@ export async function POST(
         schedules: true,
         offers: true,
         chatMessages: true,
+        reactions: true,
+        faqs: true,
         bonusResources: true
       }
     })
@@ -134,7 +136,33 @@ export async function POST(
           videoTimestamp: message.videoTimestamp,
           isScripted: message.isScripted || false,
           isHidden: message.isHidden || false,
+          userName: message.userName,
           userId: message.userId
+        }))
+      }
+    }
+
+    // Copy reactions if they exist
+    if (originalWebinar.reactions && originalWebinar.reactions.length > 0) {
+      webinarData.reactions = {
+        create: originalWebinar.reactions.map((reaction: any) => ({
+          type: reaction.type,
+          videoTimestamp: reaction.videoTimestamp,
+          isScripted: reaction.isScripted || false,
+          isHidden: reaction.isHidden || false,
+          userName: reaction.userName,
+          userId: reaction.userId
+        }))
+      }
+    }
+
+    // Copy FAQs if they exist
+    if (originalWebinar.faqs && originalWebinar.faqs.length > 0) {
+      webinarData.faqs = {
+        create: originalWebinar.faqs.map((faq: any) => ({
+          question: faq.question,
+          answer: faq.answer,
+          sortOrder: faq.sortOrder
         }))
       }
     }
@@ -145,7 +173,9 @@ export async function POST(
       include: {
         schedules: true,
         offers: true,
-        chatMessages: true
+        chatMessages: true,
+        reactions: true,
+        faqs: true
       }
     })
 
