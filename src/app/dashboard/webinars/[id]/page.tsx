@@ -21,7 +21,8 @@ import {
   ThumbsUp,
   Globe,
   Loader2,
-  AlertCircle
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react'
 
 interface WebinarSchedule {
@@ -179,6 +180,12 @@ export default function ViewWebinarPage() {
               <Button size="sm">
                 <Edit className="w-4 h-4 mr-2" />
                 Edit
+              </Button>
+            </Link>
+            <Link href={`/dashboard/webinars/${webinar.id}/faq`}>
+              <Button variant="secondary" size="sm">
+                <HelpCircle className="w-4 h-4 mr-2" />
+                FAQs
               </Button>
             </Link>
             <Button variant="danger" size="sm" onClick={handleDelete}>
