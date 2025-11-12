@@ -13,6 +13,21 @@ Automatically tags contacts in ClickFunnels based on how they interact with your
 
 ## ⚡ Quick Setup (5 Minutes)
 
+### Option A: Automatic Setup (Recommended)
+
+Run this script to auto-create tags and get their IDs:
+
+```bash
+node scripts/setup-cf-tags.js
+```
+
+The script will:
+1. Check for existing tags
+2. Create missing tags
+3. Output the .env configuration for you to copy
+
+### Option B: Manual Setup
+
 ### 1. Get Your Tag IDs from ClickFunnels
 
 1. Go to **ClickFunnels** → **Contacts** → **Tags**
