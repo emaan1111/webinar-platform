@@ -1,0 +1,9 @@
+
+❌ ERROR: Development server is not running!
+
+Please start the server first:
+  $ npm run dev
+
+Then run this test again:
+  $ node scripts/test-all-tagging-scenarios.js
+    

@@ -46,28 +46,18 @@ const ATTENDANCE_TAG_DEFAULT_NAMES: Record<AttendanceTagKey, string> = {
   replayAttended: 'UM-Webinar-ReplayAttended',
 }
 
-const ATTENDANCE_TAG_ENV_IDS: Record<AttendanceTagKey, number | null> = {
-  registered: configuredWebinarTagId,
-  attended: parseTagId(process.env.CLICKFUNNELS_TAG_ATTENDED),
-  mostlyAttended: parseTagId(process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED),
-  partlyAttended: parseTagId(process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED),
-  missed: parseTagId(process.env.CLICKFUNNELS_TAG_MISSED),
-  replayAttended: parseTagId(process.env.CLICKFUNNELS_TAG_REPLAY_ATTENDED),
-}
-
 const clickFunnelsTagCache = new Map<string, number>()
 
 if (configuredWebinarTagId && !Number.isNaN(configuredWebinarTagId)) {
   clickFunnelsTagCache.set(configuredWebinarTagName, configuredWebinarTagId)
 }
 
-async function resolveAttendanceTagId(tagKey: AttendanceTagKey): Promise<number | null> {
-  const envId = ATTENDANCE_TAG_ENV_IDS[tagKey]
-  if (envId) {
-    return envId
-  }
+function getAttendanceTagName(tagKey: AttendanceTagKey): string | null {
+  return ATTENDANCE_TAG_DEFAULT_NAMES[tagKey] || null
+}
 
-  const tagName = ATTENDANCE_TAG_DEFAULT_NAMES[tagKey]
+async function resolveAttendanceTagId(tagKey: AttendanceTagKey): Promise<number | null> {
+  const tagName = getAttendanceTagName(tagKey)
   if (!tagName) {
     return null
   }
@@ -76,17 +66,62 @@ async function resolveAttendanceTagId(tagKey: AttendanceTagKey): Promise<number 
 }
 
 async function resolveAttendanceTagIds(tagKeys: AttendanceTagKey[]): Promise<number[]> {
-  const resolvedIds: number[] = []
   const uniqueKeys = Array.from(new Set(tagKeys))
+  const resolvedIds: number[] = []
 
   for (const key of uniqueKeys) {
-    const tagId = await resolveAttendanceTagId(key)
+    const tagName = getAttendanceTagName(key)
+    if (!tagName) {
+      continue
+    }
+
+    const tagId = await getOrCreateClickFunnelsTagId(tagName)
     if (typeof tagId === 'number') {
       resolvedIds.push(tagId)
     }
   }
 
   return resolvedIds
+}
+
+async function findContactByEmailWithRetry(
+  email: string,
+  apiKey: string,
+  workspaceId: string,
+  attempts: number = 3,
+  baseDelayMs: number = 750
+): Promise<any | null> {
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(email)}`
+
+    const response = await fetch(searchUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      }
+    })
+
+    if (!response.ok) {
+      console.error('❌ Failed to find contact:', response.status)
+      return null
+    }
+
+    const result = await response.json()
+    const contact = result.data?.[0] || result[0]
+
+    if (contact) {
+      return contact
+    }
+
+    if (attempt < attempts) {
+      const delay = baseDelayMs * attempt
+      console.log(`⌛ Contact not found yet for ${email} - retrying in ${delay}ms (attempt ${attempt + 1}/${attempts})`)
+      await new Promise(resolve => setTimeout(resolve, delay))
+    }
+  }
+
+  return null
 }
 
 async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
@@ -280,9 +315,8 @@ async function applyTagsToContact(
   tagIds: number[]
 ): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
-  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
 
-  if (!apiKey || !workspaceId) {
+  if (!apiKey) {
     return false
   }
 
@@ -290,8 +324,7 @@ async function applyTagsToContact(
     for (const tagId of tagIds) {
       console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
 
-      const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contactId}/applied_tags`
-      console.log('   Tag API URL:', url)
+      const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
 
       const response = await fetch(url, {
         method: 'POST',
@@ -301,8 +334,8 @@ async function applyTagsToContact(
           'Accept': 'application/json',
         },
         body: JSON.stringify({
-          applied_tag: {
-            tag_id: String(tagId)
+          contacts_applied_tag: {
+            tag_id: tagId
           }
         })
       })
@@ -345,25 +378,12 @@ async function updateClickFunnelsContact(
   try {
     console.log('🔄 Updating existing contact in ClickFunnels:', contactData.email_address)
 
-    // First, find the contact by email
-    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(contactData.email_address)}`
-
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      }
-    })
-
-    if (!searchResponse.ok) {
-      console.error('❌ Failed to find contact:', searchResponse.status)
-      return null
-    }
-
-    const searchResult = await searchResponse.json()
-    // ClickFunnels returns array of contacts in 'data' field
-    const existingContact = searchResult.data?.[0] || searchResult[0]
+    // First, find the contact by email (with retry to allow CF sync)
+    const existingContact = await findContactByEmailWithRetry(
+      contactData.email_address,
+      apiKey,
+      workspaceId
+    )
 
     if (!existingContact) {
       console.log('⚠️ Contact not found in ClickFunnels')
@@ -427,25 +447,7 @@ export async function tagClickFunnelsContact(
   try {
     console.log('🏷️ Tagging contact in ClickFunnels:', email, tags)
 
-    // Find contact by email
-    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(email)}`
-
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      }
-    })
-
-    if (!searchResponse.ok) {
-      console.error('❌ Failed to find contact for tagging:', searchResponse.status)
-      return false
-    }
-
-    const searchResult = await searchResponse.json()
-    // ClickFunnels returns array of contacts in 'data' field
-    const contact = searchResult.data?.[0] || searchResult[0]
+    const contact = await findContactByEmailWithRetry(email, apiKey, workspaceId)
 
     if (!contact) {
       console.log('⚠️ Contact not found for tagging')
@@ -602,24 +604,7 @@ export async function syncAttendanceToClickFunnels(data: {
   try {
     console.log('📊 Syncing attendance to ClickFunnels:', data.email)
 
-    // Find contact by email
-    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(data.email)}`
-
-    const searchResponse = await fetch(searchUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      }
-    })
-
-    if (!searchResponse.ok) {
-      console.error('❌ Failed to find contact for attendance tagging:', searchResponse.status)
-      return false
-    }
-
-    const searchResult = await searchResponse.json()
-    const contact = searchResult.data?.[0] || searchResult[0]
+    const contact = await findContactByEmailWithRetry(data.email, apiKey, workspaceId)
 
     if (!contact) {
       console.log('⚠️ Contact not found for attendance tagging:', data.email)
