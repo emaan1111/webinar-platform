@@ -5,6 +5,8 @@ Automatically tag webinar registrants in ClickFunnels based on their attendance 
 
 ## Tag Types & Criteria
 
+> 💡 **Auto-Creation**: If you don't supply explicit tag IDs, the integration will automatically create/locate the tags below inside ClickFunnels using these exact names.
+
 ### 1. **UM-Webinar-Registered** 
 - **When Applied**: Immediately upon webinar registration
 - **Criteria**: Contact registers for any webinar
@@ -56,7 +58,7 @@ Automatically tag webinar registrants in ClickFunnels based on their attendance 
    - URL format: `https://app.myclickfunnels.com/workspaces/{workspace_id}/tags/{TAG_ID}`
    - Example: If URL is `.../tags/368586`, then Tag ID is `368586`
 
-### Step 2: Update .env File
+### Step 2: Update .env File (optional)
 
 ```bash
 # ClickFunnels 2.0 API
@@ -64,13 +66,13 @@ CLICKFUNNELS_API_KEY="your_api_key_here"
 CLICKFUNNELS_WORKSPACE_ID="your_workspace_id"
 CLICKFUNNELS_TEAM_ID="your_team_id"
 
-# ClickFunnels Tag IDs
-CLICKFUNNELS_TAG_REGISTERED="368586"        # UM-Webinar-Registered
-CLICKFUNNELS_TAG_ATTENDED="368587"          # UM-Webinar-Attended
-CLICKFUNNELS_TAG_MOSTLY_ATTENDED="368588"   # UM-Webinar-MostlyAttended
-CLICKFUNNELS_TAG_PARTLY_ATTENDED="368589"   # UM-Webinar-PartlyAttended
-CLICKFUNNELS_TAG_MISSED="368590"            # UM-Webinar-Missed
-CLICKFUNNELS_TAG_REPLAY_ATTENDED="368591"   # UM-Webinar-ReplayAttended
+# Optional: override auto-created tags with existing IDs
+# CLICKFUNNELS_TAG_REGISTERED="368586"        # UM-Webinar-Registered
+# CLICKFUNNELS_TAG_ATTENDED="368587"          # UM-Webinar-Attended
+# CLICKFUNNELS_TAG_MOSTLY_ATTENDED="368588"   # UM-Webinar-MostlyAttended
+# CLICKFUNNELS_TAG_PARTLY_ATTENDED="368589"   # UM-Webinar-PartlyAttended
+# CLICKFUNNELS_TAG_MISSED="368590"            # UM-Webinar-Missed
+# CLICKFUNNELS_TAG_REPLAY_ATTENDED="368591"   # UM-Webinar-ReplayAttended
 ```
 
 ### Step 3: Restart Your Application

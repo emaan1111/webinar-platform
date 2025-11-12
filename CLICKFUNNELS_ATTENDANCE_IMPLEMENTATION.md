@@ -59,7 +59,7 @@ Every contact gets these attributes updated:
 
 ### Configuration
 
-**`.env`** (New Variables)
+**`.env`** (Optional overrides)
 ```bash
 CLICKFUNNELS_TAG_REGISTERED="368586"
 CLICKFUNNELS_TAG_ATTENDED=""
@@ -68,6 +68,7 @@ CLICKFUNNELS_TAG_PARTLY_ATTENDED=""
 CLICKFUNNELS_TAG_MISSED=""
 CLICKFUNNELS_TAG_REPLAY_ATTENDED=""
 ```
+> Leave blank to let the integration auto-create tags with the default names (UM-Webinar-...).
 
 ### Documentation
 

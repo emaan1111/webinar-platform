@@ -43,7 +43,8 @@ const testRegistration = async () => {
       console.log('\n2. Go to ClickFunnels → Contacts');
       console.log('3. Search for: ' + testData.email);
       console.log('4. Verify tag: UM-Webinar-Registered');
-      console.log('5. Check custom fields are populated\n');
+      console.log('5. (Optional) Join the webinar room, watch for a bit, and confirm the appropriate attendance tag (Attended/Mostly/Partly/Missed/Replay) appears.');
+      console.log('6. Check custom fields are populated\n');
     } else {
       console.log('❌ Registration Failed\n');
       console.log('Error:', JSON.stringify(result, null, 2));

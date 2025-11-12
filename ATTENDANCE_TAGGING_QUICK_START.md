@@ -40,7 +40,7 @@ The script will:
    - `UM-Webinar-ReplayAttended`
 3. Click each tag → Copy the **ID from the URL**
 
-### 2. Update Your .env File
+### 2. (Optional) Add Tag IDs to `.env`
 
 ```bash
 CLICKFUNNELS_TAG_REGISTERED="368586"
@@ -50,6 +50,7 @@ CLICKFUNNELS_TAG_PARTLY_ATTENDED="368589"
 CLICKFUNNELS_TAG_MISSED="368590"
 CLICKFUNNELS_TAG_REPLAY_ATTENDED="368591"
 ```
+> Skip this step if you want the integration to auto-create tags using the default names above.
 
 ### 3. Restart Server
 

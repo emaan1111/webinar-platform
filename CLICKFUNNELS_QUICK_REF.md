@@ -7,6 +7,11 @@ CLICKFUNNELS_API_KEY=pk_your_api_key_here
 CLICKFUNNELS_WORKSPACE_ID=ws_your_workspace_id
 CLICKFUNNELS_WEBINAR_TAG=UM-Webinar-Registered
 # CLICKFUNNELS_WEBINAR_TAG_ID=368586
+# CLICKFUNNELS_TAG_ATTENDED=368587
+# CLICKFUNNELS_TAG_MOSTLY_ATTENDED=368588
+# CLICKFUNNELS_TAG_PARTLY_ATTENDED=368589
+# CLICKFUNNELS_TAG_MISSED=368590
+# CLICKFUNNELS_TAG_REPLAY_ATTENDED=368591
 ```
 
 ## 📍 Endpoints
@@ -21,11 +26,14 @@ POST https://yourdomain.com/api/integrations/clickfunnels/webhook
 POST https://yourdomain.com/api/webinars/{id}/register
 ```
 
-## 🏷️ Tag Applied
+## 🏷️ Tags Applied
 
-**Tag Name**: `UM-Webinar-Registered`
-
-Applied when: User registers on your platform
+- `UM-Webinar-Registered` → when a user registers (immediate)
+- `UM-Webinar-Attended` → watched any part of the webinar
+- `UM-Webinar-MostlyAttended` → stayed until the offer/CTA segment
+- `UM-Webinar-PartlyAttended` → watched ≥ 40 minutes but left before CTA
+- `UM-Webinar-Missed` → never joined/watched
+- `UM-Webinar-ReplayAttended` → watched a replay session
 
 ## 📊 Custom Fields Sent to ClickFunnels
 
@@ -54,7 +62,7 @@ marketing_consent: "true"           // Optional
 
 1. Register on your site: `https://yourdomain.com/webinar/{slug}`
 2. Check ClickFunnels → Contacts
-3. Look for email with tag `UM-Webinar-Registered`
+3. Look for the email with tag `UM-Webinar-Registered` (and, after attending, the proper attendance tag)
 
 ### Test Incoming (CF → Platform)
 

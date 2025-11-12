@@ -81,6 +81,7 @@ Search for: `test.cf.1762905026549@example.com`
 **Expected to see:**
 - ✅ Contact exists
 - ✅ Tag: `UM-Webinar-Registered`
+- ✅ Attendance tag after watching (e.g., `UM-Webinar-Attended`, `UM-Webinar-MostlyAttended`)
 - ✅ Custom Fields:
   - `webinar_id`: cmhv6o0ps0005jwlgxig6b8qw
   - `webinar_title`: asdasdasdas (Copy) (Copy)

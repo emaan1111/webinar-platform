@@ -54,6 +54,12 @@ CLICKFUNNELS_WORKSPACE_ID=your_workspace_id_here
 CLICKFUNNELS_WEBINAR_TAG=UM-Webinar-Registered
 # Optional: provide the numeric ID if you already have the tag in ClickFunnels
 # CLICKFUNNELS_WEBINAR_TAG_ID=368586
+# Optional attendance tag IDs (defaults auto-create by name)
+# CLICKFUNNELS_TAG_ATTENDED=368587
+# CLICKFUNNELS_TAG_MOSTLY_ATTENDED=368588
+# CLICKFUNNELS_TAG_PARTLY_ATTENDED=368589
+# CLICKFUNNELS_TAG_MISSED=368590
+# CLICKFUNNELS_TAG_REPLAY_ATTENDED=368591
 ```
 
 **Example:**
@@ -62,6 +68,11 @@ CLICKFUNNELS_API_KEY=pk_1234567890abcdef
 CLICKFUNNELS_WORKSPACE_ID=ws_0987654321fedcba
 CLICKFUNNELS_WEBINAR_TAG=UM-Webinar-Registered
 # CLICKFUNNELS_WEBINAR_TAG_ID=368586
+# CLICKFUNNELS_TAG_ATTENDED=368587
+# CLICKFUNNELS_TAG_MOSTLY_ATTENDED=368588
+# CLICKFUNNELS_TAG_PARTLY_ATTENDED=368589
+# CLICKFUNNELS_TAG_MISSED=368590
+# CLICKFUNNELS_TAG_REPLAY_ATTENDED=368591
 ```
 
 If the tag does not already exist, the integration will attempt to create it automatically.
@@ -150,6 +161,13 @@ Custom fields populated (webinar details)
 
 **Tags Applied:**
 - 🏷️ `UM-Webinar-Registered` (always)
+
+**Attendance Tags (automatic):**
+- `UM-Webinar-Attended` – watched any portion of the live webinar
+- `UM-Webinar-MostlyAttended` – stayed through the offer/CTA window (last ~15 min)
+- `UM-Webinar-PartlyAttended` – watched at least 40 minutes but left before the CTA
+- `UM-Webinar-Missed` – registered but never joined/watched
+- `UM-Webinar-ReplayAttended` – watched a replay session
 
 **Custom Fields:**
 - `webinar_id` - The webinar ID
