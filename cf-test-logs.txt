@@ -1,0 +1,5 @@
+📤 Sending contact to ClickFunnels: test.cf.1762906875066@example.com
+✅ ClickFunnels API Response: {
+  "last_name": "User ClickFunnels",
+✅ Contact sent to ClickFunnels: 896665526
+✅ Webinar registration synced to ClickFunnels: { contactId: 896665526, email: undefined, tags: [] }

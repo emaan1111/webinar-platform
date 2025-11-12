@@ -37,9 +37,12 @@ export async function sendContactToClickFunnels(
 
   try {
     console.log('📤 Sending contact to ClickFunnels:', contactData.email)
+    console.log('   Workspace ID:', workspaceId)
+    console.log('   API Key:', apiKey?.substring(0, 10) + '...')
 
     // ClickFunnels 2.0 API endpoint
     const url = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts`
+    console.log('   API URL:', url)
 
     const response = await fetch(url, {
       method: 'POST',
@@ -53,9 +56,15 @@ export async function sendContactToClickFunnels(
       })
     })
 
+    console.log('   Response Status:', response.status, response.statusText)
+
     if (!response.ok) {
       const errorText = await response.text()
-      console.error('❌ ClickFunnels API error:', response.status, errorText)
+      console.error('❌ ClickFunnels API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText
+      })
       
       // If contact already exists (409), try to update it
       if (response.status === 409) {
@@ -66,11 +75,19 @@ export async function sendContactToClickFunnels(
     }
 
     const result = await response.json()
-    console.log('✅ Contact sent to ClickFunnels:', result.contact?.id)
+    console.log('✅ ClickFunnels API Response:', JSON.stringify(result, null, 2))
+    
+    // ClickFunnels 2.0 API returns data in different formats
+    const contact = result.contact || result.data || result
+    console.log('✅ Contact sent to ClickFunnels:', contact?.id || 'ID not in response')
 
-    return result.contact
+    return contact
   } catch (error) {
     console.error('❌ Failed to send contact to ClickFunnels:', error)
+    if (error instanceof Error) {
+      console.error('   Error Message:', error.message)
+      console.error('   Error Stack:', error.stack)
+    }
     return null
   }
 }

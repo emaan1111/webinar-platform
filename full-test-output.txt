@@ -1,0 +1,72 @@
+🚀 Starting development server...
+   Server PID: 7588
+⏳ Waiting for server to start...
+   Checking... (1/30)
+   Checking... (2/30)
+   Checking... (3/30)
+   Checking... (4/30)
+   Checking... (5/30)
+✅ Server is ready!
+
+🧪 Running ClickFunnels Integration Test...
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🧪 Testing ClickFunnels Integration
+
+📝 Test Registration Data:
+{
+  "name": "Test User ClickFunnels",
+  "email": "test.cf.1762906875066@example.com",
+  "phone": "+1234567890",
+  "timezone": "America/New_York",
+  "country": "US",
+  "privacyConsent": true,
+  "marketingConsent": true,
+  "gdprConsent": false
+}
+
+📤 Sending registration request...
+
+✅ Registration Successful!
+
+Response: {
+  "registrationId": "cmhv98mr30001jwvmmyyqpyy7",
+  "registration": {
+    "id": "cmhv98mr30001jwvmmyyqpyy7",
+    "name": "Test User ClickFunnels",
+    "email": "test.cf.1762906875066@example.com"
+  },
+  "message": "Registration successful! Check your email for confirmation."
+}
+
+📊 Next Steps:
+1. Check your terminal logs for ClickFunnels sync messages:
+   📤 Sending contact to ClickFunnels: test.cf.1762906875066@example.com
+   ✅ Contact sent to ClickFunnels: con_xxxxx
+   ✅ Webinar registration synced to ClickFunnels
+
+2. Go to ClickFunnels → Contacts
+3. Search for: test.cf.1762906875066@example.com
+4. Verify tag: WEBINAR_REGISTERED
+5. Check custom fields are populated
+
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⏳ Waiting for async ClickFunnels sync to complete...
+
+📋 Server logs for ClickFunnels sync:
+
+✅ Registration created with scheduledStartTime: null
+📤 Sending contact to ClickFunnels: test.cf.1762906875066@example.com
+   API URL: https://api.myclickfunnels.com/api/v2/workspaces/jxRdRe/contacts
+   Response Status: 201 Created
+✅ ClickFunnels API Response: {
+  "last_name": "User ClickFunnels",
+✅ Contact sent to ClickFunnels: 896665526
+✅ Webinar registration synced to ClickFunnels: { contactId: 896665526, email: undefined, tags: [] }
+
+🛑 Stopping server...
+
+📄 Full relevant logs saved to: cf-test-logs.txt
+✅ Test complete!
