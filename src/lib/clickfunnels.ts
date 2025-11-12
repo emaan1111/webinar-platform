@@ -25,25 +25,68 @@ interface ClickFunnelsContactResponse {
 
 const CLICKFUNNELS_API_BASE = 'https://api.myclickfunnels.com/api/v2'
 const DEFAULT_WEBINAR_TAG_NAME = 'UM-Webinar-Registered'
-const configuredWebinarTagName = process.env.CLICKFUNNELS_WEBINAR_TAG?.trim() || DEFAULT_WEBINAR_TAG_NAME
-const configuredWebinarTagId = process.env.CLICKFUNNELS_WEBINAR_TAG_ID
-  ? Number(process.env.CLICKFUNNELS_WEBINAR_TAG_ID)
-  : null
 
-// Attendance-based tags
-const ATTENDANCE_TAG_IDS = {
-  registered: process.env.CLICKFUNNELS_TAG_REGISTERED || '',
-  attended: process.env.CLICKFUNNELS_TAG_ATTENDED || '',
-  mostlyAttended: process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED || '',
-  partlyAttended: process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED || '',
-  missed: process.env.CLICKFUNNELS_TAG_MISSED || '',
-  replayAttended: process.env.CLICKFUNNELS_TAG_REPLAY_ATTENDED || '',
+const parseTagId = (value?: string | null): number | null => {
+  if (!value) return null
+  const parsed = Number(value)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+const configuredWebinarTagName = process.env.CLICKFUNNELS_WEBINAR_TAG?.trim() || DEFAULT_WEBINAR_TAG_NAME
+const configuredWebinarTagId = parseTagId(process.env.CLICKFUNNELS_WEBINAR_TAG_ID ?? process.env.CLICKFUNNELS_TAG_REGISTERED)
+
+type AttendanceTagKey = 'registered' | 'attended' | 'mostlyAttended' | 'partlyAttended' | 'missed' | 'replayAttended'
+
+const ATTENDANCE_TAG_DEFAULT_NAMES: Record<AttendanceTagKey, string> = {
+  registered: configuredWebinarTagName,
+  attended: 'UM-Webinar-Attended',
+  mostlyAttended: 'UM-Webinar-MostlyAttended',
+  partlyAttended: 'UM-Webinar-PartlyAttended',
+  missed: 'UM-Webinar-Missed',
+  replayAttended: 'UM-Webinar-ReplayAttended',
+}
+
+const ATTENDANCE_TAG_ENV_IDS: Record<AttendanceTagKey, number | null> = {
+  registered: configuredWebinarTagId,
+  attended: parseTagId(process.env.CLICKFUNNELS_TAG_ATTENDED),
+  mostlyAttended: parseTagId(process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED),
+  partlyAttended: parseTagId(process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED),
+  missed: parseTagId(process.env.CLICKFUNNELS_TAG_MISSED),
+  replayAttended: parseTagId(process.env.CLICKFUNNELS_TAG_REPLAY_ATTENDED),
 }
 
 const clickFunnelsTagCache = new Map<string, number>()
 
 if (configuredWebinarTagId && !Number.isNaN(configuredWebinarTagId)) {
   clickFunnelsTagCache.set(configuredWebinarTagName, configuredWebinarTagId)
+}
+
+async function resolveAttendanceTagId(tagKey: AttendanceTagKey): Promise<number | null> {
+  const envId = ATTENDANCE_TAG_ENV_IDS[tagKey]
+  if (envId) {
+    return envId
+  }
+
+  const tagName = ATTENDANCE_TAG_DEFAULT_NAMES[tagKey]
+  if (!tagName) {
+    return null
+  }
+
+  return await getOrCreateClickFunnelsTagId(tagName)
+}
+
+async function resolveAttendanceTagIds(tagKeys: AttendanceTagKey[]): Promise<number[]> {
+  const resolvedIds: number[] = []
+  const uniqueKeys = Array.from(new Set(tagKeys))
+
+  for (const key of uniqueKeys) {
+    const tagId = await resolveAttendanceTagId(key)
+    if (typeof tagId === 'number') {
+      resolvedIds.push(tagId)
+    }
+  }
+
+  return resolvedIds
 }
 
 async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
@@ -448,12 +491,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   scheduledStartTime?: Date | null
 }): Promise<boolean> {
   try {
-    // Use configured tag ID for registration
-    const registeredTagId = ATTENDANCE_TAG_IDS.registered
-    
-    if (!registeredTagId) {
-      console.warn('⚠️ ClickFunnels registered tag ID not configured - continuing without tagging')
-    }
+    const registeredTagId = await resolveAttendanceTagId('registered')
 
     // Split name into first and last
     const nameParts = data.name.trim().split(' ')
@@ -468,7 +506,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
       phone_number: data.phone || undefined,
       time_zone: data.timezone || undefined,
       country: data.country || undefined,
-      tag_ids: registeredTagId ? [Number(registeredTagId)] : undefined,
+      tag_ids: registeredTagId ? [registeredTagId] : undefined,
       custom_attributes: {
         webinar_id: data.webinarId,
         webinar_title: data.webinarTitle,
@@ -505,7 +543,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
  * @param attended Whether user attended at all
  * @param isReplay Whether this was a replay view
  * @param reachedOfferCTA Whether user watched until offer/CTA (typically last 10-15 mins)
- * @returns Array of tag IDs to apply
+ * @returns Array of attendance tag keys to apply
  */
 export function determineAttendanceTags(data: {
   webinarDuration: number
@@ -513,48 +551,30 @@ export function determineAttendanceTags(data: {
   attended: boolean
   isReplay?: boolean
   reachedOfferCTA?: boolean
-}): string[] {
+}): AttendanceTagKey[] {
   const { webinarDuration, watchTime, attended, isReplay, reachedOfferCTA } = data
-  const tags: string[] = []
+  const tags: AttendanceTagKey[] = []
 
-  // If they didn't attend at all
-  if (!attended || watchTime === 0) {
-    if (ATTENDANCE_TAG_IDS.missed) {
-      tags.push(ATTENDANCE_TAG_IDS.missed)
-    }
+  if (!attended || watchTime <= 0) {
+    tags.push('missed')
     return tags
   }
 
-  // If this was a replay
   if (isReplay) {
-    if (ATTENDANCE_TAG_IDS.replayAttended) {
-      tags.push(ATTENDANCE_TAG_IDS.replayAttended)
-    }
-    // Also apply standard attendance tags based on watch time
+    tags.push('replayAttended')
   }
 
-  const watchPercentage = (watchTime / webinarDuration) * 100
   const watchMinutes = Math.floor(watchTime / 60)
 
-  // Attended (any attendance)
-  if (ATTENDANCE_TAG_IDS.attended) {
-    tags.push(ATTENDANCE_TAG_IDS.attended)
-  }
+  tags.push('attended')
 
-  // Mostly Attended - watched until offer/CTA (typically last 10-15 mins)
   if (reachedOfferCTA) {
-    if (ATTENDANCE_TAG_IDS.mostlyAttended) {
-      tags.push(ATTENDANCE_TAG_IDS.mostlyAttended)
-    }
-  }
-  // Partly Attended - watched at least 40 minutes but not full
-  else if (watchMinutes >= 40) {
-    if (ATTENDANCE_TAG_IDS.partlyAttended) {
-      tags.push(ATTENDANCE_TAG_IDS.partlyAttended)
-    }
+    tags.push('mostlyAttended')
+  } else if (watchMinutes >= 40) {
+    tags.push('partlyAttended')
   }
 
-  return tags.filter(Boolean) // Remove empty strings
+  return tags
 }
 
 /**
@@ -620,13 +640,10 @@ export async function syncAttendanceToClickFunnels(data: {
       return true
     }
 
-    // Convert string tag IDs to numbers
-    const tagIds = tagsToApply
-      .map(id => Number(id))
-      .filter(id => !isNaN(id))
+    const tagIds = await resolveAttendanceTagIds(tagsToApply)
 
     if (tagIds.length === 0) {
-      console.log('⚠️ No valid tag IDs configured for attendance tracking')
+      console.log('⚠️ No valid tag IDs resolved for attendance tracking')
       return false
     }
 
