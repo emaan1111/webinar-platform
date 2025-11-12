@@ -2,22 +2,25 @@
 // Documentation: https://apidocs.myclickfunnels.com/
 
 interface ClickFunnelsContact {
-  email: string
+  email_address: string  // CF uses email_address not email
   first_name?: string
   last_name?: string
-  phone?: string
+  phone_number?: string  // CF uses phone_number not phone
   time_zone?: string
   country?: string
-  tags?: string[]
-  custom_fields?: Record<string, any>
+  tag_ids?: number[]  // CF uses tag IDs not tag names
+  custom_attributes?: Record<string, any>  // CF uses custom_attributes not custom_fields
 }
 
 interface ClickFunnelsContactResponse {
-  id: string
-  email: string
+  id: number
+  email_address: string
   first_name?: string
   last_name?: string
-  tags?: string[]
+  tags?: Array<{
+    id: number
+    name: string
+  }>
 }
 
 /**
@@ -36,7 +39,7 @@ export async function sendContactToClickFunnels(
   }
 
   try {
-    console.log('📤 Sending contact to ClickFunnels:', contactData.email)
+    console.log('📤 Sending contact to ClickFunnels:', contactData.email_address)
     console.log('   Workspace ID:', workspaceId)
     console.log('   API Key:', apiKey?.substring(0, 10) + '...')
 
@@ -51,9 +54,7 @@ export async function sendContactToClickFunnels(
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify({
-        contact: contactData
-      })
+      body: JSON.stringify(contactData)  // Send directly, no wrapping
     })
 
     console.log('   Response Status:', response.status, response.statusText)
@@ -77,9 +78,15 @@ export async function sendContactToClickFunnels(
     const result = await response.json()
     console.log('✅ ClickFunnels API Response:', JSON.stringify(result, null, 2))
     
-    // ClickFunnels 2.0 API returns data in different formats
-    const contact = result.contact || result.data || result
-    console.log('✅ Contact sent to ClickFunnels:', contact?.id || 'ID not in response')
+    // ClickFunnels 2.0 API returns contacts in the root of response (not wrapped)
+    // The response IS the contact object itself
+    const contact = result
+    console.log('✅ Contact sent to ClickFunnels - ID:', contact?.id || 'ID not in response')
+
+    // Apply tags separately if they were provided
+    if (contact?.id && contactData.tag_ids && contactData.tag_ids.length > 0) {
+      await applyTagsToContact(contact.id, contactData.tag_ids)
+    }
 
     return contact
   } catch (error) {
@@ -89,6 +96,71 @@ export async function sendContactToClickFunnels(
       console.error('   Error Stack:', error.stack)
     }
     return null
+  }
+}
+
+/**
+ * Apply tags to a contact in ClickFunnels
+ * Try multiple possible endpoints
+ */
+async function applyTagsToContact(
+  contactId: number,
+  tagIds: number[]
+): Promise<boolean> {
+  const apiKey = process.env.CLICKFUNNELS_API_KEY
+  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+
+  if (!apiKey || !workspaceId) {
+    return false
+  }
+
+  try {
+    console.log(`🏷️  Applying tags ${tagIds.join(', ')} to contact ${contactId}`)
+
+    // Try creating contact_tags (taggings)
+    for (const tagId of tagIds) {
+      const url = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contactId}/tags/${tagId}/taggings`
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({})  // Empty body for tagging
+      })
+
+      if (response.ok) {
+        console.log(`✅ Tag ${tagId} applied to contact ${contactId}`)
+        return true
+      }
+
+      // If that didn't work, try without the taggings suffix
+      const url2 = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contactId}/tags/${tagId}`
+      const response2 = await fetch(url2, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+        },
+        body: JSON.stringify({})
+      })
+
+      if (response2.ok) {
+        console.log(`✅ Tag ${tagId} applied to contact ${contactId}`)
+        return true
+      }
+
+      const errorText = await response.text()
+      console.error(`❌ Failed to apply tag ${tagId}:`, response.status, errorText.substring(0, 200))
+    }
+
+    return false
+  } catch (error) {
+    console.error('❌ Failed to apply tags:', error)
+    return false
   }
 }
 
@@ -106,10 +178,10 @@ async function updateClickFunnelsContact(
   }
 
   try {
-    console.log('🔄 Updating existing contact in ClickFunnels:', contactData.email)
+    console.log('🔄 Updating existing contact in ClickFunnels:', contactData.email_address)
 
     // First, find the contact by email
-    const searchUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts?filter[email]=${encodeURIComponent(contactData.email)}`
+    const searchUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(contactData.email_address)}`
 
     const searchResponse = await fetch(searchUrl, {
       method: 'GET',
@@ -125,7 +197,8 @@ async function updateClickFunnelsContact(
     }
 
     const searchResult = await searchResponse.json()
-    const existingContact = searchResult.contacts?.[0]
+    // ClickFunnels returns array of contacts in 'data' field
+    const existingContact = searchResult.data?.[0] || searchResult[0]
 
     if (!existingContact) {
       console.log('⚠️ Contact not found in ClickFunnels')
@@ -135,11 +208,10 @@ async function updateClickFunnelsContact(
     // Update the contact
     const updateUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${existingContact.id}`
 
-    // Merge tags (don't overwrite existing tags)
-    const updatedTags = Array.from(new Set([
-      ...(existingContact.tags || []),
-      ...(contactData.tags || [])
-    ]))
+    // Merge tag IDs (don't overwrite existing tags)
+    const existingTagIds = (existingContact.tags || []).map((t: any) => t.id)
+    const newTagIds = contactData.tag_ids || []
+    const updatedTagIds = Array.from(new Set([...existingTagIds, ...newTagIds]))
 
     const updateResponse = await fetch(updateUrl, {
       method: 'PUT',
@@ -149,10 +221,8 @@ async function updateClickFunnelsContact(
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        contact: {
-          ...contactData,
-          tags: updatedTags
-        }
+        ...contactData,
+        tag_ids: updatedTagIds
       })
     })
 
@@ -162,9 +232,9 @@ async function updateClickFunnelsContact(
     }
 
     const result = await updateResponse.json()
-    console.log('✅ Contact updated in ClickFunnels:', result.contact?.id)
+    console.log('✅ Contact updated in ClickFunnels - ID:', result?.id || 'Unknown')
 
-    return result.contact
+    return result
   } catch (error) {
     console.error('❌ Failed to update contact in ClickFunnels:', error)
     return null
@@ -190,7 +260,7 @@ export async function tagClickFunnelsContact(
     console.log('🏷️ Tagging contact in ClickFunnels:', email, tags)
 
     // Find contact by email
-    const searchUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts?filter[email]=${encodeURIComponent(email)}`
+    const searchUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(email)}`
 
     const searchResponse = await fetch(searchUrl, {
       method: 'GET',
@@ -206,7 +276,8 @@ export async function tagClickFunnelsContact(
     }
 
     const searchResult = await searchResponse.json()
-    const contact = searchResult.contacts?.[0]
+    // ClickFunnels returns array of contacts in 'data' field
+    const contact = searchResult.data?.[0] || searchResult[0]
 
     if (!contact) {
       console.log('⚠️ Contact not found for tagging')
@@ -271,14 +342,15 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
 
     // Prepare contact data
     const contactData: ClickFunnelsContact = {
-      email: data.email.toLowerCase(),
+      email_address: data.email.toLowerCase(),
       first_name: firstName,
       last_name: lastName,
-      phone: data.phone || undefined,
+      phone_number: data.phone || undefined,
       time_zone: data.timezone || undefined,
       country: data.country || undefined,
-      tags: ['WEBINAR_REGISTERED'], // Primary tag
-      custom_fields: {
+      // Use existing tag ID for "UM-Webinar-Registered" (ID: 368586)
+      tag_ids: [368586],  // UM-Webinar-Registered tag
+      custom_attributes: {
         webinar_id: data.webinarId,
         webinar_title: data.webinarTitle,
         registered_at: new Date().toISOString(),
@@ -296,7 +368,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
 
     console.log('✅ Webinar registration synced to ClickFunnels:', {
       contactId: result.id,
-      email: result.email,
+      email: result.email_address,
       tags: result.tags
     })
 
