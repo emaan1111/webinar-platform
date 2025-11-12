@@ -1,6 +1,6 @@
-📤 Sending contact to ClickFunnels: test.cf.1762909096059@example.com
+📤 Sending contact to ClickFunnels: test.cf.1762910928907@example.com
 ✅ ClickFunnels API Response: {
   "last_name": "User ClickFunnels",
-✅ Contact sent to ClickFunnels - ID: 896711853
-❌ Failed to apply tag 368586: 404 {"error":"Not found: No such route"}
+✅ Contact sent to ClickFunnels - ID: 896764120
+   ❌ Failed to apply tag 368586: 404 {"error":"Not found: No such route"}
 ✅ Webinar registration synced to ClickFunnels: {

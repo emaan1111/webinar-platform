@@ -54,7 +54,9 @@ export async function sendContactToClickFunnels(
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
-      body: JSON.stringify(contactData)  // Send directly, no wrapping
+      body: JSON.stringify({
+        contact: contactData  // Wrap in contact object like the working implementation
+      })
     })
 
     console.log('   Response Status:', response.status, response.statusText)
@@ -83,8 +85,9 @@ export async function sendContactToClickFunnels(
     const contact = result
     console.log('✅ Contact sent to ClickFunnels - ID:', contact?.id || 'ID not in response')
 
-    // Apply tags separately if they were provided
-    if (contact?.id && contactData.tag_ids && contactData.tag_ids.length > 0) {
+    // Apply tags with a separate API call if tag_ids were provided
+    if (contactData.tag_ids && contactData.tag_ids.length > 0 && contact.id) {
+      console.log('🏷️ Applying tags to contact...')
       await applyTagsToContact(contact.id, contactData.tag_ids)
     }
 
@@ -100,8 +103,8 @@ export async function sendContactToClickFunnels(
 }
 
 /**
- * Apply tags to a contact in ClickFunnels
- * Try multiple possible endpoints
+ * Apply tags to a contact using a separate API call
+ * ClickFunnels requires tags to be applied after contact creation
  */
 async function applyTagsToContact(
   contactId: number,
@@ -115,11 +118,12 @@ async function applyTagsToContact(
   }
 
   try {
-    console.log(`🏷️  Applying tags ${tagIds.join(', ')} to contact ${contactId}`)
-
-    // Try creating contact_tags (taggings)
+    // Apply each tag individually
     for (const tagId of tagIds) {
-      const url = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contactId}/tags/${tagId}/taggings`
+      console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
+      
+      // Correct endpoint and format from working implementation
+      const url = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contactId}/applied_tags`
       
       const response = await fetch(url, {
         method: 'POST',
@@ -128,36 +132,23 @@ async function applyTagsToContact(
           'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: JSON.stringify({})  // Empty body for tagging
+        body: JSON.stringify({
+          applied_tag: {
+            tag_id: tagId.toString()  // Must be wrapped in applied_tag and as string!
+          }
+        })
       })
 
       if (response.ok) {
-        console.log(`✅ Tag ${tagId} applied to contact ${contactId}`)
-        return true
+        const result = await response.json()
+        console.log(`   ✅ Tag ${tagId} applied successfully!`)
+      } else {
+        const errorText = await response.text()
+        console.error(`   ❌ Failed to apply tag ${tagId}:`, response.status, errorText)
       }
-
-      // If that didn't work, try without the taggings suffix
-      const url2 = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contactId}/tags/${tagId}`
-      const response2 = await fetch(url2, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({})
-      })
-
-      if (response2.ok) {
-        console.log(`✅ Tag ${tagId} applied to contact ${contactId}`)
-        return true
-      }
-
-      const errorText = await response.text()
-      console.error(`❌ Failed to apply tag ${tagId}:`, response.status, errorText.substring(0, 200))
     }
 
-    return false
+    return true
   } catch (error) {
     console.error('❌ Failed to apply tags:', error)
     return false
