@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { syncAttendanceToClickFunnels } from '@/lib/clickfunnels';
 
 // POST /api/tracking/session - Create or update session
 export async function POST(request: NextRequest) {
@@ -80,7 +81,7 @@ export async function POST(request: NextRequest) {
 
     if (action === 'leave' && session) {
       // End session
-      await prisma.attendeeSession.update({
+      const updatedSession = await prisma.attendeeSession.update({
         where: { id: session.id },
         data: {
           leftAt: new Date(),
@@ -91,11 +92,37 @@ export async function POST(request: NextRequest) {
       });
 
       // Update registration left time
-      await prisma.registration.update({
+      const registration = await prisma.registration.update({
         where: { id: registrationId },
         data: {
           leftAt: new Date(),
         },
+        include: {
+          webinar: true,
+        }
+      });
+
+      // Sync attendance to ClickFunnels asynchronously
+      // Don't await - let it run in background
+      const webinarDuration = registration.webinar.duration ? registration.webinar.duration * 60 : 3600; // Convert minutes to seconds
+      const finalWatchTime = updatedSession.totalWatchTime;
+      const finalVideoPosition = updatedSession.videoPosition;
+      
+      // Determine if user reached offer CTA (last 15 minutes of webinar)
+      const offerCTAThreshold = Math.max(0, webinarDuration - 900); // 15 minutes before end
+      const reachedOfferCTA = finalVideoPosition >= offerCTAThreshold;
+      
+      syncAttendanceToClickFunnels({
+        email: registration.email,
+        webinarDuration,
+        watchTime: finalWatchTime,
+        attended: true,
+        isReplay: false, // Can be enhanced to detect replay vs live
+        reachedOfferCTA,
+        webinarTitle: registration.webinar.title,
+        leftAt: updatedSession.leftAt || undefined,
+      }).catch(err => {
+        console.error('Failed to sync attendance to ClickFunnels:', err);
       });
 
       return NextResponse.json({ 

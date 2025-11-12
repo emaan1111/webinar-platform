@@ -47,7 +47,7 @@ Response: {
 
 2. Go to ClickFunnels → Contacts
 3. Search for: test.cf.1762905026549@example.com
-4. Verify tag: WEBINAR_REGISTERED
+4. Verify tag: UM-Webinar-Registered
 5. Check custom fields are populated
 
 

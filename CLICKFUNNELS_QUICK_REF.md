@@ -5,6 +5,8 @@
 ```bash
 CLICKFUNNELS_API_KEY=pk_your_api_key_here
 CLICKFUNNELS_WORKSPACE_ID=ws_your_workspace_id
+CLICKFUNNELS_WEBINAR_TAG=UM-Webinar-Registered
+# CLICKFUNNELS_WEBINAR_TAG_ID=368586
 ```
 
 ## 📍 Endpoints
@@ -21,7 +23,7 @@ POST https://yourdomain.com/api/webinars/{id}/register
 
 ## 🏷️ Tag Applied
 
-**Tag Name**: `WEBINAR_REGISTERED`
+**Tag Name**: `UM-Webinar-Registered`
 
 Applied when: User registers on your platform
 
@@ -52,7 +54,7 @@ marketing_consent: "true"           // Optional
 
 1. Register on your site: `https://yourdomain.com/webinar/{slug}`
 2. Check ClickFunnels → Contacts
-3. Look for email with tag `WEBINAR_REGISTERED`
+3. Look for email with tag `UM-Webinar-Registered`
 
 ### Test Incoming (CF → Platform)
 
@@ -85,7 +87,7 @@ printenv | grep CLICKFUNNELS
 ### User Registers on Your Site:
 1. Registration saved to database ✅
 2. Contact sent to ClickFunnels API (async) ✅
-3. Tagged with `WEBINAR_REGISTERED` ✅
+3. Tagged with `UM-Webinar-Registered` ✅
 4. Custom fields populated ✅
 
 ### User Submits ClickFunnels Form:

@@ -5,7 +5,7 @@
 **Bi-directional integration** between your webinar platform and ClickFunnels 2.0:
 
 1. **Incoming**: Receive webhooks from ClickFunnels → Auto-register users for webinars
-2. **Outgoing**: Send registrations to ClickFunnels → Tag contacts as `WEBINAR_REGISTERED`
+2. **Outgoing**: Send registrations to ClickFunnels → Tag contacts as `UM-Webinar-Registered`
 
 ## ✅ What's Included
 
@@ -19,7 +19,7 @@
 
 ### Outgoing API (Your Platform → ClickFunnels)
 - **Contact Sync**: Sends registrant data to ClickFunnels
-- **Auto Tagging**: Tags contacts with `WEBINAR_REGISTERED`
+- **Auto Tagging**: Tags contacts with `UM-Webinar-Registered`
 - **Custom Fields**: Includes webinar details (ID, title, start time)
 - **Update Existing**: Updates existing contacts without duplicating
 - **Non-Blocking**: Async operation doesn't delay registration
@@ -51,13 +51,20 @@ Add to your `.env` file:
 # ClickFunnels 2.0 API Configuration
 CLICKFUNNELS_API_KEY=your_api_key_here
 CLICKFUNNELS_WORKSPACE_ID=your_workspace_id_here
+CLICKFUNNELS_WEBINAR_TAG=UM-Webinar-Registered
+# Optional: provide the numeric ID if you already have the tag in ClickFunnels
+# CLICKFUNNELS_WEBINAR_TAG_ID=368586
 ```
 
 **Example:**
 ```bash
 CLICKFUNNELS_API_KEY=pk_1234567890abcdef
 CLICKFUNNELS_WORKSPACE_ID=ws_0987654321fedcba
+CLICKFUNNELS_WEBINAR_TAG=UM-Webinar-Registered
+# CLICKFUNNELS_WEBINAR_TAG_ID=368586
 ```
+
+If the tag does not already exist, the integration will attempt to create it automatically.
 
 ### Step 3: Setup Incoming Webhooks (ClickFunnels → Your Platform)
 
@@ -126,7 +133,7 @@ Contact sent to ClickFunnels API (async)
          ↓
 Contact created/updated in ClickFunnels
          ↓
-Tagged with "WEBINAR_REGISTERED"
+Tagged with "UM-Webinar-Registered"
          ↓
 Custom fields populated (webinar details)
 ```
@@ -142,7 +149,7 @@ Custom fields populated (webinar details)
 - ✅ Country (optional)
 
 **Tags Applied:**
-- 🏷️ `WEBINAR_REGISTERED` (always)
+- 🏷️ `UM-Webinar-Registered` (always)
 
 **Custom Fields:**
 - `webinar_id` - The webinar ID
@@ -190,7 +197,7 @@ CLICKFUNNELS_WORKSPACE_ID=your_workspace_id
 3. Check ClickFunnels → Contacts
 4. Verify contact exists with:
    - ✅ Email, name, phone
-   - ✅ Tag: `WEBINAR_REGISTERED`
+   - ✅ Tag: `UM-Webinar-Registered`
    - ✅ Custom fields populated
 
 **Test 2: Register Existing Contact**
@@ -211,7 +218,7 @@ In your terminal/logs, you should see:
 ✅ Webinar registration synced to ClickFunnels: {
   contactId: 'con_abc123',
   email: 'user@example.com',
-  tags: ['WEBINAR_REGISTERED']
+  tags: ['UM-Webinar-Registered']
 }
 ```
 
@@ -370,7 +377,7 @@ ClickFunnels sends this data:
 │           ↓                                                  │
 │  Create New Contact OR Update Existing                      │
 │           ↓                                                  │
-│  Apply Tag: "WEBINAR_REGISTERED"                            │
+│  Apply Tag: "UM-Webinar-Registered"                            │
 │           ↓                                                  │
 │  Add Custom Fields (webinar details)                        │
 │           ↓                                                  │
@@ -557,11 +564,11 @@ Triggered when an order is placed.
 
 #### Contact Created But Not Tagged
 
-**Problem**: Contact exists but missing `WEBINAR_REGISTERED` tag
+**Problem**: Contact exists but missing `UM-Webinar-Registered` tag
 
 **Solutions**:
 1. Check if tags are enabled in your CF workspace
-2. Verify tag name is exactly `WEBINAR_REGISTERED` (case-sensitive)
+2. Verify tag name is exactly `UM-Webinar-Registered` (case-sensitive)
 3. Manually test the API with Postman/curl
 4. Check CF API rate limits
 
@@ -841,7 +848,7 @@ Content-Type: application/json
 ### Outgoing API (Platform → CF)
 - [ ] Register test user on your platform
 - [ ] Check ClickFunnels for new contact
-- [ ] Verify `WEBINAR_REGISTERED` tag applied
+- [ ] Verify `UM-Webinar-Registered` tag applied
 - [ ] Confirm custom fields populated
 - [ ] Test with existing CF contact
 
@@ -861,7 +868,7 @@ Content-Type: application/json
 **Features**:
 - ✅ Incoming webhooks (CF → Platform)
 - ✅ Outgoing API sync (Platform → CF)
-- ✅ Auto-tagging with `WEBINAR_REGISTERED`
+- ✅ Auto-tagging with `UM-Webinar-Registered`
 - ✅ Duplicate prevention
 - ✅ Error handling
 - ✅ Custom fields

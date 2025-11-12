@@ -3,7 +3,7 @@
 
 const testRegistration = async () => {
   const webinarId = 'cmhv6o0ps0005jwlgxig6b8qw'; // asdasdasdas (Copy) (Copy)
-  const apiUrl = `http://localhost:3000/api/webinars/${webinarId}/register`;
+  const apiUrl = `http://localhost:3001/api/webinars/${webinarId}/register`;
 
   const testData = {
     name: 'Test User ClickFunnels',
@@ -42,7 +42,7 @@ const testRegistration = async () => {
       console.log('   ✅ Webinar registration synced to ClickFunnels');
       console.log('\n2. Go to ClickFunnels → Contacts');
       console.log('3. Search for: ' + testData.email);
-      console.log('4. Verify tag: WEBINAR_REGISTERED');
+      console.log('4. Verify tag: UM-Webinar-Registered');
       console.log('5. Check custom fields are populated\n');
     } else {
       console.log('❌ Registration Failed\n');

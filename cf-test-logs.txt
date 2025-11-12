@@ -1,6 +1,12 @@
-📤 Sending contact to ClickFunnels: test.cf.1762910928907@example.com
+ ⨯ Error: Cannot find module './vendor-chunks/next.js'
+    at async DevServer.renderErrorToResponseImpl (/Volumes/WD/CODE/Webinar Play 2/node_modules/next/dist/server/base-server.js:2074:30)
+📤 Sending contact to ClickFunnels: test.cf.1762913082167@example.com
+📤 Sending contact to ClickFunnels: test.cf.1762913086847@example.com
 ✅ ClickFunnels API Response: {
   "last_name": "User ClickFunnels",
-✅ Contact sent to ClickFunnels - ID: 896764120
-   ❌ Failed to apply tag 368586: 404 {"error":"Not found: No such route"}
+✅ Contact sent to ClickFunnels - ID: 896809152
+✅ ClickFunnels API Response: {
+  "last_name": "User ClickFunnels",
+✅ Contact sent to ClickFunnels - ID: 896809151
+✅ Webinar registration synced to ClickFunnels: {
 ✅ Webinar registration synced to ClickFunnels: {

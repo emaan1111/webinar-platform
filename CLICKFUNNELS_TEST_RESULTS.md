@@ -80,7 +80,7 @@ Search for: `test.cf.1762905026549@example.com`
 
 **Expected to see:**
 - ✅ Contact exists
-- ✅ Tag: `WEBINAR_REGISTERED`
+- ✅ Tag: `UM-Webinar-Registered`
 - ✅ Custom Fields:
   - `webinar_id`: cmhv6o0ps0005jwlgxig6b8qw
   - `webinar_title`: asdasdasdas (Copy) (Copy)

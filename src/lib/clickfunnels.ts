@@ -23,6 +23,132 @@ interface ClickFunnelsContactResponse {
   }>
 }
 
+const CLICKFUNNELS_API_BASE = 'https://api.myclickfunnels.com/api/v2'
+const DEFAULT_WEBINAR_TAG_NAME = 'UM-Webinar-Registered'
+const configuredWebinarTagName = process.env.CLICKFUNNELS_WEBINAR_TAG?.trim() || DEFAULT_WEBINAR_TAG_NAME
+const configuredWebinarTagId = process.env.CLICKFUNNELS_WEBINAR_TAG_ID
+  ? Number(process.env.CLICKFUNNELS_WEBINAR_TAG_ID)
+  : null
+
+// Attendance-based tags
+const ATTENDANCE_TAG_IDS = {
+  registered: process.env.CLICKFUNNELS_TAG_REGISTERED || '',
+  attended: process.env.CLICKFUNNELS_TAG_ATTENDED || '',
+  mostlyAttended: process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED || '',
+  partlyAttended: process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED || '',
+  missed: process.env.CLICKFUNNELS_TAG_MISSED || '',
+  replayAttended: process.env.CLICKFUNNELS_TAG_REPLAY_ATTENDED || '',
+}
+
+const clickFunnelsTagCache = new Map<string, number>()
+
+if (configuredWebinarTagId && !Number.isNaN(configuredWebinarTagId)) {
+  clickFunnelsTagCache.set(configuredWebinarTagName, configuredWebinarTagId)
+}
+
+async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
+  const cachedId = clickFunnelsTagCache.get(tagName)
+  if (cachedId) {
+    return cachedId
+  }
+
+  const apiKey = process.env.CLICKFUNNELS_API_KEY
+  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+
+  if (!apiKey || !workspaceId) {
+    console.log('⚠️ ClickFunnels API not configured - cannot resolve tag ID')
+    return null
+  }
+
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  }
+
+  const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/tags?filter[name]=${encodeURIComponent(tagName)}`
+
+  const findExistingTag = async (): Promise<number | null> => {
+    const response = await fetch(searchUrl, {
+      method: 'GET',
+      headers
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Failed to search ClickFunnels tags:', response.status, errorText)
+      return null
+    }
+
+    const searchResult = await response.json()
+    const tags = Array.isArray(searchResult)
+      ? searchResult
+      : Array.isArray(searchResult?.data)
+        ? searchResult.data
+        : []
+
+    const existingTag = tags[0]
+
+    if (existingTag?.id) {
+      const tagId = Number(existingTag.id)
+      if (!Number.isNaN(tagId)) {
+        clickFunnelsTagCache.set(tagName, tagId)
+        return tagId
+      }
+    }
+
+    return null
+  }
+
+  try {
+    const existingTagId = await findExistingTag()
+    if (existingTagId) {
+      return existingTagId
+    }
+
+    console.log(`ℹ️ ClickFunnels tag "${tagName}" not found - attempting to create it`)
+
+    const createResponse = await fetch(`${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/tags`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        contacts_tag: {
+          name: tagName,
+          color: '#EEEEEE'
+        }
+      })
+    })
+
+    if (!createResponse.ok) {
+      const errorText = await createResponse.text()
+      console.error('❌ Failed to create ClickFunnels tag:', createResponse.status, errorText)
+
+      if (createResponse.status === 422) {
+        const fallbackId = await findExistingTag()
+        if (fallbackId) {
+          return fallbackId
+        }
+      }
+
+      return null
+    }
+
+    const createdTag = await createResponse.json()
+    const newTagId = Number(createdTag?.id)
+
+    if (Number.isNaN(newTagId)) {
+      console.error('❌ Created ClickFunnels tag but response did not include a numeric ID', createdTag)
+      return null
+    }
+
+    clickFunnelsTagCache.set(tagName, newTagId)
+    return newTagId
+  } catch (error) {
+    console.error('❌ Failed to resolve ClickFunnels tag:', error)
+    return null
+  }
+}
+
 /**
  * Send contact to ClickFunnels and tag them
  */
@@ -44,7 +170,7 @@ export async function sendContactToClickFunnels(
     console.log('   API Key:', apiKey?.substring(0, 10) + '...')
 
     // ClickFunnels 2.0 API endpoint
-    const url = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts`
+    const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts`
     console.log('   API URL:', url)
 
     const response = await fetch(url, {
@@ -118,13 +244,12 @@ async function applyTagsToContact(
   }
 
   try {
-    // Apply each tag individually
     for (const tagId of tagIds) {
       console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
-      
-      // Correct endpoint and format from working implementation
-      const url = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contactId}/applied_tags`
-      
+
+      const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contactId}/applied_tags`
+      console.log('   Tag API URL:', url)
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -134,18 +259,24 @@ async function applyTagsToContact(
         },
         body: JSON.stringify({
           applied_tag: {
-            tag_id: tagId.toString()  // Must be wrapped in applied_tag and as string!
+            tag_id: String(tagId)
           }
         })
       })
 
       if (response.ok) {
-        const result = await response.json()
         console.log(`   ✅ Tag ${tagId} applied successfully!`)
-      } else {
-        const errorText = await response.text()
-        console.error(`   ❌ Failed to apply tag ${tagId}:`, response.status, errorText)
+        continue
       }
+
+      const errorText = await response.text()
+
+      if (response.status === 422 && errorText.includes('already been taken')) {
+        console.log(`   ℹ️ Tag ${tagId} already applied to contact ${contactId}`)
+        continue
+      }
+
+      console.error(`   ❌ Failed to apply tag ${tagId}:`, response.status, errorText)
     }
 
     return true
@@ -172,7 +303,7 @@ async function updateClickFunnelsContact(
     console.log('🔄 Updating existing contact in ClickFunnels:', contactData.email_address)
 
     // First, find the contact by email
-    const searchUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(contactData.email_address)}`
+    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(contactData.email_address)}`
 
     const searchResponse = await fetch(searchUrl, {
       method: 'GET',
@@ -196,15 +327,9 @@ async function updateClickFunnelsContact(
       return null
     }
 
-    // Update the contact
-    const updateUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${existingContact.id}`
+    const { tag_ids, ...contactFields } = contactData
 
-    // Merge tag IDs (don't overwrite existing tags)
-    const existingTagIds = (existingContact.tags || []).map((t: any) => t.id)
-    const newTagIds = contactData.tag_ids || []
-    const updatedTagIds = Array.from(new Set([...existingTagIds, ...newTagIds]))
-
-    const updateResponse = await fetch(updateUrl, {
+    const updateResponse = await fetch(`${CLICKFUNNELS_API_BASE}/contacts/${existingContact.id}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -212,18 +337,27 @@ async function updateClickFunnelsContact(
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        ...contactData,
-        tag_ids: updatedTagIds
+        contact: contactFields
       })
     })
 
     if (!updateResponse.ok) {
-      console.error('❌ Failed to update contact:', updateResponse.status)
+      const errorText = await updateResponse.text()
+      console.error('❌ Failed to update contact:', updateResponse.status, errorText)
       return null
     }
 
     const result = await updateResponse.json()
     console.log('✅ Contact updated in ClickFunnels - ID:', result?.id || 'Unknown')
+
+    if (tag_ids && tag_ids.length > 0) {
+      const existingTagIds = (existingContact.tags || []).map((t: any) => t.id)
+      const missingTagIds = tag_ids.filter(id => !existingTagIds.includes(id))
+
+      if (missingTagIds.length > 0) {
+        await applyTagsToContact(existingContact.id, missingTagIds)
+      }
+    }
 
     return result
   } catch (error) {
@@ -251,7 +385,7 @@ export async function tagClickFunnelsContact(
     console.log('🏷️ Tagging contact in ClickFunnels:', email, tags)
 
     // Find contact by email
-    const searchUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(email)}`
+    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(email)}`
 
     const searchResponse = await fetch(searchUrl, {
       method: 'GET',
@@ -275,35 +409,23 @@ export async function tagClickFunnelsContact(
       return false
     }
 
-    // Add tags to contact
-    const updateUrl = `https://api.myclickfunnels.com/api/v2/workspaces/${workspaceId}/contacts/${contact.id}`
+    const tagIds: number[] = []
 
-    // Merge with existing tags
-    const updatedTags = Array.from(new Set([
-      ...(contact.tags || []),
-      ...tags
-    ]))
+    for (const tagName of tags) {
+      const tagId = await getOrCreateClickFunnelsTagId(tagName)
+      if (tagId) {
+        tagIds.push(tagId)
+      }
+    }
 
-    const updateResponse = await fetch(updateUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-      body: JSON.stringify({
-        contact: {
-          tags: updatedTags
-        }
-      })
-    })
-
-    if (!updateResponse.ok) {
-      console.error('❌ Failed to tag contact:', updateResponse.status)
+    if (tagIds.length === 0) {
+      console.log('⚠️ No valid ClickFunnels tag IDs resolved - skipping tagging')
       return false
     }
 
-    console.log('✅ Contact tagged successfully:', updatedTags)
+    await applyTagsToContact(contact.id, tagIds)
+
+    console.log('✅ Contact tagged successfully:', tagIds)
     return true
   } catch (error) {
     console.error('❌ Failed to tag contact:', error)
@@ -313,7 +435,7 @@ export async function tagClickFunnelsContact(
 
 /**
  * Send webinar registration to ClickFunnels
- * Creates/updates contact and tags them with WEBINAR_REGISTERED
+ * Creates/updates contact and tags them with UM-Webinar-Registered
  */
 export async function syncWebinarRegistrationToClickFunnels(data: {
   name: string
@@ -326,6 +448,13 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   scheduledStartTime?: Date | null
 }): Promise<boolean> {
   try {
+    // Use configured tag ID for registration
+    const registeredTagId = ATTENDANCE_TAG_IDS.registered
+    
+    if (!registeredTagId) {
+      console.warn('⚠️ ClickFunnels registered tag ID not configured - continuing without tagging')
+    }
+
     // Split name into first and last
     const nameParts = data.name.trim().split(' ')
     const firstName = nameParts[0]
@@ -339,8 +468,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
       phone_number: data.phone || undefined,
       time_zone: data.timezone || undefined,
       country: data.country || undefined,
-      // Use existing tag ID for "UM-Webinar-Registered" (ID: 368586)
-      tag_ids: [368586],  // UM-Webinar-Registered tag
+      tag_ids: registeredTagId ? [Number(registeredTagId)] : undefined,
       custom_attributes: {
         webinar_id: data.webinarId,
         webinar_title: data.webinarTitle,
@@ -366,6 +494,173 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
     return true
   } catch (error) {
     console.error('❌ Failed to sync registration to ClickFunnels:', error)
+    return false
+  }
+}
+
+/**
+ * Determine which attendance tags to apply based on watch behavior
+ * @param webinarDuration Total webinar duration in seconds
+ * @param watchTime Total time watched in seconds
+ * @param attended Whether user attended at all
+ * @param isReplay Whether this was a replay view
+ * @param reachedOfferCTA Whether user watched until offer/CTA (typically last 10-15 mins)
+ * @returns Array of tag IDs to apply
+ */
+export function determineAttendanceTags(data: {
+  webinarDuration: number
+  watchTime: number
+  attended: boolean
+  isReplay?: boolean
+  reachedOfferCTA?: boolean
+}): string[] {
+  const { webinarDuration, watchTime, attended, isReplay, reachedOfferCTA } = data
+  const tags: string[] = []
+
+  // If they didn't attend at all
+  if (!attended || watchTime === 0) {
+    if (ATTENDANCE_TAG_IDS.missed) {
+      tags.push(ATTENDANCE_TAG_IDS.missed)
+    }
+    return tags
+  }
+
+  // If this was a replay
+  if (isReplay) {
+    if (ATTENDANCE_TAG_IDS.replayAttended) {
+      tags.push(ATTENDANCE_TAG_IDS.replayAttended)
+    }
+    // Also apply standard attendance tags based on watch time
+  }
+
+  const watchPercentage = (watchTime / webinarDuration) * 100
+  const watchMinutes = Math.floor(watchTime / 60)
+
+  // Attended (any attendance)
+  if (ATTENDANCE_TAG_IDS.attended) {
+    tags.push(ATTENDANCE_TAG_IDS.attended)
+  }
+
+  // Mostly Attended - watched until offer/CTA (typically last 10-15 mins)
+  if (reachedOfferCTA) {
+    if (ATTENDANCE_TAG_IDS.mostlyAttended) {
+      tags.push(ATTENDANCE_TAG_IDS.mostlyAttended)
+    }
+  }
+  // Partly Attended - watched at least 40 minutes but not full
+  else if (watchMinutes >= 40) {
+    if (ATTENDANCE_TAG_IDS.partlyAttended) {
+      tags.push(ATTENDANCE_TAG_IDS.partlyAttended)
+    }
+  }
+
+  return tags.filter(Boolean) // Remove empty strings
+}
+
+/**
+ * Sync attendance data to ClickFunnels
+ * Updates contact tags based on their attendance behavior
+ */
+export async function syncAttendanceToClickFunnels(data: {
+  email: string
+  webinarDuration: number
+  watchTime: number
+  attended: boolean
+  isReplay?: boolean
+  reachedOfferCTA?: boolean
+  webinarTitle?: string
+  leftAt?: Date
+}): Promise<boolean> {
+  const apiKey = process.env.CLICKFUNNELS_API_KEY
+  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+
+  if (!apiKey || !workspaceId) {
+    console.log('⚠️ ClickFunnels API not configured - skipping attendance sync')
+    return false
+  }
+
+  try {
+    console.log('📊 Syncing attendance to ClickFunnels:', data.email)
+
+    // Find contact by email
+    const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(data.email)}`
+
+    const searchResponse = await fetch(searchUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      }
+    })
+
+    if (!searchResponse.ok) {
+      console.error('❌ Failed to find contact for attendance tagging:', searchResponse.status)
+      return false
+    }
+
+    const searchResult = await searchResponse.json()
+    const contact = searchResult.data?.[0] || searchResult[0]
+
+    if (!contact) {
+      console.log('⚠️ Contact not found for attendance tagging:', data.email)
+      return false
+    }
+
+    // Determine which tags to apply
+    const tagsToApply = determineAttendanceTags({
+      webinarDuration: data.webinarDuration,
+      watchTime: data.watchTime,
+      attended: data.attended,
+      isReplay: data.isReplay,
+      reachedOfferCTA: data.reachedOfferCTA,
+    })
+
+    if (tagsToApply.length === 0) {
+      console.log('ℹ️ No attendance tags to apply')
+      return true
+    }
+
+    // Convert string tag IDs to numbers
+    const tagIds = tagsToApply
+      .map(id => Number(id))
+      .filter(id => !isNaN(id))
+
+    if (tagIds.length === 0) {
+      console.log('⚠️ No valid tag IDs configured for attendance tracking')
+      return false
+    }
+
+    console.log('🏷️ Applying attendance tags:', tagIds)
+
+    // Apply tags
+    await applyTagsToContact(contact.id, tagIds)
+
+    // Update custom attributes with attendance data
+    const updateUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contact.id}`
+    await fetch(updateUrl, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        contact: {
+          custom_attributes: {
+            last_attendance_date: new Date().toISOString(),
+            watch_time_minutes: Math.floor(data.watchTime / 60),
+            watch_percentage: Math.round((data.watchTime / data.webinarDuration) * 100),
+            reached_offer: data.reachedOfferCTA || false,
+            left_at: data.leftAt?.toISOString() || null,
+          }
+        }
+      })
+    })
+
+    console.log('✅ Attendance synced to ClickFunnels')
+    return true
+  } catch (error) {
+    console.error('❌ Failed to sync attendance to ClickFunnels:', error)
     return false
   }
 }

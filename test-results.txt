@@ -1,11 +1,6 @@
 🚀 Starting development server...
-   Server PID: 7588
+   Server PID: 68560
 ⏳ Waiting for server to start...
-   Checking... (1/30)
-   Checking... (2/30)
-   Checking... (3/30)
-   Checking... (4/30)
-   Checking... (5/30)
 ✅ Server is ready!
 
 🧪 Running ClickFunnels Integration Test...
@@ -16,7 +11,7 @@
 📝 Test Registration Data:
 {
   "name": "Test User ClickFunnels",
-  "email": "test.cf.1762906875066@example.com",
+  "email": "test.cf.1762912964473@example.com",
   "phone": "+1234567890",
   "timezone": "America/New_York",
   "country": "US",
@@ -30,23 +25,23 @@
 ✅ Registration Successful!
 
 Response: {
-  "registrationId": "cmhv98mr30001jwvmmyyqpyy7",
+  "registrationId": "cmhvcv18t0003jwrpccuktlre",
   "registration": {
-    "id": "cmhv98mr30001jwvmmyyqpyy7",
+    "id": "cmhvcv18t0003jwrpccuktlre",
     "name": "Test User ClickFunnels",
-    "email": "test.cf.1762906875066@example.com"
+    "email": "test.cf.1762912964473@example.com"
   },
   "message": "Registration successful! Check your email for confirmation."
 }
 
 📊 Next Steps:
 1. Check your terminal logs for ClickFunnels sync messages:
-   📤 Sending contact to ClickFunnels: test.cf.1762906875066@example.com
+   📤 Sending contact to ClickFunnels: test.cf.1762912964473@example.com
    ✅ Contact sent to ClickFunnels: con_xxxxx
    ✅ Webinar registration synced to ClickFunnels
 
 2. Go to ClickFunnels → Contacts
-3. Search for: test.cf.1762906875066@example.com
+3. Search for: test.cf.1762912964473@example.com
 4. Verify tag: UM-Webinar-Registered
 5. Check custom fields are populated
 
@@ -57,14 +52,7 @@ Response: {
 
 📋 Server logs for ClickFunnels sync:
 
-✅ Registration created with scheduledStartTime: null
-📤 Sending contact to ClickFunnels: test.cf.1762906875066@example.com
-   API URL: https://api.myclickfunnels.com/api/v2/workspaces/jxRdRe/contacts
-   Response Status: 201 Created
-✅ ClickFunnels API Response: {
-  "last_name": "User ClickFunnels",
-✅ Contact sent to ClickFunnels: 896665526
-✅ Webinar registration synced to ClickFunnels: { contactId: 896665526, email: undefined, tags: [] }
+grep: server.log: No such file or directory
 
 🛑 Stopping server...
 
