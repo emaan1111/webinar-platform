@@ -1185,13 +1185,14 @@ export default function WebinarLiveClient({
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
       if (!iframe) {
-        console.log('⚠️ Vimeo iframe not found, retrying...');
-        setVideoLoading(false);
+        console.log('⚠️ Vimeo iframe not found, retrying in 200ms...');
+        setTimeout(initPlayer, 200);
         return;
       }
       
       if (!window.Vimeo) {
-        console.log('⚠️ Vimeo Player API not loaded yet');
+        console.log('⚠️ Vimeo Player API not loaded yet, waiting...');
+        setTimeout(initPlayer, 100);
         return;
       }
       
@@ -1201,58 +1202,69 @@ export default function WebinarLiveClient({
         vimeoPlayerRef.current = player;
         console.log('✅ Vimeo Player instance created');
         
-        // Fallback: Hide loading after 2 seconds max
+        // Fallback: Hide loading after 5 seconds max
         const loadingTimeout = setTimeout(() => {
           console.log('⏰ Timeout: Force hiding loading overlay');
           setVideoLoading(false);
-        }, 2000);
+        }, 5000);
         
         // Use the stored start time from when user clicked the button
         const startTime = startTimeRef.current;
         console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
         
-        // Simplified initialization for better mobile performance
-        player.ready().then(() => {
-          console.log('✅ Player ready, starting video...');
-          
-          // On mobile, first start playback, THEN unmute
-          return player.setCurrentTime(startTime);
-        }).then(() => {
-          return player.play();
-        }).then(() => {
-          // AFTER play, unmute aggressively
-          return player.setMuted(false);
-        }).then(() => {
-          return player.setVolume(1);
-        }).then(() => {
-          // Double unmute with delay for iOS
-          return new Promise(resolve => setTimeout(resolve, 100));
-        }).then(() => {
-          return player.setMuted(false);
-        }).then(() => {
-          return player.setVolume(1);
-        }).then(() => {
-          console.log(`✅ Video playing successfully - unmuted at 100% volume`);
-          clearTimeout(loadingTimeout);
-          setVideoLoading(false);
-        }).catch((err: Error) => {
-          console.error('❌ Error during video setup:', err);
-          console.log('� Attempting simplified retry...');
-          
-          // Simplified retry - just try to play
-          player.setMuted(false)
-            .then(() => player.play())
-            .then(() => {
-              console.log('✅ Retry successful');
-              clearTimeout(loadingTimeout);
-              setVideoLoading(false);
-            })
-            .catch((retryErr: Error) => {
-              console.error('❌ Retry failed:', retryErr);
-              clearTimeout(loadingTimeout);
-              setVideoLoading(false);
-            });
-        });
+        // More robust initialization sequence
+        player.ready()
+          .then(() => {
+            console.log('✅ Player ready, setting initial time...');
+            return player.setCurrentTime(startTime);
+          })
+          .then(() => {
+            console.log('✅ Time set, unmuting...');
+            return player.setMuted(false);
+          })
+          .then(() => {
+            console.log('✅ Unmuted, setting volume to 100%...');
+            return player.setVolume(1);
+          })
+          .then(() => {
+            console.log('✅ Volume set, starting playback...');
+            return player.play();
+          })
+          .then(() => {
+            console.log('✅ Video playing! Double-checking audio...');
+            // Double-check audio is unmuted (iOS workaround)
+            return Promise.all([
+              player.setMuted(false),
+              player.setVolume(1)
+            ]);
+          })
+          .then(() => {
+            console.log(`🎉 Video playing successfully at ${formatTimeLabel(startTime)}`);
+            clearTimeout(loadingTimeout);
+            setVideoLoading(false);
+          })
+          .catch((err: Error) => {
+            console.error('❌ Error during video setup:', err);
+            console.log('🔄 Attempting simplified retry...');
+            
+            // Simplified retry - just try to play
+            Promise.all([
+              player.setMuted(false),
+              player.setVolume(1)
+            ])
+              .then(() => player.play())
+              .then(() => {
+                console.log('✅ Retry successful');
+                clearTimeout(loadingTimeout);
+                setVideoLoading(false);
+              })
+              .catch((retryErr: Error) => {
+                console.error('❌ Retry also failed:', retryErr);
+                // Still hide loading so user can see the overlay again
+                clearTimeout(loadingTimeout);
+                setVideoLoading(false);
+              });
+          });
       } catch (error) {
         console.error('❌ Error creating Vimeo player:', error);
         setVideoLoading(false);
@@ -1266,17 +1278,19 @@ export default function WebinarLiveClient({
       script.src = 'https://player.vimeo.com/api/player.js';
       script.async = true;
       script.onload = () => {
-        console.log('✅ Vimeo API script loaded');
-        setTimeout(initPlayer, 500); // Reduced from 1500ms to 500ms
+        console.log('✅ Vimeo API script loaded, initializing player in 300ms...');
+        setTimeout(initPlayer, 300);
       };
       script.onerror = () => {
         console.error('❌ Failed to load Vimeo API script');
         setVideoLoading(false);
+        // Reset broadcast started so user can try again
+        setBroadcastStarted(false);
       };
       document.head.appendChild(script);
     } else {
-      console.log('✅ Vimeo API already loaded');
-      setTimeout(initPlayer, 100); // Reduced from 1500ms - API already loaded, start quickly
+      console.log('✅ Vimeo API already loaded, initializing immediately...');
+      initPlayer();
     }
   }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); // Removed elapsedSeconds - we use the ref instead
 

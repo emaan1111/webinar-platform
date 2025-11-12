@@ -136,6 +136,36 @@ export async function GET(request: NextRequest) {
     const offerClickRate = sawOffer > 0 ? (clickedOffer / sawOffer) * 100 : 0;
     const conversionRate = clickedOffer > 0 ? (converted / clickedOffer) * 100 : 0;
 
+    // Sales analytics
+    const salesWhere: any = {
+      webinar: {
+        hostId: user.id,
+      },
+    };
+
+    if (webinarIds.length > 0) {
+      salesWhere.webinarId = { in: webinarIds };
+    } else if (resultWebinarIds.length > 0) {
+      salesWhere.webinarId = { in: resultWebinarIds };
+    }
+
+    if (dateFilter) {
+      salesWhere.purchasedAt = {
+        gte: dateFilter,
+      };
+    }
+
+    const webinarSales = await prisma.webinarSale.findMany({
+      where: salesWhere,
+      select: { amount: true },
+    });
+
+    const totalSales = webinarSales.length;
+    const totalRevenue = webinarSales.reduce((sum, sale) => sum + (sale.amount || 0), 0);
+    const salesConversionRate = totalRegistrations > 0
+      ? (totalSales / totalRegistrations) * 100
+      : 0;
+
     // Join time analysis
     const joinTimes = registrations
       .filter((r) => r.joinedAt)

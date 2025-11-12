@@ -91,7 +91,50 @@ export async function PATCH(
     }
 
     // Extract schedules and non-existent fields from body
-    const { schedules, registrationPopupStyle, ...webinarData } = body
+    const { schedules, registrationPopupStyle, ...bodyData } = body
+
+    // Only include fields that exist in the Webinar model
+    const allowedFields = [
+      'title',
+      'description',
+      'thumbnail',
+      'duration',
+      'vimeoVideoId',
+      'videoUrl',
+      'videoDuration',
+      'status',
+      'recordingUrl',
+      'hasReplay',
+      'hasOffers',
+      'hasChat',
+      'hasReactions',
+      'maxSchedulesToShow',
+      'registrationPageId',
+      'thankYouTemplateId',
+      'countdownPageId',
+      'enableABTesting',
+      'trafficSplitPercent',
+      'testRegistrationPage',
+      'regPageAId',
+      'regPageBId',
+      'testSchedule',
+      'scheduleAIds',
+      'scheduleBIds',
+      'testOffer',
+      'offerAId',
+      'offerBId',
+      'testVideo',
+      'videoAId',
+      'videoBId'
+    ]
+
+    // Filter to only include allowed fields
+    const webinarData: any = {}
+    for (const field of allowedFields) {
+      if (bodyData[field] !== undefined) {
+        webinarData[field] = bodyData[field]
+      }
+    }
 
     // Update webinar basic info
     console.log('💾 Saving webinar data:', webinarData)

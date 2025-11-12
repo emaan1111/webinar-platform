@@ -141,6 +141,11 @@ model Webinar {
   reactions      Reaction[]
   schedules      WebinarSchedule[] // All schedules (specific, recurring, just-in-time)
   faqs           WebinarFaq[]      // FAQs shown during offer phase
+  sales          WebinarSale[]
+  
+  // AI Assistant Relations
+  programDocuments ProgramDocument[] // Knowledge base for AI
+  aiChatConfig     AIChatConfig?     // AI configuration
 
   @@map("webinars")
 }
@@ -282,6 +287,7 @@ model Registration {
   pageVisits   PageVisit[]
   chatMessages ChatMessage[]     // Chat messages sent by this registered attendee
   reactions    Reaction[]        // Reactions sent by this registered attendee
+  sales        WebinarSale[]
 
   @@index([email])
   @@index([webinarId])
@@ -481,6 +487,37 @@ model OfferAnalytics {
   @@index([webinarId, clickedOffer])
   @@index([webinarId, converted])
   @@map("offer_analytics")
+}
+
+model WebinarSale {
+  id             String   @id @default(cuid())
+  webinarId      String
+  registrationId String?
+  email          String
+
+  // Order details
+  orderId        String
+  orderFormId    String?
+  orderFormName  String?
+  productName    String?
+  status         String?
+  amount         Float?
+  currency       String?  @default("USD")
+  contactId      String?
+  purchasedAt    DateTime?
+  rawPayload     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  webinar      Webinar      @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+
+  @@unique([orderId])
+  @@index([webinarId])
+  @@index([registrationId])
+  @@index([email])
+  @@map("webinar_sales")
 }
 
 model Post {
@@ -712,4 +749,45 @@ model WebinarFaq {
   updatedAt  DateTime @updatedAt
 
   @@map("webinar_faqs")
+}
+
+// AI Program Knowledge Base - Documents for AI to use after CTA
+model ProgramDocument {
+  id          String   @id @default(cuid())
+  webinarId   String
+  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  
+  title       String   // e.g., "Program Overview", "Pricing", "FAQs"
+  content     String   @db.Text // The actual content AI will use
+  category    String   @default("general") // "overview", "pricing", "faq", "curriculum", "testimonials"
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("program_documents")
+}
+
+// AI Chat Configuration per Webinar
+model AIChatConfig {
+  id          String   @id @default(cuid())
+  webinarId   String   @unique
+  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  
+  enabled     Boolean  @default(true)
+  activateAfterOffer Boolean @default(true) // Only respond after CTA/offer is shown
+  
+  systemPrompt String? @db.Text // Custom instructions for AI
+  temperature  Float   @default(0.7) // OpenAI temperature (0-1)
+  maxTokens    Int     @default(500) // Max response length
+  
+  // Response behavior
+  autoRespond  Boolean @default(true) // Automatically respond to questions
+  requireApproval Boolean @default(false) // Require host approval before sending
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("ai_chat_config")
 }

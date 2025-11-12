@@ -20,12 +20,43 @@ interface ClickFunnelsContact {
   country?: string;
 }
 
+interface ClickFunnelsOrderProduct {
+  id?: string | number;
+  name?: string;
+  price?: number | string;
+  amount?: number | string;
+}
+
+interface ClickFunnelsOrderDetails {
+  id: string;
+  status?: string;
+  payment_status?: string;
+  total?: number | string;
+  total_amount?: number | string;
+  amount?: number | string;
+  currency?: string;
+  currency_code?: string;
+  currency_iso?: string;
+  order_form_id?: string;
+  order_form_name?: string;
+  order_form?: {
+    id?: string;
+    name?: string;
+  };
+  products?: ClickFunnelsOrderProduct[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 interface ClickFunnelsWebhookPayload {
   id: string;
   type: string; // 'contact.created', 'contact.updated', 'order.created', etc.
-  contact: ClickFunnelsContact;
+  contact?: ClickFunnelsContact;
   custom_fields?: Record<string, any>;
-  created_at: string;
+  customFields?: Record<string, any>;
+  created_at?: string;
+  data?: any;
+  order?: ClickFunnelsOrderDetails;
 }
 
 export async function POST(request: NextRequest) {
@@ -36,11 +67,16 @@ export async function POST(request: NextRequest) {
     console.log('ClickFunnels Webhook Received:', {
       type: payload.type,
       contactId: payload.contact?.id,
-      email: payload.contact?.email
+      email: payload.contact?.email,
+      orderId: getOrderIdFromPayload(payload)
     });
 
+    if (payload.type === 'order.created') {
+      return await handleOrderCreated(payload);
+    }
+
     // Only process contact creation/update events
-    if (!['contact.created', 'contact.updated', 'order.created'].includes(payload.type)) {
+    if (!['contact.created', 'contact.updated'].includes(payload.type)) {
       return NextResponse.json({ 
         message: 'Event type not supported',
         type: payload.type 
@@ -49,31 +85,19 @@ export async function POST(request: NextRequest) {
 
     // Extract contact information
     const contact = payload.contact;
-    if (!contact || !contact.email) {
+    if (!contact?.email) {
       return NextResponse.json({ 
         error: 'Invalid contact data - email required' 
       }, { status: 400 });
     }
 
-    // Extract custom fields that should contain webinar info
-    const customFields = payload.custom_fields || {};
+    const customFields = extractCustomFields(payload);
     const webinarId = customFields.webinar_id || customFields.webinarId;
     const scheduleId = customFields.schedule_id || customFields.scheduleId;
     const webinarSlug = customFields.webinar_slug || customFields.webinarSlug;
 
     // Find webinar by ID or slug
-    let webinar;
-    if (webinarId) {
-      webinar = await prisma.webinar.findUnique({
-        where: { id: webinarId },
-        include: { schedules: true }
-      });
-    } else if (webinarSlug) {
-      webinar = await prisma.webinar.findUnique({
-        where: { slug: webinarSlug },
-        include: { schedules: true }
-      });
-    }
+    const webinar = await findWebinarByIdentifier({ webinarId, webinarSlug }, true);
 
     if (!webinar) {
       console.error('Webinar not found:', { webinarId, webinarSlug });
@@ -201,4 +225,240 @@ export async function GET(request: NextRequest) {
     ],
     documentation: '/docs/clickfunnels-integration'
   });
+}
+
+async function handleOrderCreated(payload: ClickFunnelsWebhookPayload) {
+  const normalizedEmail = extractEmailFromPayload(payload);
+
+  if (!normalizedEmail) {
+    console.error('Order event missing email reference');
+    return NextResponse.json(
+      { error: 'Order event missing email reference' },
+      { status: 400 }
+    );
+  }
+
+  const customFields = extractCustomFields(payload);
+  const webinarId = customFields.webinar_id || customFields.webinarId;
+  const webinarSlug = customFields.webinar_slug || customFields.webinarSlug;
+  let webinar = await findWebinarByIdentifier({ webinarId, webinarSlug }, false);
+
+  const registration = await findRegistrationForEmail(normalizedEmail, webinar?.id);
+
+  if (!webinar && registration?.webinar) {
+    webinar = registration.webinar;
+  }
+
+  if (!webinar) {
+    console.error('Unable to match sale to webinar', {
+      email: normalizedEmail,
+      customFields,
+    });
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Sale received but webinar could not be determined',
+        email: normalizedEmail,
+      },
+      { status: 200 }
+    );
+  }
+
+  const order = extractOrderDetails(payload);
+
+  if (!order?.id) {
+    console.error('Order payload missing identifier');
+    return NextResponse.json(
+      { error: 'Order payload missing identifier' },
+      { status: 400 }
+    );
+  }
+
+  const orderId = String(order.id);
+  const amount = parseCurrencyAmount(order.total_amount ?? order.total ?? order.amount);
+  const currency =
+    order.currency ||
+    order.currency_code ||
+    order.currency_iso ||
+    'USD';
+  const orderFormId = order.order_form_id || order.order_form?.id;
+  const orderFormName = order.order_form_name || order.order_form?.name;
+  const purchasedAt = order.created_at
+    ? new Date(order.created_at)
+    : payload.created_at
+      ? new Date(payload.created_at)
+      : new Date();
+  const productName =
+    order.products?.map((product) => product?.name).filter(Boolean).join(', ') || null;
+
+  const saleData = {
+    webinarId: webinar.id,
+    registrationId: registration?.id ?? null,
+    email: normalizedEmail,
+    orderFormId: orderFormId || null,
+    orderFormName: orderFormName || null,
+    productName,
+    status: order.status || order.payment_status || null,
+    amount: amount ?? null,
+    currency,
+    contactId: payload.contact?.id || null,
+    purchasedAt,
+    rawPayload: payload as any,
+  };
+
+  let sale;
+  const existingSale = await prisma.webinarSale.findUnique({
+    where: { orderId },
+  });
+
+  if (existingSale) {
+    sale = await prisma.webinarSale.update({
+      where: { orderId },
+      data: saleData,
+    });
+  } else {
+    sale = await prisma.webinarSale.create({
+      data: {
+        ...saleData,
+        orderId,
+      },
+    });
+  }
+
+  if (registration) {
+    await prisma.offerAnalytics
+      .updateMany({
+        where: {
+          registrationId: registration.id,
+          webinarId: webinar.id,
+          converted: false,
+        },
+        data: {
+          converted: true,
+          convertedAt: new Date(),
+        },
+      })
+      .catch((error) => {
+        console.error('Failed to update offer analytics for sale', error);
+      });
+  }
+
+  return NextResponse.json(
+    {
+      success: true,
+      message: existingSale ? 'Sale updated' : 'Sale recorded',
+      saleId: sale.id,
+      webinarId: webinar.id,
+      registrationId: sale.registrationId,
+    },
+    { status: existingSale ? 200 : 201 }
+  );
+}
+
+function extractCustomFields(payload: ClickFunnelsWebhookPayload): Record<string, any> {
+  return (
+    payload.custom_fields ||
+    payload.customFields ||
+    payload.data?.custom_fields ||
+    payload.data?.customFields ||
+    {}
+  );
+}
+
+function extractOrderDetails(payload: ClickFunnelsWebhookPayload): ClickFunnelsOrderDetails | null {
+  if (payload.order) {
+    return payload.order;
+  }
+
+  if (payload.data?.order) {
+    return payload.data.order;
+  }
+
+  if (payload.data?.attributes) {
+    return payload.data.attributes as ClickFunnelsOrderDetails;
+  }
+
+  if (payload.data && typeof payload.data === 'object' && 'id' in payload.data) {
+    return payload.data as ClickFunnelsOrderDetails;
+  }
+
+  return null;
+}
+
+function parseCurrencyAmount(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.replace(/[^0-9.-]/g, '');
+    if (!normalized) {
+      return null;
+    }
+    const parsed = Number(normalized);
+    return Number.isNaN(parsed) ? null : parsed;
+  }
+
+  return null;
+}
+
+async function findWebinarByIdentifier(
+  identifiers: { webinarId?: string; webinarSlug?: string },
+  includeSchedules: boolean
+) {
+  if (identifiers.webinarId) {
+    return prisma.webinar.findUnique({
+      where: { id: identifiers.webinarId },
+      include: includeSchedules ? { schedules: true } : undefined,
+    });
+  }
+
+  if (identifiers.webinarSlug) {
+    return prisma.webinar.findUnique({
+      where: { slug: identifiers.webinarSlug },
+      include: includeSchedules ? { schedules: true } : undefined,
+    });
+  }
+
+  return null;
+}
+
+async function findRegistrationForEmail(email: string, webinarId?: string) {
+  return prisma.registration.findFirst({
+    where: {
+      email,
+      ...(webinarId ? { webinarId } : {}),
+    },
+    orderBy: { registeredAt: 'desc' },
+    include: {
+      webinar: true,
+    },
+  });
+}
+
+function extractEmailFromPayload(payload: ClickFunnelsWebhookPayload): string | null {
+  const candidates = [
+    payload.contact?.email,
+    payload.data?.contact?.email,
+    payload.data?.email,
+    (payload.order as any)?.customer_email,
+    (payload.order as any)?.email,
+  ];
+
+  for (const candidate of candidates) {
+    if (candidate && typeof candidate === 'string') {
+      return candidate.trim().toLowerCase();
+    }
+  }
+
+  return null;
+}
+
+function getOrderIdFromPayload(payload: ClickFunnelsWebhookPayload): string | null {
+  const order = extractOrderDetails(payload);
+  return order?.id ? String(order.id) : null;
 }
