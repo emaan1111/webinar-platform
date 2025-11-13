@@ -2,9 +2,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import OpenAI from 'openai';
 
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+// Initialize OpenAI only when API key is available
+let openai: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openai && process.env.OPENAI_API_KEY) {
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+  }
+  if (!openai) {
+    throw new Error('OpenAI API key is not configured');
+  }
+  return openai;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -188,7 +203,8 @@ async function generateAIResponse(
   temperature: number,
   maxTokens: number
 ): Promise<string> {
-  const completion = await openai.chat.completions.create({
+  const client = getOpenAIClient();
+  const completion = await client.chat.completions.create({
     model: 'gpt-4o-mini',
     messages: [
       {
