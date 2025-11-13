@@ -41,10 +41,10 @@ export default async function ChatManagerPage({ params }: PageProps) {
     isApproved: msg.isApproved || false,
     isHidden: msg.isHidden || false,
     createdAt: msg.createdAt.toISOString(),
-    user: {
+    user: msg.user ? {
       name: msg.user.name,
       email: msg.user.email,
-    },
+    } : null,
   }));
 
   return (

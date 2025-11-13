@@ -153,10 +153,10 @@ export async function GET(
     const { webinarId } = params;
 
     // Verify webinar exists and belongs to user
-    const webinar = await prisma.webinar.findUnique({
+    const webinar = await prisma.webinar.findFirst({
       where: {
         id: webinarId,
-        userId: session.user.id,
+        hostId: (session.user as any).id,
       },
       select: {
         id: true,
@@ -164,8 +164,8 @@ export async function GET(
         enableABTesting: true,
         trafficSplitPercent: true,
         testRegistrationPage: true,
-        regTemplateAId: true,
-        regTemplateBId: true,
+        regPageAId: true,
+        regPageBId: true,
         testSchedule: true,
         scheduleAIds: true,
         scheduleBIds: true,
@@ -347,8 +347,8 @@ export async function GET(
       },
       configuration: {
         testRegistrationPage: webinar.testRegistrationPage,
-        regTemplateAId: webinar.regTemplateAId,
-        regTemplateBId: webinar.regTemplateBId,
+        regPageAId: webinar.regPageAId,
+        regPageBId: webinar.regPageBId,
         testSchedule: webinar.testSchedule,
         scheduleAIds: webinar.scheduleAIds,
         scheduleBIds: webinar.scheduleBIds,

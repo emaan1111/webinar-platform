@@ -209,9 +209,11 @@ export async function GET(
     }
 
     // Sort journey by timestamp
-    journey.sort((a, b) => 
-      new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
+    journey.sort((a, b) => {
+      const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+      const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
+      return timeA - timeB;
+    });
 
     // Calculate metrics
     const totalWatchTime = registration.sessions.reduce(

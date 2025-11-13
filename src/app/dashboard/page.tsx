@@ -20,6 +20,24 @@ import {
   Eye
 } from 'lucide-react'
 
+// Type definitions moved before usage
+const statusColors = {
+  DRAFT: 'bg-gray-100 text-gray-700',
+  SCHEDULED: 'bg-blue-100 text-blue-700',
+  LIVE: 'bg-green-100 text-green-700',
+  ENDED: 'bg-gray-100 text-gray-700',
+  CANCELLED: 'bg-red-100 text-red-700'
+} as const
+
+type DashboardWebinar = {
+  id: string
+  title: string
+  status: keyof typeof statusColors
+  scheduledAt: string
+  registrations: number
+  attended: number
+}
+
 // Mock data - replace with actual API calls
 const stats = {
   totalWebinars: 12,
@@ -28,7 +46,7 @@ const stats = {
   upcomingWebinars: 3
 }
 
-const recentWebinars = [
+const recentWebinars: DashboardWebinar[] = [
   {
     id: '1',
     title: 'Introduction to Web Development',
@@ -150,14 +168,7 @@ export default function DashboardPage() {
   )
 }
 
-function WebinarRow({ webinar }: { webinar: any }) {
-  const statusColors = {
-    DRAFT: 'bg-gray-100 text-gray-700',
-    SCHEDULED: 'bg-blue-100 text-blue-700',
-    LIVE: 'bg-green-100 text-green-700',
-    ENDED: 'bg-gray-100 text-gray-700',
-    CANCELLED: 'bg-red-100 text-red-700'
-  }
+function WebinarRow({ webinar }: { webinar: DashboardWebinar }) {
 
   const attendanceRate = webinar.attended > 0 
     ? Math.round((webinar.attended / webinar.registrations) * 100)

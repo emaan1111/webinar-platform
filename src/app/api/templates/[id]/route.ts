@@ -141,9 +141,9 @@ export async function DELETE(
     const webinarsUsingTemplate = await prisma.webinar.count({
       where: {
         OR: [
-          { registrationTemplateId: params.id },
-          { regTemplateAId: params.id },
-          { regTemplateBId: params.id },
+          { registrationPageId: params.id },
+          { regPageAId: params.id },
+          { regPageBId: params.id },
         ]
       }
     });

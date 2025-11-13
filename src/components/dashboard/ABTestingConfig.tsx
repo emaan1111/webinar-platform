@@ -40,8 +40,8 @@ interface ABTestingConfigProps {
     enableABTesting: boolean
     trafficSplitPercent: number
     testRegistrationPage: boolean
-    regTemplateAId: string | null
-    regTemplateBId: string | null
+    regPageAId: string | null
+    regPageBId: string | null
     testSchedule: boolean
     scheduleAIds: string | null
     scheduleBIds: string | null
@@ -65,8 +65,8 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
     enableABTesting: initialData?.enableABTesting ?? false,
     trafficSplitPercent: initialData?.trafficSplitPercent ?? 50,
     testRegistrationPage: initialData?.testRegistrationPage ?? false,
-    regTemplateAId: initialData?.regTemplateAId ?? '',
-    regTemplateBId: initialData?.regTemplateBId ?? '',
+    regPageAId: initialData?.regPageAId ?? '',
+    regPageBId: initialData?.regPageBId ?? '',
     testSchedule: initialData?.testSchedule ?? false,
     scheduleAIds: initialData?.scheduleAIds ?? '',
     scheduleBIds: initialData?.scheduleBIds ?? '',
@@ -133,10 +133,10 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
 
     // Validate registration page test
     if (config.testRegistrationPage) {
-      if (!config.regTemplateAId || !config.regTemplateBId) {
+      if (!config.regPageAId || !config.regPageBId) {
         errors.push('Registration: Select both Page A and Page B')
       }
-      if (config.regTemplateAId === config.regTemplateBId) {
+      if (config.regPageAId === config.regPageBId) {
         errors.push('Registration: Pages must be different')
       }
     }
@@ -335,8 +335,8 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
                           Page A <span className="text-red-500">*</span>
                         </label>
                         <select
-                          value={config.regTemplateAId}
-                          onChange={(e) => updateConfig({ regTemplateAId: e.target.value })}
+                          value={config.regPageAId}
+                          onChange={(e) => updateConfig({ regPageAId: e.target.value })}
                           className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select page...</option>
@@ -352,8 +352,8 @@ export default function ABTestingConfig({ webinarId, initialData, onChange }: AB
                           Page B <span className="text-red-500">*</span>
                         </label>
                         <select
-                          value={config.regTemplateBId}
-                          onChange={(e) => updateConfig({ regTemplateBId: e.target.value })}
+                          value={config.regPageBId}
+                          onChange={(e) => updateConfig({ regPageBId: e.target.value })}
                           className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         >
                           <option value="">Select page...</option>

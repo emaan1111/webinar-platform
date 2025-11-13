@@ -42,18 +42,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Verify webinar exists and belongs to user
-    const webinar = await prisma.webinar.findUnique({
+    const webinar = await prisma.webinar.findFirst({
       where: {
         id: webinarId,
-        userId: session.user.id,
+        hostId: (session.user as any).id,
       },
       select: {
         id: true,
         enableABTesting: true,
         testRegistrationPage: true,
-        regTemplateAId: true,
-        regTemplateBId: true,
-        templateId: true,
+        regPageAId: true,
+        regPageBId: true,
+        registrationPageId: true,
         testSchedule: true,
         scheduleAIds: true,
         scheduleBIds: true,
@@ -86,10 +86,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (element === 'overall') {
       // Apply winner to all active tests
       if (webinar.testRegistrationPage) {
-        updateData.templateId = winner === 'A' ? webinar.regTemplateAId : webinar.regTemplateBId;
+        updateData.registrationPageId = winner === 'A' ? webinar.regPageAId : webinar.regPageBId;
         updateData.testRegistrationPage = false;
-        updateData.regTemplateAId = null;
-        updateData.regTemplateBId = null;
+        updateData.regPageAId = null;
+        updateData.regPageBId = null;
       }
 
       if (webinar.testSchedule) {
@@ -121,10 +121,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     } else if (element === 'registration') {
       // Apply winning template
-      updateData.templateId = winner === 'A' ? webinar.regTemplateAId : webinar.regTemplateBId;
+      updateData.registrationPageId = winner === 'A' ? webinar.regPageAId : webinar.regPageBId;
       updateData.testRegistrationPage = false;
-      updateData.regTemplateAId = null;
-      updateData.regTemplateBId = null;
+      updateData.regPageAId = null;
+      updateData.regPageBId = null;
 
       // Check if any other tests are still active
       const hasOtherTests = webinar.testSchedule || webinar.testOffer || webinar.testVideo;

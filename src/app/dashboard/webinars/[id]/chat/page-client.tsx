@@ -14,7 +14,7 @@ interface ChatMessage {
   user: {
     name: string | null;
     email: string;
-  };
+  } | null;
 }
 
 interface Props {
@@ -286,7 +286,7 @@ export default function ChatManagerClient({ webinarId, webinarTitle, initialMess
                             {formatTimestamp(msg.videoTimestamp)}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-700">
-                            {msg.user.name || msg.user.email.split('@')[0]}
+                            {msg.user ? (msg.user.name || msg.user.email.split('@')[0]) : 'Unknown'}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-700">
                             {msg.message}
@@ -325,7 +325,7 @@ export default function ChatManagerClient({ webinarId, webinarTitle, initialMess
                       <div className="flex items-center justify-between mb-2">
                         <div>
                           <span className="font-medium text-gray-900">
-                            {msg.user.name || msg.user.email}
+                            {msg.user ? (msg.user.name || msg.user.email) : 'Unknown User'}
                           </span>
                           <span className="text-gray-500 text-sm ml-2">
                             {new Date(msg.createdAt).toLocaleString()}
@@ -376,7 +376,7 @@ export default function ChatManagerClient({ webinarId, webinarTitle, initialMess
                       <div className="flex items-center justify-between">
                         <div>
                           <span className="font-medium text-gray-900">
-                            {msg.user.name || msg.user.email}
+                            {msg.user ? (msg.user.name || msg.user.email) : 'Unknown User'}
                           </span>
                           <span className="text-gray-500 text-sm ml-2">
                             {new Date(msg.createdAt).toLocaleString()}

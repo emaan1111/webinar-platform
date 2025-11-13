@@ -128,12 +128,12 @@ export async function POST(request: NextRequest) {
     let selectedScheduleId = scheduleId;
     if (!selectedScheduleId && webinar.schedules.length > 0) {
       // Default to first active schedule
-      const activeSchedule = webinar.schedules.find(s => s.isActive);
+      const activeSchedule = webinar.schedules.find((s: any) => s.isActive);
       selectedScheduleId = activeSchedule?.id || webinar.schedules[0].id;
     }
 
     // Get schedule for calculating start time
-    const schedule = webinar.schedules.find(s => s.id === selectedScheduleId);
+    const schedule = webinar.schedules.find((s: any) => s.id === selectedScheduleId);
     let scheduledStartTime: Date | null = null;
 
     if (schedule) {
@@ -408,8 +408,8 @@ function parseCurrencyAmount(value: unknown): number | null {
 
 async function findWebinarByIdentifier(
   identifiers: { webinarId?: string; webinarSlug?: string },
-  includeSchedules: boolean
-) {
+  includeSchedules?: boolean
+): Promise<any> {
   if (identifiers.webinarId) {
     return prisma.webinar.findUnique({
       where: { id: identifiers.webinarId },

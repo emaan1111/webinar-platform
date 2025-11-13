@@ -41,10 +41,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Verify webinar exists and belongs to user
-    const webinar = await prisma.webinar.findUnique({
+    const webinar = await prisma.webinar.findFirst({
       where: {
         id: webinarId,
-        userId: session.user.id,
+        hostId: (session.user as any).id,
       },
       select: {
         id: true,

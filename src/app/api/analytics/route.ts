@@ -49,9 +49,6 @@ export async function GET(request: Request) {
     const webinars = await prisma.webinar.findMany({
       where: {
         hostId: user.id,
-        scheduledAt: {
-          gte: startDate
-        }
       },
       include: {
         _count: {
@@ -67,17 +64,16 @@ export async function GET(request: Request) {
       where: {
         webinar: {
           hostId: user.id,
-          scheduledAt: {
-            gte: startDate
-          }
+        },
+        registeredAt: {
+          gte: startDate
         }
       },
       include: {
         webinar: {
           select: {
             id: true,
-            title: true,
-            scheduledAt: true
+            title: true
           }
         }
       }
@@ -88,9 +84,9 @@ export async function GET(request: Request) {
       where: {
         webinar: {
           hostId: user.id,
-          scheduledAt: {
-            gte: startDate
-          }
+        },
+        createdAt: {
+          gte: startDate
         }
       }
     })
