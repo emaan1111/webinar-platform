@@ -41,6 +41,7 @@ export default function EditWebinarPage() {
     title: '',
     description: '',
     slug: '',
+    internalName: '',
     vimeoVideoId: '',
     videoUrl: '',
     videoDuration: 0,
@@ -144,6 +145,7 @@ export default function EditWebinarPage() {
         title: webinar.title || '',
         description: webinar.description || '',
         slug: webinar.slug || '',
+        internalName: webinar.internalName || '',
         vimeoVideoId: webinar.vimeoVideoId || '',
         videoUrl: webinar.videoUrl || '',
         videoDuration: webinar.videoDuration || 0,
@@ -314,11 +316,11 @@ export default function EditWebinarPage() {
         return mappedSchedule
       })
 
-      // Exclude slug from payload (it's auto-generated)
-      const { slug, ...formDataWithoutSlug } = formData
-      
+      // Include slug and internalName in payload
       const payload = {
-        ...formDataWithoutSlug,
+        ...formData,
+        slug: formData.slug || null,
+        internalName: formData.internalName || null,
         registrationPageId: formData.registrationPageId || null,
         thankYouTemplateId: formData.thankYouTemplateId || null,
         countdownPageId: formData.countdownPageId || null,
@@ -588,6 +590,54 @@ export default function EditWebinarPage() {
                   {errors.description && (
                     <p className="mt-1 text-sm text-red-600">{errors.description}</p>
                   )}
+                </div>
+
+                {/* Internal Name */}
+                <div>
+                  <label htmlFor="internalName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Internal Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    id="internalName"
+                    name="internalName"
+                    value={formData.internalName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="e.g., Q4 2025 - Lead Gen Webinar #3"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Private name for your internal organization. Not shown to attendees.
+                  </p>
+                </div>
+
+                {/* Custom Slug */}
+                <div>
+                  <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-1">
+                    Custom URL Slug
+                  </label>
+                  <div className="flex items-start gap-2">
+                    <span className="inline-flex items-center px-3 py-2 text-sm text-gray-500 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg">
+                      /w/
+                    </span>
+                    <input
+                      type="text"
+                      id="slug"
+                      name="slug"
+                      value={formData.slug}
+                      onChange={(e) => {
+                        const value = e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-')
+                        setFormData({ ...formData, slug: value })
+                      }}
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="e.g., my-webinar-slug"
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    Your public URL: <span className="font-mono text-blue-600">
+                      {typeof window !== 'undefined' ? window.location.origin : ''}/w/{formData.slug || 'your-slug'}
+                    </span>
+                  </p>
                 </div>
 
                 {/* Registration Page */}

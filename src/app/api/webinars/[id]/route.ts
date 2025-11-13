@@ -96,6 +96,8 @@ export async function PATCH(
     // Only include fields that exist in the Webinar model
     const allowedFields = [
       'title',
+      'slug',
+      'internalName',
       'description',
       'thumbnail',
       'duration',

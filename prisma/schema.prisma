@@ -80,7 +80,8 @@ model Session {
 
 model Webinar {
   id            String        @id @default(cuid())
-  slug          String?       @unique // For public registration URLs
+  slug          String?       @unique // For public registration URLs (user can customize)
+  internalName  String?       // Private internal name for organization (not shown to attendees)
   title         String
   description   String        @db.Text
   thumbnail     String?

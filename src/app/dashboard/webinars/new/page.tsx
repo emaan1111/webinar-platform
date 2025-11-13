@@ -51,6 +51,7 @@ export default function CreateWebinarPage() {
   const [formData, setFormData] = useState({
     title: '',
     slug: '',
+    internalName: '',
     description: '',
     vimeoVideoId: '',
     videoUrl: '',
@@ -231,7 +232,8 @@ export default function CreateWebinarPage() {
         offerBId: formData.offerBId || null,
         testVideo: formData.testVideo,
         videoAId: formData.videoAId || null,
-        videoBId: formData.videoBId || null
+        videoBId: formData.videoBId || null,
+        internalName: formData.internalName || null
       }
 
       console.log('Sending webinar data:', JSON.stringify(webinarData, null, 2))
@@ -347,7 +349,8 @@ export default function CreateWebinarPage() {
         offerBId: formData.offerBId || null,
         testVideo: formData.testVideo,
         videoAId: formData.videoAId || null,
-        videoBId: formData.videoBId || null
+        videoBId: formData.videoBId || null,
+        internalName: formData.internalName || null
       }
 
       console.log('Sending webinar data (handleSubmitWithStatus):', JSON.stringify(webinarData, null, 2))
@@ -451,7 +454,7 @@ export default function CreateWebinarPage() {
                   {/* Title */}
                   <div>
                     <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-2">
-                      Webinar Title <span className="text-red-500">*</span>
+                      Webinar Title (Public) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -476,12 +479,31 @@ export default function CreateWebinarPage() {
                     {errors.title && (
                       <p className="mt-1 text-sm text-red-600">{errors.title}</p>
                     )}
+                    <p className="mt-1 text-sm text-gray-500">This is the title shown to attendees</p>
+                  </div>
+
+                  {/* Internal Name */}
+                  <div>
+                    <label htmlFor="internalName" className="block text-sm font-medium text-gray-700 mb-2">
+                      Internal Name (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      id="internalName"
+                      value={formData.internalName}
+                      onChange={(e) => setFormData({ ...formData, internalName: e.target.value })}
+                      className="block w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                      placeholder="e.g., Q4 2025 - Lead Gen Webinar #3"
+                    />
+                    <p className="mt-1 text-sm text-gray-500">
+                      Private name for your internal organization. Not shown to attendees.
+                    </p>
                   </div>
 
                   {/* Slug */}
                   <div>
                     <label htmlFor="slug" className="block text-sm font-medium text-gray-700 mb-2">
-                      Public URL Slug <span className="text-red-500">*</span>
+                      Custom URL Slug <span className="text-red-500">*</span>
                     </label>
                     <div className="flex items-start gap-2">
                       <span className="inline-flex items-center px-3 py-3 text-sm text-gray-500 bg-gray-100 border border-r-0 border-gray-300 rounded-l-lg">
@@ -492,7 +514,7 @@ export default function CreateWebinarPage() {
                           type="text"
                           id="slug"
                           value={formData.slug}
-                          onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase() })}
+                          onChange={(e) => setFormData({ ...formData, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
                           className={`block w-full px-4 py-3 border rounded-r-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                             errors.slug ? 'border-red-300' : 'border-gray-300'
                           }`}
@@ -501,9 +523,12 @@ export default function CreateWebinarPage() {
                       </div>
                     </div>
                     <p className="mt-1 text-xs text-gray-500">
-                      This will be your public registration URL: <span className="font-mono text-blue-600">
+                      Auto-generated from title, but you can customize it. Your public URL: <span className="font-mono text-blue-600">
                         {typeof window !== 'undefined' ? window.location.origin : 'https://yourdomain.com'}/w/{formData.slug || 'your-slug'}
                       </span>
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500">
+                      Only lowercase letters, numbers, and hyphens allowed.
                     </p>
                     {errors.slug && (
                       <p className="mt-1 text-sm text-red-600">{errors.slug}</p>

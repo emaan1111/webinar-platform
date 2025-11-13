@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
 import { generateReferralCode } from '@/lib/referral'
+import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
 
 // POST /api/webinars/[id]/register - Public registration endpoint
 export async function POST(
@@ -124,6 +125,36 @@ export async function POST(
     })
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
+
+    // Get IP address and user agent from request headers
+    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                     request.headers.get('x-real-ip') || 
+                     'unknown'
+    const userAgent = request.headers.get('user-agent') || undefined
+    const cookieHeader = request.headers.get('cookie')
+    const { fbc, fbp } = extractFacebookCookies(cookieHeader)
+
+    // Get referer URL
+    const referer = request.headers.get('referer') || undefined
+
+    // Send event to Facebook Conversions API (async - don't block response)
+    sendFacebookRegistration({
+      email: registration.email,
+      name: registration.name,
+      phone: registration.phone || undefined,
+      ipAddress,
+      userAgent,
+      fbc,
+      fbp,
+      eventSourceUrl: referer,
+      webinarId: webinar.id,
+      webinarTitle: webinar.title,
+      registrationId: registration.id,
+      value: 0, // You can set a value for conversion tracking
+      currency: 'USD'
+    }).catch(error => {
+      console.error('⚠️ Facebook Conversions API failed (non-blocking):', error)
+    })
 
     // Sync to ClickFunnels (async - don't block response)
     syncWebinarRegistrationToClickFunnels({

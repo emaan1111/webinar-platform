@@ -20,6 +20,7 @@ export async function POST(request: Request) {
     const { 
       title, 
       slug,
+      internalName,
       description, 
       duration, 
       status,
@@ -72,6 +73,7 @@ export async function POST(request: Request) {
       data: {
         title,
         slug: slug || null,
+        internalName: internalName || null,
         description,
         duration,
         vimeoVideoId: vimeoVideoId || null,
