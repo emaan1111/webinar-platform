@@ -6,6 +6,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { StatCard } from '@/components/ui/StatCard'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
+import { formatDate } from '@/lib/dateFormat'
 import {
   Video,
   Users,
@@ -174,7 +175,7 @@ function WebinarRow({ webinar }: { webinar: any }) {
           </span>
         </div>
         <div className="flex items-center gap-4 text-sm text-gray-500">
-          <span>{new Date(webinar.scheduledAt).toLocaleDateString()}</span>
+          <span>{formatDate(webinar.scheduledAt)}</span>
           <span>•</span>
           <span>{webinar.registrations} registered</span>
           {webinar.attended > 0 && (

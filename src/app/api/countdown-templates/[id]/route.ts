@@ -47,12 +47,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    if (existingTemplate.isSystem && session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Cannot modify system templates' },
-        { status: 403 }
-      )
-    }
+    // Allow ADMIN and HOST to edit system templates
+    // (They just can't delete them unless they're ADMIN)
 
     const template = await prisma.countdownTemplate.update({
       where: { id: params.id },

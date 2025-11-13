@@ -3,6 +3,20 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const parseBulletPoints = (value: unknown): string[] | undefined => {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+
+  const lines = Array.isArray(value)
+    ? value.map((item) => String(item))
+    : String(value).split(/\r?\n/)
+
+  return lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+}
+
 // PATCH /api/offers/[id] - Update an offer
 export async function PATCH(
   request: Request,
@@ -42,8 +56,11 @@ export async function PATCH(
 
     // Prepare update data
     const updateData: any = {}
+    const normalizedBulletPoints = parseBulletPoints(body.bulletPoints)
     
-    if (body.webinarId !== undefined) updateData.webinarId = body.webinarId
+    if (body.webinarId !== undefined) {
+      updateData.webinar = { connect: { id: body.webinarId } }
+    }
     if (body.title !== undefined) updateData.title = body.title
     if (body.description !== undefined) updateData.description = body.description || null
     if (body.price !== undefined) updateData.price = parseFloat(body.price)
@@ -52,6 +69,23 @@ export async function PATCH(
     if (body.videoTimestamp !== undefined) updateData.videoTimestamp = parseInt(body.videoTimestamp)
     if (body.hideAfter !== undefined) updateData.hideAfter = body.hideAfter ? parseInt(body.hideAfter) : null
     if (body.isActive !== undefined) updateData.isActive = body.isActive
+    if (body.originalPrice !== undefined) {
+      updateData.originalPrice = body.originalPrice ? parseFloat(body.originalPrice) : null
+    }
+    if (body.discountLabel !== undefined) {
+      updateData.discountLabel = body.discountLabel || null
+    }
+    if (body.countdownDuration !== undefined) {
+      updateData.countdownDuration = body.countdownDuration
+        ? parseInt(body.countdownDuration)
+        : null
+    }
+    if (body.bulletPoints !== undefined) {
+      updateData.bulletPoints =
+        normalizedBulletPoints && normalizedBulletPoints.length
+          ? normalizedBulletPoints
+          : []
+    }
 
     // Update offer
     const offer = await prisma.offer.update({

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
+import { generateReferralCode } from '@/lib/referral'
 
 // POST /api/webinars/[id]/register - Public registration endpoint
 export async function POST(
@@ -22,7 +23,8 @@ export async function POST(
       gdprConsent,
       privacyConsent,
       marketingConsent,
-      country
+      country,
+      referralCode: referredByCode // The referral code of who referred them
     } = body
 
     // Validation
@@ -66,6 +68,37 @@ export async function POST(
       testGroup = await getVisitorTestGroup(webinar.id, webinar.trafficSplitPercent)
     }
 
+    // Generate unique referral code for this registration
+    let uniqueReferralCode = generateReferralCode();
+    let attempts = 0;
+    const maxAttempts = 10;
+    
+    // Ensure referral code is unique
+    while (attempts < maxAttempts) {
+      const existing = await prisma.registration.findUnique({
+        where: { referralCode: uniqueReferralCode }
+      });
+      
+      if (!existing) break;
+      
+      uniqueReferralCode = generateReferralCode();
+      attempts++;
+    }
+
+    // Validate referral code if provided (who referred them)
+    let referredBy: string | null = null;
+    if (referredByCode) {
+      const referrer = await prisma.registration.findUnique({
+        where: { referralCode: referredByCode },
+        select: { referralCode: true }
+      });
+      
+      if (referrer) {
+        referredBy = referrer.referralCode;
+        console.log(`🎁 Referral tracked: New user referred by ${referredByCode}`);
+      }
+    }
+
     // Note: Allowing multiple registrations per email
     // Users can register multiple times for the same webinar with the same email
     
@@ -84,6 +117,8 @@ export async function POST(
         privacyConsent: privacyConsent || false,
         marketingConsent: marketingConsent || false,
         testGroup: testGroup, // Store test group for A/B testing
+        referralCode: uniqueReferralCode, // Their unique code to share
+        referredBy: referredBy, // Who referred them
         registeredAt: new Date()
       }
     })
@@ -114,7 +149,8 @@ export async function POST(
         registration: {
           id: registration.id,
           name: registration.name,
-          email: registration.email
+          email: registration.email,
+          referralCode: registration.referralCode // Their unique referral code
         },
         message: 'Registration successful! Check your email for confirmation.' 
       },

@@ -541,6 +541,37 @@
   color: var(--text-light);
 }
 
+.offerCountdown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+  color: white;
+  border-radius: 50px;
+  margin-bottom: 20px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  animation: pulse 4s ease-in-out infinite;
+  box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3);
+}
+
+.offerCountdown i {
+  font-size: 1.2rem;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+    box-shadow: 0 4px 15px rgba(238, 90, 36, 0.3);
+  }
+  50% {
+    transform: scale(1.01);
+    box-shadow: 0 5px 18px rgba(238, 90, 36, 0.4);
+  }
+}
+
 .offerFeatures {
   margin-bottom: 25px;
 }

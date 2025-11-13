@@ -70,6 +70,7 @@ export default function CreateWebinarPage() {
     hasOffers: true,
     hasChat: true,
     hasReactions: true,
+    showElapsedTime: true,
     thumbnail: null as File | null,
     maxSchedulesToShow: 3,
     registrationPageId: '',
@@ -212,6 +213,7 @@ export default function CreateWebinarPage() {
         hasOffers: formData.hasOffers,
         hasChat: formData.hasChat,
         hasReactions: formData.hasReactions,
+        showElapsedTime: formData.showElapsedTime,
         maxSchedulesToShow: formData.maxSchedulesToShow,
         registrationPageId: formData.registrationPageId || null,
         schedules: allSchedules,
@@ -327,6 +329,7 @@ export default function CreateWebinarPage() {
         hasOffers: formData.hasOffers,
         hasChat: formData.hasChat,
         hasReactions: formData.hasReactions,
+        showElapsedTime: formData.showElapsedTime,
         maxSchedulesToShow: formData.maxSchedulesToShow,
         registrationPageId: formData.registrationPageId || null,
         schedules: allSchedules,
@@ -1132,6 +1135,32 @@ export default function CreateWebinarPage() {
                       <span
                         className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                           formData.hasReactions ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Elapsed Time */}
+                  <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 bg-slate-100 rounded-lg">
+                        <Clock className="w-5 h-5 text-slate-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-gray-900">Elapsed Time Display</p>
+                        <p className="text-sm text-gray-500">Show the running time on the live video</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, showElapsedTime: !formData.showElapsedTime })}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        formData.showElapsedTime ? 'bg-blue-600' : 'bg-gray-200'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          formData.showElapsedTime ? 'translate-x-6' : 'translate-x-1'
                         }`}
                       />
                     </button>

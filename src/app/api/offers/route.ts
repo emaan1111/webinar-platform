@@ -3,6 +3,22 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const parseBulletPoints = (value: unknown): string[] | undefined => {
+  if (value === undefined || value === null) {
+    return undefined
+  }
+
+  const lines = Array.isArray(value)
+    ? value.map((item) => String(item))
+    : String(value).split(/\r?\n/)
+
+  const normalized = lines
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  return normalized
+}
+
 // GET /api/offers - Get all offers for user's webinars
 export async function GET(request: Request) {
   try {
@@ -79,8 +95,13 @@ export async function POST(request: Request) {
       ctaText,
       ctaUrl,
       videoTimestamp,
-      hideAfter
+      hideAfter,
+      originalPrice,
+      discountLabel,
+      countdownDuration,
+      bulletPoints
     } = body
+    const normalizedBulletPoints = parseBulletPoints(bulletPoints)
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -106,15 +127,26 @@ export async function POST(request: Request) {
     // Create offer
     const offer = await prisma.offer.create({
       data: {
-        webinarId,
         title,
         description: description || null,
         price: parseFloat(price),
+        originalPrice: originalPrice ? parseFloat(originalPrice) : null,
+        discountLabel: discountLabel || null,
+        countdownDuration: countdownDuration ? parseInt(countdownDuration) : null,
         ctaText,
         ctaUrl,
         videoTimestamp: parseInt(body.videoTimestamp),
         hideAfter: body.hideAfter ? parseInt(body.hideAfter) : null,
-        isActive: true
+        bulletPoints:
+          normalizedBulletPoints && normalizedBulletPoints.length
+            ? normalizedBulletPoints
+            : [],
+        isActive: true,
+        webinar: {
+          connect: {
+            id: webinarId
+          }
+        }
       },
       include: {
         webinar: {
@@ -146,7 +178,24 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json()
-    const { id, ...data } = body
+    const {
+      id,
+      webinarId,
+      title,
+      description,
+      price,
+      ctaText,
+      ctaUrl,
+      videoTimestamp,
+      hideAfter,
+      isActive,
+      bulletPoints,
+      originalPrice,
+      discountLabel,
+      countdownDuration,
+    } = body
+
+    const normalizedBulletPoints = parseBulletPoints(bulletPoints)
 
     if (!id) {
       return NextResponse.json({ error: 'Offer ID required' }, { status: 400 })
@@ -176,14 +225,39 @@ export async function PATCH(request: Request) {
     }
 
     // Update offer
+    const updateData: any = {}
+    if (webinarId !== undefined) updateData.webinarId = webinarId
+    if (title !== undefined) updateData.title = title
+    if (description !== undefined) updateData.description = description || null
+    if (price !== undefined) updateData.price = parseFloat(price)
+    if (ctaText !== undefined) updateData.ctaText = ctaText
+    if (ctaUrl !== undefined) updateData.ctaUrl = ctaUrl
+    if (videoTimestamp !== undefined) updateData.videoTimestamp = parseInt(videoTimestamp)
+    if (hideAfter !== undefined) {
+      updateData.hideAfter = hideAfter ? parseInt(hideAfter) : null
+    }
+    if (isActive !== undefined) updateData.isActive = isActive
+    if (originalPrice !== undefined) {
+      updateData.originalPrice = originalPrice ? parseFloat(originalPrice) : null
+    }
+    if (discountLabel !== undefined) {
+      updateData.discountLabel = discountLabel || null
+    }
+    if (countdownDuration !== undefined) {
+      updateData.countdownDuration = countdownDuration
+        ? parseInt(countdownDuration)
+        : null
+    }
+    if (bulletPoints !== undefined) {
+      updateData.bulletPoints =
+        normalizedBulletPoints && normalizedBulletPoints.length
+          ? normalizedBulletPoints
+          : []
+    }
+
     const updated = await prisma.offer.update({
       where: { id },
-      data: {
-        ...data,
-        price: data.price ? parseFloat(data.price) : undefined,
-        videoTimestamp: data.videoTimestamp ? parseInt(data.videoTimestamp) : undefined,
-        hideAfter: data.hideAfter !== undefined ? (data.hideAfter ? parseInt(data.hideAfter) : null) : undefined
-      },
+      data: updateData,
       include: {
         webinar: {
           select: {

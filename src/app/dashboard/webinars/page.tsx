@@ -5,6 +5,7 @@ import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
+import { formatDateTime } from '@/lib/dateFormat'
 import {
   Plus,
   Search,
@@ -306,10 +307,10 @@ function WebinarCard({
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-gray-600">
                   <div className="flex items-center gap-1">
                     <Calendar className="w-4 h-4" />
-                    <span suppressHydrationWarning>
+                    <span>
                       {webinar.schedules && webinar.schedules.length > 0 ? (
                         webinar.schedules[0].scheduleType === 'specific' && webinar.schedules[0].scheduledAt
-                          ? new Date(webinar.schedules[0].scheduledAt).toLocaleString()
+                          ? formatDateTime(webinar.schedules[0].scheduledAt)
                           : webinar.schedules[0].scheduleType === 'justInTime'
                           ? `${webinar.schedules[0].minutesFromReg} min from registration`
                           : webinar.schedules[0].scheduleType === 'recurring'
@@ -350,10 +351,6 @@ function WebinarCard({
                   Edit
                 </Button>
               </Link>
-              <Button variant="secondary" size="sm" onClick={() => setShowEmbedModal(true)}>
-                <Code className="w-4 h-4 mr-2" />
-                Embed Code
-              </Button>
               <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/w/${webinar.slug || webinar.id}`)}>
                 <Copy className="w-4 h-4 mr-2" />
                 Copy Link

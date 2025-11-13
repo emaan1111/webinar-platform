@@ -97,12 +97,14 @@ model Webinar {
   hasOffers    Boolean @default(true)
   hasChat      Boolean @default(true)
   hasReactions Boolean @default(true)
+  showElapsedTime Boolean @default(true) // Display elapsed time on the live video
 
   // Registration Settings
   maxSchedulesToShow     Int     @default(3) // How many upcoming schedules to show on registration page
   registrationPageId     String? // Reference to RegistrationPage table (replaces registrationTemplateId)
   thankYouTemplateId     String? // Reference to ThankYouTemplate table
-  countdownPageId        String? // Reference to CountdownPage table (new dynamic system)
+  countdownTemplateId    String? // Reference to CountdownTemplate table (same system as Thank You)
+  countdownPageId        String? // Reference to CountdownPage table (deprecated, use countdownTemplateId)
 
   // A/B Testing Configuration
   enableABTesting     Boolean @default(false) // Master toggle for A/B testing
@@ -127,6 +129,10 @@ model Webinar {
   testVideo Boolean @default(false)
   videoAId  String? // Variant A video (Vimeo ID or URL)
   videoBId  String? // Variant B video (Vimeo ID or URL)
+
+  // Social Share Messages (for Thank You & Countdown pages)
+  whatsappShareMessage String? @db.Text // Custom WhatsApp share message
+  facebookShareMessage String? @db.Text // Custom Facebook share message (if needed)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -183,6 +189,10 @@ model Offer {
   title          String
   description    String?
   price          Float
+  originalPrice  Float?
+  discountLabel  String?
+  countdownDuration Int? // Seconds for offer countdown badge
+  bulletPoints   String[] @default([])
   ctaText        String   @default("Get This Offer")
   ctaUrl         String
   videoTimestamp Int // Seconds in video when offer appears
@@ -273,11 +283,18 @@ model Registration {
   registeredAt       DateTime  @default(now())
   scheduledStartTime DateTime? // The exact start time for this user's webinar session
   attended           Boolean   @default(false)
-  joinedAt           DateTime?
+  joinedAt           DateTime? // Last time they joined (updates on refresh)
+  firstJoinedAt      DateTime? // First time they ever joined (never changes, for grace period)
   leftAt             DateTime?
 
   // A/B Testing
   testGroup String? // "A" or "B" - which test group they were in
+
+  // Referral System
+  referralCode    String?  @unique // Unique code for this person to share (e.g., "ABC123")
+  referredBy      String? // referralCode of the person who referred them
+  referredByUser  Registration? @relation("Referrals", fields: [referredBy], references: [referralCode], onDelete: SetNull)
+  referrals       Registration[] @relation("Referrals") // People this person referred
 
   // Relations
   user         User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -790,4 +807,27 @@ model AIChatConfig {
   updatedAt   DateTime @updatedAt
 
   @@map("ai_chat_config")
+}
+
+// Image Library - Store uploaded images for use in pages
+model Image {
+  id           String   @id @default(cuid())
+  filename     String   // Unique filename on disk
+  originalName String   // Original uploaded filename
+  url          String   // Public URL to access image
+  size         Int      // File size in bytes
+  mimeType     String   // image/jpeg, image/png, etc.
+  width        Int?     // Image width in pixels
+  height       Int?     // Image height in pixels
+  
+  // Metadata
+  uploadedBy   String?  // User ID who uploaded
+  tags         String?  // Comma-separated tags for organization
+  description  String?  @db.Text // Optional description
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([uploadedBy])
+  @@map("images")
 }

@@ -1,8 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 import { Gift, Clock, CheckCircle, X, AlertCircle, Globe } from 'lucide-react'
+import { extractReferralCode } from '@/lib/referral'
 
 interface Schedule {
   id: string
@@ -24,6 +25,7 @@ interface Webinar {
 
 export default function WebinarRegisterPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const [webinar, setWebinar] = useState<Webinar | null>(null)
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
@@ -35,6 +37,7 @@ export default function WebinarRegisterPage() {
   const [loading, setLoading] = useState(true)
   const [registering, setRegistering] = useState(false)
   const [registered, setRegistered] = useState(false)
+  const [referralCode, setReferralCode] = useState<string | null>(null)
   const [errors, setErrors] = useState<Record<string, string>>({})
   
   const [formData, setFormData] = useState({
@@ -72,6 +75,13 @@ export default function WebinarRegisterPage() {
   ]
 
   useEffect(() => {
+    // Extract referral code from URL (?ref=ABC123)
+    const refCode = extractReferralCode(searchParams)
+    if (refCode) {
+      setReferralCode(refCode)
+      console.log('🎁 Referral code detected:', refCode)
+    }
+    
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
     setUserTimezone(detectedTimezone)
     setSelectedTimezone(detectedTimezone)
@@ -215,7 +225,8 @@ export default function WebinarRegisterPage() {
           gdprConsent: formData.gdprConsent,
           privacyConsent: formData.privacyConsent,
           marketingConsent: formData.marketingConsent,
-          country: userCountry
+          country: userCountry,
+          referralCode: referralCode || undefined // Include referral code if present
         })
       })
 

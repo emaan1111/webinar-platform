@@ -112,6 +112,7 @@ export async function PATCH(
       'registrationPageId',
       'thankYouTemplateId',
       'countdownPageId',
+      'showElapsedTime',
       'enableABTesting',
       'trafficSplitPercent',
       'testRegistrationPage',

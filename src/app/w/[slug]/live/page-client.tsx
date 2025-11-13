@@ -44,6 +44,10 @@ interface LiveOffer {
   ctaUrl: string;
   videoTimestamp: number;
   hideAfter: number | null;
+  countdownDuration: number | null;
+  bulletPoints: string[];
+  originalPrice: number | null;
+  discountLabel: string | null;
 }
 
 interface ReactionEvent {
@@ -76,6 +80,7 @@ interface WebinarData {
   hasChat?: boolean;
   hasOffers?: boolean;
   hasReactions?: boolean;
+  showElapsedTime?: boolean;
 }
 
 interface OfferContent {
@@ -85,6 +90,7 @@ interface OfferContent {
   price: number;
   originalPrice: number | null;
   discountLabel: string | null;
+  countdownDuration: number | null;
   ctaText: string;
   ctaUrl: string;
 }
@@ -208,8 +214,6 @@ const randomResponses = [
 
 const trustIndicators = [
   { icon: 'fas fa-shield-alt', label: 'Secure Payment' },
-  { icon: 'fas fa-moon', label: 'Flexible Schedule' },
-  { icon: 'fas fa-users', label: '500+ Mothers' },
 ];
 
 const defaultOfferFallback: OfferContent = {
@@ -225,6 +229,7 @@ const defaultOfferFallback: OfferContent = {
   price: 49,
   originalPrice: 99,
   discountLabel: '50% OFF',
+  countdownDuration: 180,
   ctaText: 'Join the Program',
   ctaUrl: '#',
 };
@@ -307,32 +312,37 @@ function buildOfferContent(offer: LiveOffer | null): OfferContent | null {
     return null;
   }
 
-  const lines = offer.description
+  const rawLines = (offer.description || '')
     .split('\n')
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const description = lines[0] || defaultOfferFallback.description;
+  const description =
+    rawLines[0] ||
+    (offer.description ? offer.description.trim() : null) ||
+    defaultOfferFallback.description;
+
+  const leftoverLines = rawLines.slice(1);
   const features =
-    lines.length > 1 ? lines.slice(1) : defaultOfferFallback.features;
+    offer.bulletPoints && offer.bulletPoints.length > 0
+      ? offer.bulletPoints
+      : leftoverLines;
 
-  const derivedOriginal =
-    offer.price > 0 ? Math.round(offer.price * 1.9) : null;
-
-  const hasDiscount =
-    derivedOriginal && derivedOriginal > offer.price
-      ? `${Math.round(
-          ((derivedOriginal - offer.price) / derivedOriginal) * 100
-        )}% OFF`
+  const countdownDurationValue =
+    typeof offer.countdownDuration === 'number' &&
+    Number.isFinite(offer.countdownDuration) &&
+    offer.countdownDuration > 0
+      ? offer.countdownDuration
       : null;
 
   return {
     title: offer.title || defaultOfferFallback.title,
     description,
     features,
-    price: offer.price || defaultOfferFallback.price,
-    originalPrice: hasDiscount ? derivedOriginal : null,
-    discountLabel: hasDiscount,
+    price: offer.price ?? defaultOfferFallback.price,
+    originalPrice: offer.originalPrice ?? null,
+    discountLabel: offer.discountLabel || null,
+    countdownDuration: countdownDurationValue,
     ctaText: offer.ctaText || defaultOfferFallback.ctaText,
     ctaUrl: offer.ctaUrl || defaultOfferFallback.ctaUrl,
   };
@@ -897,6 +907,23 @@ export default function WebinarLiveClient({
     [activeOffer]
   );
 
+  const countdownRemainingSeconds = useMemo(() => {
+    if (
+      !activeOffer ||
+      !offerContent ||
+      !offerContent.countdownDuration
+    ) {
+      return null;
+    }
+
+    const secondsSinceOfferStart = Math.max(
+      0,
+      elapsedSeconds - activeOffer.videoTimestamp
+    );
+    const remaining = offerContent.countdownDuration - secondsSinceOfferStart;
+    return remaining > 0 ? remaining : null;
+  }, [activeOffer, offerContent, elapsedSeconds]);
+
   useEffect(() => {
     if (!activeOffer) {
       return;
@@ -1381,9 +1408,11 @@ export default function WebinarLiveClient({
                   <span className={styles.statusDot} />
                   {statusLabel}
                 </div>
-                <div className={styles.videoTime}>
-                  {formattedElapsed}
-                </div>
+                {webinar.showElapsedTime !== false && (
+                  <div className={styles.videoTime}>
+                    {formattedElapsed}
+                  </div>
+                )}
               </div>
 
               {/* Reaction buttons overlaid on video - only show after broadcast starts */}
@@ -1479,17 +1508,25 @@ export default function WebinarLiveClient({
                 <p className={styles.offerDescription}>
                   {offerContent.description}
                 </p>
+                {countdownRemainingSeconds !== null && (
+                  <div className={styles.offerCountdown}>
+                    <i className="fas fa-clock" />
+                    <span>{formatCountdown(countdownRemainingSeconds)}</span>
+                  </div>
+                )}
 
-                <div className={styles.offerFeatures}>
-                      {offerContent.features.map((feature) => (
-                        <div key={feature} className={styles.offerFeature}>
-                          <i
-                            className={`${styles.offerFeatureIcon} fas fa-check-circle`}
-                          />
-                          <span>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
+                {offerContent.features.length > 0 && (
+                  <div className={styles.offerFeatures}>
+                    {offerContent.features.map((feature) => (
+                      <div key={feature} className={styles.offerFeature}>
+                        <i
+                          className={`${styles.offerFeatureIcon} fas fa-check-circle`}
+                        />
+                        <span>{feature}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
                     <div className={styles.offerPrice}>
                       <span className={styles.priceCurrent}>

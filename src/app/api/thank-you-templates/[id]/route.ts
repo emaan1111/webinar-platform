@@ -39,7 +39,7 @@ export async function PATCH(
     const body = await request.json()
     const { name, description, htmlCode, thumbnail } = body
 
-    // Check if template exists and is not a system template
+    // Check if template exists
     const existingTemplate = await prisma.thankYouTemplate.findUnique({
       where: { id: params.id }
     })
@@ -48,12 +48,8 @@ export async function PATCH(
       return NextResponse.json({ error: 'Template not found' }, { status: 404 })
     }
 
-    if (existingTemplate.isSystem && session.user.role !== 'ADMIN') {
-      return NextResponse.json(
-        { error: 'Cannot modify system templates' },
-        { status: 403 }
-      )
-    }
+    // Allow ADMIN and HOST to edit system templates
+    // (They just can't delete them unless they're ADMIN)
 
     const template = await prisma.thankYouTemplate.update({
       where: { id: params.id },

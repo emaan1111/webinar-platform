@@ -17,6 +17,7 @@ interface RegistrationMeta {
   registeredAt: Date;
   scheduleId: string | null;
   timezone: string | null;
+  firstJoinedAt: Date | null;
 }
 
 interface ChatMessagePayload {
@@ -221,6 +222,7 @@ export default async function WebinarRoomPage({
           timezone: true,
           webinarId: true,
           scheduledStartTime: true, // NEW: Get the stored start time
+          firstJoinedAt: true, // For grace period tracking (never changes)
         },
       })
     : null;
@@ -237,6 +239,7 @@ export default async function WebinarRoomPage({
         registeredAt: registration.registeredAt,
         scheduleId: registration.scheduleId,
         timezone: registration.timezone,
+        firstJoinedAt: registration.firstJoinedAt,
       }
     : null;
 
@@ -260,8 +263,12 @@ export default async function WebinarRoomPage({
   const inferredVideoDuration =
     webinar.videoDuration ??
     (typeof webinar.duration === 'number' ? webinar.duration * 60 : null);
+  
+  // Use firstJoinedAt for grace period calculation if available
+  // This prevents the grace period from recalculating on page refresh
+  const referenceTime = registrationMeta?.firstJoinedAt || now;
   const elapsedSecondsRaw = Math.floor(
-    (now.getTime() - originalStartTime.getTime()) / 1000
+    (referenceTime.getTime() - originalStartTime.getTime()) / 1000
   );
   
   // Grace period logic for late joiners
@@ -277,12 +284,12 @@ export default async function WebinarRoomPage({
     
     if (minutesLate <= 5) {
       // 0-5 mins late: adjust start time so elapsed = 0
-      adjustedStartTime = new Date(now.getTime());
-      gracePeriodApplied = `⏰ Grace period: ${minutesLate.toFixed(1)} mins late, starting from beginning`;
+      adjustedStartTime = new Date(referenceTime.getTime());
+      gracePeriodApplied = `⏰ Grace period: ${minutesLate.toFixed(1)} mins late, starting from beginning${registrationMeta?.firstJoinedAt ? ' (locked)' : ''}`;
     } else if (minutesLate <= 15) {
       // 5-15 mins late: adjust start time so elapsed = 120 seconds (2 mins)
-      adjustedStartTime = new Date(now.getTime() - 120000); // 120 seconds = 120000 ms
-      gracePeriodApplied = `⏰ Grace period: ${minutesLate.toFixed(1)} mins late, starting from 2:00`;
+      adjustedStartTime = new Date(referenceTime.getTime() - 120000); // 120 seconds = 120000 ms
+      gracePeriodApplied = `⏰ Grace period: ${minutesLate.toFixed(1)} mins late, starting from 2:00${registrationMeta?.firstJoinedAt ? ' (locked)' : ''}`;
     } else {
       // 15+ mins late: use actual start time (no adjustment)
       gracePeriodApplied = `⏰ No grace period: ${minutesLate.toFixed(1)} mins late, showing actual time`;
@@ -334,6 +341,10 @@ export default async function WebinarRoomPage({
     ctaUrl: offer.ctaUrl,
     videoTimestamp: offer.videoTimestamp,
     hideAfter: offer.hideAfter,
+    countdownDuration: offer.countdownDuration,
+    bulletPoints: offer.bulletPoints ?? [],
+    originalPrice: offer.originalPrice,
+    discountLabel: offer.discountLabel,
   }));
 
   // Load real reactions from database (time-synced, not fake)
@@ -374,6 +385,7 @@ export default async function WebinarRoomPage({
         hasChat: webinar.hasChat,
         hasOffers: webinar.hasOffers,
         hasReactions: webinar.hasReactions,
+        showElapsedTime: webinar.showElapsedTime !== undefined ? webinar.showElapsedTime : true,
       }}
       offers={offers}
       chatMessages={chatMessages}

@@ -37,14 +37,14 @@ export default function CountdownTemplateSelector({
 
   const fetchTemplates = async () => {
     try {
-      const response = await fetch('/api/countdown-pages')
+      const response = await fetch('/api/countdown-templates')
       if (response.ok) {
         const data = await response.json()
-        // API returns { countdownPages: [...] }
-        setTemplates(data.countdownPages || [])
+        // API returns array of countdown templates
+        setTemplates(data || [])
       }
     } catch (error) {
-      console.error('Error fetching countdown pages:', error)
+      console.error('Error fetching countdown templates:', error)
     } finally {
       setLoading(false)
     }
@@ -58,19 +58,19 @@ export default function CountdownTemplateSelector({
       const response = await fetch(`/api/webinars/${webinarId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ countdownPageId: templateId }),
+        body: JSON.stringify({ countdownPageId: templateId }), // Using countdownPageId for now until DB is updated
       })
 
       if (!response.ok) {
-        throw new Error('Failed to update countdown page')
+        throw new Error('Failed to update countdown template')
       }
 
       if (onChange) {
         onChange(templateId)
       }
     } catch (error) {
-      console.error('Error updating countdown page:', error)
-      alert('Failed to update countdown page')
+      console.error('Error updating countdown template:', error)
+      alert('Failed to update countdown template')
     } finally {
       setSaving(false)
     }

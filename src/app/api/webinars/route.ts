@@ -31,15 +31,15 @@ export async function POST(request: Request) {
       hasChat,
       hasReactions,
       maxSchedulesToShow,
-      registrationTemplateId,
+      registrationPageId,
       countdownPageId,
       schedules, // Array of schedule objects
       // A/B Testing fields
       enableABTesting,
       trafficSplitPercent,
       testRegistrationPage,
-      regTemplateAId,
-      regTemplateBId,
+      regPageAId,
+      regPageBId,
       testSchedule,
       scheduleAIds,
       scheduleBIds,
@@ -48,7 +48,8 @@ export async function POST(request: Request) {
       offerBId,
       testVideo,
       videoAId,
-      videoBId
+      videoBId,
+      showElapsedTime
     } = body
 
     // Validation
@@ -81,16 +82,17 @@ export async function POST(request: Request) {
         hasOffers: hasOffers !== undefined ? hasOffers : true,
         hasChat: hasChat !== undefined ? hasChat : true,
         hasReactions: hasReactions !== undefined ? hasReactions : true,
+        showElapsedTime: showElapsedTime !== undefined ? showElapsedTime : true,
         maxSchedulesToShow: maxSchedulesToShow || 3,
-        registrationTemplateId: registrationTemplateId || null,
+        registrationPageId: registrationPageId || null,
         countdownPageId: countdownPageId || null,
         hostId: (session.user as any).id,
         // A/B Testing
         enableABTesting: enableABTesting || false,
         trafficSplitPercent: trafficSplitPercent || 50,
         testRegistrationPage: testRegistrationPage || false,
-        regTemplateAId: regTemplateAId || null,
-        regTemplateBId: regTemplateBId || null,
+        regPageAId: regPageAId || null,
+        regPageBId: regPageBId || null,
         testSchedule: testSchedule || false,
         scheduleAIds: scheduleAIds || null,
         scheduleBIds: scheduleBIds || null,

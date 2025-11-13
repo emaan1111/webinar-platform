@@ -1,0 +1,1198 @@
+Hour,Minute,Second,Name,Role,Message,Mode
+0,0,4,"Sana ",Attendee,"Assalamu Alaikum, I am Sana Ahmed.",Text
+0,0,9,"Snigdha ",Attendee,"Hi I am travelling and my connection is flactuating. May I please get a recordings?",Text
+0,0,19,"Anika ",Attendee,Hi,Text
+0,0,23,"Nighat ",Attendee,"Asslamo alikum",Text
+0,0,28,"Rabia ",Attendee,Assalamu’alikum,Text
+0,0,29,"Dr. Athar ",Attendee,Aslamualikum,Text
+0,0,33,"Rose ",Attendee,Ameen,Text
+0,0,34,"Onaizah ",Attendee,"السلام عليكم ورحمة الله وبركاته",Text
+0,0,36,"Reb ",Attendee,"Assalamu aleykum sisters",Text
+0,0,36,"Kazi ",Attendee,Assalamualaikum,Text
+0,0,36,"Shahida ",Attendee,Salaam,Text
+0,0,36,"F ",Attendee,Aameen,Text
+0,0,39,"Hena ",Attendee,"Asalam alykum",Text
+0,0,40,"Maryam ",Attendee,Ameen,Text
+0,0,41,"Fauziyah ",Attendee,Ameen,Text
+0,0,44,"Bukky ",Attendee,"Asalam Aleykum sisters",Text
+0,0,44,"Setara ",Attendee,Ameen,Text
+0,0,44,"Jelilat ",Attendee,"Asalam alaekum",Text
+0,0,44,"Farida ",Attendee,"Salam alikom",Text
+0,0,45,"Nighay ",Attendee,"WaAlaikum salaam",Text
+0,0,45,"Shafalie ",Attendee,"Asalam alaikum",Text
+0,0,45,"Sughara ",Attendee,"السلام عليكم ورحمةالله وبركاته",Text
+0,0,45,"Sahar ",Attendee,"Aslamo alikum",Text
+0,0,46,"Alaa ",Attendee,"Assalam alaikum",Text
+0,0,48,"Meriam ",Attendee,Ameen,Text
+0,0,48,"Yasmin Ali",Attendee,"Assalamualaikum Warahmatullahi Wabarakatahu",Text
+0,0,48,"Aneela ",Attendee,Aameen,Text
+0,0,48,"Toga ",Attendee,Asalamualaikum,Text
+0,0,48,"Aeesha ",Attendee,"Assalam alaykum",Text
+0,0,48,"Faheema ",Attendee,"Salaam all",Text
+0,0,49,"Sana ",Attendee,Ameen,Text
+0,0,49,"Alyaa ",Attendee,"السلام عليكم ورحمة الله وبركاتة",Text
+0,0,49,"Habiba ",Attendee,"Assalam o alaiqum",Text
+0,0,50,"Fozia ",Attendee,"Assalam alaikum",Text
+0,0,51,"Abiodun Oladeji ",Attendee,Amen,Text
+0,0,51,"Fatima ",Attendee,"Salam alaikoum",Text
+0,0,52,"Shahida ",Attendee,Asslamualaikum,Text
+0,0,52,"Zainab ",Attendee,"Assalam Alaikum",Text
+0,0,53,"Erum ",Attendee,"Assalam o alikum",Text
+0,0,54,"Yasmin Ali",Attendee,ameen,Text
+0,0,54,"Dr. Athar ",Attendee,Aameen,Text
+0,0,54,"Tamanna ",Attendee,Assalamualaikum,Text
+0,0,54,"Flora ",Attendee,"Assalamualaikum sisters",Text
+0,0,54,"Christa ",Attendee,Assalamualaikum,Text
+0,0,56,"Asma ",Attendee,Ameen,Text
+0,0,56,"Shahnas ",Attendee,"Wsalam wrb",Text
+0,0,57,"Aminah ",Attendee,Ameen,Text
+0,0,57,"Naziya ",Attendee,Aameen,Text
+0,0,57,"Salma ",Attendee,"Assalamoalikum sister I just signed up your class",Text
+0,0,57,"Saima ",Attendee,"Assalam o Alaikum, I am Saima",Text
+0,0,58,"Zarqa ",Attendee,"Salaam everyone",Text
+0,0,58,"Alyaa ",Attendee,اميين,Text
+0,0,58,"M Tanveer ",Attendee,Ameen,Text
+0,1,0,"Anika ",Attendee,"Ameen Ameen Ameen",Text
+0,1,0,"Shehla Islam ",Attendee,Ameen,Text
+0,1,1,"Asma ",Attendee,"Allahumma Ameen",Text
+0,1,2,"Sughara ",Attendee,Ameen,Text
+0,1,3,"Sophie ",Attendee,Ameen,Text
+0,1,3,"Mahin ",Attendee,Aameen,Text
+0,1,3,"Shahnas ",Attendee,Aameen,Text
+0,1,3,"Zinat ",Attendee,"Assalamu alaykum waramatulah wabarokatuh",Text
+0,1,4,"Hena ",Attendee,"Aameen ya Rab",Text
+0,1,4,"fatima ",Attendee,salam,Text
+0,1,4,"Mariam ",Attendee,Ameen,Text
+0,1,7,"Dr. Athar ",Attendee,yes,Text
+0,1,7,"Husna Abooubaitha ",Attendee,"Assalamu Alaikum",Text
+0,1,8,"Fatema ",Attendee,"Ameen yab Ameen",Text
+0,1,8,"Sonia ",Attendee,"Asalam o Aliekum",Text
+0,1,8,"Lucky ",Attendee,Ameen,Text
+0,1,9,"Shahin ",Attendee,W/salam,Text
+0,1,9,"raina ulfat ",Attendee,"asalam o alikum",Text
+0,1,9,"Huda ",Attendee,"Aslam o alaikum.thanks for doing this.Allah will give u a big reward here n here after InshaAllah",Text
+0,1,9,"Noorie begim ",Attendee,"Assalamu alaikum",Text
+0,1,9,"KHUMARI ",Attendee,"Salam . Ameen",Text
+0,1,10,"Sharmin ",Attendee,"Asalamualaikum wa rahmatullahi wa barakatuh",Text
+0,1,11,"Bismah Malik ",Attendee,Asalamualikum,Text
+0,1,12,"Rumela ",Attendee,"Assalamualaikum joined from Bangladesh",Text
+0,1,13,"Tania ",Attendee,"Salamualykum !",Text
+0,1,13,"Rida fatima ",Attendee,Ameen,Text
+0,1,13,"Lubna Sharmin ",Attendee,Assalamualaikum,Text
+0,1,13,"Tahmina ",Attendee,Ameen,Text
+0,1,15,"Am ",Attendee,"Salam aleykom :)",Text
+0,1,15,"Mona ",Attendee,Ameen,Text
+0,1,16,"Asma ",Attendee,Asalaamwalikum,Text
+0,1,16,"Shaista ",Attendee,Asalamualikum,Text
+0,1,18,"Saima Jabeen ",Attendee,"assalam o likum",Text
+0,1,19,"Tahmina ",Attendee,"Yes definitely",Text
+0,1,20,"Zeba ",Attendee,Assalamalaikum,Text
+0,1,21,"Iqra ",Attendee,"Assalam o alaikum everyone",Text
+0,1,21,"Dawn ",Attendee,"Salaam alikum all",Text
+0,1,21,"Saima ",Attendee,"Assalamu alaikum",Text
+0,1,22,"Mariya khan ",Attendee,Assalamualaikum,Text
+0,1,23,"Dima ",Attendee,"Salam Alaykum. Ameen",Text
+0,1,24,"Zee ",Attendee,"Asalamu Alaikum",Text
+0,1,25,"Blerina ",Attendee,"Assalamu alaykum",Text
+0,1,27,"Noor ",Attendee,salam,Text
+0,1,28,"Katherine ",Attendee,Ameen,Text
+0,1,28,"Rakiya ",Attendee,"Salam alaikum",Text
+0,1,29,"Zoufishan ",Attendee,"Assalam alaikum",Text
+0,1,29,"Marwa ",Attendee,"May ALLAH",Text
+0,1,31,"Akter ",Attendee,"Assalamu alaekum",Text
+0,1,34,"Yasmin Ali",Attendee,"Walaikumusalam Warahmatullahi Wabarakatahu",Text
+0,1,34,"Afusat ",Attendee,Aamin,Text
+0,1,34,"Nani Diab ",Attendee,"Alsalamu Alikoum... May Allah accept your deeds ... May Allah make it easy on us and grant us prosperity",Text
+0,1,35,"Tasneema ",Attendee,Assalamualaikum,Text
+0,1,36,"Seema ",Attendee,Asalamualaikom,Text
+0,1,37,"Shadan ",Attendee,Asalamalaikum,Text
+0,1,39,"Ayan ",Attendee,🥰🥰,Text
+0,1,41,"Nes ",Attendee,"ASalam Aliukum",Text
+0,1,41,"Ghulam ",Attendee,Salam,Text
+0,1,42,"Shumaila ",Attendee,"Assalamualaekum all",Text
+0,1,42,"Amishawu ",Attendee,"Mashaa Allah",Text
+0,1,44,"Mariam ",Attendee,"assalamualeikum waramotullahi wabarakatuh",Text
+0,1,47,"Sara ",Attendee,Aslamoalaikum,Text
+0,1,47,"Fatma ",Attendee,"Assalam Alaikum",Text
+0,1,49,"Zahra ",Attendee,wsalam,Text
+0,1,49,"Zakia ",Attendee,Assalamualaikum,Text
+0,1,50,"Tamika ",Attendee,"Walaykum As’Salam",Text
+0,1,51,"Husnara ",Attendee,"Assalamualaikum wa rahmatullahi wabarakatuhu",Text
+0,1,51,"Nejaha ",Attendee,"Ameen yarab",Text
+0,1,51,"Azra ",Attendee,"Assalamualikum wr br",Text
+0,1,53,"Fatma ",Attendee,"Jazakum Allah Khairan",Text
+0,1,54,"Fozia ",Attendee,Assalamualaikum,Text
+0,1,55,"Marwa ",Attendee,"May Allah protects our kids and raised them on Iman Ameen Ameen",Text
+0,1,55,"Azra ",Attendee,"Jazkallahu khairen",Text
+0,1,57,"sidra ",Attendee,sidra,Text
+0,1,58,"Tanzila ",Attendee,"Salam everyone",Text
+0,1,58,"Tahmina ",Attendee,"A salami alik",Text
+0,1,59,"Kausar ",Attendee,Assalamualaikum,Text
+0,2,0,"Manal ",Attendee,"السلام عليكم و رحمة الله",Text
+0,2,5,"Maheen ",Attendee,"Walikum as Salam",Text
+0,2,5,"Zuby ",Attendee,"Assalam o Alikum",Text
+0,2,9,"Saimah ",Attendee,"As salaam alaikum wa rahmatullah wa barakatuh",Text
+0,2,10,"Rabia ",Attendee,salam,Text
+0,2,10,"Madi ",Attendee,"Assalamo alekum",Text
+0,2,12,"Tahmina ",Attendee,"As salamualikum",Text
+0,2,14,"Sharmin ",Attendee,"Assalamualaikum everyone",Text
+0,2,14,"Salma ",Attendee,Assalamualaikum,Text
+0,2,15,"Rida fatima ",Attendee,"Asalmoalaikum everyone",Text
+0,2,17,"Tijani ",Attendee,"Salam alaykum",Text
+0,2,19,"Nafisa Abubakar ",Attendee,"Assalamu alaikum",Text
+0,2,19,"Fareda ",Attendee,"Salam everyone",Text
+0,2,20,"Fatma ",Attendee,"Asalam aylikum",Text
+0,2,21,"Yvette ",Attendee,"Waleikum salam warahmatullah wabarakatuh",Text
+0,2,29,"Sarah ",Attendee,"Assalamualaikum warahmatullahi wabarakatu",Text
+0,2,29,"Fatima ",Attendee,"Salam everyone",Text
+0,2,29,"Namra Farooq ",Attendee,"Assalamu Alaikum",Question
+0,2,30,"Zakia ",Attendee,Assalamualaikum,Text
+0,2,33,"Mahaboob ",Attendee,"Yes I am",Text
+0,2,35,"Mariam ",Attendee,"Assalamualaikum wa rahmatullahi wa barakatahu",Text
+0,2,37,"Mobeen ",Attendee,"Asslam o alaikum sisters",Text
+0,2,39,"Syhikin Samsudin ",Attendee,Assalammualaikum,Text
+0,2,40,"Balogun ",Attendee,Asalamaleykum,Text
+0,2,42,"Fadheela ",Attendee,Wsalaam,Text
+0,2,42,"Tahmina ",Attendee,💗,Text
+0,2,43,"Lia ",Attendee,Assalamualaikum,Text
+0,2,43,"Warakah ",Attendee,"Assalamu alaikum everyone",Text
+0,2,44,"Minna ",Attendee,"Assalam alaykum",Text
+0,2,45,"Firdausi ",Attendee,"Assalamu Alaikum",Text
+0,2,45,"Eman ",Attendee,Salam,Text
+0,2,46,"Hajra ",Attendee,"Assalum alaikum",Text
+0,2,50,"Wasilatu ",Attendee,"Salam alaikum",Text
+0,2,53,"Asmae ",Attendee,"Assalamu Alaikum",Text
+0,2,53,"Nusrat Sharmin ",Attendee,"Assalamu Alaikum",Text
+0,2,53,"Myra ",Attendee,Salam,Text
+0,2,56,"Mahbuban ",Attendee,Walikumassalam,Text
+0,2,56,"rafizah ",Attendee,Assalamualaikum,Text
+0,2,57,"Ashla ",Attendee,Assalamualaikum,Text
+0,2,59,"Mahanaz ",Attendee,Assalamualaikum,Text
+0,3,1,"Sakina ",Attendee,"As salaam aleykum wa rahmatu Allaahi wa barakaatuhu",Text
+0,3,2,"Uzma ",Attendee,"Walikum assalam wrwb",Text
+0,3,2,"Zaynab ",Attendee,"Assalaam Alakium",Text
+0,3,5,"Lateefat ",Attendee,"Asalam alaykum warahamotullah wabarakatuh",Text
+0,3,5,"Memoona ",Attendee,"Wa alaikum assalam",Text
+0,3,6,"Rehab ",Attendee,"السلام عليكم",Text
+0,3,7,"Ruba ",Attendee,Salam,Text
+0,3,10,"Asmae ",Attendee,"This is asmae",Text
+0,3,11,"Sughara ",Attendee,"إن شاء الله",Text
+0,3,17,"HA ",Attendee,"Al-Salamun Alaikum",Text
+0,3,21,"Demitu Hussen ",Attendee,"Assalamualaikum sister",Text
+0,3,22,"Sarah ",Attendee,Salam,Text
+0,3,23,"Sumaiya ",Attendee,"As salam alaikum",Text
+0,3,24,"Hafiza ",Attendee,"Assalamo alaikum",Text
+0,3,26,"Waliyat ABDULWAHAB ",Attendee,"Assallam alaykum",Text
+0,3,26,"Bushra ",Attendee,Assalamualikum,Text
+0,3,31,"Nimah ",Attendee,"Sallam aleykun waramatulah wabarakatuh",Text
+0,3,32,"Qandeel malik ",Attendee,Salam,Text
+0,3,33,"Lubna Sharmin ",Attendee,"I do but I want to make my child more emotional with Allah.how  can I?",Text
+0,3,36,"Zohreh ",Attendee,"Assalam alaikum",Text
+0,3,36,"Uzma ",Attendee,"Assalamu alikum wrwb",Text
+0,3,39,"Hafiza ",Attendee,"Thats my biggest worry living in UK",Text
+0,3,41,"Syeda ",Attendee,Asslamualekum,Text
+0,3,44,"Lateefat ",Attendee,"Asalam alaykun",Text
+0,3,45,"Mariam ",Attendee,InshaAllah,Text
+0,3,47,"Halima ",Attendee,A.walkum,Text
+0,3,48,"Rokeya ",Attendee,Assalmualaikum,Text
+0,3,49,"Mariam ",Attendee,"Assalam Alaikum",Text
+0,3,53,"Anu Choudhry ",Attendee,"Assalamualaikum wa rahmatullahi wa baraqatuhu",Text
+0,4,3,"Nur Maisarah Ali ",Attendee,Assalamualaikum,Text
+0,4,8,"Muna ",Attendee,"Assalama alaikum",Text
+0,4,9,"SUMAIYA ",Attendee,"As Salam O alaikom",Text
+0,4,13,"Tyyeba ",Attendee,"Aslam o alaikum wa rahma",Text
+0,4,19,"Samina ",Attendee,Ameen,Text
+0,4,23,"Naznin ",Attendee,Assalamualaikum,Text
+0,4,24,"Fariha ",Attendee,MashaAllah!,Text
+0,4,28,"Rana ",Attendee,Salams,Text
+0,4,30,"Khadijat ",Attendee,"Asalam Aleikun waramotulohi wabarakatuh",Text
+0,4,30,"Mina Banu ",Attendee,"Assalamu Alaikum WA rahmathullahi wa barakathu",Text
+0,4,30,"Malika ",Attendee,"Salamu Alikum",Text
+0,4,30,"Samsunnaher ",Attendee,Assalamoalaikum,Text
+0,4,38,"Asma ",Attendee,"Assalamu alaykum",Text
+0,4,50,"Mehreen Nauman ",Attendee,Salam,Text
+0,5,1,"Zainab ",Attendee,"My child always pray 5 daily prayers if she is home with but if she went on vacation to the grandmother she don’t pray and her grandmother don’t even care what should I do ?",Text
+0,5,1,"Lubna Sharmin ",Attendee,"I want to make her more attach and love with Allah",Text
+0,5,3,"Rasheedah ",Attendee,"Asalam alykum,I'm unable to join please",Text
+0,5,4,"F ",Attendee,"Amazing Ma'shaa'Allah",Text
+0,5,6,"Assia ",Attendee,"السلام عليكم ورحمة الله وبركاته",Text
+0,5,41,"Sarai ",Attendee,"Asalam alykum everyone",Text
+0,5,43,"Somaia kamali ",Attendee,"Assalamu allaykum",Text
+0,5,46,"Herniza ",Attendee,"Assalamualaikum warahmatullahiwabarakatuh",Text
+0,5,55,"Lisa ",Attendee,"Assalamualaikum! Thank you for organizing this significant event!",Text
+0,6,0,"Hafsa Aroosi ",Attendee,"salaams sister iv just joined :)",Text
+0,6,3,"SAIRA ",Attendee,"How can make my son spiritually connected?",Question
+0,6,9,"Zarqa ",Attendee,"I don't like to force my daughter at all I want her to love her religion inshallah",Text
+0,6,12,"Naajia ",Attendee,AssalamuAlaikum,Text
+0,6,14,"Samira ",Attendee,"Salam Alikum",Text
+0,6,17,"Arouj ",Attendee,Asalamualaikum,Text
+0,6,22,"Habeebat ",Attendee,"As Salam alaikum waramotulahi wabarakatul",Text
+0,6,22,"Safia ",Attendee,"Salaam alikoum safia",Text
+0,6,25,"Susan ",Attendee,🌹🌹,Text
+0,6,34,"iman ",Attendee,Aselamulkum,Text
+0,6,36,"Fathima ",Attendee,"Assalamu alaikum sisters",Text
+0,6,39,"SAIRA ",Attendee,"@zarqa I agree",Text
+0,6,43,"Tahrima ",Attendee,salaam,Text
+0,6,43,"khaleda ",Attendee,Assalamuwalaikom,Text
+0,6,47,"Uzma ",Attendee,"assalmo alaikum everyone",Text
+0,6,49,"SAIRA ",Attendee,Wsalaam,Text
+0,6,51,"Mohad ",Attendee,Salaam,Text
+0,6,53,"Hina ",Attendee,"Aslamualikum I just join",Text
+0,6,57,"Hind ",Attendee,"Salam alaykom",Text
+0,7,2,"Rasheedat ",Attendee,Assalamualaikum,Text
+0,7,5,"Rumana iqbal ",Attendee,"Assalam alaikum",Text
+0,7,12,"Sania ",Attendee,"Walekumsalam wrwb",Text
+0,7,40,"Khadija ",Attendee,"Assalam o alaiku",Text
+0,7,46,"Resma ",Attendee,Assalamualaikum,Text
+0,7,47,"Sumaia ",Attendee,"Assalam Alaikum",Text
+0,7,49,"Kulsoom ",Attendee,Assalamualikum,Text
+0,7,50,"Mian ",Attendee,"اسلام وعلیکم ورحمتہ اللہ و بارکاتہ",Text
+0,7,52,"Rabia ",Attendee,Assalamualaikum,Text
+0,8,9,"Aisha ",Attendee,"Assalamu Alaikum sister. May Allah reward you for this webinar",Text
+0,8,16,"Sarah ",Attendee,SubhanAllah,Text
+0,8,30,"rafizah ",Attendee,MasyaAllah,Text
+0,8,35,"Sughara ",Attendee,"In'sha'Allah إن شاء الله  sister❤️",Text
+0,8,41,"Razia ",Attendee,Assalamualikum,Text
+0,8,46,"sasja ",Attendee,"Assalaam Alaykoum wa ramatullahi wa barakatuh. May Allah reward you 🤲🏽🫶🏽",Text
+0,8,47,"Rose ",Attendee,"I am going to be her!!!",Text
+0,8,48,"Tazeen ",Attendee,"Asalamo Alaikum sister",Text
+0,8,52,"Sabrina Trisha ",Attendee,Assalamuwalaikum.,Text
+0,8,53,"Zahra ",Attendee,inshallah,Text
+0,8,54,"Maany ",Attendee,"We struggle a lot in where we live with no strong Muslim coomunity and good friends",Text
+0,8,56,"Rose ",Attendee,"InSha Allah",Text
+0,9,0,"Zuby ",Attendee,"I have one question",Text
+0,9,0,"Rasheedah ",Attendee,Assalamualaikum,Text
+0,9,0,"Rheme ",Attendee,Salams,Text
+0,9,0,"Sarah ",Attendee,"InshaAllah 🙏🏻",Text
+0,9,1,"Jemila ",Attendee,"I don’t know why for some reason it’s not connecting me",Text
+0,9,1,"raina ulfat ",Attendee,"i am gping to br her",Text
+0,9,2,"Hauwau ",Attendee,"Assalamu Alaykum Warahmatullah Wabarakatuh.",Text
+0,9,5,"Sobia ",Attendee,"Salam.. i am from New Zealand",Text
+0,9,8,"Saba tamkeen ",Attendee,"Im going to be her",Text
+0,9,8,"Wajiha ",Attendee,Yes,Text
+0,9,11,"Samira ",Attendee,yes,Text
+0,9,12,"Fauziyah ",Attendee,Yes,Text
+0,9,14,"Yasmin Ali",Attendee,"Ameen Sum Ameen Ya Rabbil Aa'lameen",Text
+0,9,14,"Asma ",Attendee,"In Sha Allah",Text
+0,9,15,"Shumaila ",Attendee,"Yes I do. Alhamdillilah",Text
+0,9,15,"Zeba ",Attendee,Yes,Text
+0,9,15,"Uzma ",Attendee,"Yes in sha Allah",Text
+0,9,17,"Seema ",Attendee,Yes,Text
+0,9,21,"Saima ",Attendee,"Assalam Alaikum ♥️",Text
+0,9,22,"Shamia Kabir ",Attendee,"In shaa Allāh",Text
+0,9,22,"Yasmin Ali",Attendee,beyshak,Text
+0,9,26,"Samsunnaher ",Attendee,Assalamoalaikum,Text
+0,9,29,"Asma ",Attendee,"Yes I do Allhumdulillah",Text
+0,9,33,"NazmaNahid ",Attendee,"In Shaa Allah",Text
+0,9,34,"Zeba ",Attendee,Inshallah,Text
+0,9,35,"Rasheedat ",Attendee,"You all have to click on the play button to start the video",Text
+0,9,36,"Shamna ",Attendee,How,Text
+0,9,39,"Hauwau ",Attendee,"Yes, in shaa Allah 👏",Text
+0,9,41,"Sania ",Attendee,"Is this audio only?",Text
+0,9,46,"Am ",Attendee,"My son prays when I ask him to do so...but won't if I don t ask him..don t know how to explain that he must do it from his heart he must pray sincerely not to please me",Question
+0,9,48,"Wajiha ",Attendee,"Home in jannah",Text
+0,10,4,"Aminat ",Attendee,"Thank you so much",Text
+0,10,8,"Ghada ",Attendee,"Assalamu Alykum",Text
+0,10,10,"Maany ",Attendee,"I have four girls between 10_18 and struggle a lot with their identity and look for some to mentor them",Text
+0,10,17,"Safia ",Attendee,"Is this live",Text
+0,10,20,"Saima ",Attendee,"Salam sisters",Text
+0,10,31,"saleema ",Attendee,"Walaikum salam",Text
+0,10,42,"Amna ",Attendee,"It's stopped",Text
+0,10,52,"Zeba ",Attendee,True,Text
+0,11,0,"Sarah ",Attendee,Overwhelming,Text
+0,11,6,"Saima ",Attendee,"Yes too stressful",Text
+0,11,10,"Maheen ",Attendee,"I got disconnected",Text
+0,11,11,"F ",Attendee,"True it is too much",Text
+0,11,18,"Zeba ",Attendee,Indeed,Text
+0,11,23,"Nur Maisarah Ali ",Attendee,"yes true",Text
+0,11,24,"Fateema ",Attendee,"As salamu alaikum ,,,Zazzak Allah",Question
+0,11,27,"Maryam ",Attendee,"Yes this is so true Maany",Text
+0,11,38,"Wanita ",Attendee,"Asalam Alaykum",Text
+0,11,38,"Amishawu ",Attendee,❤️❤️❤️,Text
+0,11,38,"Zeba ",Attendee,Absolutely,Text
+0,11,42,"Souad ",Attendee,"So true",Text
+0,11,46,"Zeba ",Attendee,"And the guilt",Text
+0,11,52,"Najneen ",Attendee,"@zarka I am doing same. Somethings feel like am I doing it right?",Text
+0,11,52,"Mahwish ",Attendee,"This is 100% true",Text
+0,11,55,"Saima ",Attendee,"Exactly the same I am thinking nowadays that I am not good enough 😞",Text
+0,11,57,"Balogun ",Attendee,💗,Text
+0,12,0,"Iman ",Attendee,Yes,Text
+0,12,3,"Sana ",Attendee,"So many of us can relate اَلْحَمْدُ لِلّٰه",Text
+0,12,7,"Yasmine ",Attendee,"wa alaikuma salaam",Text
+0,12,14,"Tazeen ",Attendee,"So true",Text
+0,12,22,"Zarqa ",Attendee,Wslm,Text
+0,12,27,"Fadheela ",Attendee,"I have  3 kids alhamdulillah i hope i am ready to acknowledge what i need to help me for my children insha’Allah",Text
+0,12,31,"Zahra Alam ",Attendee,"Asaalamu Alaykum",Text
+0,12,31,"Sylvana ",Attendee,"So much guilt is on our shoulders",Text
+0,12,47,"Tazeen ",Attendee,"Looking for some self motivation tips",Text
+0,12,49,"Fatima ",Attendee,"May Allah make it easy for us🙏🏻",Text
+0,12,53,"Sana ",Attendee,ameen,Text
+0,13,13,"Zahra Alam ",Attendee,"Wa Alaikum Assalam",Text
+0,13,20,"Rabail ",Attendee,Auslamoaliakum,Text
+0,13,22,"Zahra Alam ",Attendee,Sisters,Text
+0,13,27,"Rabyya ",Attendee,Yes,Text
+0,13,28,"Latifat ",Attendee,"Assalam aleakum",Question
+0,13,29,"Tamanna ",Attendee,"Very true. Its suffocating instead of enjoying upbringing children.",Text
+0,13,30,"Yasmin Ali",Attendee,yes,Text
+0,13,32,"Yasmine ",Attendee,yes,Text
+0,13,32,"Rabyya ",Attendee,Right,Text
+0,13,33,"Shazia ",Attendee,Agree,Text
+0,13,34,"Souad ",Attendee,Yes,Text
+0,13,34,"Fiza ",Attendee,Yes,Text
+0,13,34,"Syhikin Samsudin ",Attendee,Yes,Text
+0,13,34,"Azra ",Attendee,Yes,Text
+0,13,34,"Hind ",Attendee,Yes,Text
+0,13,34,"Sana ",Attendee,agree,Text
+0,13,35,"Rabeya ",Attendee,"Of course",Text
+0,13,35,"Asma ",Attendee,Yes!,Text
+0,13,35,"Hafsa Aroosi ",Attendee,"so true",Text
+0,13,35,"Saeeda ",Attendee,Yes,Text
+0,13,35,"Sana ",Attendee,Yes,Text
+0,13,36,"Snigdha ",Attendee,Yes,Text
+0,13,36,"Shumaila ",Attendee,Yes,Text
+0,13,36,"Husna Abooubaitha ",Attendee,yes,Text
+0,13,36,"Souad ",Attendee,"Yes i agree",Text
+0,13,37,"Samina ",Attendee,Yes,Text
+0,13,37,"Amani ",Attendee,"I agree.",Text
+0,13,38,"Zuby ",Attendee,Yes,Text
+0,13,38,"Moona ",Attendee,Yes,Text
+0,13,38,"Toga ",Attendee,"Yes agree",Text
+0,13,38,"Tazeen ",Attendee,Yes,Text
+0,13,38,"rashida ",Attendee,yes,Text
+0,13,38,"Nur Maisarah Ali ",Attendee,agree,Text
+0,13,38,"Shagufta ",Attendee,Yes,Text
+0,13,38,"Shaista ",Attendee,"Yes I agree",Text
+0,13,39,"Rose ",Attendee,"I agree",Text
+0,13,39,"Asma ",Attendee,Yes,Text
+0,13,39,"Shahida ",Attendee,Yes,Text
+0,13,40,"Soraya ",Attendee,Yes,Text
+0,13,40,"Amber ",Attendee,yes,Text
+0,13,40,"Asma ",Attendee,yes,Text
+0,13,40,"Mehwish ",Attendee,Agree,Text
+0,13,41,"Chowdhury ",Attendee,Yes,Text
+0,13,41,"Amishawu ",Attendee,"Mashaa Allah sister",Text
+0,13,41,"Zeba ",Attendee,Absolutely,Text
+0,13,41,"Imrana ",Attendee,Yeah,Text
+0,13,42,"Sadia ",Attendee,Agreed,Text
+0,13,42,"Sharmi ",Attendee,Yes,Text
+0,13,42,"Herniza ",Attendee,"Yess agree",Text
+0,13,43,"Shahin ",Attendee,Yes,Text
+0,13,43,"Jumana ",Attendee,Agree,Text
+0,13,43,"Farisha ",Attendee,"Yes very true",Text
+0,13,43,"Shazia ",Attendee,Yes,Text
+0,13,43,"Shumila ",Attendee,Agree,Text
+0,13,44,"taiwo ",Attendee,yes,Text
+0,13,44,"Nejeha ",Attendee,Yes,Text
+0,13,45,"Summaiya Arshad ",Attendee,Agree,Text
+0,13,45,"SAIRA ",Attendee,"Yes it’s she’s speaking to my soul",Text
+0,13,45,"Rakiya ",Attendee,"Yes so true",Text
+0,13,45,"Adiye ",Attendee,Yes,Text
+0,13,45,"Saba tamkeen ",Attendee,Yes,Text
+0,13,45,"fatima ",Attendee,"yes agree",Text
+0,13,45,"Sajna Salam ",Attendee,Agree,Text
+0,13,46,"Suhaila ",Attendee,Yes,Text
+0,13,46,"Fatima ",Attendee,Yes,Text
+0,13,47,"Rana ",Attendee,Yes,Text
+0,13,47,"NazmaNahid ",Attendee,"No doubt",Text
+0,13,47,"Sehana patel ",Attendee,"Of course",Text
+0,13,48,"Zarqa ",Attendee,Yes,Text
+0,13,48,"Iqra ",Attendee,"Yes Alhamdulillah",Text
+0,13,48,"Dawn ",Attendee,Yes,Text
+0,13,48,"Aminah ",Attendee,Yes,Text
+0,13,48,"Aneela ",Attendee,Yes,Text
+0,13,48,"Saima ",Attendee,Agree,Text
+0,13,49,"Marwa Sadek ",Attendee,Yes,Text
+0,13,49,"Firdausi ",Attendee,Yes,Text
+0,13,49,"Salema ",Attendee,Yes,Text
+0,13,49,"maryam ",Attendee,Agree,Text
+0,13,49,"Aminat ",Attendee,Yes,Text
+0,13,50,"Tahera ",Attendee,Yes,Text
+0,13,51,"Rukayat ",Attendee,"I agree",Text
+0,13,51,"Sughara ",Attendee,"So true",Text
+0,13,54,"Nazia Faizi ",Attendee,yes,Text
+0,13,54,"Samira ",Attendee,Yes,Text
+0,13,55,"Zahra Alam ",Attendee,Yes,Text
+0,13,55,"Zainab ",Attendee,Yes,Text
+0,13,55,"Afusat ",Attendee,Agree,Text
+0,13,56,"Muna ",Attendee,"I gree",Text
+0,13,57,"Mehwish ",Attendee,"100% agree.  I feel exactly what was said",Text
+0,13,57,"Ummay ",Attendee,yes,Text
+0,13,57,"M Tanveer ",Attendee,"Totally agreed",Text
+0,14,0,"Tazeen ",Attendee,Indeed,Text
+0,14,2,"Rosemarie ",Attendee,Yes,Text
+0,14,6,"Zahra Alam ",Attendee,"I really agree",Text
+0,14,6,"Zeba ",Attendee,Absolutely,Text
+0,14,6,"Malika ",Attendee,Yes,Text
+0,14,7,"Yasmin Ali",Attendee,indeed,Text
+0,14,8,"Shumila ",Attendee,Yes,Text
+0,14,9,"Amal ",Attendee,"Ya you tugged at my heart. I feel see deficient",Text
+0,14,10,"Sonia ",Attendee,"Alhumdulillah love that analogy",Text
+0,14,11,"Mariam ",Attendee,"You are right , it bothers me when I have to constantly remind him to pray",Text
+0,14,11,"Aeesha ",Attendee,"Agree 💯",Text
+0,14,12,"Nur Maisarah Ali ",Attendee,"theres technology, games now",Text
+0,14,13,"R ",Attendee,"Yes ownership is important and difficult to adopt",Text
+0,14,14,"Sarah ",Attendee,"yes agree",Question
+0,14,15,"Sarah ",Attendee,"How do you know the right way then.",Text
+0,14,16,"Fozia ",Attendee,"Yea right we don't trust them that they ll pray behind us or not",Text
+0,14,16,"Jelilat ",Attendee,Agree,Text
+0,14,18,"Khadeejah ",Attendee,Agree,Text
+0,14,22,"Farzana ",Attendee,😍,Question
+0,14,22,"Halimat ",Attendee,"Asalam allaekum",Text
+0,14,22,"Zabeen ",Attendee,"Agree sis",Text
+0,14,24,"Zahraa ",Attendee,"Of course",Text
+0,14,25,"Bismah Malik ",Attendee,"Alhumdullilah 3 boys: 1- 3yrs old and twins: 1yrs old",Text
+0,14,29,"Fathima ",Attendee,"Alhum dulillah",Text
+0,14,30,"Tazeen ",Attendee,"Can’t agree more",Text
+0,14,36,"Jodi ",Attendee,"Yea no more village",Text
+0,14,44,"Amishawu ",Attendee,"Masha Allah ❤️",Text
+0,14,51,"Zeba ",Attendee,Exactly,Text
+0,14,52,"Salma ",Attendee,"I’m agree",Text
+0,14,52,"Aysha ",Attendee,"So true",Text
+0,14,55,"Asma ",Attendee,"I have 3 boys as well",Text
+0,15,0,"Haley ",Attendee,"Salam alaikum, my tears are so heavy, please keep me and my family in your dua",Text
+0,15,1,"Zeba ",Attendee,Agree,Text
+0,15,4,"SAIRA ",Attendee,Ameen,Text
+0,15,4,"Aisha ",Attendee,❤️,Text
+0,15,6,"Lateefat ",Attendee,Yes,Text
+0,15,7,"Shaik ",Attendee,"I agree",Text
+0,15,8,"Sadia ",Attendee,True,Text
+0,15,8,"Sharmin ",Attendee,"So true",Text
+0,15,10,"Mehwish ",Attendee,"Is anyone else video hanging . There is a glitch",Text
+0,15,21,"Asma ",Attendee,"No mine is fine",Text
+0,15,21,"Lateefat ",Attendee,Ameen,Text
+0,15,27,"Nihar ",Attendee,Salam,Text
+0,15,29,"Amina ",Attendee,"I wish everyone would understand.. it's so hard because no matter what I do there are people who criticize everything I do when it come to my daughters",Question
+0,15,31,"Meriem ",Attendee,"Salam alaikom thank you so much",Text
+0,15,32,"raina ulfat ",Attendee,"my video is also hanging",Text
+0,15,37,"Sana ",Attendee,"One time",Text
+0,15,38,"Hannah ",Attendee,"Restart the link",Text
+0,15,40,"Anu Choudhry ",Attendee,"My system working well Alhamdulillah",Text
+0,15,41,"Tasneem ",Attendee,"JazakAllah khaira.",Text
+0,15,50,"Roohi ",Attendee,"It's working fine",Text
+0,15,52,"Balogun ",Attendee,"Not hanging",Text
+0,15,53,"Fatima ",Attendee,"Asalam alaikum",Text
+0,16,0,"Rooksana ",Attendee,"I lost my connection",Text
+0,16,1,"Asma ",Attendee,"now I have 2 my second twin and one single boy. First twin is in Jannah.",Text
+0,16,11,"Amina ",Attendee,"Allah is the greatest",Text
+0,16,19,"Asma ",Attendee,"As-Salamu Alaikum",Text
+0,16,31,"Yasmin Ali",Attendee,"Ameen Sum Ameen Ya Rabbil Aa'lameen In'Shaa'Allah",Text
+0,16,34,"Yasmine ",Attendee,"sister Haley may allah easy whatever you going through",Text
+0,16,37,"Rasna ",Attendee,"My son is 9",Text
+0,16,48,"Basirah ",Attendee,"May Allah continue to ease our affairs",Text
+0,16,48,"Zeba ",Attendee,Yes,Text
+0,16,49,"Mariya khan ",Attendee,"My video stopped",Text
+0,16,51,"Rubina ",Attendee,"My daughter is 13",Text
+0,16,56,"Tazeen ",Attendee,"Yes, very vulnerable",Text
+0,17,4,"Hannah ",Attendee,Ameen,Text
+0,17,6,"Saeeda ",Attendee,"Oh too late… mine are 18",Text
+0,17,7,"Suruurat ",Attendee,"As salam alaikum warahmatullah wabarakaatuh Sister.",Text
+0,17,8,"Asma ",Attendee,"May Allah SWT make things easy on everyone",Text
+0,17,11,"Asma ",Attendee,Ameen,Text
+0,17,18,"Sana ",Attendee,"same story",Text
+0,17,22,"Nicole ",Attendee,"I hope to find a program like this for younger children. 🤲🏼 my kids are under 5 and I’m a revert. Will keep your program in mind in a few years. Thank you",Text
+0,17,25,"Sarai ",Attendee,Ameen,Text
+0,17,25,"Marwa ",Attendee,"my son is 7.5",Text
+0,17,26,"Suruurat ",Attendee,"Jazakillah khairan for this.",Text
+0,17,33,"Fatma ",Attendee,"I have 2 boys : 16 year &amp; 10 year",Text
+0,17,38,"Jodi ",Attendee,"We have no one to help",Text
+0,17,43,"Hauwau ",Attendee,"Allahumma Ameen Yaa Rabbi 🙏",Text
+0,17,48,"Wajiha ",Attendee,"I have 2 7 nd 11",Text
+0,17,53,"Ayisha ",Attendee,"Ameen thummah Ameen",Text
+0,18,6,"Muna ",Attendee,"Son 12",Text
+0,18,11,"Jannatul Ferdousi ",Attendee,"I am 5 months of pregnant and I am here to learn too early! 😂",Text
+0,18,13,"Uzma ",Attendee,No,Text
+0,18,22,"Jodi ",Attendee,"I just don’t know how to deal with it anymore",Text
+0,18,34,"Balogun ",Attendee,"My kids are 15,13,6 years",Text
+0,19,4,"Shahin ",Attendee,"Lost my connection too",Text
+0,19,16,"Sonia ",Attendee,"Assalamualaikum warahmatullahi wabarkatuhu",Text
+0,19,17,"Momoh ",Attendee,"My Kids are 11 and 4",Text
+0,19,18,"Rihab ",Attendee,"how can i help a teen who struggle with salah",Text
+0,19,22,"Yasmin Ali",Attendee,In'Shaa'Allah,Text
+0,19,37,"Hauwau ",Attendee,"In shaa Allah",Text
+0,20,3,"sasja ",Attendee,"I’m revert, my children are 6 and 1 Alhamdullilah",Text
+0,20,6,"Asmae ",Attendee,"That's great Ferdousi may Allah sw help you and us to raise our children",Text
+0,20,28,"Mohamed ",Attendee,"Thank you for your support",Text
+0,20,28,"Hauwau ",Attendee,Ameen,Text
+0,20,32,"Asma Syed ",Attendee,Alhumdullillah,Text
+0,20,33,"Rakiya ",Attendee,😄,Text
+0,20,36,"Rukayat ",Attendee,😄,Text
+0,20,42,"Toga ",Attendee,"I wonder from where should I start with my daughter",Text
+0,20,54,"Aminat ",Attendee,😄,Text
+0,21,2,"Amtul ",Attendee,😄,Text
+0,21,11,"Hauwau ",Attendee,😄,Text
+0,21,33,"Sharmin ",Attendee,True,Text
+0,21,44,"Aminat ",Attendee,😢,Text
+0,21,47,"zolfa ",Attendee,Zolfa,Text
+0,21,49,"Zarqa ",Attendee,"Oh Allah",Text
+0,21,53,"Fatma ",Attendee,"لا حول ولا قوة الا بالله",Text
+0,21,59,"Kulsoom ",Attendee,😢,Text
+0,22,0,"Yasmin Ali",Attendee,:'(,Text
+0,22,2,"SAIRA ",Attendee,💔,Text
+0,22,2,"Rukayat ",Attendee,Subhanallah,Text
+0,22,5,"Sughara ",Attendee,"سبحان ألله",Text
+0,22,6,"Toga ",Attendee,"So sad",Text
+0,22,7,"Somaia kamali ",Attendee,😔😔😔,Text
+0,22,8,"sasja ",Attendee,😰,Text
+0,22,9,"Mehwish ",Attendee,"The glitches are way too much",Text
+0,22,10,"Rose ",Attendee,😱,Text
+0,22,14,"Azra ",Attendee,Astagfirullah,Text
+0,22,16,"Sania ",Attendee,"My son also says Quran is boring because i dont understand",Text
+0,22,17,"Anu Choudhry ",Attendee,"I am a revert. Alhamdulillah my elder one is 22. He turned out Allah fearing Allahumma baarik. My daughter is 19 and quite far away from Islam and turning away from parents. My younger one is 14 and is still going good and is steadfast by the rahmah of Allah swt. I am a revert and I need to unlearn and learn... ya Allah! Make me successful in raising my children the way You want me to. Give us the grace",Text
+0,22,20,"Aneela ",Attendee,😢,Text
+0,22,21,"Ewa ",Attendee,😢,Text
+0,22,23,"Asma ",Attendee,😢,Text
+0,22,29,"Syhikin Samsudin ",Attendee,😢,Text
+0,22,29,"Mahanaz ",Attendee,😢,Text
+0,22,35,"Amishawu ",Attendee,☹️,Text
+0,22,35,"Balogun ",Attendee,"Hmm 🥲",Text
+0,22,39,"Rheme ",Attendee,"So true",Text
+0,22,48,"Sara adaan ",Attendee,😢,Text
+0,23,5,"Fatima ",Attendee,😢,Text
+0,23,7,"Zee ",Attendee,😭,Text
+0,23,23,"Sadaf ",Attendee,"This is very true",Text
+0,23,42,"Tazeen ",Attendee,"No, not all",Text
+0,23,51,"Reham ",Attendee,"One of the largest issues is dealing with other children with bad influences.",Text
+0,23,56,"Asmae ",Attendee,"Because some teachers abuse kids during teaching them, parents care just about how many hizb they already memorized,to show off in dounya.",Text
+0,23,57,"Fatiha ",Attendee,"My son  told me the same thing",Text
+0,24,8,"Shahida ",Attendee,😢,Text
+0,24,11,"Asmae ",Attendee,"May Allah sw guide us",Text
+0,24,33,"sasja ",Attendee,"May Allah protect or children 🤲🏽",Text
+0,24,36,"Erum ",Attendee,Ameen,Text
+0,24,50,"Summaiya Arshad ",Attendee,"100% correct",Text
+0,24,57,"Shahin ",Attendee,"I keep losing connection",Text
+0,24,58,"Tazeen ",Attendee,"Indeed, so true",Text
+0,25,4,"Asmae ",Attendee,"Most of parents may Allah sw guide us",Text
+0,25,6,"Rose ",Attendee,❤️,Text
+0,25,6,"Balogun ",Attendee,"So true",Text
+0,25,6,"Fatma ",Attendee,"ماشاء الله",Text
+0,25,17,"Nur Maisarah Ali ",Attendee,"you are right",Text
+0,25,31,"Somaia kamali ",Attendee,"My son is 10 and he doesn’t like to learn praying and I don’t forcing him 😔what shall I do now ?",Text
+0,25,53,"Am ",Attendee,"I want my son to pray sincerely not to please me but to please Allah",Text
+0,25,58,"SAIRA ",Attendee,"Yes so right",Text
+0,25,58,"Ayan ",Attendee,😢,Text
+0,26,2,"Shahin ",Attendee,"Can you please provide recording as well? I don't want to miss information",Text
+0,26,3,"Nur Maisarah Ali ",Attendee,"the heart",Text
+0,26,15,"Tazeen ",Attendee,"It’s all about Heart",Text
+0,26,17,"Shaneah ",Attendee,"May Allah allow us to do better",Text
+0,26,33,"Khadijah ",Attendee,"I’m a Grandma trying to help my grandchildren! IshAllah!",Text
+0,26,38,"Yasmin Ali",Attendee,"@Shaneah Ameen Sum Ameen Ya Rabbil Aa'lameen",Text
+0,26,51,"Sana ",Attendee,Amen,Text
+0,26,54,"Asma ",Attendee,"May Allah SWT guide us and our children in the right path Ameen",Text
+0,26,55,"Rameen ",Attendee,"Amazing topic",Text
+0,27,4,"Tazeen ",Attendee,Ameen,Text
+0,27,11,"Sana ",Attendee,"Ameen *",Text
+0,27,13,"Sonia ",Attendee,Ameen,Text
+0,27,16,"Nighat ",Attendee,"Very true",Text
+0,27,21,"Balogun ",Attendee,"I Am doing all my best but the social media is course a lot for my 15years daughter",Text
+0,27,37,"Haley ",Attendee,Shepherd,Text
+0,27,40,"Bushra ",Attendee,"Being a shepherd",Text
+0,27,40,"Hafsa Aroosi ",Attendee,Dhikar,Text
+0,27,41,"Nadia ",Attendee,Farming?,Text
+0,27,41,"Sophie ",Attendee,Hardship,Text
+0,27,42,"Hafsa Aroosi ",Attendee,?,Text
+0,27,43,"Rose ",Attendee,"They were shepherds",Text
+0,27,43,"Anna ",Attendee,Patient,Text
+0,27,44,"Aneela ",Attendee,"Worked as shepherd",Text
+0,27,44,"Nora ",Attendee,"Maybe preach?",Text
+0,27,44,"Lilly ",Attendee,Takwa,Text
+0,27,45,"Azra ",Attendee,"Love of Allah",Text
+0,27,48,"Jumana ",Attendee,"They where shepherds",Question
+0,27,48,"Maany ",Attendee,"To be patient",Text
+0,27,48,"Rana ",Attendee,"Struggle, effort",Text
+0,27,48,"Husna Abooubaitha ",Attendee,"being a sheperd",Text
+0,27,48,"Rana ",Attendee,Patience,Text
+0,27,50,"Saima ",Attendee,Yes,Text
+0,27,50,"Ume Kalsoom ",Attendee,"Being a Shepard",Text
+0,27,52,"Amishawu ",Attendee,Yes,Text
+0,27,52,"Maryam ",Attendee,"Being a sphered",Text
+0,27,56,"Hena ",Attendee,Sheperding,Text
+0,27,57,"Zarqa ",Attendee,Mashallah,Text
+0,27,58,"Laura ",Attendee,"Interesting, I didnt know this",Text
+0,28,2,"Hamna ",Attendee,"To be kind and patience",Text
+0,28,3,"Aminat ",Attendee,Patience,Text
+0,28,4,"SAIRA ",Attendee,Wow,Text
+0,28,5,"Amishawu ",Attendee,S❤️A❤️W,Text
+0,28,7,"Zeba ",Attendee,Yes,Text
+0,28,9,"Aeesha ",Attendee,"The training bro be patient",Text
+0,28,11,"Sabiha ",Attendee,School,Text
+0,28,12,"Sakina ",Attendee,"Shepherding flock",Text
+0,28,14,"Yasmin Ali",Attendee,Subhaan'Allah,Text
+0,28,26,"Nahid ",Attendee,"Can I get offline recording later so that I can listen this with my daughter who is 16",Text
+0,28,27,"Yasmin Ali",Attendee,"didnt know this :(",Text
+0,28,39,"Rakiya ",Attendee,SubhanAllah,Text
+0,28,42,"Yaniee ",Attendee,MashaAllah,Text
+0,28,42,"Fozia ",Attendee,"To train them to coach their people",Text
+0,28,49,"Somaia kamali ",Attendee,"And how sister?",Text
+0,28,49,"Tazeen ",Attendee,SubhanAllah,Text
+0,28,51,"Halimah ",Attendee,👏,Text
+0,28,53,"Sabiha ",Attendee,Idc,Text
+0,28,53,"Sughara ",Attendee,"سبحان ألله",Text
+0,29,18,"Nur Maisarah Ali ",Attendee,lovely,Text
+0,29,22,"Momoh ",Attendee,❤️,Text
+0,29,29,"NazmaNahid ",Attendee,"Ma Shaa Allah",Text
+0,29,38,"Fozia ",Attendee,"I wish my kids become like this",Text
+0,29,41,"Manal ",Attendee,"جزاك الله خيرا",Text
+0,29,45,"fatima ",Attendee,💗,Text
+0,29,56,"Hadiza  sani Mohamed ",Attendee,Salam,Text
+0,30,8,"Jemila ",Attendee,"This is very helpful information",Text
+0,30,16,"Jemila ",Attendee,MashaAllaha,Text
+0,30,23,"Zeba ",Attendee,Mashllah,Text
+0,30,27,"Mohamed ",Attendee,"Masha Allah",Text
+0,30,29,"Tazeen ",Attendee,MaShaAllah,Text
+0,30,33,"Sharmin ",Attendee,MashAllah,Text
+0,30,42,"Nada ",Attendee,Mashallah,Text
+0,30,43,"Fareena ",Attendee,"Masha Allah",Text
+0,30,55,"Sabrina ",Attendee,"Can we replay this",Text
+0,30,56,"Sughara ",Attendee,Masha'Allah,Text
+0,31,0,"Mohammed ",Attendee,Yo,Text
+0,31,1,"Assia ",Attendee,"Love Allah is the key",Text
+0,31,1,"Zobia ",Attendee,"Subhan Allah, Allah bring me in this class, feeling blessed",Text
+0,31,9,"Sabrina ",Attendee,"I missed some",Text
+0,31,10,"Shafna ",Attendee,"Masha Allah Allah",Text
+0,31,14,"Sana ",Attendee,MashaAllah,Text
+0,31,21,"Sonia ",Attendee,Mashallah,Text
+0,31,25,"Ema ",Attendee,"How do you become a coach without being pushy ?",Text
+0,31,33,"Asma ",Attendee,"Ma Sha Allah",Text
+0,31,50,"Zebiba ",Attendee,Mashallah,Text
+0,31,55,"Khushi ",Attendee,"Great to hear such amazing stories. Subhan’Allah",Text
+0,31,57,"Yasmin Ali",Attendee,"video isnt syncing with audio",Text
+0,32,0,"Maany ",Attendee,"Are you giving classes to kids in Canada girls 10-18 I struggle a lot to convince and we can not find the good relationship with Muslim and most friends are non muslim",Text
+0,32,10,"Halimah ",Attendee,"جزاک اللە",Text
+0,32,11,"Momoh ",Attendee,"Ma sha Allah",Text
+0,32,18,"Soraya ",Attendee,"Is anyone's video going slower than the sound?",Text
+0,32,24,"Yasmin Ali",Attendee,minee,Text
+0,32,28,"SAIRA ",Attendee,"@soraya yes",Text
+0,32,30,"Hatidza ",Attendee,"Yeah. Mine",Text
+0,32,31,"Uzma ",Attendee,"Mine too",Text
+0,32,32,"Bismah Malik ",Attendee,Yes,Text
+0,32,33,"Aminah ",Attendee,"Yes it is",Text
+0,32,34,"Asma ",Attendee,"Yes mine!",Text
+0,32,34,"Tazeen ",Attendee,"Yes mine too",Text
+0,32,35,"Jannatul Ferdousi ",Attendee,"Yes mine",Text
+0,32,38,"Maany ",Attendee,"Me to",Text
+0,32,39,"Jumana ",Attendee,Yes,Text
+0,32,39,"Atiya ",Attendee,Assalamualaikum,Text
+0,32,39,"Zeba ",Attendee,Yes,Text
+0,32,40,"Saima ",Attendee,"Yes In Sha ALLAH",Text
+0,32,40,"Anu Choudhry ",Attendee,"Yes mine too",Text
+0,32,44,"Fareena ",Attendee,Yes,Text
+0,32,44,"Hadjer ",Attendee,same,Text
+0,33,2,"Shahana ",Attendee,Yes,Text
+0,33,4,"Momoh ",Attendee,"No Video on my side",Text
+0,33,13,"Farhat ",Attendee,"MA SHA Allah",Text
+0,33,40,"Saima ",Attendee,Yes,Text
+0,33,42,"Momoh ",Attendee,"I can on hear the Voice",Text
+0,33,56,"Jodi ",Attendee,"That’s how I feel",Text
+0,33,58,"Kirstn ",Attendee,"Yes the shame of being a poor role model! Astaghfirullah. I am a bad one",Text
+0,34,6,"Asma ",Attendee,"Yes my video is slower",Text
+0,34,7,"Jodi ",Attendee,😢,Text
+0,34,19,"Ahlam ",Attendee,Mashaalah,Text
+0,34,26,"Malika ",Attendee,Mashaallah,Text
+0,34,43,"Aqsa ",Attendee,Yes,Text
+0,35,19,"Zeba ",Attendee,True,Text
+0,35,28,"Marina ",Attendee,"I am forcing my son to pray but he is not interested 😢",Text
+0,35,51,"Tamika ",Attendee,"Are the classes online. I live in Atlantic City and my son is about to be 10. I need to get him to start learning. And same most friends are non Muslim",Text
+0,35,55,"Ewa ",Attendee,"Very true",Text
+0,36,14,"Iman ",Attendee,Mashallah,Text
+0,36,30,"Asma ",Attendee,"what happened to her video?",Text
+0,36,45,"Am ",Attendee,"Exactly...it so hard to compete with social media...I feel I m a has-been when I talk to my son..",Text
+0,37,13,"Mahwish ",Attendee,"Very true",Text
+0,37,17,"Syeda ",Attendee,"I can't hear you",Text
+0,37,35,"Syeda ",Attendee,"Now it better",Text
+0,37,42,"Wakia ",Attendee,"A Heart coach a shepherd ❤️",Text
+0,37,59,"Farhana ",Attendee,🤍🤍,Text
+0,38,15,"Tanzila ",Attendee,"Can't hear you",Text
+0,38,38,"Zeba ",Attendee,True,Text
+0,39,1,"Khadijah ",Attendee,💕🙏🏾,Text
+0,39,18,"Umma ",Attendee,Assalamualikum,Text
+0,39,23,"Shima ",Attendee,❤️❤️❤️,Text
+0,40,49,"Amira ",Attendee,❤️😢,Text
+0,40,56,"Firdausi ",Attendee,"Masha Allah",Text
+0,40,56,"Ayman ",Attendee,🙌❤️,Text
+0,40,58,"Yasmin Ali",Attendee,yeppp,Text
+0,40,59,"Attia ",Attendee,"Asalam o alikum sorry for late joining",Text
+0,41,2,"Amela ",Attendee,🥹,Text
+0,41,7,"Zeba ",Attendee,Absolutely,Text
+0,41,12,"Khadijah ",Attendee,Yes!,Text
+0,41,25,"Seema ",Attendee,💯,Text
+0,41,29,"Yasmin Ali",Attendee,ameen,Text
+0,41,30,"Wakia ",Attendee,Ameen,Text
+0,41,32,"Tahera ",Attendee,"Going to pray Magrib, I will miss some part. It’s 😞 sad.",Text
+0,41,32,"sasja ",Attendee,"In Shaa Allah",Text
+0,41,33,"Rasna ",Attendee,Ameen,Text
+0,41,33,"Nora ",Attendee,Ameen,Text
+0,41,34,"Sadaf ",Attendee,Ameen,Text
+0,41,35,"Olive ",Attendee,Ameen,Text
+0,41,35,"Kareemah ",Attendee,Yes,Text
+0,41,36,"Aneela ",Attendee,Aameen,Text
+0,41,37,"Yasmine ",Attendee,ameen,Text
+0,41,39,"Fathima Shafra ",Attendee,Aameen,Text
+0,41,39,"Malika ",Attendee,Ameen,Text
+0,41,40,"Lia ",Attendee,Ameen,Text
+0,41,43,"Nejeha ",Attendee,Ameen,Text
+0,41,44,"Sana ",Attendee,Ameen,Text
+0,41,45,"Sosan ",Attendee,ameen,Text
+0,41,46,"fatima ",Attendee,Ameen,Text
+0,41,47,"Shaneah ",Attendee,Ameen,Text
+0,41,47,"Somaia kamali ",Attendee,Ameen,Text
+0,41,47,"Firdausi ",Attendee,"Amin ya Allah",Text
+0,41,49,"Rose ",Attendee,"Yes, exactly",Text
+0,41,51,"Muna ",Attendee,Ameen,Text
+0,41,52,"Jannatul Ferdousi ",Attendee,Ameen,Text
+0,41,52,"sasja ",Attendee,Ameen,Text
+0,41,56,"Parveen ",Attendee,💯,Text
+0,42,7,"Yasmine ",Attendee,"You are really good in touching hearts. You must be a good coach then. Allah bless you",Text
+0,42,12,"Sughara ",Attendee,"Ameen ya rabbul.alameen",Text
+0,42,18,"Aneela ",Attendee,"Can we pls get the video recording as well?🙏",Text
+0,42,20,"Sidra ",Attendee,"I missed some of this webinar due to being at work",Text
+0,42,30,"Sidra ",Attendee,:(,Text
+0,42,43,"SIDDIGA ",Attendee,"Sorry/  I just join",Text
+0,43,0,"Sadaf ",Attendee,"Can't hear anything",Text
+0,43,0,"Afusat ",Attendee,"Can l get the video recording  please",Text
+0,43,13,"Falak ",Attendee,"Aslam u alikum",Text
+0,43,26,"Falak ",Attendee,"I cannot see the video",Text
+0,43,29,"Mariam ",Attendee,"Alhamdulillah rabil Alamin that I’m part of this program. Thank s the organizers. Jazzakumllahu khair.",Text
+0,43,30,"Christa ",Attendee,"that is so true",Text
+0,43,37,"Tahera begum ",Attendee,Ameen,Text
+0,43,39,"Zeba ",Attendee,"No not at all",Text
+0,43,50,"Zeba ",Attendee,Agree,Text
+0,44,0,"Zeba ",Attendee,"So true",Text
+0,44,31,"Zeba ",Attendee,Agree,Text
+0,44,35,"Sabrina ",Attendee,"So true",Text
+0,45,1,"Syeda ",Attendee,"Im on my data and Connection is not working well.",Text
+0,45,7,"Falak ",Attendee,👍,Text
+0,45,36,"Zeba ",Attendee,"Wow great",Text
+0,45,39,"Ridwan ",Attendee,"جزاك الله خيرا",Text
+0,45,46,"Zeba ",Attendee,True,Text
+0,45,48,"Khoshi ",Attendee,👍,Text
+0,45,58,"Nasrin ",Attendee,Assalamualikum,Text
+0,46,19,"Asma ",Attendee,"Can I have the four strategies I missed them because they came to fast. Please send me.",Text
+0,46,25,"Zuby ",Attendee,"My daughter said same",Text
+0,46,40,"Sawsan ",Attendee,"Very enlightening ma sha Allah",Text
+0,46,57,"Rudana ",Attendee,"Please repeat the points again I want to write them",Text
+0,47,36,"Marwa ",Attendee,"i can not hear",Text
+0,47,38,"Bolanle Olopade ",Attendee,"I am learning a lot here! Masha Allah",Text
+0,47,51,"Jodi ",Attendee,"Jazak Allah Kheir",Text
+0,48,1,"Wakia ",Attendee,"Same here. Alhamdulillah",Text
+0,48,18,"Tazeen ",Attendee,"Love the simplicity",Text
+0,48,35,"Zeba ",Attendee,"Thank you for sharing the 4 frameworks",Text
+0,48,52,"Zeba ",Attendee,"It is an eye opener",Text
+0,49,0,"Myra ",Attendee,Mashallah,Text
+0,49,0,"Oluwabukunola ",Attendee,"I am learning a lot here",Text
+0,49,5,"Noreen ",Attendee,"Can we get recording for this lecture please and is there anyway to have more classes jazakAllah",Text
+0,49,15,"SEKEENAT MUDASHIRU ",Attendee,"Not hearing anything again for here",Text
+0,49,32,"Rubina ",Attendee,I’m,Text
+0,49,32,"Asyaiqin ",Attendee,"Heart Coaching Framework:",Text
+0,49,54,"Asyaiqin ",Attendee,"Embrace The Shepherd In you",Text
+0,50,8,"Asyaiqin ",Attendee,"2.  Understand the heart",Text
+0,50,21,"Fadia ",Attendee,"Do you have any recommendations for islamic courses for mothers to take to help them build their kids islamic foundations?",Text
+0,50,28,"Asyaiqin ",Attendee,"3.Talk like a shepherd",Text
+0,50,45,"Asyaiqin ",Attendee,"4. Build confidence like a shepherd",Text
+0,50,49,"Wakia ",Attendee,"Asyainqin; JazakAllah for this ❤️",Text
+0,50,57,"Farah ",Attendee,🌹,Text
+0,51,2,"Zeba ",Attendee,Mashallah,Text
+0,51,2,"Kulsoom ",Attendee,"جزاک اللہ خیرا",Text
+0,51,29,"Noreen ",Attendee,Assalamoalaikum,Text
+0,51,36,"Sadia Ali ",Attendee,❤️,Text
+0,51,39,"Tahmina ",Attendee,Yes,Text
+0,51,44,"Kemal ",Attendee,"what courses do you recommend for parents to take to be like shepred parent in their role?",Text
+0,52,4,"Hafsa Begum ",Attendee,Jazakallah,Text
+0,52,13,"Saima ",Attendee,"May ALLAH protect our kids 🤲🏼",Text
+0,52,17,"Nora ",Attendee,Ameen,Text
+0,52,22,"Tamika ",Attendee,Ameen,Text
+0,52,23,"sasja ",Attendee,Ameen,Text
+0,52,25,"Sultana Hasan ",Attendee,Salam,Text
+0,52,27,"Asyaiqin ",Attendee,ameen,Text
+0,52,30,"Noreen ",Attendee,"I can’t communicate properly with my kids because I can’t carry on discussion may be because I don’t know right answers",Text
+0,52,40,"Sabrina Ibrahim ",Attendee,"the worse thing is the bad company.. specially in western countries.",Text
+0,52,45,"Sana ",Attendee,"Yes please",Text
+0,52,50,"fatima ",Attendee,"May Allah protect all muslim kids yarab",Text
+0,53,3,"Tamika ",Attendee,"Yes I agree. And especially if you have family that are non Muslim. It is very hard",Text
+0,53,40,"Baneen ",Attendee,💯,Text
+0,53,41,"Tazeen ",Attendee,Indeed,Text
+0,53,43,"Rasna ",Attendee,💯,Text
+0,53,50,"Amishawu ",Attendee,Ameen,Text
+0,53,53,"Mahhim ",Attendee,True,Text
+0,53,56,"Bukky ",Attendee,"Please sister it will be very helpful if we can have access to the recording. Jazakallah Khairah",Text
+0,54,1,"Zuby ",Attendee,True,Text
+0,54,6,"Rakiya ",Attendee,"This is so true",Text
+0,54,18,"Kausar ",Attendee,"I can't communicate with my 14 year old. Please advise",Text
+0,54,40,"Rasna ",Attendee,"Some people run off to other countries like Qatar but it's all starts with the influence in the house if that doesn't change moving anywhere won't make difference",Text
+0,54,56,"Ridwan ",Attendee,👌👌,Text
+0,54,57,"Yasmin Ali",Attendee,100%,Text
+0,55,12,"Haleema ",Attendee,true,Text
+0,56,1,"Nighat ",Attendee,"Love the simplicity of the delivery of this lesson, thenk you .",Text
+0,56,2,"zolfa ",Attendee,Correct,Text
+0,56,26,"Zeba ",Attendee,"Many thanks for sharing the video",Text
+0,56,52,"Bilikis ",Attendee,"Thank you very much",Text
+0,57,4,"Zeba ",Attendee,Mashallah,Text
+0,57,14,"Zeba ",Attendee,Subhanallah,Text
+0,57,14,"Aysha ",Attendee,MaashaAllah,Text
+0,57,17,"Afolabi shakirah ",Attendee,✅,Text
+0,57,25,"Farah ",Attendee,"Masha Allah",Text
+0,57,35,"Iman ",Attendee,True,Text
+0,57,52,"NazmaNahid ",Attendee,"Very True",Text
+0,57,53,"sasja ",Attendee,"Ma sha Allah",Text
+0,58,12,"Asma Syed ",Attendee,"Yep those unhealthy friends",Text
+0,59,0,"Asma Syed ",Attendee,"Alhumdullillah that amazing",Text
+0,59,23,"Hafsa Aroosi ",Attendee,"Subhanallah May Allah reward you for your efforts",Text
+0,59,25,"Zarqa ",Attendee,"Amazing work Mashallah ❤️",Text
+0,59,45,"Zuby ",Attendee,"How can we access that course",Text
+0,59,46,"Rose ",Attendee,"Ma Sha Allah",Text
+0,59,49,"Asma ",Attendee,💯,Text
+0,59,50,"Sumiya ",Attendee,❤️,Text
+0,59,57,"Fathima ",Attendee,"Do you have any programs for 17 year old girls 👋",Text
+0,59,59,"Asma Syed ",Attendee,💯,Text
+1,0,3,"Seema ",Attendee,🤲,Text
+1,0,6,"Sharmi ",Attendee,"I wan my girls to join the course",Text
+1,0,15,"Sumiya ",Attendee,"JazakhaALLAH for the free webinar to give us an insight",Text
+1,0,35,"Bushra khan ",Attendee,"How can we access to these courses please",Text
+1,0,41,"Anu ",Attendee,"How to join ??",Question
+1,1,0,"Erum ",Attendee,❤️,Text
+1,1,2,"Tamika ",Attendee,"What is the name of the website ?",Text
+1,1,30,"Asma ",Attendee,Allhumdulillah,Text
+1,1,30,"Amira ",Attendee,"ما شاء الله",Text
+1,1,33,"Aeesha ",Attendee,"Where can we find all your content please",Text
+1,1,34,"Seema ",Attendee,"Can we have the website name please",Text
+1,1,35,"Samina ",Attendee,"😢mashallah that’s alot",Text
+1,1,36,"Zeba ",Attendee,Alhumdulillah,Text
+1,1,37,"Hanan ",Attendee,"Amazing masha Allah",Text
+1,1,43,"Zeba ",Attendee,"Yes that's alot",Text
+1,1,56,"Fauziyah ",Attendee,Definitely,Text
+1,2,4,"Yasmine ",Attendee,alhamdulillah,Text
+1,2,4,"Tazeen ",Attendee,Alhumdollilah,Text
+1,2,4,"Hadiza  sani Mohamed ",Attendee,Alhamdulilah,Text
+1,2,4,"Nosheen ",Attendee,Alhamdullilah!,Text
+1,2,7,"Sonia ",Attendee,Inshallah,Text
+1,2,8,"Khadijah ",Attendee,Yes!,Text
+1,2,12,"Rumana ",Attendee,Yes,Text
+1,2,13,"Laura ",Attendee,"It was actually very clear! A great beginning in sha Allah!",Text
+1,2,13,"R ",Attendee,"MashaaAllah sister you are doing great work. May Allah swt bless you and help you continue this good work. Give you barakah and love in your home. Aameen.",Text
+1,2,13,"Sajida ",Attendee,"Al hamdulillah for everything",Text
+1,2,16,"Fathima Haani ",Attendee,"Assalamu alaikum",Text
+1,2,20,"Firdausi ",Attendee,Alhamdullah,Text
+1,2,22,"Panna ",Attendee,Jzk,Text
+1,2,33,"Salema ",Attendee,"Mashaa Allah. Where are these videos how can we access them please?",Text
+1,2,35,"Farha ",Attendee,Alhumdulillah,Text
+1,2,36,"Seema ",Attendee,JZK,Text
+1,2,46,"Rose ",Attendee,"A very fresh perspective that I have never thought of",Text
+1,2,48,"Zarqa ",Attendee,"Yes 💯 percent",Text
+1,2,57,"Khadijah ",Attendee,Yes!,Text
+1,3,0,"Amishawu ",Attendee,"Please how can I stop screaming at her sometimes?",Question
+1,3,1,"Asya ",Attendee,"A very nice talk",Text
+1,3,6,"Hafsa Aroosi ",Attendee,"\",Text
+1,3,18,"Baneen ",Attendee,Yes!,Text
+1,3,30,"Nur Maisarah Ali ",Attendee,yes,Text
+1,3,34,"Sonia ",Attendee,Yes,Text
+1,3,35,"Salma ",Attendee,yes,Text
+1,3,46,"Zarqa ",Attendee,"Educating them is the only way",Text
+1,3,49,"Amina ",Attendee,❤️,Text
+1,4,11,"Hafiza ",Attendee,Agree,Text
+1,4,20,"Zeba ",Attendee,True,Text
+1,4,26,"Asma ",Attendee,"Some really practical tips that we can all try from today In Sha Allah!",Text
+1,4,35,"Nimah ",Attendee,"How do I stop screaming or getting worked up when they dont listen",Question
+1,4,38,"SIDDIGA ",Attendee,🫶,Text
+1,4,40,"Zeba ",Attendee,Inshallah,Text
+1,4,53,"Zeba ",Attendee,Ameen,Text
+1,4,54,"Rumana ",Attendee,True,Text
+1,4,55,"Hina ",Attendee,"Insha Allah",Text
+1,5,5,"Hina ",Attendee,Ameen,Text
+1,5,9,"Kirstn ",Attendee,"MashaAllah sister you’re amazing. I’m sold. Please share the website with tools and resources!",Question
+1,5,10,"Nur Maisarah Ali ",Attendee,"what u saying is true",Text
+1,5,18,"Sadiya Amidu ",Attendee,MashaAllah,Text
+1,5,42,"Aeesha ",Attendee,"How can we access your content than you showed here please?",Question
+1,5,51,"Sonia ",Attendee,"Video is stop working",Text
+1,6,12,"Samina ",Attendee,"Your talk is amazing and true to the point",Text
+1,6,18,"Sughara ",Attendee,"Absolutely, difficult times are more so in this day and age",Text
+1,6,28,"Jairan azar ",Attendee,"Great advice sister jazakhaAllah Khair",Text
+1,6,31,"Khadijah ",Attendee,Amen!🙏🏾,Text
+1,6,42,"Olive ",Attendee,"My take away word = coach!!! Jazakallah",Text
+1,6,44,"Nora ",Attendee,"Is there a specific book about how to be a good shepherd / heart-coach?",Question
+1,7,3,"Aysha ",Attendee,"May Allah reward you with Jannah sister",Text
+1,7,28,"Fatimah ",Attendee,"Very amazing and useful advice",Text
+1,7,34,"Jodi ",Attendee,"May Allah make it easy on us",Text
+1,7,37,"Zeba ",Attendee,Inshallah,Text
+1,7,37,"Fatimah ",Attendee,"Jazakullahu khayran",Text
+1,7,39,"Sahirah ",Attendee,"Jazakallah khair, this has been a much needed talk, may allah swt make it easier for all of us aameen",Text
+1,7,50,"Zeba ",Attendee,"A heart coach",Text
+1,7,51,"Asma ",Attendee,Ameen!,Text
+1,7,52,"Yasmin Ali",Attendee,"ameen sum ameen ya rabbil aa'lameen",Text
+1,7,54,"Hina ",Attendee,Ameen,Text
+1,7,55,"Yasmin Ali",Attendee,beyshak,Text
+1,7,56,"Sadia Ali ",Attendee,"Mashaallah very good advice may Allah award you",Text
+1,7,59,"Komal ",Attendee,"Too too good",Text
+1,8,0,"Yasmin Ali",Attendee,:'(,Text
+1,8,2,"Zeba ",Attendee,Ameen,Text
+1,8,5,"Rumana ",Attendee,"Ya Allah help me to do the right thing",Text
+1,8,10,"Yasmin Ali",Attendee,beyshak,Text
+1,8,12,"Sughara ",Attendee,"Subhan'Allah سبحان ألله",Text
+1,8,19,"Wakia ",Attendee,"Insha Allah we will succeed",Text
+1,8,23,"Asma ",Attendee,Ameen,Text
+1,8,23,"Hina ",Attendee,"A heart couch",Text
+1,8,30,"Wakia ",Attendee,"Yes. Insha Allah",Text
+1,8,45,"Gohar ",Attendee,"How do you know Allah is on your side",Text
+1,8,56,"Souad ",Attendee,Yes,Text
+1,8,57,"Seema ",Attendee,Yes,Text
+1,8,58,"Yasmin Ali",Attendee,"yes yes yes yes",Text
+1,8,58,"Maria ",Attendee,"Your words are amazing inshahallah bless you for your work and your intentions Jazak Allah khair",Text
+1,8,58,"Hauwau ",Attendee,Yes,Text
+1,9,0,"Nur Maisarah Ali ",Attendee,yes,Text
+1,9,0,"Azra ",Attendee,"In sha Allah",Text
+1,9,1,"Husnara ",Attendee,Inshallah,Text
+1,9,1,"Nora ",Attendee,YES,Text
+1,9,2,"Waliyat ",Attendee,YES,Text
+1,9,2,"Safana ",Attendee,Yes,Text
+1,9,3,"Husna Abooubaitha ",Attendee,yes!!!,Text
+1,9,3,"Hadiza  sani Mohamed ",Attendee,Yes,Text
+1,9,3,"Farhana ",Attendee,yes,Text
+1,9,4,"Rose ",Attendee,Yes,Text
+1,9,4,"Zeba ",Attendee,Yes,Text
+1,9,4,"Sana ",Attendee,"Yes إن شاء الله",Text
+1,9,5,"Iqra ",Attendee,"Yes In shaa Allah",Text
+1,9,5,"Asma Syed ",Attendee,"YES 🙌🏻",Text
+1,9,6,"Hafsa Aroosi ",Attendee,"yes insha allah",Text
+1,9,7,"Somaia kamali ",Attendee,"Yes yes",Text
+1,9,7,"Mohamed ",Attendee,Yes,Text
+1,9,8,"Firdausi ",Attendee,"Yes, in sha Allah",Text
+1,9,9,"Nazia Faizi ",Attendee,yessss,Text
+1,9,11,"Rumana ",Attendee,Yes,Text
+1,9,11,"Saffiatou ",Attendee,"Yes in sha Allah",Text
+1,9,12,"Rehab ",Attendee,نعم,Text
+1,9,12,"Asma Syed ",Attendee,"VERY IMPORTANT ALHUMDULLILLAH",Text
+1,9,12,"Sughara ",Attendee,"Yes إن شاء الله",Text
+1,9,13,"Fatima ",Attendee,Yes,Text
+1,9,13,"Sara adaan ",Attendee,"Yes yes yes",Text
+1,9,13,"Zeba ",Attendee,Inshallah,Text
+1,9,13,"Aeesha ",Attendee,YES!!!,Text
+1,9,14,"Saima ",Attendee,Yes,Text
+1,9,14,"Eman ",Attendee,Yes,Text
+1,9,14,"Sosan ",Attendee,"yes Allah Almighty protect us",Text
+1,9,17,"Hina ",Attendee,"Insha Allah",Text
+1,9,19,"Ziefa ",Attendee,yes,Text
+1,9,20,"Hauwau ",Attendee,"In shaa Allah",Text
+1,9,21,"Rihab ",Attendee,"yes inshaaAllah",Text
+1,9,22,"Rumela ",Attendee,"Yes inshallah",Text
+1,9,24,"Fozia ",Attendee,InshaAllah,Text
+1,9,24,"Aeesha ",Attendee,"In Sha Allah!!!",Text
+1,9,26,"Yasmin Ali",Attendee,in'shaa'Allah,Text
+1,9,30,"Fatima ",Attendee,"In shaa Allah",Text
+1,9,30,"Amtul ",Attendee,"Yes InshahAllaah",Text
+1,9,30,"Sara adaan ",Attendee,"Insha Allah",Text
+1,9,32,"Seema ",Attendee,"In sha Allah",Text
+1,9,34,"Nejeha ",Attendee,"Yes insha’Allah",Text
+1,9,34,"Khadijah ",Attendee,"Oh, my sister I needed this, it help me so much may Allah keep blessing you blessing us!❤️",Text
+1,9,36,"Rumana ",Attendee,Inshallah,Text
+1,9,36,"Bilikis ",Attendee,"Jazakumullahu kahiran",Text
+1,9,38,"Annie ",Attendee,"yes in sha allah",Text
+1,9,39,"Oluwabukunola ",Attendee,"Yes In Sha Allah",Text
+1,9,40,"sasja ",Attendee,"yes In Sha Allah",Text
+1,9,40,"Sosan ",Attendee,Insha'Allah,Text
+1,9,41,"Ewa ",Attendee,"Yes in sha Allah",Text
+1,9,44,"Rajaa ",Attendee,"Inshallah yes!",Text
+1,9,51,"Rihab ",Attendee,yes,Text
+1,9,57,"Asma Syed ",Attendee,"Ustada 🥰",Text
+1,9,59,"Afolabi shakirah ",Attendee,"Yes insha Allah",Text
+1,10,12,"fatima ",Attendee,💗💗,Text
+1,10,26,"Hafiza ",Attendee,Yessss,Text
+1,10,39,"Bismah Malik ",Attendee,"Insha Allah",Text
+1,10,40,"Falak ",Attendee,"Ma Sha Allah beautiful lecture, encouraging",Text
+1,10,42,"Saima ",Attendee,"Yes In Sha ALLAH",Text
+1,10,45,"Nur Maisarah Ali ",Attendee,"i want",Text
+1,10,46,"Annie ",Attendee,"ma sha allah",Text
+1,11,2,"Farha ",Attendee,Yes,Text
+1,11,4,"Asmae ",Attendee,"Jazaki llaho khayran sister",Text
+1,11,6,"Uzma ",Attendee,No,Text
+1,11,17,"Shahida ",Attendee,"Jazakillah khair",Text
+1,11,25,"Aliya ",Attendee,"Maa shaa Allah a fruitful talk lovely talk❤️",Text
+1,11,47,"Kamila ",Attendee,"Am here ready to start to be shepherd for my children",Text
+1,12,8,"Rehab ",Attendee,💚💚💚💚,Text
+1,12,11,"Zeba ",Attendee,"Jazakallah sister for sharing this vedio. Really appriacte your time and effort.",Text
+1,12,17,"Asma Syed ",Attendee,"That's Amazing sis",Text
+1,12,27,"Asma ",Attendee,❤️,Text
+1,12,32,"Sakina ",Attendee,"Outstanding presentation 👏",Text
+1,12,35,"Hanan ",Attendee,"Jazak Allah khair",Text
+1,12,36,"Husna Abooubaitha ",Attendee,"JAZAKHALLAHU KHAIRAN",Text
+1,12,44,"Mahwish ",Attendee,JazakAllah,Text
+1,12,51,"Snigdha ",Attendee,"I am traveling right now and had a very interrupted  connection. Yet I found  the talk is interesting. May I please got the info of the courses in my email",Text
+1,12,52,"Husna Abooubaitha ",Attendee,💗,Text
+1,13,1,"Kemal ",Attendee,"jazakillah sister.",Text
+1,13,8,"Lateefat ",Attendee,"Barakah llahu fikiii",Text
+1,13,8,"rehanaz ",Attendee,"Today is the 3rd day in a row that i woke up for Fajr, Allah has led me to you and I am very grateful for this Alhamdulilah",Text
+1,14,2,"Chanda ",Attendee,"Jzk khair! V valuable session. May Allah talah reward you abundantly ameen",Text
+1,14,16,"Nahid ",Attendee,"Interested about unshakable Muslims programme",Text
+1,14,17,"Sharmin ",Attendee,"InshaAllah I will try my best to be a shepherd",Text
+1,14,27,"Sameea ",Attendee,"Jazak Allah khairun kaseera sister Ariba",Text
+1,14,35,"Ujala ",Attendee,"Assalamo alaikum warahmatullahy wabarakatuhoo wamagfiratoo",Text
+1,14,52,"Zarqa ",Attendee,"Me too please jzk",Text
+1,14,56,"Ujala ",Attendee,"Interested in programming",Text
+1,15,3,"Rumela ",Attendee,"Details of courses in email for parents and children",Text
+1,15,57,"Shahida ",Attendee,"Could you send the courses info on email pls",Text
+1,16,10,"Sitara ",Attendee,"May Almighty Allah give u its immense reward and may Allah guide us to be a role model, a Shepard for our young generation",Text
+1,16,13,"Masarrath ",Attendee,"Will you be sharing the links to join",Question
+1,16,18,"Sabrina ",Attendee,"Is this available for people in the uk",Text
+1,16,24,Adin,Admin,"Its online, you can join from anywhere inshaAllah",Text
+1,16,32,"Lawal Aisha-Adebayo ",Attendee,"It has been inspiring. Jazakumullahu Khairan. Thank you💗",Text
+1,16,56,"Komal ",Attendee,"I want to know about the free book",Text
+1,17,4,"Firdausi ",Attendee,"Thanks for the inspiration.",Text
+1,17,10,"Hafsa ",Attendee,"me too",Text
+1,17,20,"Fatima ",Attendee,"Jazakillahu khairan",Text
+1,17,39,"Sughara ",Attendee,Subhan'Allah,Text
+1,17,45,"Rihab ",Attendee,"jazaky Allah khair",Text
+1,18,29,"Nabila ",Attendee,"Jazakallah hair x",Text
+1,18,50,"Ifrah ",Attendee,"can i get more information about the course via email ?",Text
+1,19,39,"Amina ",Attendee,"Is this for one kid",Text
+1,19,42,"Pal ",Attendee,"How can I register my kid to Halaqa",Text
+1,19,57,"shabneez ",Attendee,"السلام عليكم ورحمة الله",Text
+1,20,25,"Saima ",Attendee,"Jazak ALLAH kher ♥️",Text
+1,20,31,"Amina ",Attendee,"How can we register is the fee for one single child",Text
+1,20,42,"Saima Jabeen ",Attendee,"jazak allah khair",Text
+1,21,22,"Kamila ",Attendee,"How do i register",Text
+1,21,25,"SIDDIGA ",Attendee,Yes,Text
+1,21,28,"Amani ",Attendee,"Registration details please",Text
+1,22,0,"Rose ",Attendee,"So if we buy course, is it for one kid or multiple kids in the family?",Text
+1,22,0,ADMIN,Admin,"With this offer, there is no extra charge for siblings",Text
+1,22,2,"Fatimah ",Attendee,"How can I register my kids",Text
+1,22,13,"Zaynab ",Attendee,"Jazakum Allah Khayr",Text
+1,22,20,"Nes ",Attendee,"Ayman said Salam to you Ariba 👋",Text
+1,22,46,"Samina ",Attendee,"How to subscribe",Text
+1,23,3,"Fikria ",Attendee,"Is it one payment for 3 children?",Text
+1,23,29,"Mayra ",Attendee,"My kid is not fluent in English as we live in Germany :/",Text
+1,23,47,"Lilly ",Attendee,👍,Text
+1,24,10,"Alaa ",Attendee,❤️❤️,Text
+1,24,38,"Nora ",Attendee,"allahumma barik",Text
+1,24,47,"Nora ",Attendee,Alhamdulilah!!,Text
+1,24,52,"Alia ",Attendee,"Jazzakom Allahu Khairan. Could you please send us the details of these workshops/courses via emails so we can check the details ans subscribe our children. We really need your support",Text
+1,24,54,"Shahida ",Attendee,"How can I register",Text
+1,24,58,"Tazeen ",Attendee,MaShaAllah,Text
+1,24,59,"Kamila ",Attendee,"I have to leave but where do i register pls",Text
+1,25,1,"Rose ",Attendee,Alhumdulillah,Text
+1,25,11,"KHUMARI ",Attendee,"Sister Ariba this gives us such hope 💜",Text
+1,25,36,"SIDDIGA ",Attendee,"الحمد لله",Text
+1,26,5,"Mehreen ",Attendee,"How can I join?",Text
+1,26,6,"Afolabi shakirah ",Attendee,🙏,Text
+1,26,9,"Sonia ",Attendee,Subhanallah,Text
+1,26,10,"Yasmin Ali",Attendee,"how to register",Text
+1,26,11,"Tazeen ",Attendee,MaShaAllah,Text
+1,26,12,"Saima ",Attendee,"Jazak ALLAH kher",Text
+1,26,14,"Fikria ",Attendee,"MashaAllah, Jezakelah",Text
+1,26,18,"Hadiza  sani Mohamed ",Attendee,"How do we register",Text
+1,26,18,"Marina ",Attendee,"That is fantastic",Text
+1,26,23,"S ",Attendee,"Mashaallah sister",Text
+1,26,26,"Samia Masoom ",Attendee,❤️❤️❤️❤️❤️❤️❤️❤️,Text
+1,26,26,"Marina ",Attendee,"I want to to join",Text
+1,26,27,"Sumaiya ",Attendee,"How to join",Text
+1,26,28,"Sana ",Attendee,"How to register",Text
+1,26,29,"Roohi ",Attendee,"How to register",Text
+1,26,31,"Serifat ",Attendee,"How can l register",Text
+1,26,32,"Sonia ",Attendee,"Jazakallah Khair 💗",Text
+1,26,36,"shabneez ",Attendee,"do you sell islamic curriculum books @ Admin",Text
+1,26,39,"Shafna ",Attendee,❤️JazakAllah,Text
+1,26,41,"Sadia ",Attendee,"Jazak Allah khair dear",Text
+1,26,44,"Fathima ",Attendee,"Is it online  course ?",Text
+1,26,47,"S ",Attendee,"But how can we register?",Text
+1,26,48,"Lilly ",Attendee,"How to register for these programs",Text
+1,26,48,"Sonia ",Attendee,"I’m crying",Text
+1,26,52,"Saimah ",Attendee,"Is it a live class? And what is the timing like especially for us here in uk?",Text
+1,26,53,"Shaiesta ",Attendee,"How can I register",Text
+1,26,54,"KHUMARI ",Attendee,"JazakAllah khair",Text
+1,26,55,"Saima ",Attendee,"How to join",Text
+1,26,55,"Tazeen ",Attendee,"How to get registered",Text
+1,26,56,"Alia ",Attendee,"Inshallah Inshallah ❤️",Text
+1,26,58,"Sadia Ali ",Attendee,"How do I register",Text
+1,26,59,"Lia ",Attendee,"How can I register",Text
+1,26,59,"Rabia ",Attendee,"How can I register",Text
+1,27,3,"Wakia ",Attendee,"I would like to register for both my sons insha Allah. I want them to the leaders of this ummah. Ameen ya Rabb",Text
+1,27,4,"Fathima ",Attendee,"How to apply for this course",Text
+1,27,5,"Somaia kamali ",Attendee,"Thank u ☺️",Text
+1,27,6,"SIDDIGA ",Attendee,❤️,Text
+1,27,9,"Nora ",Attendee,"Ariba, I don't have a creditcard yet.. Is it possible to sign up to your programme with my debit card now? I hope I will have a creditcard soon in shaa Allah",Question
+1,27,10,"Sadia Ali ",Attendee,"How do I register",Text
+1,27,14,"Aneeta ",Attendee,"How to register unshakeable Muslim ??",Text
+1,27,15,"Shafna ",Attendee,"How to register?",Text
+1,27,16,"Sadia Ali ",Attendee,"How do we register",Text
+1,27,19,"sasja ",Attendee,"Djazaaki Allaahuu Khairan 🫶🏽🤲🏽",Text
+1,27,20,"SIDDIGA ",Attendee,"شكرآ لك",Text
+1,27,21,"Somaia kamali ",Attendee,"How can we join ?",Text
+1,27,22,"Alia ",Attendee,"That warms my heart subway Allah",Text
+1,27,22,"Jodi ",Attendee,"Jazak Allah Kheir",Text
+1,27,24,"Sadia Ali ",Attendee,"How do we register please",Text
+1,27,31,"Zuby ",Attendee,"How can we join??",Text
+1,27,31,"SIDDIGA ",Attendee,👏,Text
+1,27,31,"Amani ",Attendee,"Jazakillah Khairan. I'm so excited for my son to join. He loves your Power of Salah book so much.",Text
+1,27,37,"Nesreen ",Attendee,"how to join ?",Text
+1,27,41,"Saima ",Attendee,"How to register for my daughter",Text
+1,27,48,"Shahida ",Attendee,"How to join",Text
+1,27,53,"Fatima ",Attendee,"That’s great! Jazakallah kheran. How to become a member now?",Question
+1,27,54,"Sajida ",Attendee,Salam,Text
+1,27,55,"SIDDIGA ",Attendee,"How to join",Text
+1,27,56,"Seema ",Attendee,"How to join",Text
+1,28,5,"Sabrina ",Attendee,"How to register?",Text
+1,28,19,"SIDDIGA ",Attendee,❤️,Text
+1,28,30,"Rumela ",Attendee,"How to join",Text
+1,28,30,"Bushra ",Attendee,"How do we join please?",Text
+1,28,31,"Afolabi shakirah ",Attendee,👍,Text
+1,28,46,"Tazeen ",Attendee,Alhumdollilah,Text
+1,28,57,"Bushra khan ",Attendee,"How do we join please",Text
+1,28,58,"SIDDIGA ",Attendee,"جزاكم الله خير",Text
+1,29,15,"Fathima ",Attendee,MashaAllah,Text
+1,29,15,"Nil ",Attendee,"How can I sign up?",Text
+1,29,17,"Mona ",Attendee,"I’m really interested, my kids are driving me crazy, my Daugther used to love praying from the age of 8 she decided to wear the hijab, she is still wearing the hijab but is not interested in praying like sh en used to, she is turning 12 but I’m really struggling, I have 4 other kids as well",Text
+1,29,19,"SIDDIGA ",Attendee,🫶,Text
+1,29,25,"SIDDIGA ",Attendee,👏,Text
+1,29,27,"Aeesha ",Attendee,"How can we pay/join please?",Text
+1,29,33,"Maany ",Attendee,Afghan,Text
+1,30,2,"Sughara ",Attendee,"May Allah swt grant you ease Mona Ameen",Text
+1,30,7,"Sadia ",Attendee,"Jazak Allah khair Areeba sister i have no words",Text
+1,30,14,"SIDDIGA ",Attendee,👋,Text
+1,30,21,"Usma ",Attendee,"I have 3 daughters , how can I enroll them for the course unshakable Muslim",Text
+1,30,22,"SIDDIGA ",Attendee,🫶,Text
+1,30,26,"Lina ",Attendee,"Will these details of registration and courses send by email?",Text
+1,30,27,"SIDDIGA ",Attendee,❤️,Text
+1,30,47,"SIDDIGA ",Attendee,"الحمد والشكر لله",Text
+1,30,51,"Shabina ",Attendee,"JazakAllahu khair Sr.Areeba , this class has touched my heart soo deeply .",Text
+1,31,1,"Azra ",Attendee,"Jazkallahu khairen sister",Text
+1,31,13,"Shabina ",Attendee,"May Allah SWT reward you immensely ..Ameen",Text
+1,31,14,"Meena ",Attendee,"Registration information please!",Text
+1,31,27,"Tehseen ",Attendee,"How do I register?",Text
+1,32,0,ADMIN,Admin,"Register here - www.emaanpower.com/heartcoach",Highlighted
+1,32,17,"Flora ",Attendee,"This is first I am here and watching from Saskatchewan, Canada.",Text
+1,32,33,"Rose ",Attendee,"Got it!",Text
+1,32,48,"Zinat ",Attendee,"JazaakiLlāh khoiran sis I'm glad joining this program",Text
+1,33,24,"Roya ",Attendee,"Thank you so much Dear Sister, I really enjoyed you sharing your knowledge Jazakallah khair",Text
+1,34,4,"Nimah ",Attendee,"What's the link",Text
+1,34,52,"Noreen ",Attendee,"I can’t hear well",Text
+1,34,55,"Nora ",Attendee,"Can I pay in 3 parts? I thought hearing something about the opportunity to paying in 2 or 3 parts.",Question
+1,35,0,ADMIN,Admin,"Yes, you can pay in 2 or three installments as well",Text
+1,35,17,"Sughara ",Attendee,Subhan'Allah,Text
+1,35,42,"Sana ",Attendee,"جزاك الله خيرا for your time and this session today sister. May Allah bless you for your efforts to help mothers around the world",Text
+1,35,47,"Myra ",Attendee,"How do I ask a question privately to just coach ariba",Text
+1,36,16,"Amira ",Attendee,"Done ya rabb",Text
+1,37,21,"Ahlam ",Attendee,Salam,Text
+1,37,48,"Hafiza ",Attendee,"Where us link",Text
+1,38,1,"Sughara ",Attendee,"Connection is weak",Text
+1,38,4,"Yasmin Ali",Attendee,"done alhumdulil-lah",Text
+1,41,16,"SAIRA ",Attendee,"So true",Text
+1,42,44,"Rose ",Attendee,"Done already!",Text
+1,42,56,"Kamila ",Attendee,"Alhamdulilah i got it",Text
+1,43,1,"uzma ",Attendee,"i just registered",Text
+1,43,24,"Chanda ",Attendee,"I can’t see the link in chat",Text
+1,43,34,"Sabah ",Attendee,"How can I register?",Text
+1,43,43,"Hadiza  sani Mohamed ",Attendee,"Can you  repeat  the website please",Text
+1,44,6,"Yasmin Ali",Attendee,ameen,Text
+1,44,13,"Nabeela ",Attendee,Ameen,Text
+1,44,25,"Shaista ",Attendee,"I have some private questions, can I can get answer from Ustadza Areeba",Text
+1,44,31,"Ghina ",Attendee,"Jazaki Allahu khayran",Text
+1,44,33,"Hafiza ",Attendee,"Just ordered i hope i get successful ameen",Text
+1,44,39,"Souha ",Attendee,"Please repeat website to get the book",Text
+1,44,48,"Hadiza  sani Mohamed ",Attendee,Ameen,Text
+1,44,50,"Meena ",Attendee,"Press the ^ in your right side in the screen it will pop up..",Text
+1,44,53,"Maira ",Attendee,Ameen,Text
+1,44,57,"Farisha ",Attendee,Ameen,Text
+1,44,57,"Tazeen ",Attendee,"JazakAllah khair",Text
+1,45,1,"Reb ",Attendee,"JazakAllah khayr sister Areeba, beautiful motivating talk.",Text
+1,45,1,"Reha ",Attendee,"Ameen! May Allah reward you",Text
+1,45,3,"Azra ",Attendee,Ameen,Text
+1,45,9,"Tayyaba ",Attendee,"Is it one time payment?",Text
+1,45,14,ADMIN,Admin,"Yes, one time payment",Text
+1,45,33,"Fz ",Attendee,"Walekunsalam warahmatulahi wabarakatuh.  Thank you. May Almight reward you 🙏",Text
+1,45,43,"Tazeen ",Attendee,Ameen,Text

@@ -770,9 +770,14 @@ async function main() {
                     <p class="step-description">
                         Don't miss this life-changing masterclass on {{webinarDate}} at {{webinarTime}} ({{timeZone}}). Add it to your calendar and set a reminder 15 minutes before we start.
                     </p>
-                    <button class="step-button" onclick="addToCalendar()">
-                        <i class="fas fa-calendar-plus"></i> Add to Calendar
-                    </button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <a href="{{googleCalendarLink}}" target="_blank" class="step-button" style="text-decoration: none; flex: 1; min-width: 200px;">
+                            <i class="fab fa-google"></i> Add to Google Calendar
+                        </a>
+                        <a href="{{appleCalendarLink}}" download="webinar.ics" class="step-button" style="text-decoration: none; flex: 1; min-width: 200px;">
+                            <i class="fab fa-apple"></i> Add to Apple Calendar
+                        </a>
+                    </div>
                 </div>
 
                 <div class="step-card">
@@ -924,19 +929,14 @@ async function main() {
             canvas.height = window.innerHeight;
         });
 
-        function addToCalendar() {
-            const calendarUrl = '{{calendarLink}}';
-            window.open(calendarUrl, '_blank');
-        }
-
         function shareOnWhatsApp() {
-            const shareText = "I just registered for '{{webinarTitle}}' happening on {{webinarDate}} at {{webinarTime}} ({{timeZone}}). Join me: {{joinLink}}";
+            const shareText = "{{whatsappShareMessage}}";
             const whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(shareText);
             window.open(whatsappUrl, '_blank');
         }
 
         function shareOnFacebook() {
-            const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u={{joinLink}}';
+            const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u={{joinLink}}&quote={{facebookShareMessage}}';
             window.open(shareUrl, '_blank', 'width=600,height=400');
         }
 
@@ -1044,7 +1044,14 @@ async function main() {
   
   <div id="countdown"></div>
   
-  <a href="{{calendarLink}}" class="btn btn-outline">Add to Calendar</a>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; margin-bottom: 10px;">
+    <a href="{{googleCalendarLink}}" target="_blank" class="btn btn-outline" style="flex: 1; min-width: 200px;">
+      <i class="fab fa-google"></i> Google Calendar
+    </a>
+    <a href="{{appleCalendarLink}}" download="webinar.ics" class="btn btn-outline" style="flex: 1; min-width: 200px;">
+      <i class="fab fa-apple"></i> Apple Calendar
+    </a>
+  </div>
   <a href="{{joinLink}}" class="btn">Join Webinar</a>
   
   <p style="margin-top: 40px; font-size: 14px; color: #666;">
@@ -1848,14 +1855,14 @@ async function main() {
         
         // Share on WhatsApp function
         function shareOnWhatsApp() {
-            const shareText = "Join me for this free masterclass on 'How to Help Your Child Love Islam Without Force'. Perfect for Muslim mothers! Register here: [YOUR_WEBINAR_URL]";
+            const shareText = "{{whatsappShareMessage}}";
             const whatsappUrl = \`https://wa.me/?text=\${encodeURIComponent(shareText)}\`;
             window.open(whatsappUrl, '_blank');
         }
         
         // Share on Facebook function
         function shareOnFacebook() {
-            const shareUrl = "https://www.facebook.com/sharer/sharer.php?u=[YOUR_WEBINAR_URL]";
+            const shareUrl = "https://www.facebook.com/sharer/sharer.php?u={{joinLink}}&quote={{facebookShareMessage}}";
             window.open(shareUrl, '_blank', 'width=600,height=400');
         }
         
@@ -2341,9 +2348,14 @@ async function main() {
                         </div>
                     </div>
                     
-                    <a href="{{calendarLink}}" class="btn btn-primary" style="margin-top: 20px; width: 100%; display: block;">
-                        <i class="fas fa-calendar-plus"></i> Add to Calendar
-                    </a>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px;">
+                        <a href="{{googleCalendarLink}}" target="_blank" class="btn btn-primary" style="flex: 1; min-width: 180px; text-decoration: none;">
+                            <i class="fab fa-google"></i> Google Calendar
+                        </a>
+                        <a href="{{appleCalendarLink}}" download="webinar.ics" class="btn btn-primary" style="flex: 1; min-width: 180px; text-decoration: none;">
+                            <i class="fab fa-apple"></i> Apple Calendar
+                        </a>
+                    </div>
                 </div>
                 
                 <div class="step-card">
@@ -3173,9 +3185,14 @@ async function main() {
                     <p class="step-description">
                         Don't miss this life-changing masterclass on {{webinarDate}} at {{webinarTime}} {{timeZone}}! Add the webinar details to your calendar so you don't forget. Set a reminder 15 minutes before the class starts to ensure you're ready to learn.
                     </p>
-                    <button class="step-button" onclick="addToCalendar()">
-                        <i class="fas fa-calendar-plus"></i> Add to Calendar
-                    </button>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap; justify-content: center;">
+                        <a href="{{googleCalendarLink}}" target="_blank" class="step-button" style="text-decoration: none; flex: 1; min-width: 200px;">
+                            <i class="fab fa-google"></i> Add to Google Calendar
+                        </a>
+                        <a href="{{appleCalendarLink}}" download="webinar.ics" class="step-button" style="text-decoration: none; flex: 1; min-width: 200px;">
+                            <i class="fab fa-apple"></i> Add to Apple Calendar
+                        </a>
+                    </div>
                 </div>
                 
                 <div class="step-card">
@@ -3334,22 +3351,16 @@ async function main() {
             canvas.height = window.innerHeight;
         });
         
-        // Add to Calendar function
-        function addToCalendar() {
-            const calendarUrl = '{{calendarLink}}';
-            window.open(calendarUrl, '_blank');
-        }
-        
         // Share on WhatsApp function
         function shareOnWhatsApp() {
-            const shareText = "I just registered for '{{webinarTitle}}' happening on {{webinarDate}} at {{webinarTime}} {{timeZone}}. You should join too! Register here: {{joinLink}}";
+            const shareText = "{{whatsappShareMessage}}";
             const whatsappUrl = \`https://wa.me/?text=\${encodeURIComponent(shareText)}\`;
             window.open(whatsappUrl, '_blank');
         }
         
         // Share on Facebook function
         function shareOnFacebook() {
-            const shareUrl = "https://www.facebook.com/sharer/sharer.php?u={{joinLink}}";
+            const shareUrl = "https://www.facebook.com/sharer/sharer.php?u={{joinLink}}&quote={{facebookShareMessage}}";
             window.open(shareUrl, '_blank', 'width=600,height=400');
         }
         

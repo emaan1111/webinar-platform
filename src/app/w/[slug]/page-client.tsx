@@ -1007,7 +1007,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                             {slot.isRecurring 
                               ? formatScheduleTime(slot.schedule, slot.time)
                               : formatScheduleTime(slot.schedule)
-                            } • {webinar.duration} min
+                            }
                           </option>
                         ))
                         
@@ -1721,7 +1721,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                             {slot.isRecurring 
                               ? formatScheduleTime(slot.schedule, slot.time)
                               : formatScheduleTime(slot.schedule)
-                            } • {webinar.duration} min
+                            }
                           </option>
                         ))
                         

@@ -45,12 +45,21 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      // Get existing registration to check firstJoinedAt
+      const existingReg = await prisma.registration.findUnique({
+        where: { id: registrationId },
+        select: { firstJoinedAt: true },
+      });
+
       // Update registration joined time
+      const now = new Date();
       await prisma.registration.update({
         where: { id: registrationId },
         data: {
           attended: true,
-          joinedAt: new Date(),
+          joinedAt: now,
+          // Set firstJoinedAt only if it's not already set (for grace period tracking)
+          ...(existingReg && !existingReg.firstJoinedAt && { firstJoinedAt: now }),
         },
       });
 

@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
 import { calculateScheduleDateTime } from '@/lib/webinarSchedule'
+import { buildReferralLink } from '@/lib/referral'
+import { TemplateRenderer } from '@/components/TemplateRenderer'
 
 interface PageProps {
   params: { slug: string }
@@ -34,6 +36,7 @@ async function getThankYouData(slug: string, registrationId?: string, scheduleId
         registeredAt: true,
         timezone: true,
         scheduledStartTime: true, // NEW: Get the stored start time
+        referralCode: true, // NEW: Get referral code for sharing
       }
     })
   }
@@ -101,6 +104,48 @@ function processTemplate(html: string, data: any) {
   processed = processed.replace(/\{\{attendeeEmail\}\}/g, registration?.email || '')
   processed = processed.replace(/\{\{registrationId\}\}/g, registration?.id || '')
   
+  // Referral System - NEW
+  const referralCode = registration?.referralCode || ''
+  const referralLink = referralCode ? buildReferralLink(webinar.slug || '', referralCode) : ''
+  
+  // Helper function to escape strings for safe insertion into JavaScript string literals
+  // This is used when the URL will be INSIDE quotes in the template
+  const escapeForJsString = (str: string) => {
+    return str
+      .replace(/\\/g, '\\\\')   // Escape backslashes
+      .replace(/"/g, '\\"')      // Escape double quotes
+      .replace(/'/g, "\\'")      // Escape single quotes  
+      .replace(/\n/g, '\\n')     // Escape newlines
+      .replace(/\r/g, '\\r')     // Escape carriage returns
+      .replace(/\t/g, '\\t')     // Escape tabs
+  }
+  
+  // For referral links in templates, they're used in string concatenations like:
+  // const url = "text" + "{{referralLink}}"
+  // So we only need to escape quotes and special chars, not HTML entities
+  const safeReferralLink = escapeForJsString(referralLink)
+  
+  console.log('🔗 [Thank You] Referral link replacement:', {
+    referralCode,
+    referralLink,
+    safeReferralLink,
+    hasReferralLinkPlaceholder: html.includes('{{referralLink}}'),
+  })
+  
+  processed = processed.replace(/\{\{referralCode\}\}/g, referralCode)
+  processed = processed.replace(/\{\{referralLink\}\}/g, safeReferralLink)
+  
+  // WhatsApp referral share link
+  const whatsappReferralMessage = referralLink 
+    ? `I just registered for '${webinar.title}'! Join me: ${referralLink}`
+    : ''
+  const whatsappLink = whatsappReferralMessage 
+    ? `https://wa.me/?text=${encodeURIComponent(whatsappReferralMessage)}` 
+    : ''
+  const safeWhatsappLink = escapeForJsString(whatsappLink)
+  
+  processed = processed.replace(/\{\{whatsappReferralLink\}\}/g, safeWhatsappLink)
+  
   // Schedule information
   const dateOptions: Intl.DateTimeFormatOptions = {
     weekday: 'long',
@@ -125,7 +170,7 @@ function processTemplate(html: string, data: any) {
   processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
   processed = processed.replace(/\{\{timeZone\}\}/g, timezone.replace(/_/g, ' '))
   
-  // Generate calendar link (Google Calendar)
+  // Generate calendar links
   const calendarTitle = encodeURIComponent(webinar.title)
   const calendarDetails = encodeURIComponent(webinar.description || '')
   const calendarLocation = encodeURIComponent('Online Webinar')
@@ -133,8 +178,31 @@ function processTemplate(html: string, data: any) {
   const endDateTime = new Date(scheduleDateTime.getTime() + webinar.duration * 60000)
   const endDate = endDateTime.toISOString().replace(/-|:|\.\d\d\d/g, '')
   
-  const calendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${calendarTitle}&details=${calendarDetails}&location=${calendarLocation}&dates=${startDate}/${endDate}`
-  processed = processed.replace(/\{\{calendarLink\}\}/g, calendarLink)
+  // Google Calendar link
+  const googleCalendarLink = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${calendarTitle}&details=${calendarDetails}&location=${calendarLocation}&dates=${startDate}/${endDate}`
+  const safeGoogleCalendarLink = escapeForJsString(googleCalendarLink)
+  processed = processed.replace(/\{\{calendarLink\}\}/g, safeGoogleCalendarLink)
+  processed = processed.replace(/\{\{googleCalendarLink\}\}/g, safeGoogleCalendarLink)
+  
+  // Apple Calendar (.ics) link
+  const icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Webinar Platform//EN',
+    'BEGIN:VEVENT',
+    `DTSTART:${startDate}`,
+    `DTEND:${endDate}`,
+    `SUMMARY:${webinar.title}`,
+    `DESCRIPTION:${webinar.description || ''}`,
+    'LOCATION:Online Webinar',
+    `UID:${registration?.id || 'webinar'}@webinar-platform.com`,
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].join('\r\n')
+  const icsDataUrl = `data:text/calendar;charset=utf-8,${encodeURIComponent(icsContent)}`
+  const safeIcsDataUrl = escapeForJsString(icsDataUrl)
+  processed = processed.replace(/\{\{appleCalendarLink\}\}/g, safeIcsDataUrl)
+  processed = processed.replace(/\{\{icsCalendarLink\}\}/g, safeIcsDataUrl)
 
   // Use relative URLs so they work on any port during development
   const roomLink = `/room/${webinar.slug}${registration ? `?r=${registration.id}` : ''}`
@@ -146,14 +214,28 @@ function processTemplate(html: string, data: any) {
     countdownParams.set('s', schedule.id)
   }
   const countdownLink = `/countdown/${webinar.slug}${countdownParams.size > 0 ? `?${countdownParams.toString()}` : ''}`
+  const safeCountdownLink = escapeForJsString(countdownLink)
+  const safeRoomLink = escapeForJsString(roomLink)
 
-  processed = processed.replace(/\{\{joinLink\}\}/g, countdownLink)
-  processed = processed.replace(/\{\{countdownLink\}\}/g, countdownLink)
-  processed = processed.replace(/\{\{roomLink\}\}/g, roomLink)
+  processed = processed.replace(/\{\{joinLink\}\}/g, safeCountdownLink)
+  processed = processed.replace(/\{\{countdownLink\}\}/g, safeCountdownLink)
+  processed = processed.replace(/\{\{roomLink\}\}/g, safeRoomLink)
   
   // ICS download link
   const icsLink = `/api/calendar/${webinar.slug}?r=${registration?.id || ''}&s=${schedule?.id || ''}`
-  processed = processed.replace(/\{\{icsDownload\}\}/g, icsLink)
+  const safeIcsLink = escapeForJsString(icsLink)
+  processed = processed.replace(/\{\{icsDownload\}\}/g, safeIcsLink)
+  
+  // Social Share Messages
+  // Use referral link if available, otherwise use countdown link
+  const shareLink = referralLink || countdownLink
+  const defaultWhatsAppMessage = `I just registered for '${webinar.title}' happening on ${formattedDate} at ${formattedTime} (${timezone.replace(/_/g, ' ')}). Join me: ${shareLink}`
+  const whatsappMessage = webinar.whatsappShareMessage || defaultWhatsAppMessage
+  processed = processed.replace(/\{\{whatsappShareMessage\}\}/g, whatsappMessage)
+  
+  const defaultFacebookMessage = `Check out this webinar: ${webinar.title}`
+  const facebookMessage = webinar.facebookShareMessage || defaultFacebookMessage
+  processed = processed.replace(/\{\{facebookShareMessage\}\}/g, facebookMessage)
   
   // Generate countdown timer script
   const countdownScript = `
@@ -209,8 +291,8 @@ export default async function ThankYouPage({ params, searchParams }: PageProps) 
   // Process template with dynamic data
   const processedHtml = processTemplate(data.template.htmlCode, data)
   
-  // Return the processed HTML
-  return <div dangerouslySetInnerHTML={{ __html: processedHtml }} />
+  // Use TemplateRenderer to execute scripts (same as countdown page)
+  return <TemplateRenderer html={processedHtml} />
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps) {

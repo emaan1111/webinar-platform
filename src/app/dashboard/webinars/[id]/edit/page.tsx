@@ -50,11 +50,15 @@ export default function EditWebinarPage() {
     hasOffers: true,
     hasChat: true,
     hasReactions: true,
+    showElapsedTime: true,
     thumbnail: '',
     registrationPageId: '',
     thankYouTemplateId: '',
     countdownPageId: '',
     registrationPopupStyle: 'center', // center, slide-up, fade, full-screen
+    // Social Share Messages
+    whatsappShareMessage: '',
+    facebookShareMessage: '',
     // A/B Testing fields
     enableABTesting: false,
     trafficSplitPercent: 50,
@@ -149,11 +153,15 @@ export default function EditWebinarPage() {
         hasOffers: webinar.hasOffers !== undefined ? webinar.hasOffers : true,
         hasChat: webinar.hasChat !== undefined ? webinar.hasChat : true,
         hasReactions: webinar.hasReactions !== undefined ? webinar.hasReactions : true,
+        showElapsedTime: webinar.showElapsedTime !== undefined ? webinar.showElapsedTime : true,
         thumbnail: webinar.thumbnail || '',
         registrationPageId: webinar.registrationPageId || '',
         thankYouTemplateId: webinar.thankYouTemplateId || '',
         countdownPageId: webinar.countdownPageId || '',
         registrationPopupStyle: webinar.registrationPopupStyle || 'center',
+        // Social Share Messages
+        whatsappShareMessage: webinar.whatsappShareMessage || '',
+        facebookShareMessage: webinar.facebookShareMessage || '',
         // A/B Testing fields
         enableABTesting: webinar.enableABTesting || false,
         trafficSplitPercent: webinar.trafficSplitPercent || 50,
@@ -319,6 +327,7 @@ export default function EditWebinarPage() {
         videoDuration: formData.videoDuration || null,
         status: isDraft ? 'DRAFT' : formData.status,
         schedules: allSchedules,
+        showElapsedTime: formData.showElapsedTime,
         // A/B Testing data
         enableABTesting: formData.enableABTesting,
         trafficSplitPercent: formData.trafficSplitPercent,
@@ -1124,6 +1133,22 @@ export default function EditWebinarPage() {
                     </div>
                   </div>
                 </label>
+                <label className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="showElapsedTime"
+                    checked={formData.showElapsedTime}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex items-center gap-3 flex-1">
+                    <Clock className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Show Elapsed Time</p>
+                      <p className="text-xs text-gray-600">Display the running time badge on the video</p>
+                    </div>
+                  </div>
+                </label>
               </div>
             </CardBody>
           </Card>
@@ -1135,8 +1160,8 @@ export default function EditWebinarPage() {
               enableABTesting: formData.enableABTesting,
               trafficSplitPercent: formData.trafficSplitPercent,
               testRegistrationPage: formData.testRegistrationPage,
-              regPageAId: formData.regPageAId,
-              regPageBId: formData.regPageBId,
+              regTemplateAId: formData.regPageAId,
+              regTemplateBId: formData.regPageBId,
               testSchedule: formData.testSchedule,
               scheduleAIds: formData.scheduleAIds,
               scheduleBIds: formData.scheduleBIds,
@@ -1187,6 +1212,68 @@ export default function EditWebinarPage() {
                   setFormData({ ...formData, thankYouTemplateId: templateId || '' })
                 }}
               />
+            </CardBody>
+          </Card>
+
+          {/* Social Share Messages */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-xl font-semibold">📱 Social Share Messages</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Customize the messages that appear when attendees share your webinar on social media
+              </p>
+            </CardHeader>
+            <CardBody>
+              <div className="space-y-4">
+                {/* WhatsApp Share Message */}
+                <div>
+                  <label htmlFor="whatsappShareMessage" className="block text-sm font-medium text-gray-700 mb-1">
+                    WhatsApp Share Message
+                  </label>
+                  <textarea
+                    id="whatsappShareMessage"
+                    name="whatsappShareMessage"
+                    value={formData.whatsappShareMessage || ''}
+                    onChange={handleInputChange}
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="I just registered for this amazing webinar! Join me..."
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    💡 Leave empty to use the default message. Available variables:
+                    <code className="bg-gray-100 px-1 mx-1">{'{{webinarTitle}}'}</code>,
+                    <code className="bg-gray-100 px-1 mx-1">{'{{webinarDate}}'}</code>,
+                    <code className="bg-gray-100 px-1 mx-1">{'{{webinarTime}}'}</code>,
+                    <code className="bg-gray-100 px-1 mx-1">{'{{timeZone}}'}</code>,
+                    <code className="bg-gray-100 px-1 mx-1">{'{{joinLink}}'}</code>
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    <strong>Default:</strong> "I just registered for '{'{{webinarTitle}}'}' happening on {'{{webinarDate}}'} at {'{{webinarTime}}'} ({'{{timeZone}}'}). Join me: {'{{joinLink}}'}"
+                  </p>
+                </div>
+
+                {/* Facebook Share Message */}
+                <div>
+                  <label htmlFor="facebookShareMessage" className="block text-sm font-medium text-gray-700 mb-1">
+                    Facebook Share Message
+                  </label>
+                  <textarea
+                    id="facebookShareMessage"
+                    name="facebookShareMessage"
+                    value={formData.facebookShareMessage || ''}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Check out this amazing webinar..."
+                  />
+                  <p className="mt-2 text-xs text-gray-500">
+                    💡 Leave empty to use the default message. Same variables available as WhatsApp.
+                  </p>
+                  <p className="mt-1 text-xs text-gray-500">
+                    <strong>Default:</strong> "Check out this webinar: {'{{webinarTitle}}'}"
+                  </p>
+                </div>
+              </div>
             </CardBody>
           </Card>
 

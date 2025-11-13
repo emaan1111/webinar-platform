@@ -42,10 +42,10 @@ export default function EmbedCodeGenerator({ webinarId, webinarSlug }: EmbedCode
   }
 
   const themes = [
-    { value: 'default', name: 'Default', colors: 'bg-gradient-to-r from-indigo-500 to-purple-600' },
-    { value: 'modern', name: 'Modern', colors: 'bg-gradient-to-r from-indigo-600 to-purple-700' },
-    { value: 'minimal', name: 'Minimal', colors: 'bg-gray-900' },
-    { value: 'vibrant', name: 'Vibrant', colors: 'bg-gradient-to-r from-pink-400 to-red-500' },
+    { value: 'registration', name: 'Registration Style', colors: 'bg-gradient-to-r from-purple-600 to-indigo-700', description: 'Modern with trust badges' },
+    { value: 'purple', name: 'Corporate', colors: 'bg-gradient-to-r from-purple-600 to-indigo-600', description: 'Clean & professional' },
+    { value: 'blue', name: 'Material', colors: 'bg-gradient-to-r from-blue-600 to-cyan-500', description: 'Card-based design' },
+    { value: 'green', name: 'Playful', colors: 'bg-gradient-to-r from-green-600 to-emerald-500', description: 'Bold & vibrant' },
   ]
 
   return (
@@ -114,6 +114,9 @@ export default function EmbedCodeGenerator({ webinarId, webinarSlug }: EmbedCode
             >
               <div className={`h-16 rounded-md mb-2 ${t.colors}`}></div>
               <div className="text-sm font-medium">{t.name}</div>
+              {t.description && (
+                <div className="text-xs text-gray-500 mt-1">{t.description}</div>
+              )}
             </button>
           ))}
         </div>
