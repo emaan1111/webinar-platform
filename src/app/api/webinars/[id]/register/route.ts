@@ -156,6 +156,38 @@ export async function POST(
       console.error('⚠️ Facebook Conversions API failed (non-blocking):', error)
     })
 
+    // Get webinar slug for building links
+    const webinarData = await prisma.webinar.findUnique({
+      where: { id },
+      select: { slug: true }
+    })
+
+    // Build countdown page link
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com'
+    const countdownLink = webinarData?.slug 
+      ? `${baseUrl}/countdown/${webinarData.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
+      : null
+
+    // Build referral link
+    const referralLink = webinarData?.slug
+      ? `${baseUrl}/w/${webinarData.slug}?ref=${uniqueReferralCode}`
+      : null
+
+    // Format scheduled time in US/Eastern timezone
+    let formattedWebinarTime: string | null = null
+    if (registration.scheduledStartTime) {
+      try {
+        const easternTime = new Intl.DateTimeFormat('en-US', {
+          timeZone: 'America/New_York',
+          dateStyle: 'full',
+          timeStyle: 'long'
+        }).format(new Date(registration.scheduledStartTime))
+        formattedWebinarTime = easternTime
+      } catch (error) {
+        console.error('Failed to format time for EST:', error)
+      }
+    }
+
     // Sync to ClickFunnels (async - don't block response)
     syncWebinarRegistrationToClickFunnels({
       name: registration.name,
@@ -166,6 +198,9 @@ export async function POST(
       webinarId: webinar.id,
       webinarTitle: webinar.title,
       scheduledStartTime: registration.scheduledStartTime,
+      countdownLink: countdownLink,
+      referralLink: referralLink,
+      formattedWebinarTime: formattedWebinarTime,
     }).catch(error => {
       console.error('⚠️ ClickFunnels sync failed (non-blocking):', error)
     })

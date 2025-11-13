@@ -491,6 +491,9 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   webinarId: string
   webinarTitle: string
   scheduledStartTime?: Date | null
+  countdownLink?: string | null
+  referralLink?: string | null
+  formattedWebinarTime?: string | null
 }): Promise<boolean> {
   try {
     const registeredTagId = await resolveAttendanceTagId('registered')
@@ -514,6 +517,9 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
         webinar_title: data.webinarTitle,
         registered_at: new Date().toISOString(),
         scheduled_start_time: data.scheduledStartTime?.toISOString() || null,
+        um_webinar_link: data.countdownLink || null, // Countdown page link
+        personal_invite_link: data.referralLink || null, // Referral link
+        um_webinar_time: data.formattedWebinarTime || null, // Formatted time in US/Eastern
       }
     }
 
