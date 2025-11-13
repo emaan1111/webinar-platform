@@ -15,10 +15,10 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const webinar = await prisma.webinar.findFirst({
+    // Allow all hosts to view all webinars (removed hostId filter)
+    const webinar = await prisma.webinar.findUnique({
       where: {
-        id: params.id,
-        hostId: (session.user as any).id
+        id: params.id
       },
       include: {
         host: {
@@ -82,11 +82,10 @@ export async function PATCH(
       delete body.regTemplateBId
     }
 
-    // Verify ownership
-    const existingWebinar = await prisma.webinar.findFirst({
+    // Allow all hosts to edit all webinars (removed hostId verification)
+    const existingWebinar = await prisma.webinar.findUnique({
       where: {
-        id: params.id,
-        hostId: (session.user as any).id
+        id: params.id
       }
     })
 
@@ -233,11 +232,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Verify ownership
-    const webinar = await prisma.webinar.findFirst({
+    // Allow all hosts to delete all webinars (removed hostId verification)
+    const webinar = await prisma.webinar.findUnique({
       where: {
-        id: params.id,
-        hostId: (session.user as any).id
+        id: params.id
       }
     })
 

@@ -15,18 +15,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Verify user is host/admin
-    const webinar = await prisma.webinar.findFirst({
+    // Allow all hosts to moderate messages (removed hostId verification)
+    const webinar = await prisma.webinar.findUnique({
       where: {
         id: params.id,
-        hostId: (session.user as any).id,
       },
     });
 
     if (!webinar) {
       return NextResponse.json(
-        { error: 'Not authorized to manage messages for this webinar' },
-        { status: 403 }
+        { error: 'Webinar not found' },
+        { status: 404 }
       );
     }
 

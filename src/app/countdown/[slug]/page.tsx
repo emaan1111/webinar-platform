@@ -316,10 +316,66 @@ function processCountdownTemplate(
   processed = processed.replace(/\{\{accentColor\}\}/g, safeAccentColor)
   processed = processed.replace(/\{\{logoUrl\}\}/g, safeLogoUrl)
 
+  // Helper function to convert IANA timezone to user-friendly format
+  const getFriendlyTimezoneName = (tz: string, date: Date) => {
+    try {
+      // Get the short timezone abbreviation (EST, PST, etc.)
+      const timeString = date.toLocaleTimeString('en-US', {
+        timeZone: tz,
+        timeZoneName: 'short'
+      })
+      const parts = timeString.split(' ')
+      let shortName = parts[parts.length - 1] || ''
+
+      // Map common timezones to friendly names and their abbreviations
+      const timezoneMap: Record<string, { name: string; abbr?: string }> = {
+        'America/New_York': { name: 'US/Canada Eastern Time', abbr: 'EST/EDT' },
+        'America/Chicago': { name: 'US/Canada Central Time', abbr: 'CST/CDT' },
+        'America/Denver': { name: 'US/Canada Mountain Time', abbr: 'MST/MDT' },
+        'America/Los_Angeles': { name: 'US/Canada Pacific Time', abbr: 'PST/PDT' },
+        'America/Anchorage': { name: 'Alaska Time', abbr: 'AKST/AKDT' },
+        'Pacific/Honolulu': { name: 'Hawaii Time', abbr: 'HST' },
+        'America/Phoenix': { name: 'Arizona Time', abbr: 'MST' },
+        'America/Toronto': { name: 'US/Canada Eastern Time', abbr: 'EST/EDT' },
+        'America/Vancouver': { name: 'US/Canada Pacific Time', abbr: 'PST/PDT' },
+        'Europe/London': { name: 'UK Time', abbr: 'GMT/BST' },
+        'Europe/Paris': { name: 'Central European Time', abbr: 'CET/CEST' },
+        'Europe/Berlin': { name: 'Central European Time', abbr: 'CET/CEST' },
+        'Europe/Madrid': { name: 'Central European Time', abbr: 'CET/CEST' },
+        'Europe/Rome': { name: 'Central European Time', abbr: 'CET/CEST' },
+        'Europe/Amsterdam': { name: 'Central European Time', abbr: 'CET/CEST' },
+        'Asia/Dubai': { name: 'UAE Time', abbr: 'GST' },
+        'Asia/Kolkata': { name: 'India Standard Time', abbr: 'IST' },
+        'Asia/Calcutta': { name: 'India Standard Time', abbr: 'IST' },
+        'Asia/Singapore': { name: 'Singapore Time', abbr: 'SGT' },
+        'Asia/Tokyo': { name: 'Japan Standard Time', abbr: 'JST' },
+        'Asia/Hong_Kong': { name: 'Hong Kong Time', abbr: 'HKT' },
+        'Asia/Shanghai': { name: 'China Standard Time', abbr: 'CST' },
+        'Asia/Bangkok': { name: 'Indochina Time', abbr: 'ICT' },
+        'Australia/Sydney': { name: 'Australian Eastern Time', abbr: 'AEDT/AEST' },
+        'Australia/Melbourne': { name: 'Australian Eastern Time', abbr: 'AEDT/AEST' },
+        'Australia/Perth': { name: 'Australian Western Time', abbr: 'AWST' },
+        'Pacific/Auckland': { name: 'New Zealand Time', abbr: 'NZDT/NZST' },
+      }
+
+      const tzInfo = timezoneMap[tz]
+      if (tzInfo) {
+        const displayAbbr = tzInfo.abbr || shortName
+        return `${tzInfo.name} (${displayAbbr})`
+      }
+
+      // Fallback: use the IANA name with the detected abbreviation
+      return `${tz.replace(/_/g, ' ')} (${shortName})`
+    } catch (error) {
+      return tz.replace(/_/g, ' ')
+    }
+  }
+
   // Format dates with proper error handling
   let formattedDate = ''
   let formattedTime = ''
   let formattedDateTime = ''
+  let friendlyTimezone = ''
   
   try {
     const dateOptions: Intl.DateTimeFormatOptions = {
@@ -330,7 +386,15 @@ function processCountdownTemplate(
       timeZone: timezone,
     }
 
-    const timeOptions: Intl.DateTimeFormatOptions = {
+    // First get time without timezone name
+    const timeOnlyOptions: Intl.DateTimeFormatOptions = {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZone: timezone,
+    }
+
+    // Then get timezone abbreviation separately
+    const timeWithTZOptions: Intl.DateTimeFormatOptions = {
       hour: 'numeric',
       minute: '2-digit',
       timeZone: timezone,
@@ -338,7 +402,11 @@ function processCountdownTemplate(
     }
 
     formattedDate = scheduleDateTime.toLocaleDateString('en-US', dateOptions)
-    formattedTime = scheduleDateTime.toLocaleTimeString('en-US', timeOptions)
+    const timeOnly = scheduleDateTime.toLocaleTimeString('en-US', timeOnlyOptions)
+    friendlyTimezone = getFriendlyTimezoneName(timezone, scheduleDateTime)
+    
+    // Combine time with friendly timezone
+    formattedTime = `${timeOnly} ${friendlyTimezone}`
     formattedDateTime = `${formattedDate} at ${formattedTime}`
   } catch (error) {
     console.error('Date formatting error:', error)
@@ -346,6 +414,7 @@ function processCountdownTemplate(
     formattedDate = scheduleDateTime.toISOString().split('T')[0]
     formattedTime = scheduleDateTime.toISOString().split('T')[1].substring(0, 5)
     formattedDateTime = `${formattedDate} at ${formattedTime} UTC`
+    friendlyTimezone = 'UTC'
   }
 
   processed = processed.replace(/\{\{webinarDate\}\}/g, formattedDate)
@@ -353,7 +422,7 @@ function processCountdownTemplate(
   processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
   processed = processed.replace(
     /\{\{timeZone\}\}/g,
-    timezone.replace(/_/g, ' ')
+    friendlyTimezone
   )
 
   // Use relative URLs so they work on any port during development
@@ -422,118 +491,78 @@ function processCountdownTemplate(
   }
 
   const countdownScript = `
-    (function() {
-      // Safety check: only run in browser context
-      if (typeof window === 'undefined') {
-        console.error('[Countdown Timer] Not in browser context');
-        return;
+(function() {
+  // Safety check: only run in browser context
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return;
+  }
+  
+  var targetTime = new Date('${scheduleDateTime.toISOString()}').getTime();
+  var joinUrl = '${escapeJsString(joinLink)}';
+  var hasRedirected = false;
+  
+  function updateCountdown() {
+    if (!document || !document.getElementById) {
+      return;
+    }
+    
+    var now = new Date().getTime();
+    var distance = targetTime - now;
+    
+    if (distance <= 0) {
+      var el = document.getElementById('countdown');
+      if (el) {
+        el.innerHTML = 'Webinar is Live! Redirecting...';
       }
       
-      const targetTime = new Date('${scheduleDateTime.toISOString()}').getTime();
-      const joinUrl = '${escapeJsString(joinLink)}';
-      let hasRedirected = false;
-      
-      // Wait for DOM to be ready
-      function initCountdown() {
-        // Debug logging
-        console.log('[Countdown Timer] Initialized:', {
-          targetTimeString: '${scheduleDateTime.toISOString()}',
-          targetTime: new Date(targetTime).toISOString(),
-          targetTimeMs: targetTime,
-          currentTime: new Date().toISOString(),
-          currentTimeMs: Date.now(),
-          initialDistance: targetTime - Date.now(),
-          initialMinutesAway: ((targetTime - Date.now()) / 1000 / 60).toFixed(2),
-        });
-        
-        // Check if elements exist
-        console.log('[Countdown Timer] Element check:', {
-          hasCountdownDiv: !!document.getElementById('countdown'),
-          hasDaysSpan: !!document.getElementById('days'),
-          hoursSpan: !!document.getElementById('hours'),
-          minutesSpan: !!document.getElementById('minutes'),
-          secondsSpan: !!document.getElementById('seconds'),
-        });
-
-        function updateCountdown() {
-        const now = new Date().getTime();
-        const distance = targetTime - now;
-        
-        console.log('[Countdown Timer] Update:', {
-          now: now,
-          targetTime: targetTime,
-          distance: distance,
-          minutesLeft: (distance / 1000 / 60).toFixed(2),
-        });
-
-        if (distance <= 0) {
-          console.log('[Countdown Timer] Time is up! Redirecting to webinar...');
-          const el = document.getElementById('countdown');
-          if (el) {
-            el.innerHTML = 'Webinar is Live! Redirecting...';
-          }
-          
-          // Auto-redirect to webinar room after 2 seconds
-          if (!hasRedirected) {
-            hasRedirected = true;
-            setTimeout(function() {
-              console.log('[Countdown Timer] Redirecting to:', joinUrl);
-              window.location.href = joinUrl;
-            }, 2000);
-          }
-          return;
-        }
-
-        const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-        const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-        const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-        
-        console.log('[Countdown Timer] Calculated values:', {
-          days: days,
-          hours: hours,
-          minutes: minutes,
-          seconds: seconds,
-        });
-
-        let text = '';
-        if (days > 0) text += days + 'd ';
-        text += hours.toString().padStart(2, '0') + 'h ';
-        text += minutes.toString().padStart(2, '0') + 'm ';
-        text += seconds.toString().padStart(2, '0') + 's';
-
-        const el = document.getElementById('countdown');
-        if (el) {
-          el.innerHTML = text;
-        }
-        
-        // Update countdown in individual elements if they exist (for custom templates)
-        const daysEl = document.getElementById('days');
-        const hoursEl = document.getElementById('hours');
-        const minutesEl = document.getElementById('minutes');
-        const secondsEl = document.getElementById('seconds');
-        
-        if (daysEl) daysEl.textContent = days.toString().padStart(2, '0');
-        if (hoursEl) hoursEl.textContent = hours.toString().padStart(2, '0');
-        if (minutesEl) minutesEl.textContent = minutes.toString().padStart(2, '0');
-        if (secondsEl) secondsEl.textContent = seconds.toString().padStart(2, '0');
+      if (!hasRedirected) {
+        hasRedirected = true;
+        setTimeout(function() {
+          window.location.href = joinUrl;
+        }, 2000);
       }
+      return;
+    }
 
-        updateCountdown();
-        const intervalId = setInterval(updateCountdown, 1000);
-        
-        // Log first update
-        console.log('[Countdown Timer] First update completed, interval started');
-      }
-      
-      // Start countdown when DOM is ready
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initCountdown);
-      } else {
-        // DOM already loaded
-        initCountdown();
-      }
-    })();
+    var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+    var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+    var text = '';
+    if (days > 0) text += days + 'd ';
+    text += hours.toString().padStart(2, '0') + 'h ';
+    text += minutes.toString().padStart(2, '0') + 'm ';
+    text += seconds.toString().padStart(2, '0') + 's';
+
+    var el = document.getElementById('countdown');
+    if (el) {
+      el.innerHTML = text;
+    }
+    
+    // Update countdown in individual elements if they exist (for custom templates)
+    var daysEl = document.getElementById('days');
+    var hoursEl = document.getElementById('hours');
+    var minutesEl = document.getElementById('minutes');
+    var secondsEl = document.getElementById('seconds');
+    
+    if (daysEl) daysEl.textContent = days.toString().padStart(2, '0');
+    if (hoursEl) hoursEl.textContent = hours.toString().padStart(2, '0');
+    if (minutesEl) minutesEl.textContent = minutes.toString().padStart(2, '0');
+    if (secondsEl) secondsEl.textContent = seconds.toString().padStart(2, '0');
+  }
+  
+  // Start countdown immediately and repeat every second
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', function() {
+      updateCountdown();
+      setInterval(updateCountdown, 1000);
+    });
+  } else {
+    updateCountdown();
+    setInterval(updateCountdown, 1000);
+  }
+})();
   `
 
   processed = processed.replace(/\{\{countdown\}\}/g, countdownScript)

@@ -231,10 +231,8 @@ export async function GET(request: Request) {
       )
     }
 
+    // Allow all hosts to see all webinars (removed hostId filter)
     const webinars = await prisma.webinar.findMany({
-      where: {
-        hostId: (session.user as any).id
-      },
       include: {
         host: {
           select: {
