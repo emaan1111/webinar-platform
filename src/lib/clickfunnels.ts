@@ -9,7 +9,10 @@ interface ClickFunnelsContact {
   time_zone?: string
   country?: string
   tag_ids?: number[]  // CF uses tag IDs not tag names
-  custom_attributes?: Record<string, any>  // CF uses custom_attributes for all custom fields
+  um_webinar_link?: string  // Countdown page link
+  personal_invite_link?: string  // Referral link
+  um_webinar_time?: string  // Scheduled time in US/Eastern
+  custom_attributes?: Record<string, any>  // CF uses custom_attributes not custom_fields
 }
 
 interface ClickFunnelsContactResponse {
@@ -493,8 +496,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   scheduledStartTime?: Date | null
   countdownLink?: string | null
   referralLink?: string | null
-  webinarTimeUserTZ?: string | null
-  webinarTimeEST?: string | null
+  formattedWebinarTime?: string | null
 }): Promise<boolean> {
   try {
     const registeredTagId = await resolveAttendanceTagId('registered')
@@ -518,28 +520,17 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
         webinar_title: data.webinarTitle,
         registered_at: new Date().toISOString(),
         scheduled_start_time: data.scheduledStartTime?.toISOString() || null,
-        // Add custom webinar fields to custom_attributes
-        ...(data.countdownLink && { um_webinar_link: data.countdownLink }),
-        ...(data.referralLink && { personal_invite_link: data.referralLink }),
-        ...(data.webinarTimeUserTZ && { webinar_time: data.webinarTimeUserTZ }),
-        ...(data.webinarTimeEST && { webinar_time_est: data.webinarTimeEST }),
+        // Add the three new fields here in custom_attributes
+        um_webinar_link: data.countdownLink || null,
+        personal_invite_link: data.referralLink || null,
+        webinar_time: data.formattedWebinarTime || null,
+        webinar_time_est: data.scheduledStartTime?.toISOString() || null,
       }
     }
 
-    console.log('📤 Sending to ClickFunnels:', {
+    console.log('📤 Sending to ClickFunnels with custom_attributes:', {
       email: contactData.email_address,
-      um_webinar_link: data.countdownLink,
-      personal_invite_link: data.referralLink,
-      webinar_time: data.webinarTimeUserTZ,
-      webinar_time_est: data.webinarTimeEST,
-    })
-
-    // Log what we're sending to ClickFunnels
-    console.log('📤 ClickFunnels Sync - Custom Fields:', {
-      um_webinar_link: data.countdownLink,
-      personal_invite_link: data.referralLink,
-      webinar_time: data.webinarTimeUserTZ,
-      webinar_time_est: data.webinarTimeEST
+      custom_attributes: contactData.custom_attributes
     })
 
     // Send to ClickFunnels
