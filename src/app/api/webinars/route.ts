@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma'
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
+    console.log('🔵 POST /api/webinars - Session user:', session?.user)
 
     if (!session?.user) {
       return NextResponse.json(
@@ -14,8 +15,26 @@ export async function POST(request: Request) {
       )
     }
 
+    // Verify the user exists in database
+    const userId = (session.user as any).id
+    console.log('🔵 Looking for user with ID:', userId)
+    
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    })
+
+    if (!user) {
+      console.error('❌ User not found in database:', userId)
+      return NextResponse.json(
+        { error: 'User not found. Please log out and log in again.' },
+        { status: 404 }
+      )
+    }
+
+    console.log('✅ User found:', user.email)
+
     const body = await request.json()
-    console.log('Received webinar creation request:', JSON.stringify(body, null, 2))
+    console.log('🔵 Received webinar creation request:', JSON.stringify(body, null, 2))
     
     const { 
       title, 
@@ -171,7 +190,29 @@ export async function POST(request: Request) {
       { status: 201 }
     )
   } catch (error) {
-    console.error('Create webinar error:', error)
+    console.error('❌ Create webinar error:', error)
+    
+    // Provide more specific error messages
+    if (error instanceof Error) {
+      console.error('Error details:', {
+        name: error.name,
+        message: error.message,
+        stack: error.stack
+      })
+      
+      // Check for foreign key constraint errors
+      if (error.message.includes('Foreign key constraint') && error.message.includes('hostId')) {
+        return NextResponse.json(
+          { 
+            error: 'User account not found', 
+            message: 'Your user account is not properly set up. Please log out and log in again, or contact support.',
+            details: process.env.NODE_ENV === 'development' ? error.message : undefined
+          },
+          { status: 400 }
+        )
+      }
+    }
+    
     return NextResponse.json(
       { error: 'Internal server error', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
