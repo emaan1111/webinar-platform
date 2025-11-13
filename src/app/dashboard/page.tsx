@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { StatCard } from '@/components/ui/StatCard'
@@ -38,42 +38,50 @@ type DashboardWebinar = {
   attended: number
 }
 
-// Mock data - replace with actual API calls
-const stats = {
-  totalWebinars: 12,
-  totalAttendees: 1543,
-  avgAttendance: 78,
-  upcomingWebinars: 3
+type DashboardStats = {
+  totalWebinars: number
+  totalAttendees: number
+  avgAttendance: number
+  upcomingWebinars: number
 }
 
-const recentWebinars: DashboardWebinar[] = [
-  {
-    id: '1',
-    title: 'Introduction to Web Development',
-    scheduledAt: '2025-11-05T14:00:00',
-    status: 'SCHEDULED',
-    registrations: 234,
-    attended: 0
-  },
-  {
-    id: '2',
-    title: 'Advanced React Patterns',
-    scheduledAt: '2025-10-28T16:00:00',
-    status: 'LIVE',
-    registrations: 189,
-    attended: 142
-  },
-  {
-    id: '3',
-    title: 'Building with Next.js 14',
-    scheduledAt: '2025-10-25T15:00:00',
-    status: 'ENDED',
-    registrations: 312,
-    attended: 245
-  }
-]
-
 export default function DashboardPage() {
+  const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [recentWebinars, setRecentWebinars] = useState<DashboardWebinar[]>([])
+
+  useEffect(() => {
+    fetchDashboardData()
+  }, [])
+
+  const fetchDashboardData = async () => {
+    try {
+      const response = await fetch('/api/dashboard/stats')
+      if (response.ok) {
+        const data = await response.json()
+        setStats(data.stats)
+        setRecentWebinars(data.recentWebinars)
+      }
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading || !stats) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-8">
@@ -96,27 +104,25 @@ export default function DashboardPage() {
         {/* Stats grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
+            key="total-webinars"
             title="Total Webinars"
             value={stats.totalWebinars}
             icon={<Video className="w-5 h-5" />}
-            change="+2 this month"
-            changeType="positive"
           />
           <StatCard
+            key="total-attendees"
             title="Total Attendees"
             value={stats.totalAttendees}
             icon={<Users className="w-5 h-5" />}
-            change="+12.5%"
-            changeType="positive"
           />
           <StatCard
+            key="avg-attendance"
             title="Avg Attendance Rate"
             value={`${stats.avgAttendance}%`}
             icon={<TrendingUp className="w-5 h-5" />}
-            change="+5.2%"
-            changeType="positive"
           />
           <StatCard
+            key="upcoming-webinars"
             title="Upcoming Webinars"
             value={stats.upcomingWebinars}
             icon={<Calendar className="w-5 h-5" />}
@@ -134,11 +140,21 @@ export default function DashboardPage() {
             </div>
           </CardHeader>
           <CardBody className="p-0">
-            <div className="divide-y divide-gray-200">
-              {recentWebinars.map((webinar) => (
-                <WebinarRow key={webinar.id} webinar={webinar} />
-              ))}
-            </div>
+            {recentWebinars.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                <Video className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p>No webinars yet. Create your first webinar to get started!</p>
+                <Link href="/dashboard/webinars/new">
+                  <Button className="mt-4">Create Webinar</Button>
+                </Link>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-200">
+                {recentWebinars.map((webinar) => (
+                  <WebinarRow key={webinar.id} webinar={webinar} />
+                ))}
+              </div>
+            )}
           </CardBody>
         </Card>
 
