@@ -9,8 +9,6 @@ const nextConfig = {
       },
     ],
   },
-  // Optimize for Railway deployment
-  output: 'standalone',
 }
 
 module.exports = nextConfig
