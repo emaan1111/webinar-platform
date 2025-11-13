@@ -162,8 +162,14 @@ export async function POST(
       select: { slug: true }
     })
 
+    // Build base URL from request headers or environment variable
+    const protocol = request.headers.get('x-forwarded-proto') || 'https'
+    const host = request.headers.get('host') || request.headers.get('x-forwarded-host')
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (host ? `${protocol}://${host}` : 'https://webinar.ummaheducators.com')
+    
+    console.log('🔗 Building links with baseUrl:', baseUrl)
+
     // Build countdown page link
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com'
     const countdownLink = webinarData?.slug 
       ? `${baseUrl}/countdown/${webinarData.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
       : null
@@ -172,21 +178,52 @@ export async function POST(
     const referralLink = webinarData?.slug
       ? `${baseUrl}/w/${webinarData.slug}?ref=${uniqueReferralCode}`
       : null
+    
+    console.log('🔗 Generated links:', {
+      countdownLink,
+      referralLink
+    })
 
-    // Format scheduled time in US/Eastern timezone
-    let formattedWebinarTime: string | null = null
-    if (registration.scheduledStartTime) {
+        // Format scheduled time in user's timezone (human-readable)
+    let webinarTimeUserTZ: string | null = null
+    if (registration.scheduledStartTime && timezone) {
       try {
-        const easternTime = new Intl.DateTimeFormat('en-US', {
-          timeZone: 'America/New_York',
+        webinarTimeUserTZ = new Intl.DateTimeFormat('en-US', {
+          timeZone: timezone,
           dateStyle: 'full',
           timeStyle: 'long'
         }).format(new Date(registration.scheduledStartTime))
-        formattedWebinarTime = easternTime
+        console.log('⏰ Webinar time (User TZ):', webinarTimeUserTZ)
+      } catch (error) {
+        console.error('Failed to format time for user timezone:', error)
+      }
+    }
+
+    // Send scheduled time as ISO string for ClickFunnels datetime field
+    let webinarTimeEST: string | null = null
+    if (registration.scheduledStartTime) {
+      try {
+        // Convert to ISO string so ClickFunnels can treat it as a datetime field
+        webinarTimeEST = registration.scheduledStartTime.toISOString()
+        console.log('⏰ Webinar time (EST ISO):', webinarTimeEST)
       } catch (error) {
         console.error('Failed to format time for EST:', error)
       }
     }
+
+    // Log the generated links for debugging
+    console.log('🔗 Generated ClickFunnels Data:', {
+      countdownLink,
+      referralLink,
+      webinarTimeUserTZ,
+      webinarTimeEST,
+      baseUrl,
+      slug: webinarData?.slug,
+      registrationId: registration.id,
+      scheduleId,
+      uniqueReferralCode,
+      userTimezone: timezone
+    })
 
     // Sync to ClickFunnels (async - don't block response)
     syncWebinarRegistrationToClickFunnels({
@@ -200,7 +237,8 @@ export async function POST(
       scheduledStartTime: registration.scheduledStartTime,
       countdownLink: countdownLink,
       referralLink: referralLink,
-      formattedWebinarTime: formattedWebinarTime,
+      webinarTimeUserTZ: webinarTimeUserTZ,
+      webinarTimeEST: webinarTimeEST,
     }).catch(error => {
       console.error('⚠️ ClickFunnels sync failed (non-blocking):', error)
     })
