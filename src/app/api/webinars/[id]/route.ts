@@ -52,14 +52,18 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
+    console.log('🔵 PATCH /api/webinars/[id] - Starting update for:', params.id)
+    
     const session = await getServerSession(authOptions)
+    console.log('🔵 Session check:', session?.user ? 'Authenticated' : 'Not authenticated')
 
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
     const body = await request.json()
-    console.log('Received webinar update request for:', params.id, body)
+    console.log('🔵 Received webinar update request for:', params.id)
+    console.log('🔵 Body keys:', Object.keys(body))
     
     // Map old field names to new ones for backwards compatibility
     if (body.registrationTemplateId !== undefined) {
@@ -203,7 +207,17 @@ export async function PATCH(
     return NextResponse.json({ webinar: updatedWebinar, message: 'Webinar updated successfully' })
   } catch (error) {
     console.error('Update webinar error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    // Log full error details for debugging
+    if (error instanceof Error) {
+      console.error('Error name:', error.name)
+      console.error('Error message:', error.message)
+      console.error('Error stack:', error.stack)
+    }
+    return NextResponse.json({ 
+      error: 'Internal server error', 
+      message: error instanceof Error ? error.message : 'Unknown error',
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    }, { status: 500 })
   }
 }
 
