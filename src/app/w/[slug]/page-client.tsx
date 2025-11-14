@@ -56,8 +56,57 @@ interface RegistrationPage {
   ctaButtonStyle?: string | null
 }
 
+// Constants kept outside the component to avoid re-allocating large arrays on every render
+const countryCodes = [
+  { code: '+1', country: 'US/Canada', pattern: /^\d{10}$/ },
+  { code: '+44', country: 'UK', pattern: /^\d{10,11}$/ },
+  { code: '+91', country: 'India', pattern: /^\d{10}$/ },
+  { code: '+61', country: 'Australia', pattern: /^\d{9}$/ },
+  { code: '+81', country: 'Japan', pattern: /^\d{10}$/ },
+  { code: '+86', country: 'China', pattern: /^\d{11}$/ },
+  { code: '+33', country: 'France', pattern: /^\d{9}$/ },
+  { code: '+49', country: 'Germany', pattern: /^\d{10,11}$/ },
+  { code: '+39', country: 'Italy', pattern: /^\d{10}$/ },
+  { code: '+34', country: 'Spain', pattern: /^\d{9}$/ },
+  { code: '+971', country: 'UAE', pattern: /^\d{9}$/ },
+  { code: '+966', country: 'Saudi Arabia', pattern: /^\d{9}$/ },
+  { code: '+92', country: 'Pakistan', pattern: /^\d{10}$/ },
+  { code: '+880', country: 'Bangladesh', pattern: /^\d{10}$/ },
+  { code: '+234', country: 'Nigeria', pattern: /^\d{10}$/ },
+  { code: '+27', country: 'South Africa', pattern: /^\d{9}$/ },
+  { code: '+55', country: 'Brazil', pattern: /^\d{11}$/ },
+  { code: '+52', country: 'Mexico', pattern: /^\d{10}$/ },
+  { code: '+63', country: 'Philippines', pattern: /^\d{10}$/ },
+  { code: '+65', country: 'Singapore', pattern: /^\d{8}$/ },
+]
+
+const euCountries = [
+  'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
+  'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
+  'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'GB', 'UK'
+]
+
+const timezones = [
+  { value: 'America/New_York', label: 'Eastern Time (US & Canada)' },
+  { value: 'America/Chicago', label: 'Central Time (US & Canada)' },
+  { value: 'America/Denver', label: 'Mountain Time (US & Canada)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (US & Canada)' },
+  { value: 'Europe/London', label: 'London (GMT)' },
+  { value: 'Europe/Paris', label: 'Paris, Berlin, Rome' },
+  { value: 'Europe/Moscow', label: 'Moscow' },
+  { value: 'Asia/Dubai', label: 'Dubai' },
+  { value: 'Asia/Kolkata', label: 'India' },
+  { value: 'Asia/Calcutta', label: 'India' }, // Alias for Kolkata
+  { value: 'Asia/Shanghai', label: 'China' },
+  { value: 'Asia/Tokyo', label: 'Tokyo' },
+  { value: 'Asia/Singapore', label: 'Singapore' },
+  { value: 'Australia/Sydney', label: 'Sydney' },
+  { value: 'Pacific/Auckland', label: 'New Zealand' },
+  { value: 'UTC', label: 'UTC' },
+]
+
 interface WebinarRegisterPageProps {
-  webinarData: Webinar
+  webinarData: Webinar | null
   registrationPage?: RegistrationPage | null
 }
 
@@ -114,7 +163,7 @@ const popupThemes = {
 }
 
 export default function WebinarRegisterPage({ webinarData, registrationPage }: WebinarRegisterPageProps) {
-  const [webinar, setWebinar] = useState<Webinar | null>(webinarData)
+  const webinar = webinarData
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [userTimezone, setUserTimezone] = useState('')
@@ -136,56 +185,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     privacyConsent: true
   })
 
-  // Country codes for phone validation
-  const countryCodes = [
-    { code: '+1', country: 'US/Canada', pattern: /^\d{10}$/ },
-    { code: '+44', country: 'UK', pattern: /^\d{10,11}$/ },
-    { code: '+91', country: 'India', pattern: /^\d{10}$/ },
-    { code: '+61', country: 'Australia', pattern: /^\d{9}$/ },
-    { code: '+81', country: 'Japan', pattern: /^\d{10}$/ },
-    { code: '+86', country: 'China', pattern: /^\d{11}$/ },
-    { code: '+33', country: 'France', pattern: /^\d{9}$/ },
-    { code: '+49', country: 'Germany', pattern: /^\d{10,11}$/ },
-    { code: '+39', country: 'Italy', pattern: /^\d{10}$/ },
-    { code: '+34', country: 'Spain', pattern: /^\d{9}$/ },
-    { code: '+971', country: 'UAE', pattern: /^\d{9}$/ },
-    { code: '+966', country: 'Saudi Arabia', pattern: /^\d{9}$/ },
-    { code: '+92', country: 'Pakistan', pattern: /^\d{10}$/ },
-    { code: '+880', country: 'Bangladesh', pattern: /^\d{10}$/ },
-    { code: '+234', country: 'Nigeria', pattern: /^\d{10}$/ },
-    { code: '+27', country: 'South Africa', pattern: /^\d{9}$/ },
-    { code: '+55', country: 'Brazil', pattern: /^\d{11}$/ },
-    { code: '+52', country: 'Mexico', pattern: /^\d{10}$/ },
-    { code: '+63', country: 'Philippines', pattern: /^\d{10}$/ },
-    { code: '+65', country: 'Singapore', pattern: /^\d{8}$/ },
-  ]
-
-  // EU countries for GDPR
-  const euCountries = [
-    'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
-    'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
-    'PL', 'PT', 'RO', 'SK', 'SI', 'ES', 'SE', 'GB', 'UK'
-  ]
-
-  const timezones = [
-    { value: 'America/New_York', label: 'Eastern Time (US & Canada)' },
-    { value: 'America/Chicago', label: 'Central Time (US & Canada)' },
-    { value: 'America/Denver', label: 'Mountain Time (US & Canada)' },
-    { value: 'America/Los_Angeles', label: 'Pacific Time (US & Canada)' },
-    { value: 'Europe/London', label: 'London (GMT)' },
-    { value: 'Europe/Paris', label: 'Paris, Berlin, Rome' },
-    { value: 'Europe/Moscow', label: 'Moscow' },
-    { value: 'Asia/Dubai', label: 'Dubai' },
-    { value: 'Asia/Kolkata', label: 'India' },
-    { value: 'Asia/Calcutta', label: 'India' }, // Alias for Kolkata
-    { value: 'Asia/Shanghai', label: 'China' },
-    { value: 'Asia/Tokyo', label: 'Tokyo' },
-    { value: 'Asia/Singapore', label: 'Singapore' },
-    { value: 'Australia/Sydney', label: 'Sydney' },
-    { value: 'Pacific/Auckland', label: 'New Zealand' },
-    { value: 'UTC', label: 'UTC' },
-  ]
-
   // Helper function to get friendly timezone name
   const getTimezoneFriendlyName = (timezoneValue: string): string => {
     const timezone = timezones.find(tz => tz.value === timezoneValue)
@@ -196,33 +195,63 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     return timezoneValue.split('/').pop()?.replace(/_/g, ' ') || timezoneValue
   }
 
+  // Detect browser timezone immediately so the page can render without waiting for network calls
   useEffect(() => {
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
     setUserTimezone(detectedTimezone)
     setSelectedTimezone(detectedTimezone)
-    
-    // Detect country (using ipapi.co)
-    fetch('https://ipapi.co/json/')
-      .then(res => res.json())
-      .then(data => {
-        const country = data.country_code
-        setUserCountry(country)
-        setIsEU(euCountries.includes(country))
-      })
-      .catch(() => {
-        setIsEU(true) // Safe default
-      })
-    
     setLoading(false)
-    
-    // Countdown timer
+  }, [])
+
+  // Fetch country info after the first paint so slow geo requests never block rendering
+  useEffect(() => {
+    const controller = new AbortController()
+    const fetchCountry = () => {
+      fetch('https://ipapi.co/json/', { signal: controller.signal })
+        .then(res => res.json())
+        .then(data => {
+          const country = data.country_code
+          setUserCountry(country)
+          setIsEU(euCountries.includes(country))
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setIsEU(true)
+          }
+        })
+    }
+
+    let idleId: number | null = null
+    let timeoutId: number | null = null
+
+    if ('requestIdleCallback' in window) {
+      idleId = (window as any).requestIdleCallback(() => {
+        fetchCountry()
+      }, { timeout: 1000 })
+    } else {
+      timeoutId = window.setTimeout(fetchCountry, 0)
+    }
+
+    return () => {
+      controller.abort()
+      if (idleId !== null) {
+        ;(window as any).cancelIdleCallback?.(idleId)
+      }
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId)
+      }
+    }
+  }, [])
+
+  // Countdown timer can also run independently so it doesn't keep the render effect busy
+  useEffect(() => {
     const targetDate = new Date()
     targetDate.setDate(targetDate.getDate() + 3)
-    
-    const timer = setInterval(() => {
+
+    const timer = window.setInterval(() => {
       const now = new Date()
       const difference = targetDate.getTime() - now.getTime()
-      
+
       setCountdown({
         days: Math.floor(difference / (1000 * 60 * 60 * 24)),
         hours: Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)),
@@ -230,8 +259,11 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         seconds: Math.floor((difference % (1000 * 60)) / 1000)
       })
     }, 1000)
-    
-    // Event listeners for custom template registration buttons
+
+    return () => window.clearInterval(timer)
+  }, [])
+
+  useEffect(() => {
     const handleOpenModal = () => {
       setShowScheduleModal(true)
     }
@@ -254,7 +286,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     window.addEventListener('selectSchedule', handleSelectSchedule as EventListener)
 
     return () => {
-      clearInterval(timer)
       window.removeEventListener('openRegistrationModal', handleOpenModal)
       window.removeEventListener('selectSchedule', handleSelectSchedule as EventListener)
       // Clean up global functions
@@ -263,44 +294,25 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
   }, [webinar, registrationPage])
 
-  // Set loading to false since data is passed as props
-  useEffect(() => {
-    setLoading(false)
-  }, [])
-
   // Setup button listeners for custom template (runs after DOM is rendered)
   useEffect(() => {
     if (!registrationPage || registered) return
-    
-    console.log('🔧 Setting up button listeners for custom template')
-    console.log('🔍 Waiting for DOM to render...')
-    
+
     // Longer delay to ensure DOM is fully rendered with dangerouslySetInnerHTML
     const timer = setTimeout(() => {
-      console.log('🔍 Scanning DOM for buttons...')
-      
       // Find buttons marked with data-action="register"
       const registerButtons = document.querySelectorAll('[data-action="register"]')
-      console.log('✅ Found buttons with data-action="register":', registerButtons.length)
-      
+
       if (registerButtons.length === 0) {
-        console.error('❌ NO BUTTONS FOUND! Template might not be rendered yet or buttons are missing data-action attribute')
         return
       }
-      
+
       registerButtons.forEach((button, index) => {
-        console.log(`📌 Setting up button ${index + 1}:`, button.textContent?.trim())
-        console.log(`   Element type: ${button.tagName}`)
-        console.log(`   Attributes:`, button.attributes)
-        
         const clickHandler = (e: Event) => {
-          console.log('🎯🎯🎯 BUTTON CLICKED!!! 🎯🎯🎯')
           e.preventDefault()
           e.stopPropagation()
           e.stopImmediatePropagation()
-          console.log('Opening modal...')
           setShowScheduleModal(true)
-          console.log('Modal state set to true')
         }
         
         // Try MULTIPLE event listeners to ensure one works
@@ -308,18 +320,11 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         button.addEventListener('click', clickHandler, false) // Bubble phase
         
         // Also try with pointer events
-        button.addEventListener('pointerdown', (e) => {
-          console.log('👆 POINTER DOWN on button', index + 1)
-        })
-        
-        console.log(`✅ Multiple listeners added to button ${index + 1}`)
+        button.addEventListener('pointerdown', () => {})
       })
-      
-      console.log('✅ All button listeners set up successfully!')
-      
+
       // Also handle schedule items if present
       const scheduleItems = document.querySelectorAll('[data-schedule-id], .schedule-item')
-      console.log('📅 Found schedule items:', scheduleItems.length)
       
       scheduleItems.forEach((item) => {
         item.addEventListener('click', function(this: HTMLElement) {
@@ -341,17 +346,9 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
   // Generate multiple upcoming time slots for recurring schedules
   const generateRecurringSlots = (schedule: Schedule, count: number = 5) => {
     const slots: { id: string; time: Date; baseScheduleId: string }[] = []
-    
-    console.log('🔧 generateRecurringSlots called:', { 
-      scheduleId: schedule.id, 
-      count, 
-      hasPattern: !!schedule.recurringPattern,
-      patternRaw: schedule.recurringPattern 
-    })
-    
+
     const pattern = JSON.parse(schedule.recurringPattern || '{}')
-    console.log('📋 Parsed pattern:', pattern)
-    
+
     const now = new Date()
     
     if (pattern.interval === 'daily') {
@@ -394,11 +391,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         })
       }
     } else if (pattern.interval === 'weekly' && pattern.daysOfWeek && pattern.daysOfWeek.length > 0) {
-      console.log('📅 Weekly pattern detected:', {
-        daysOfWeek: pattern.daysOfWeek,
-        time: pattern.time
-      })
-      
       const daysMap: Record<string, number> = {
         'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3,
         'Thursday': 4, 'Friday': 5, 'Saturday': 6
@@ -413,8 +405,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         }
         return daysMap[day] // Convert string to number
       }).filter((day: number) => day !== undefined).sort((a: number, b: number) => a - b)
-      
-      console.log('🎯 Target days (numeric):', targetDays, 'Time:', hours + ':' + minutes)
       
       let currentDate = new Date(now)
       let slotsGenerated = 0
@@ -454,13 +444,10 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         }
         if (week === 0) currentDate.setDate(currentDate.getDate() + 7)
       }
-      
-      console.log(`✅ Generated ${slots.length} weekly slots`)
     } else {
       console.warn('⚠️ Unknown or incomplete pattern:', pattern)
     }
-    
-    console.log(`🎬 Final slots:`, slots)
+
     return slots
   }
 
@@ -652,12 +639,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         scheduledStartTime = new Date(Date.now() + minutesFromReg * 60000).toISOString()
       }
       
-      console.log('📅 Registration - Calculated scheduledStartTime:', {
-        scheduleType: selectedSchedule!.scheduleType,
-        scheduleId,
-        scheduledStartTime,
-      })
-      
       const response = await fetch(`/api/webinars/${webinar!.id}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -689,18 +670,22 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
       
       // Track A/B test conversion if enabled
       if (webinar?.enableABTesting && registrationData.registrationId) {
-        try {
-          await fetch('/api/ab-test/track-conversion', {
+        const payload = JSON.stringify({
+          webinarId: webinar.id,
+          registrationId: registrationData.registrationId,
+        })
+
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' })
+          navigator.sendBeacon('/api/ab-test/track-conversion', blob)
+        } else {
+          fetch('/api/ab-test/track-conversion', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              webinarId: webinar.id,
-              registrationId: registrationData.registrationId,
-            }),
+            body: payload,
+          }).catch(err => {
+            console.error('Failed to track conversion:', err)
           })
-        } catch (err) {
-          console.error('Failed to track conversion:', err)
-          // Don't fail registration if tracking fails
         }
       }
 
@@ -739,20 +724,15 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
 
   // If custom template is provided, render it with registration functionality
   if (registrationPage && !registered) {
-    console.log('✅ Custom template detected:', registrationPage.name)
-    console.log('🔍 Template ID:', registrationPage.id)
-    
     // Track registration page visit
     const pageId = registrationPage.id
     const variantGroup = webinar.testGroup || null
     
     // Replace template variables with actual data
     let templateHtml = registrationPage.htmlCode
-    console.log('📝 Template HTML length:', templateHtml.length)
     
     // Remove script tags that might interfere with our button handlers
     templateHtml = templateHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    console.log('🧹 Removed script tags from template')
     
     // Replace webinar variables
     templateHtml = templateHtml.replace(/\{\{webinar\.title\}\}/g, webinar.title)
@@ -945,11 +925,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                       {(() => {
                         const maxSchedulesToShow = webinar.maxSchedulesToShow || 5
                         
-                        console.log('🎬 Starting schedule generation:', {
-                          totalSchedules: webinar.schedules.length,
-                          maxToShow: maxSchedulesToShow
-                        })
-                        
                         // Collect all time slots with their dates for sorting
                         interface TimeSlot {
                           id: string
@@ -995,8 +970,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                           })
                         })
                         
-                        console.log(`📊 Total slots collected: ${allTimeSlots.length}`)
-                        
                         // STEP 3: Sort all slots by time (earliest first)
                         allTimeSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
                         
@@ -1011,7 +984,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                           </option>
                         ))
                         
-                        console.log(`✅✅✅ FINAL: ${allScheduleOptions.length} options (max: ${maxSchedulesToShow})`)
                         return allScheduleOptions
                       })()}
                     </select>
@@ -1659,11 +1631,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                       {(() => {
                         const maxSchedulesToShow = webinar.maxSchedulesToShow || 5
                         
-                        console.log('🎬 Template modal - Starting schedule generation:', {
-                          totalSchedules: webinar.schedules.length,
-                          maxToShow: maxSchedulesToShow
-                        })
-                        
                         // Collect all time slots with their dates for sorting
                         interface TimeSlot {
                           id: string
@@ -1709,8 +1676,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                           })
                         })
                         
-                        console.log(`📊 Template modal - Total slots collected: ${allTimeSlots.length}`)
-                        
                         // STEP 3: Sort all slots by time (earliest first)
                         allTimeSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
                         
@@ -1725,7 +1690,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                           </option>
                         ))
                         
-                        console.log(`✅✅✅ Template modal - FINAL: ${allScheduleOptions.length} options (max: ${maxSchedulesToShow})`)
                         return allScheduleOptions
                       })()}
                     </select>

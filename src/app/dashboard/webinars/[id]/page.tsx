@@ -188,6 +188,12 @@ export default function ViewWebinarPage() {
                 FAQs
               </Button>
             </Link>
+            <Link href={`/dashboard/webinars/${webinar.id}/reminders`}>
+              <Button variant="secondary" size="sm">
+                <MessageSquare className="w-4 h-4 mr-2" />
+                Reminders
+              </Button>
+            </Link>
             <Button variant="danger" size="sm" onClick={handleDelete}>
               <Trash2 className="w-4 h-4" />
             </Button>

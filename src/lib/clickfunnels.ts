@@ -29,6 +29,84 @@ interface ClickFunnelsContactResponse {
 const CLICKFUNNELS_API_BASE = 'https://api.myclickfunnels.com/api/v2'
 const DEFAULT_WEBINAR_TAG_NAME = 'UM-Webinar-Registered'
 
+/**
+ * Fetch all tags from ClickFunnels workspace
+ * Returns array of tags with their IDs and names
+ */
+export async function fetchAllClickFunnelsTags(): Promise<Array<{ id: number; name: string }>> {
+  const apiKey = process.env.CLICKFUNNELS_API_KEY
+  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+
+  if (!apiKey || !workspaceId) {
+    console.log('⚠️ ClickFunnels API not configured')
+    return []
+  }
+
+  try {
+    console.log('📋 Fetching all tags from ClickFunnels...')
+    
+    const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/tags`
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      },
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('❌ Failed to fetch tags:', response.status, errorText)
+      return []
+    }
+
+    const data = await response.json()
+    const tags = data.tags || data || []
+    
+    console.log(`✅ Found ${tags.length} tags in ClickFunnels`)
+    tags.forEach((tag: any) => {
+      console.log(`   - ${tag.name} (ID: ${tag.id})`)
+    })
+    
+    return tags.map((tag: any) => ({
+      id: Number(tag.id),
+      name: tag.name
+    }))
+  } catch (error) {
+    console.error('❌ Error fetching ClickFunnels tags:', error)
+    return []
+  }
+}
+
+/**
+ * Get tag IDs for registration timing tags
+ * Returns a map of tag names to their IDs
+ */
+export async function getRegistrationTimingTagIds(): Promise<Record<string, number | null>> {
+  const allTags = await fetchAllClickFunnelsTags()
+  
+  const tagMap: Record<string, number | null> = {
+    '24HRREMINDER': null,
+    '2HRREMINDER': null,
+    '1HRREMINDER': null,
+    '15MINREMINDER': null,
+    'WESTARTED': null,
+  }
+
+  for (const tag of allTags) {
+    if (tag.name in tagMap) {
+      tagMap[tag.name] = tag.id
+    }
+  }
+
+  console.log('🏷️ Registration Timing Tag IDs:')
+  Object.entries(tagMap).forEach(([name, id]) => {
+    console.log(`   ${name}: ${id || '❌ NOT FOUND'}`)
+  })
+
+  return tagMap
+}
+
 const parseTagId = (value?: string | null): number | null => {
   if (!value) return null
   const parsed = Number(value)
@@ -39,6 +117,14 @@ const configuredWebinarTagName = process.env.CLICKFUNNELS_WEBINAR_TAG?.trim() ||
 const configuredWebinarTagId = parseTagId(process.env.CLICKFUNNELS_WEBINAR_TAG_ID ?? process.env.CLICKFUNNELS_TAG_REGISTERED)
 
 type AttendanceTagKey = 'registered' | 'attended' | 'mostlyAttended' | 'partlyAttended' | 'missed' | 'replayAttended'
+
+const REMINDER_TAG_NAMES = ['24HRREMINDER', '2HRREMINDER', '1HRREMINDER', '15MINREMINDER', 'WESTARTED'] as const
+type ReminderTagName = typeof REMINDER_TAG_NAMES[number]
+
+const parseReminderTagEnvId = (tagName: ReminderTagName): number | null => {
+  const envValue = process.env[`CLICKFUNNELS_TAG_${tagName}`]
+  return parseTagId(envValue)
+}
 
 const ATTENDANCE_TAG_DEFAULT_NAMES: Record<AttendanceTagKey, string> = {
   registered: configuredWebinarTagName,
@@ -53,6 +139,13 @@ const clickFunnelsTagCache = new Map<string, number>()
 
 if (configuredWebinarTagId && !Number.isNaN(configuredWebinarTagId)) {
   clickFunnelsTagCache.set(configuredWebinarTagName, configuredWebinarTagId)
+}
+
+for (const reminderTagName of REMINDER_TAG_NAMES) {
+  const parsedId = parseReminderTagEnvId(reminderTagName)
+  if (parsedId) {
+    clickFunnelsTagCache.set(reminderTagName, parsedId)
+  }
 }
 
 function getAttendanceTagName(tagKey: AttendanceTagKey): string | null {
@@ -497,6 +590,8 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   countdownLink?: string | null
   referralLink?: string | null
   formattedWebinarTime?: string | null
+  formattedWebinarTimeLocal?: string | null
+  attendeeTimezoneLabel?: string | null
 }): Promise<boolean> {
   try {
     const registeredTagId = await resolveAttendanceTagId('registered')
@@ -515,18 +610,38 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
       time_zone: data.timezone || undefined,
       country: data.country || undefined,
       tag_ids: registeredTagId ? [registeredTagId] : undefined,
-      custom_attributes: {
-        webinar_id: data.webinarId,
-        webinar_title: data.webinarTitle,
-        registered_at: new Date().toISOString(),
-        scheduled_start_time: data.scheduledStartTime?.toISOString() || null,
-        // Add the three new fields here in custom_attributes
-        um_webinar_link: data.countdownLink || null,
-        personal_invite_link: data.referralLink || null,
-        webinar_time: data.formattedWebinarTime || null,
-        webinar_time_est: data.scheduledStartTime?.toISOString() || null,
-      }
+      custom_attributes: {}
     }
+
+    const customAttributes: Record<string, any> = {
+      webinar_id: data.webinarId,
+      webinar_title: data.webinarTitle,
+      registered_at: new Date().toISOString(),
+      scheduled_start_time: data.scheduledStartTime?.toISOString() || null,
+      webinar_time_est: data.formattedWebinarTime || data.scheduledStartTime?.toISOString() || null,
+    }
+
+    if (data.countdownLink) {
+      customAttributes['UM Webinar Link'] = data.countdownLink
+      customAttributes.um_webinar_link = data.countdownLink
+    }
+
+    if (data.referralLink) {
+      customAttributes['Personal Invite Link'] = data.referralLink
+      customAttributes.personal_invite_link = data.referralLink
+    }
+
+    if (data.formattedWebinarTimeLocal) {
+      customAttributes['Webinar Time'] = data.formattedWebinarTimeLocal
+      customAttributes.webinar_time = data.formattedWebinarTimeLocal
+    }
+
+    if (data.attendeeTimezoneLabel) {
+      customAttributes['Webinar Timezone'] = data.attendeeTimezoneLabel
+      customAttributes.webinar_timezone = data.attendeeTimezoneLabel
+    }
+
+    contactData.custom_attributes = customAttributes
 
     console.log('📤 Sending to ClickFunnels with custom_attributes:', {
       email: contactData.email_address,
@@ -593,6 +708,83 @@ export function determineAttendanceTags(data: {
   }
 
   return tags
+}
+
+/**
+ * Apply reminder tag to a contact in ClickFunnels
+ * Used for time-based reminder tags (24HRREMINDER, 2HRREMINDER, etc.)
+ */
+export async function applyReminderTagToContact(
+  email: string,
+  tagName: string
+): Promise<boolean> {
+  try {
+    console.log(`🏷️ Applying ClickFunnels reminder tag: ${tagName} to ${email}`)
+    
+    const success = await tagClickFunnelsContact(email, [tagName])
+    
+    if (success) {
+      console.log(`✅ Reminder tag "${tagName}" applied successfully`)
+    } else {
+      console.log(`⚠️ Failed to apply reminder tag "${tagName}"`)
+    }
+    
+    return success
+  } catch (error) {
+    console.error('❌ Error applying reminder tag:', error)
+    return false
+  }
+}
+
+/**
+ * Apply registration timing tag based on when user registered
+ * Tags are applied ONCE at registration time to trigger ClickFunnels automations
+ * 
+ * Logic:
+ * - 24+ hours before → 24HRREMINDER
+ * - 2-24 hours before → 2HRREMINDER
+ * - 1-2 hours before → 1HRREMINDER
+ * - 15min-1hr before → 15MINREMINDER
+ * - <15 min before → WESTARTED
+ */
+export async function applyRegistrationTimingTag(
+  email: string,
+  webinarStartTime: Date
+): Promise<{ success: boolean; tagApplied?: string }> {
+  try {
+    const now = new Date()
+    const hoursUntilWebinar = (webinarStartTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+    
+    let tagToApply: string
+    
+    if (hoursUntilWebinar >= 24) {
+      tagToApply = '24HRREMINDER'
+    } else if (hoursUntilWebinar >= 2) {
+      tagToApply = '2HRREMINDER'
+    } else if (hoursUntilWebinar >= 1) {
+      tagToApply = '1HRREMINDER'
+    } else if (hoursUntilWebinar >= 0.25) { // 15 minutes
+      tagToApply = '15MINREMINDER'
+    } else {
+      tagToApply = 'WESTARTED'
+    }
+    
+    console.log(`⏰ User registered ${hoursUntilWebinar.toFixed(2)} hours before webinar`)
+    console.log(`🏷️ Applying registration timing tag: ${tagToApply} to ${email}`)
+    
+    const success = await tagClickFunnelsContact(email, [tagToApply])
+    
+    if (success) {
+      console.log(`✅ Registration timing tag "${tagToApply}" applied successfully`)
+      return { success: true, tagApplied: tagToApply }
+    } else {
+      console.log(`⚠️ Failed to apply registration timing tag "${tagToApply}"`)
+      return { success: false }
+    }
+  } catch (error) {
+    console.error('❌ Error applying registration timing tag:', error)
+    return { success: false }
+  }
 }
 
 /**

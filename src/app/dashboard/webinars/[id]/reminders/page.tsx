@@ -1,0 +1,749 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import Link from 'next/link'
+import DashboardLayout from '@/components/dashboard/DashboardLayout'
+import { Button } from '@/components/ui/Button'
+import { Card, CardHeader, CardBody } from '@/components/ui/Card'
+import {
+  ArrowLeft,
+  Plus,
+  Edit,
+  Trash2,
+  Clock,
+  Mail,
+  MessageSquare,
+  Eye,
+  EyeOff,
+  Save,
+  X,
+  Loader2,
+  AlertCircle,
+  Bell,
+  Send,
+  CheckCircle2,
+  Copy,
+  Info
+} from 'lucide-react'
+
+interface ReminderTemplate {
+  id: string
+  webinarId: string
+  minutesBefore: number
+  channel: 'EMAIL' | 'SMS' | 'BOTH'
+  emailSubject: string
+  emailBody: string
+  smsBody?: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+  applyClickFunnelsTag: boolean
+  clickFunnelsTag?: string | null
+}
+
+interface Webinar {
+  id: string
+  title: string
+  slug?: string
+}
+
+export default function WebinarRemindersPage() {
+  const params = useParams()
+  const router = useRouter()
+  const [webinar, setWebinar] = useState<Webinar | null>(null)
+  const [reminders, setReminders] = useState<ReminderTemplate[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [showPlaceholders, setShowPlaceholders] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  // Form state
+  const [formData, setFormData] = useState({
+    minutesBefore: 1440, // 24 hours
+    channel: 'EMAIL' as 'EMAIL' | 'SMS' | 'BOTH',
+    emailSubject: '',
+    emailBody: '',
+    smsBody: '',
+    isActive: true,
+    applyClickFunnelsTag: false,
+    clickFunnelsTag: ''
+  })
+
+  useEffect(() => {
+    if (params.id) {
+      fetchWebinar()
+      fetchReminders()
+    }
+  }, [params.id])
+
+  const fetchWebinar = async () => {
+    try {
+      const response = await fetch(`/api/webinars/${params.id}`)
+      if (!response.ok) throw new Error('Failed to fetch webinar')
+      const data = await response.json()
+      setWebinar(data.webinar)
+    } catch (err: any) {
+      console.error('Fetch webinar error:', err)
+    }
+  }
+
+  const fetchReminders = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`/api/webinars/${params.id}/reminders`)
+      if (!response.ok) throw new Error('Failed to fetch reminders')
+      const data = await response.json()
+      const reminderList = Array.isArray(data) ? data : data.reminders || []
+      setReminders(reminderList)
+    } catch (err: any) {
+      setError(err.message)
+      console.error('Fetch reminders error:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSaving(true)
+    setError('')
+
+    try {
+      const url = editingId
+        ? `/api/webinars/${params.id}/reminders/${editingId}`
+        : `/api/webinars/${params.id}/reminders`
+
+      const response = await fetch(url, {
+        method: editingId ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save reminder')
+      }
+
+      await fetchReminders()
+      resetForm()
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleEdit = (reminder: ReminderTemplate) => {
+    setFormData({
+      minutesBefore: reminder.minutesBefore,
+      channel: reminder.channel,
+      emailSubject: reminder.emailSubject,
+      emailBody: reminder.emailBody,
+      smsBody: reminder.smsBody || '',
+      isActive: reminder.isActive,
+      applyClickFunnelsTag: reminder.applyClickFunnelsTag || false,
+      clickFunnelsTag: reminder.clickFunnelsTag || ''
+    })
+    setEditingId(reminder.id)
+    setShowForm(true)
+  }
+
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this reminder template?')) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/webinars/${params.id}/reminders/${id}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) throw new Error('Failed to delete reminder')
+      await fetchReminders()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleToggleActive = async (reminder: ReminderTemplate) => {
+    try {
+      const response = await fetch(`/api/webinars/${params.id}/reminders/${reminder.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !reminder.isActive })
+      })
+
+      if (!response.ok) throw new Error('Failed to update reminder')
+      await fetchReminders()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const resetForm = () => {
+    setFormData({
+      minutesBefore: 1440,
+      channel: 'EMAIL',
+      emailSubject: '',
+      emailBody: '',
+      smsBody: '',
+      isActive: true,
+      applyClickFunnelsTag: false,
+      clickFunnelsTag: ''
+    })
+    setEditingId(null)
+    setShowForm(false)
+  }
+
+  const formatMinutes = (minutes: number) => {
+    if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''}`
+    if (minutes < 1440) {
+      const hours = Math.floor(minutes / 60)
+      return `${hours} hour${hours !== 1 ? 's' : ''}`
+    }
+    const days = Math.floor(minutes / 1440)
+    return `${days} day${days !== 1 ? 's' : ''}`
+  }
+
+  const getPresetOptions = () => [
+    { label: '15 minutes before', value: 15 },
+    { label: '30 minutes before', value: 30 },
+    { label: '1 hour before', value: 60 },
+    { label: '2 hours before', value: 120 },
+    { label: '6 hours before', value: 360 },
+    { label: '12 hours before', value: 720 },
+    { label: '24 hours before', value: 1440 },
+    { label: '2 days before', value: 2880 },
+    { label: '3 days before', value: 4320 },
+    { label: '1 week before', value: 10080 },
+    { label: 'Custom', value: -1 }
+  ]
+
+  const insertPlaceholder = (placeholder: string) => {
+    const textarea = document.getElementById('emailBody') as HTMLTextAreaElement
+    if (!textarea) return
+
+    const start = textarea.selectionStart
+    const end = textarea.selectionEnd
+    const text = formData.emailBody
+    const before = text.substring(0, start)
+    const after = text.substring(end)
+
+    setFormData({
+      ...formData,
+      emailBody: before + placeholder + after
+    })
+
+    // Set cursor position after inserted text
+    setTimeout(() => {
+      textarea.focus()
+      textarea.setSelectionRange(start + placeholder.length, start + placeholder.length)
+    }, 0)
+  }
+
+  const copyPlaceholder = (placeholder: string) => {
+    navigator.clipboard.writeText(placeholder)
+  }
+
+  const placeholders = [
+    { name: 'Attendee Name', value: '{{name}}', description: 'Full name of the attendee' },
+    { name: 'Email', value: '{{email}}', description: 'Attendee email address' },
+    { name: 'Webinar Title', value: '{{webinarTitle}}', description: 'Name of the webinar' },
+    { name: 'Webinar Time', value: '{{webinarTime}}', description: 'Formatted time in user\'s timezone' },
+    { name: 'Countdown Link', value: '{{countdownLink}}', description: 'Link to countdown page' },
+    { name: 'Referral Link', value: '{{referralLink}}', description: 'User\'s unique referral link' },
+    { name: 'Timezone', value: '{{webinarTimezone}}', description: 'User\'s timezone' }
+  ]
+
+  const defaultTemplates = [
+    {
+      name: '24 Hours Before',
+      minutesBefore: 1440,
+      emailSubject: 'Tomorrow: {{webinarTitle}}',
+      emailBody: `<h2>Hi {{name}}!</h2>
+
+<p>Your webinar <strong>{{webinarTitle}}</strong> starts in 24 hours!</p>
+
+<p><strong>Time:</strong> {{webinarTime}}</p>
+
+<p><a href="{{countdownLink}}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Go to Countdown Page</a></p>
+
+<p>Invite friends and earn rewards:</p>
+<p><a href="{{referralLink}}">{{referralLink}}</a></p>
+
+<p>See you tomorrow!</p>`
+    },
+    {
+      name: '2 Hours Before',
+      minutesBefore: 120,
+      emailSubject: 'Starting Soon: {{webinarTitle}}',
+      emailBody: `<h2>Hi {{name}}!</h2>
+
+<p>Your webinar <strong>{{webinarTitle}}</strong> starts in just 2 hours!</p>
+
+<p><strong>Time:</strong> {{webinarTime}}</p>
+
+<p><a href="{{countdownLink}}" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Join Webinar</a></p>
+
+<p>Make sure you're ready!</p>`
+    },
+    {
+      name: '15 Minutes Before',
+      minutesBefore: 15,
+      emailSubject: 'Final Reminder: {{webinarTitle}} starts in 15 minutes!',
+      emailBody: `<h2>Hi {{name}}!</h2>
+
+<p><strong>{{webinarTitle}}</strong> starts in 15 minutes!</p>
+
+<p><a href="{{countdownLink}}" style="display: inline-block; padding: 16px 32px; background-color: #ef4444; color: white; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 18px;">JOIN NOW</a></p>
+
+<p>Don't miss out!</p>`
+    }
+  ]
+
+  const loadTemplate = (template: typeof defaultTemplates[0]) => {
+    setFormData({
+      ...formData,
+      minutesBefore: template.minutesBefore,
+      emailSubject: template.emailSubject,
+      emailBody: template.emailBody
+    })
+  }
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-screen">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  return (
+    <DashboardLayout>
+      <div className="max-w-6xl mx-auto">
+        {/* Header */}
+        <div className="mb-8">
+          <Link
+            href={`/dashboard/webinars/${params.id}`}
+            className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900 mb-4"
+          >
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Back to Webinar
+          </Link>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
+                <Bell className="h-8 w-8 text-blue-600" />
+                Email Reminders
+              </h1>
+              <p className="text-gray-600 mt-2">
+                {webinar?.title || 'Loading...'}
+              </p>
+            </div>
+            <Button onClick={() => setShowForm(!showForm)} className="flex items-center gap-2">
+              {showForm ? (
+                <>
+                  <X className="h-4 w-4" />
+                  Cancel
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4" />
+                  Add Reminder
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-start gap-3">
+            <AlertCircle className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Info Banner */}
+        <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-start gap-3">
+          <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+          <div className="text-sm">
+            <p className="font-medium mb-1">How reminders work:</p>
+            <ul className="list-disc list-inside space-y-1 text-blue-700">
+              <li>Reminders are automatically scheduled when someone registers</li>
+              <li>Only future reminders are sent (if someone registers 1 hour before, they won't get the 24-hour reminder)</li>
+              <li>Use placeholders to personalize emails (click the "Show Placeholders" button)</li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Form */}
+        {showForm && (
+          <Card className="mb-8">
+            <CardHeader>
+              <h2 className="text-xl font-semibold flex items-center gap-2">
+                <Mail className="h-5 w-5" />
+                {editingId ? 'Edit Reminder' : 'Create New Reminder'}
+              </h2>
+            </CardHeader>
+            <CardBody>
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {/* Timing */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Send reminder
+                  </label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <select
+                      value={formData.minutesBefore}
+                      onChange={(e) => setFormData({ ...formData, minutesBefore: parseInt(e.target.value) })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      {getPresetOptions().map(option => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    {formData.minutesBefore === -1 && (
+                      <input
+                        type="number"
+                        min="1"
+                        placeholder="Minutes"
+                        onChange={(e) => setFormData({ ...formData, minutesBefore: parseInt(e.target.value) || 0 })}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-500 mt-1">
+                    This reminder will be sent {formatMinutes(formData.minutesBefore)} before the webinar starts
+                  </p>
+                </div>
+
+                {/* Default Templates */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quick Templates
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {defaultTemplates.map((template, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => loadTemplate(template)}
+                        className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
+                      >
+                        {template.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Email Subject */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Subject
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.emailSubject}
+                    onChange={(e) => setFormData({ ...formData, emailSubject: e.target.value })}
+                    placeholder="Your webinar starts soon!"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+
+                {/* Placeholders Helper */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPlaceholders(!showPlaceholders)}
+                    className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2"
+                  >
+                    {showPlaceholders ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPlaceholders ? 'Hide' : 'Show'} Placeholders
+                  </button>
+
+                  {showPlaceholders && (
+                    <div className="mt-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <p className="text-sm font-medium text-gray-700 mb-3">Available Placeholders:</p>
+                      <div className="grid grid-cols-2 gap-3">
+                        {placeholders.map((ph, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <div className="flex-1">
+                              <code className="text-xs bg-white px-2 py-1 rounded border border-gray-300 text-blue-600 font-mono">
+                                {ph.value}
+                              </code>
+                              <p className="text-xs text-gray-600 mt-1">{ph.description}</p>
+                            </div>
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => insertPlaceholder(ph.value)}
+                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Insert into email"
+                              >
+                                <Send className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => copyPlaceholder(ph.value)}
+                                className="p-1 text-gray-400 hover:text-blue-600 transition-colors"
+                                title="Copy to clipboard"
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Email Body */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Email Body (HTML)
+                  </label>
+                  <textarea
+                    id="emailBody"
+                    value={formData.emailBody}
+                    onChange={(e) => setFormData({ ...formData, emailBody: e.target.value })}
+                    rows={12}
+                    placeholder="<h2>Hi {{name}}!</h2>&#10;<p>Your webinar starts soon...</p>"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    required
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    You can use HTML tags for formatting. Click placeholders above to insert them.
+                  </p>
+                </div>
+
+                {/* Active Status */}
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    id="isActive"
+                    checked={formData.isActive}
+                    onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <label htmlFor="isActive" className="text-sm font-medium text-gray-700">
+                    Active (start sending this reminder immediately)
+                  </label>
+                </div>
+
+                {/* ClickFunnels Integration */}
+                <div className="border-t border-gray-200 pt-6">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4" />
+                    ClickFunnels Integration (Optional)
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    {/* Enable ClickFunnels Tag */}
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        id="applyClickFunnelsTag"
+                        checked={formData.applyClickFunnelsTag}
+                        onChange={(e) => setFormData({ ...formData, applyClickFunnelsTag: e.target.checked })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      />
+                      <label htmlFor="applyClickFunnelsTag" className="text-sm font-medium text-gray-700">
+                        Apply ClickFunnels tag when reminder is sent
+                      </label>
+                    </div>
+
+                    {formData.applyClickFunnelsTag && (
+                      <>
+                        {/* Preset Tag Buttons */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quick Tag Selection
+                          </label>
+                          <div className="flex flex-wrap gap-2">
+                            {[
+                              { label: '24 Hour', value: '24HRREMINDER' },
+                              { label: '2 Hour', value: '2HRREMINDER' },
+                              { label: '1 Hour', value: '1HRREMINDER' },
+                              { label: '15 Minute', value: '15MINREMINDER' },
+                              { label: 'We Started', value: 'WESTARTED' }
+                            ].map((tag) => (
+                              <button
+                                key={tag.value}
+                                type="button"
+                                onClick={() => setFormData({ ...formData, clickFunnelsTag: tag.value })}
+                                className={`px-3 py-1.5 text-sm border rounded-lg transition-colors ${
+                                  formData.clickFunnelsTag === tag.value
+                                    ? 'bg-blue-500 text-white border-blue-500'
+                                    : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                }`}
+                              >
+                                {tag.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Custom Tag Input */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            ClickFunnels Tag Name
+                          </label>
+                          <input
+                            type="text"
+                            value={formData.clickFunnelsTag}
+                            onChange={(e) => setFormData({ ...formData, clickFunnelsTag: e.target.value.toUpperCase() })}
+                            placeholder="e.g., 24HRREMINDER, WESTARTED"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent uppercase"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            This tag will be applied to the contact in ClickFunnels when the reminder is sent
+                          </p>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex items-center gap-3 pt-4">
+                  <Button
+                    type="submit"
+                    disabled={saving}
+                    className="flex items-center gap-2"
+                  >
+                    {saving ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4" />
+                        {editingId ? 'Update Reminder' : 'Create Reminder'}
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={resetForm}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            </CardBody>
+          </Card>
+        )}
+
+        {/* Reminders List */}
+        <div className="space-y-4">
+          {reminders.length === 0 ? (
+            <Card>
+              <CardBody>
+                <div className="text-center py-12">
+                  <Bell className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">
+                    No reminders yet
+                  </h3>
+                  <p className="text-gray-600 mb-6">
+                    Create your first reminder to start sending automated emails to attendees.
+                  </p>
+                  <Button onClick={() => setShowForm(true)} className="flex items-center gap-2 mx-auto">
+                    <Plus className="h-4 w-4" />
+                    Create First Reminder
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
+          ) : (
+            <>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Active Reminders ({reminders.filter(r => r.isActive).length} of {reminders.length})
+              </h3>
+              {reminders.map((reminder) => (
+                <Card key={reminder.id} className={!reminder.isActive ? 'opacity-60' : ''}>
+                  <CardBody>
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-3 mb-2 flex-wrap">
+                          <div className={`flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${
+                            reminder.isActive 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            <Clock className="h-4 w-4" />
+                            {formatMinutes(reminder.minutesBefore)} before
+                          </div>
+                          {reminder.isActive ? (
+                            <span className="flex items-center gap-1 text-sm text-green-600">
+                              <CheckCircle2 className="h-4 w-4" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="text-sm text-gray-500">Inactive</span>
+                          )}
+                          {reminder.applyClickFunnelsTag && reminder.clickFunnelsTag && (
+                            <div className="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-800">
+                              <MessageSquare className="h-4 w-4" />
+                              CF Tag: {reminder.clickFunnelsTag}
+                            </div>
+                          )}
+                        </div>
+                        <h4 className="text-lg font-semibold text-gray-900 mb-2">
+                          {reminder.emailSubject}
+                        </h4>
+                        <div className="prose prose-sm max-w-none text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200">
+                          <div dangerouslySetInnerHTML={{ __html: reminder.emailBody.substring(0, 200) + (reminder.emailBody.length > 200 ? '...' : '') }} />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Updated {new Date(reminder.updatedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <button
+                          onClick={() => handleToggleActive(reminder)}
+                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                          title={reminder.isActive ? 'Deactivate' : 'Activate'}
+                        >
+                          {reminder.isActive ? (
+                            <EyeOff className="h-5 w-5" />
+                          ) : (
+                            <Eye className="h-5 w-5" />
+                          )}
+                        </button>
+                        <button
+                          onClick={() => handleEdit(reminder)}
+                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="h-5 w-5" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(reminder.id)}
+                          className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="h-5 w-5" />
+                        </button>
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </>
+          )}
+        </div>
+      </div>
+    </DashboardLayout>
+  )
+}

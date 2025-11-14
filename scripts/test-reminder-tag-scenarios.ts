@@ -1,0 +1,1 @@
+on registering I am getting an error saying Registration failed

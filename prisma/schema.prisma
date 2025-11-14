@@ -153,6 +153,9 @@ model Webinar {
   // AI Assistant Relations
   programDocuments ProgramDocument[] // Knowledge base for AI
   aiChatConfig     AIChatConfig?     // AI configuration
+  
+  // Reminder System
+  reminderTemplates WebinarReminderTemplate[] // Reminder templates for this webinar
 
   @@map("webinars")
 }
@@ -306,6 +309,10 @@ model Registration {
   chatMessages ChatMessage[]     // Chat messages sent by this registered attendee
   reactions    Reaction[]        // Reactions sent by this registered attendee
   sales        WebinarSale[]
+  
+  // Reminder System
+  reminders    WebinarReminderSent[] // Reminders sent to this registration
+  clickFunnelsReminderTags ClickFunnelsReminderTag[]
 
   @@index([email])
   @@index([webinarId])
@@ -831,4 +838,114 @@ model Image {
 
   @@index([uploadedBy])
   @@map("images")
+}
+
+// Webinar Reminder System
+enum ReminderStatus {
+  PENDING    // Not sent yet
+  SENT       // Successfully sent
+  FAILED     // Failed to send
+  CANCELLED  // Cancelled (e.g., user unregistered)
+  SKIPPED    // Skipped because webinar time has passed
+}
+
+enum ReminderChannel {
+  EMAIL
+  SMS
+  BOTH
+}
+
+// Template for reminder timing (e.g., "24 hours before", "2 hours before")
+model WebinarReminderTemplate {
+  id          String   @id @default(cuid())
+  webinarId   String
+  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  
+  // Timing
+  minutesBefore Int     // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
+  
+  // Channels
+  channel     ReminderChannel @default(EMAIL)
+  
+  // Email content
+  emailSubject String  @default("Your webinar starts soon!")
+  emailBody    String  @db.Text // Can use placeholders: {{name}}, {{webinarTitle}}, {{countdownLink}}, {{referralLink}}, {{webinarTime}}
+  
+  // SMS content (for future)
+  smsBody      String? @db.Text
+  
+  // ClickFunnels Integration
+  clickFunnelsTag String? // Tag to apply in ClickFunnels (e.g., "24HRREMINDER", "2HRREMINDER")
+  applyClickFunnelsTag Boolean @default(false) // Whether to apply ClickFunnels tag
+  
+  // Status
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  sentReminders WebinarReminderSent[]
+  
+  @@index([webinarId])
+  @@index([minutesBefore])
+  @@map("webinar_reminder_templates")
+}
+
+// Individual reminder sent to a specific registration
+model WebinarReminderSent {
+  id             String   @id @default(cuid())
+  
+  // Links to template and registration
+  templateId     String
+  template       WebinarReminderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  
+  // Timing
+  scheduledFor   DateTime  // When this reminder should be sent
+  sentAt         DateTime? // When it was actually sent
+  
+  // Status
+  status         ReminderStatus @default(PENDING)
+  channel        ReminderChannel
+  
+  // Error tracking
+  errorMessage   String?   @db.Text
+  retryCount     Int       @default(0)
+  lastRetryAt    DateTime?
+  
+  // Email/SMS details
+  emailSentTo    String?   // Email address it was sent to
+  smsSentTo      String?   // Phone number it was sent to
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  @@index([registrationId])
+  @@index([templateId])
+  @@index([scheduledFor])
+  @@index([status])
+  @@index([status, scheduledFor]) // For efficient querying of pending reminders
+  @@map("webinar_reminders_sent")
+}
+
+model ClickFunnelsReminderTag {
+  id             String   @id @default(cuid())
+  registrationId String
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  tagName        String
+  scheduledFor   DateTime
+  status         ReminderStatus @default(PENDING)
+  appliedAt      DateTime?
+  attempts       Int      @default(0)
+  errorMessage   String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([registrationId])
+  @@index([status, scheduledFor])
+  @@unique([registrationId, tagName])
+  @@map("clickfunnels_reminder_tags")
 }

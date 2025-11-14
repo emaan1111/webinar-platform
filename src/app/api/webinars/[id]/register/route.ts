@@ -2,8 +2,17 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
+import { scheduleDelayedClickFunnelsTag } from '@/lib/clickfunnelsReminderTags'
 import { generateReferralCode } from '@/lib/referral'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
+
+const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
+  Promise.resolve()
+    .then(task)
+    .catch(error => {
+      console.error(`⚠️ ${label} failed (non-blocking):`, error)
+    })
+}
 
 // POST /api/webinars/[id]/register - Public registration endpoint
 export async function POST(
@@ -51,6 +60,7 @@ export async function POST(
       select: {
         id: true,
         title: true,
+        slug: true,
         enableABTesting: true,
         trafficSplitPercent: true,
       }
@@ -137,61 +147,73 @@ export async function POST(
     // Get referer URL
     const referer = request.headers.get('referer') || undefined
 
-    // Send event to Facebook Conversions API (async - don't block response)
-    sendFacebookRegistration({
-      email: registration.email,
-      name: registration.name,
-      phone: registration.phone || undefined,
-      ipAddress,
-      userAgent,
-      fbc,
-      fbp,
-      eventSourceUrl: referer,
-      webinarId: webinar.id,
-      webinarTitle: webinar.title,
-      registrationId: registration.id,
-      value: 0, // You can set a value for conversion tracking
-      currency: 'USD'
-    }).catch(error => {
-      console.error('⚠️ Facebook Conversions API failed (non-blocking):', error)
-    })
-
-    // Get webinar slug for building links
-    const webinarData = await prisma.webinar.findUnique({
-      where: { id },
-      select: { slug: true }
-    })
+    // Send event to Facebook Conversions API in the background
+    runInBackground('Facebook Conversions API', () =>
+      sendFacebookRegistration({
+        email: registration.email,
+        name: registration.name,
+        phone: registration.phone || undefined,
+        ipAddress,
+        userAgent,
+        fbc,
+        fbp,
+        eventSourceUrl: referer,
+        webinarId: webinar.id,
+        webinarTitle: webinar.title,
+        registrationId: registration.id,
+        value: 0,
+        currency: 'USD'
+      })
+    )
 
     // Build countdown page link
     const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com'
-    const countdownLink = webinarData?.slug 
-      ? `${baseUrl}/countdown/${webinarData.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
+    const countdownLink = webinar.slug 
+      ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
       : null
 
     // Build referral link
-    const referralLink = webinarData?.slug
-      ? `${baseUrl}/w/${webinarData.slug}?ref=${uniqueReferralCode}`
+    const referralLink = webinar.slug
+      ? `${baseUrl}/w/${webinar.slug}?ref=${uniqueReferralCode}`
       : null
 
-    // Format scheduled time in US/Eastern timezone (human readable)
+    // Format scheduled time in US/Eastern timezone and attendee timezone
+    const formatInTimezone = (date: Date, timeZone: string) => {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        dateStyle: 'full',
+        timeStyle: 'long'
+      }).format(date)
+    }
+
     let formattedWebinarTime: string | null = null
-    let webinarTimeEST: Date | null = null
-    
+    let formattedLocalWebinarTime: string | null = null
+    let attendeeTimezoneLabel: string | null = null
     if (registration.scheduledStartTime) {
       try {
-        // Human-readable format for webinar_time field
-        const easternTime = new Intl.DateTimeFormat('en-US', {
-          timeZone: 'America/New_York',
-          dateStyle: 'full',
-          timeStyle: 'long'
-        }).format(new Date(registration.scheduledStartTime))
-        formattedWebinarTime = easternTime
-        
-        // For webinar_time_est: send as Date object (will be converted to ISO by ClickFunnels)
-        webinarTimeEST = new Date(registration.scheduledStartTime)
+        formattedWebinarTime = formatInTimezone(new Date(registration.scheduledStartTime), 'America/New_York')
       } catch (error) {
         console.error('Failed to format time for EST:', error)
       }
+
+      const attendeeTimezone = registration.timezone || timezone
+      if (attendeeTimezone) {
+        try {
+          const userTime = formatInTimezone(new Date(registration.scheduledStartTime), attendeeTimezone)
+          const [region, city] = attendeeTimezone.split('/')
+          const cityLabel = city?.replace(/_/g, ' ') || attendeeTimezone
+          const regionLabel = region?.replace(/_/g, ' ')
+          attendeeTimezoneLabel = regionLabel ? `${cityLabel}, ${regionLabel}` : cityLabel
+          formattedLocalWebinarTime = `${userTime}${attendeeTimezoneLabel ? ` (${attendeeTimezoneLabel})` : ''}`
+        } catch (error) {
+          console.error('Failed to format attendee timezone time:', error)
+        }
+      }
+    }
+
+    // Fallback to EST time when attendee timezone formatting fails
+    if (!formattedLocalWebinarTime && formattedWebinarTime) {
+      formattedLocalWebinarTime = formattedWebinarTime
     }
 
     // Log the generated links for debugging
@@ -200,29 +222,55 @@ export async function POST(
       referralLink,
       formattedWebinarTime,
       baseUrl,
-      slug: webinarData?.slug,
+      slug: webinar.slug,
       registrationId: registration.id,
       scheduleId,
       uniqueReferralCode
     })
 
-    // Sync to ClickFunnels (async - don't block response)
-    syncWebinarRegistrationToClickFunnels({
-      name: registration.name,
-      email: registration.email,
-      phone: registration.phone,
-      timezone: registration.timezone,
-      country: registration.country,
-      webinarId: webinar.id,
-      webinarTitle: webinar.title,
-      scheduledStartTime: registration.scheduledStartTime,
-      countdownLink: countdownLink,
-      referralLink: referralLink,
-      formattedWebinarTime: formattedWebinarTime,
-      webinarTimeEST: webinarTimeEST,
-    }).catch(error => {
-      console.error('⚠️ ClickFunnels sync failed (non-blocking):', error)
-    })
+    // Sync to ClickFunnels (background)
+    runInBackground('ClickFunnels sync', () =>
+      syncWebinarRegistrationToClickFunnels({
+        name: registration.name,
+        email: registration.email,
+        phone: registration.phone,
+        timezone: registration.timezone,
+        country: registration.country,
+        webinarId: webinar.id,
+        webinarTitle: webinar.title,
+        scheduledStartTime: registration.scheduledStartTime,
+        countdownLink: countdownLink,
+        referralLink: referralLink,
+        formattedWebinarTime: formattedWebinarTime,
+        formattedWebinarTimeLocal: formattedLocalWebinarTime,
+        attendeeTimezoneLabel
+      })
+    )
+
+    // Apply or schedule ClickFunnels reminder tags based on timing
+    if (registration.scheduledStartTime) {
+      const webinarStart = new Date(registration.scheduledStartTime)
+      const hoursUntilWebinar =
+        (webinarStart.getTime() - Date.now()) / (1000 * 60 * 60)
+
+      if (hoursUntilWebinar > 24) {
+        runInBackground('Schedule ClickFunnels 24HR reminder tag', () =>
+          scheduleDelayedClickFunnelsTag({
+            registrationId: registration.id,
+            tagName: '24HRREMINDER',
+            scheduledFor: new Date(webinarStart.getTime() - 24 * 60 * 60 * 1000)
+          })
+        )
+      } else {
+        runInBackground('Apply ClickFunnels registration timing tag', async () => {
+          const { applyRegistrationTimingTag } = await import('@/lib/clickfunnels')
+          const result = await applyRegistrationTimingTag(registration.email, webinarStart)
+          if (result.success) {
+            console.log(`✅ Registration timing tag applied: ${result.tagApplied}`)
+          }
+        })
+      }
+    }
 
     // TODO: Send confirmation email
     // TODO: Send calendar invite

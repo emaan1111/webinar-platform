@@ -34,8 +34,7 @@ async function createAdminUser() {
         email: 'ariba.farheen@gmail.com',
         name: 'Ariba Farheen',
         password: hashedPassword,
-        role: 'ADMIN',
-        emailVerified: new Date() // Mark as verified
+        role: 'ADMIN'
       }
     });
     

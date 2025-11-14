@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { scheduleDelayedClickFunnelsTag } from '@/lib/clickfunnelsReminderTags';
 
 /**
  * ClickFunnels 2.0 Webhook Integration
@@ -166,6 +167,34 @@ export async function POST(request: NextRequest) {
     });
 
     console.log('Registration created:', registration.id);
+
+    if (registration.scheduledStartTime) {
+      const webinarStart = new Date(registration.scheduledStartTime)
+      const hoursUntilWebinar =
+        (webinarStart.getTime() - Date.now()) / (1000 * 60 * 60)
+
+      if (hoursUntilWebinar > 24) {
+        scheduleDelayedClickFunnelsTag({
+          registrationId: registration.id,
+          tagName: '24HRREMINDER',
+          scheduledFor: new Date(webinarStart.getTime() - 24 * 60 * 60 * 1000)
+        }).catch((error) => {
+          console.error('⚠️ Failed to schedule ClickFunnels 24HR tag (CF webhook):', error)
+        })
+      } else {
+        import('@/lib/clickfunnels').then(({ applyRegistrationTimingTag }) => {
+          applyRegistrationTimingTag(registration.email, webinarStart)
+            .then((result) => {
+              if (result.success) {
+                console.log(`✅ Registration timing tag applied for ${registration.email}`)
+              }
+            })
+            .catch((error: any) => {
+              console.error('⚠️ Failed to apply registration timing tag (non-blocking):', error)
+            })
+        })
+      }
+    }
 
     // Track the page visit for analytics
     const visitorId = `cf_${contact.id}`;

@@ -1,0 +1,16 @@
+
+> webinar-platform@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.15
+  - Local:        http://localhost:3000
+  - Environments: .env
+
+ ✓ Starting...
+ ✓ Ready in 8.3s
+ ○ Compiling /api/webinars/public/[slug] ...
+ ✓ Compiled /api/webinars/public/[slug] in 3.3s (56 modules)
+🔗 Prisma connecting to: postgresql://postgres:PGROlPewsCXdLjtvRxwAestaVJGldXmb@gondola.proxy.rlwy.net:24954/railway
+🔗 Prisma connecting to: postgresql://postgres:PGROlPewsCXdLjtvRxwAestaVJGldXmb@gondola.proxy.rlwy.net:24954/railway
+ GET /api/webinars/public/loveislam 200 in 9858ms
+[?25h
