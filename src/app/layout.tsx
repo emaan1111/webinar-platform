@@ -10,6 +10,10 @@ export const metadata: Metadata = {
   description: 'Professional webinar platform with live streaming, community features, and analytics',
 }
 
+// Force dynamic rendering for all pages (prevents build-time database access)
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export default function RootLayout({
   children,
 }: {
