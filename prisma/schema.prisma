@@ -184,6 +184,10 @@ model WebinarSchedule {
   // For recurring schedules
   recurringPattern String? // JSON: { interval: "daily"|"weekly"|"monthly", time: "14:00", daysOfWeek: [1,3,5] }
 
+  // Zoom Integration (for specific date schedules)
+  isZoomSession Boolean @default(false) // If true, this is a live Zoom session instead of simulated
+  zoomLink      String? // Zoom meeting link for live sessions
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

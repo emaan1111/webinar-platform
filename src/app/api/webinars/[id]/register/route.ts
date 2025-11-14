@@ -143,6 +143,18 @@ export async function POST(
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
 
+    // Get schedule data if scheduleId provided (to check for Zoom link)
+    let schedule = null
+    if (scheduleId) {
+      schedule = await prisma.webinarSchedule.findUnique({
+        where: { id: scheduleId },
+        select: {
+          isZoomSession: true,
+          zoomLink: true,
+        }
+      })
+    }
+
     // Get IP address and user agent from request headers
     const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
                      request.headers.get('x-real-ip') || 
@@ -250,7 +262,9 @@ export async function POST(
         referralLink: referralLink,
         formattedWebinarTime: formattedWebinarTime,
         formattedWebinarTimeLocal: formattedLocalWebinarTime,
-        attendeeTimezoneLabel
+        attendeeTimezoneLabel,
+        zoomLink: schedule?.zoomLink || undefined,
+        isZoomSession: schedule?.isZoomSession || false,
       })
     )
 

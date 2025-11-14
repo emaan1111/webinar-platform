@@ -597,6 +597,8 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   formattedWebinarTime?: string | null
   formattedWebinarTimeLocal?: string | null
   attendeeTimezoneLabel?: string | null
+  zoomLink?: string | null // Zoom meeting link for live sessions
+  isZoomSession?: boolean  // Whether this is a Zoom session
 }): Promise<boolean> {
   try {
     const registeredTagId = await resolveAttendanceTagId('registered')
@@ -626,9 +628,15 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
       webinar_time_est: data.formattedWebinarTime || data.scheduledStartTime?.toISOString() || null,
     }
 
-    if (data.countdownLink) {
+    // Use Zoom link if this is a Zoom session, otherwise use countdown link
+    if (data.isZoomSession && data.zoomLink) {
+      customAttributes['UM Webinar Link'] = data.zoomLink
+      customAttributes.um_webinar_link = data.zoomLink
+      customAttributes.is_zoom_session = true
+    } else if (data.countdownLink) {
       customAttributes['UM Webinar Link'] = data.countdownLink
       customAttributes.um_webinar_link = data.countdownLink
+      customAttributes.is_zoom_session = false
     }
 
     if (data.referralLink) {

@@ -16,6 +16,19 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
     include: {
       host: { select: { name: true, email: true } },
       schedules: {
+        select: {
+          id: true,
+          scheduleType: true,
+          scheduledAt: true,
+          timezone: true,
+          useUserTimezone: true,
+          minutesFromReg: true,
+          recurringPattern: true,
+          isActive: true,
+          createdAt: true,
+          isZoomSession: true,  // NEW
+          zoomLink: true,        // NEW
+        },
         orderBy: {
           createdAt: 'asc'
         }
@@ -594,9 +607,17 @@ export default async function CountdownPage({ params, searchParams }: PageProps)
         scheduledTime: data.scheduleDateTime.toISOString(),
         currentTime: now.toISOString(),
         minutesLate: Math.abs(timeUntilStart / 1000 / 60).toFixed(2),
+        isZoomSession: data.schedule?.isZoomSession,
+        hasZoomLink: !!data.schedule?.zoomLink,
       })
       
-      // Build redirect URL with registration and schedule parameters
+      // If this is a Zoom session, redirect to Zoom link
+      if (data.schedule?.isZoomSession && data.schedule?.zoomLink) {
+        console.log('🔗 [Countdown] Redirecting to Zoom:', data.schedule.zoomLink)
+        redirect(data.schedule.zoomLink)
+      }
+      
+      // Otherwise, build redirect URL to simulated webinar room
       const joinLinkParams = new URLSearchParams()
       if (data.registrationId) {
         joinLinkParams.set('r', data.registrationId)
