@@ -113,6 +113,12 @@ export async function POST(
     // Note: Allowing multiple registrations per email
     // Users can register multiple times for the same webinar with the same email
     
+    // Detect device from user agent
+    const userAgentHeader = request.headers.get('user-agent') || '';
+    const registrationDevice = userAgentHeader.includes('Mobile') || userAgentHeader.includes('Android') || userAgentHeader.includes('iPhone') 
+      ? 'mobile' 
+      : 'desktop';
+
     // Create registration
     const registration = await prisma.registration.create({
       data: {
@@ -130,7 +136,8 @@ export async function POST(
         testGroup: testGroup, // Store test group for A/B testing
         referralCode: uniqueReferralCode, // Their unique code to share
         referredBy: referredBy, // Who referred them
-        registeredAt: new Date()
+        registeredAt: new Date(),
+        registrationDevice, // Track device used for registration
       }
     })
 

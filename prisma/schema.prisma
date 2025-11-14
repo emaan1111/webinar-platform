@@ -296,6 +296,13 @@ model Registration {
   firstJoinedAt      DateTime? // First time they ever joined (never changes, for grace period)
   leftAt             DateTime?
 
+  // Replay Tracking
+  watchedReplay      Boolean   @default(false) // Has watched replay
+  replayWatchTime    Int       @default(0)     // Total seconds watched in replay
+  replayClickedCTA   Boolean   @default(false) // Clicked CTA during replay
+  replayDevice       String?   // Device used for replay: "mobile" | "desktop"
+  registrationDevice String?   // Device used during registration
+
   // A/B Testing
   testGroup String? // "A" or "B" - which test group they were in
 

@@ -120,6 +120,30 @@ export async function POST(request: NextRequest) {
       });
       const isReplaySession = !!replayPageVisit;
 
+      // Check if user clicked CTA during this session
+      const offerClicked = await prisma.offerAnalytics.findFirst({
+        where: {
+          registrationId: registrationId,
+          clickedOffer: true,
+          clickedOfferAt: {
+            gte: session.joinedAt, // During this session
+          },
+        },
+      });
+
+      // Update registration with replay data
+      if (isReplaySession) {
+        await prisma.registration.update({
+          where: { id: registrationId },
+          data: {
+            watchedReplay: true,
+            replayWatchTime: updatedSession.totalWatchTime,
+            replayClickedCTA: !!offerClicked,
+            replayDevice: updatedSession.device || undefined,
+          },
+        });
+      }
+
       // Sync attendance to ClickFunnels asynchronously
       // Don't await - let it run in background
       const webinarDuration = registration.webinar.duration ? registration.webinar.duration * 60 : 3600; // Convert minutes to seconds
