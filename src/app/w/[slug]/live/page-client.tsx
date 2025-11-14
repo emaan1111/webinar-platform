@@ -1599,9 +1599,9 @@ export default function WebinarLiveClient({
                 </div>
               )}
 
-              {/* Red CTA Button in Top-Right Corner - show when offer is active */}
+              {/* Red CTA Button in Top-Left Corner - show when offer is active */}
               {webinar.hasOffers !== false && offerContent && broadcastStarted && (
-                <div className={styles.videoTopRightCTA}>
+                <div className={styles.videoTopLeftCTA}>
                   <button
                     type="button"
                     className={styles.videoCtaButton}
