@@ -2,6 +2,9 @@
 const nextConfig = {
   reactStrictMode: true,
   
+  // Skip static page generation during build (fixes Railway build issues)
+  output: 'standalone',
+  
   // Performance optimizations
   swcMinify: true,
   compiler: {
