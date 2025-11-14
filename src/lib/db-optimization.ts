@@ -40,7 +40,6 @@ export async function getWebinarWithRelations(webinarId: string) {
         select: {
           registrations: true,
           schedules: true,
-          attendeeAnalytics: true,
         },
       },
     },
@@ -64,13 +63,13 @@ export async function getRegistrationsPaginated(
         id: true,
         name: true,
         email: true,
-        createdAt: true,
+        registeredAt: true,
         attended: true,
         timezone: true,
       },
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { registeredAt: 'desc' },
     }),
     prisma.registration.count({ where: { webinarId } }),
   ])
@@ -88,7 +87,7 @@ export async function getRegistrationsPaginated(
  * Avoids multiple database round trips
  */
 export async function getWebinarStats(webinarIds: string[]) {
-  const [registrations, attendees, analytics] = await Promise.all([
+  const [registrations, attendees, sessions] = await Promise.all([
     prisma.registration.groupBy({
       by: ['webinarId'],
       where: { webinarId: { in: webinarIds } },
@@ -99,20 +98,20 @@ export async function getWebinarStats(webinarIds: string[]) {
       where: { webinarId: { in: webinarIds }, attended: true },
       _count: true,
     }),
-    prisma.attendeeAnalytics.groupBy({
+    prisma.attendeeSession.groupBy({
       by: ['webinarId'],
       where: { webinarId: { in: webinarIds } },
-      _sum: { watchTimeSeconds: true },
-      _avg: { watchTimeSeconds: true },
+      _sum: { totalWatchTime: true },
+      _avg: { totalWatchTime: true },
     }),
   ])
 
   return webinarIds.map((id) => ({
     webinarId: id,
-    totalRegistrations: registrations.find((r) => r.webinarId === id)?._count || 0,
-    totalAttendees: attendees.find((a) => a.webinarId === id)?._count || 0,
-    totalWatchTime: analytics.find((a) => a.webinarId === id)?._sum.watchTimeSeconds || 0,
-    avgWatchTime: analytics.find((a) => a.webinarId === id)?._avg.watchTimeSeconds || 0,
+    totalRegistrations: registrations.find((r: any) => r.webinarId === id)?._count || 0,
+    totalAttendees: attendees.find((a: any) => a.webinarId === id)?._count || 0,
+    totalWatchTime: sessions.find((s: any) => s.webinarId === id)?._sum.totalWatchTime || 0,
+    avgWatchTime: sessions.find((s: any) => s.webinarId === id)?._avg.totalWatchTime || 0,
   }))
 }
 
