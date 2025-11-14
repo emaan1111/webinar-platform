@@ -222,7 +222,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
 
     let idleId: number | null = null
-    let timeoutId: number | null = null
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
 
     if ('requestIdleCallback' in window) {
       idleId = (window as any).requestIdleCallback(() => {
