@@ -447,20 +447,86 @@ export default function WebinarReplayClient({
   useEffect(() => {
     if (!viewer?.id || !webinar.id) return;
 
+    const device = window.innerWidth <= 768 ? 'mobile' : 'desktop';
+
     trackerRef.current = new WebinarTracker(
       viewer.id,
       webinar.id,
       null
     );
 
-    trackerRef.current.startSession('desktop'); // Simplified for replay
+    trackerRef.current.startSession(device);
+
+    // Track page entry
+    const visitorId = localStorage.getItem('visitorId');
+    WebinarTracker.trackPageVisit(
+      webinar.id,
+      'replay',
+      'enter',
+      viewer.id,
+      undefined,
+      visitorId || undefined
+    );
+
+    console.log('[Analytics] Replay tracking initialized for viewer:', viewer.email);
 
     return () => {
       if (trackerRef.current) {
         trackerRef.current.endSession();
+        const visitorId = localStorage.getItem('visitorId');
+        WebinarTracker.trackPageVisit(
+          webinar.id,
+          'replay',
+          'leave',
+          viewer.id,
+          undefined,
+          visitorId || undefined
+        );
       }
     };
   }, [viewer?.id, webinar.id]);
+
+  // Track watch time updates
+  useEffect(() => {
+    if (!trackerRef.current) return;
+
+    const interval = setInterval(() => {
+      if (trackerRef.current && isPlaying && !document.hidden) {
+        trackerRef.current.updateWatchTime(elapsedSeconds, true);
+      }
+    }, 10000); // Update every 10 seconds
+
+    return () => clearInterval(interval);
+  }, [isPlaying, elapsedSeconds]);
+
+  // Track video events
+  useEffect(() => {
+    if (!trackerRef.current || !vimeoPlayerRef.current) return;
+
+    const handlePlay = () => {
+      trackerRef.current?.trackVideoEvent('play', elapsedSeconds);
+    };
+
+    const handlePause = () => {
+      trackerRef.current?.trackVideoEvent('pause', elapsedSeconds);
+    };
+
+    const handleEnded = () => {
+      trackerRef.current?.trackVideoEvent('ended', elapsedSeconds);
+    };
+
+    vimeoPlayerRef.current.on('play', handlePlay);
+    vimeoPlayerRef.current.on('pause', handlePause);
+    vimeoPlayerRef.current.on('ended', handleEnded);
+
+    return () => {
+      if (vimeoPlayerRef.current) {
+        vimeoPlayerRef.current.off('play', handlePlay);
+        vimeoPlayerRef.current.off('pause', handlePause);
+        vimeoPlayerRef.current.off('ended', handleEnded);
+      }
+    };
+  }, [elapsedSeconds]);
 
   // Mark as mounted
   useEffect(() => {

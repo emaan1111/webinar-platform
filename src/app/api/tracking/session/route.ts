@@ -111,6 +111,15 @@ export async function POST(request: NextRequest) {
         }
       });
 
+      // Check if this is a replay session by looking at page visits
+      const replayPageVisit = await prisma.pageVisit.findFirst({
+        where: {
+          sessionId: session.id,
+          pageType: 'replay',
+        },
+      });
+      const isReplaySession = !!replayPageVisit;
+
       // Sync attendance to ClickFunnels asynchronously
       // Don't await - let it run in background
       const webinarDuration = registration.webinar.duration ? registration.webinar.duration * 60 : 3600; // Convert minutes to seconds
@@ -126,7 +135,7 @@ export async function POST(request: NextRequest) {
         webinarDuration,
         watchTime: finalWatchTime,
         attended: true,
-        isReplay: false, // Can be enhanced to detect replay vs live
+        isReplay: isReplaySession,
         reachedOfferCTA,
         webinarTitle: registration.webinar.title,
         leftAt: updatedSession.leftAt || undefined,
