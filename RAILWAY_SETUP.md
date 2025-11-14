@@ -1,5 +1,23 @@
 # Railway Environment Variables Setup
 
+## ⚠️ CRITICAL: Fix Database URL
+
+Railway automatically injects `DATABASE_URL` with an **internal address** (`postgres.railway.internal:5432`) that is NOT accessible during the Docker build phase. You MUST override it with the **public address**.
+
+### How to Fix:
+
+1. Go to your Railway project dashboard
+2. Click on your service
+3. Go to the "Variables" tab
+4. Find the auto-generated `DATABASE_URL` variable
+5. **Edit it** or **add a new one** with this value:
+
+```bash
+DATABASE_URL=postgresql://postgres:PGROlPewsCXdLjtvRxwAestaVJGldXmb@gondola.proxy.rlwy.net:24954/railway
+```
+
+This public address works from anywhere, including during the Docker build.
+
 ## Required Environment Variables
 
 Add these to your Railway project settings:
