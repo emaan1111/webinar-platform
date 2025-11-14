@@ -11,13 +11,11 @@ import { prisma } from './prisma'
  */
 export async function getWebinarsOptimized(userId: string) {
   return await prisma.webinar.findMany({
-    where: { userId },
+    where: { hostId: userId },
     select: {
       id: true,
       title: true,
       slug: true,
-      scheduledAt: true,
-      status: true,
       createdAt: true,
       _count: {
         select: {
@@ -126,21 +124,13 @@ export async function getDashboardStatsOptimized(userId: string) {
     totalWebinars,
     totalRegistrations,
     totalAttendees,
-    upcomingWebinars,
   ] = await Promise.all([
-    prisma.webinar.count({ where: { userId } }),
+    prisma.webinar.count({ where: { hostId: userId } }),
     prisma.registration.count({
-      where: { webinar: { userId } },
+      where: { webinar: { hostId: userId } },
     }),
     prisma.registration.count({
-      where: { webinar: { userId }, attended: true },
-    }),
-    prisma.webinar.count({
-      where: {
-        userId,
-        scheduledAt: { gte: new Date() },
-        status: 'SCHEDULED',
-      },
+      where: { webinar: { hostId: userId }, attended: true },
     }),
   ])
 
@@ -148,7 +138,7 @@ export async function getDashboardStatsOptimized(userId: string) {
     totalWebinars,
     totalRegistrations,
     totalAttendees,
-    upcomingWebinars,
+    upcomingWebinars: 0, // TODO: Calculate based on schedules
     attendanceRate:
       totalRegistrations > 0
         ? Math.round((totalAttendees / totalRegistrations) * 100)

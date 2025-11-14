@@ -406,6 +406,11 @@ export async function processPendingReminders(): Promise<{
       stats.processed++
 
       // Check if webinar has already started or passed
+      if (!reminder.registration.scheduledStartTime) {
+        stats.skipped++
+        continue
+      }
+      
       const webinarStart = new Date(reminder.registration.scheduledStartTime)
       if (webinarStart <= now) {
         // Mark as skipped

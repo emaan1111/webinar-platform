@@ -221,24 +221,24 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         })
     }
 
-    let idleId: number | null = null
-    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    let idleId: any;
+    let timeoutId: NodeJS.Timeout | undefined;
 
     if ('requestIdleCallback' in window) {
       idleId = (window as any).requestIdleCallback(() => {
         fetchCountry()
       }, { timeout: 1000 })
     } else {
-      timeoutId = window.setTimeout(fetchCountry, 0)
+      timeoutId = setTimeout(fetchCountry, 0)
     }
 
     return () => {
       controller.abort()
-      if (idleId !== null) {
+      if (idleId) {
         ;(window as any).cancelIdleCallback?.(idleId)
       }
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
       }
     }
   }, [])
