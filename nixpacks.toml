@@ -1,0 +1,16 @@
+[phases.setup]
+nixPkgs = ["nodejs_18", "npm-9_x", "openssl"]
+
+[phases.install]
+cmds = ["npm ci"]
+
+[phases.build]
+cmds = [
+  "npm run build",
+  # Copy static files for standalone mode
+  "cp -r public .next/standalone/public || true",
+  "cp -r .next/static .next/standalone/.next/static || true"
+]
+
+[start]
+cmd = "node .next/standalone/server.js"
