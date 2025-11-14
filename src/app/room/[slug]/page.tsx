@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { calculateScheduleDateTime } from '@/lib/webinarSchedule';
 import WebinarLiveClient from '@/app/w/[slug]/live/page-client';
@@ -302,6 +302,29 @@ export default async function WebinarRoomPage({
     0,
     Math.floor((now.getTime() - adjustedStartTime.getTime()) / 1000)
   );
+
+  // Check if webinar has ended and redirect to replay if enabled
+  const webinarEndTime = new Date(
+    adjustedStartTime.getTime() + webinar.duration * 60 * 1000
+  );
+  
+  if (now > webinarEndTime) {
+    // Webinar has ended
+    if (webinar.replayEnabled) {
+      // Redirect to replay page with query params
+      const replayParams = new URLSearchParams();
+      if (registrationId) replayParams.set('r', registrationId);
+      if (searchParams.tz) replayParams.set('tz', searchParams.tz);
+      
+      const replayUrl = `/w/${slug}/replay${replayParams.toString() ? `?${replayParams.toString()}` : ''}`;
+      console.log(`🎬 Webinar ended, redirecting to replay: ${replayUrl}`);
+      redirect(replayUrl);
+    } else {
+      // Replay not enabled - show ended message
+      // For now, let them see the live room (can add custom "ended" page later)
+      console.log('⚠️ Webinar ended but replay is not enabled');
+    }
+  }
 
   const chatMessages: ChatMessagePayload[] = webinar.chatMessages.map(
     (message) => {

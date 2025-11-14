@@ -1661,3 +1661,181 @@
     opacity: 1;
   }
 }
+
+/* ============================================
+   REPLAY-SPECIFIC STYLES
+   ============================================ */
+
+/* Replay Expiration Banner */
+.replayExpirationBanner {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a6f 100%);
+  color: white;
+  padding: 16px 20px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 18px;
+  box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  animation: pulseGlow 3s ease-in-out infinite;
+}
+
+.replayExpirationContent {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.replayExpirationTime {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  padding: 4px 12px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 6px;
+  margin-left: 8px;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(255, 107, 107, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(255, 107, 107, 0.5);
+  }
+}
+
+/* Video Progress Bar */
+.videoProgressBar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  z-index: 10;
+  transition: height 0.2s ease;
+}
+
+.videoProgressBar:hover {
+  height: 12px;
+}
+
+.videoProgressFill {
+  height: 100%;
+  background: var(--primary);
+  transition: width 0.1s linear;
+  position: relative;
+}
+
+.videoProgressThumb {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  background: white;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+
+.videoProgressBar:hover .videoProgressThumb {
+  opacity: 1;
+}
+
+/* Play/Pause Button Overlay */
+.playPauseButton {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(123, 104, 238, 0.9);
+  border: none;
+  color: white;
+  font-size: 32px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: all 0.3s ease;
+  z-index: 5;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.playPauseButton:hover {
+  opacity: 1 !important;
+  transform: translate(-50%, -50%) scale(1.1);
+  background: rgba(123, 104, 238, 1);
+}
+
+.videoWrapper:hover .playPauseButton {
+  opacity: 0.8;
+}
+
+.playPauseButton i {
+  margin-left: 4px; /* Slight offset for play icon to look centered */
+}
+
+/* Replay Status Badge */
+.statusReplay {
+  background: linear-gradient(135deg, #7b68ee, #9d8df1);
+}
+
+/* Empty Chat Message */
+.emptyChat {
+  padding: 40px 20px;
+  text-align: center;
+  color: #999;
+  font-style: italic;
+}
+
+/* Mobile Adjustments for Replay */
+@media (max-width: 768px) {
+  .replayExpirationBanner {
+    font-size: 14px;
+    padding: 12px 16px;
+  }
+
+  .replayExpirationTime {
+    font-size: 16px;
+    padding: 2px 8px;
+  }
+
+  .playPauseButton {
+    width: 60px;
+    height: 60px;
+    font-size: 24px;
+  }
+
+  .videoProgressBar {
+    height: 6px;
+  }
+
+  .videoProgressBar:hover {
+    height: 6px; /* Don't expand on mobile */
+  }
+
+  .videoProgressThumb {
+    width: 14px;
+    height: 14px;
+  }
+}
+
+/* Ensure replay styling works with existing video controls */
+.videoControls {
+  z-index: 15; /* Above progress bar */
+}

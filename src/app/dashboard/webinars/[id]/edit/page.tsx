@@ -60,6 +60,10 @@ export default function EditWebinarPage() {
     // Social Share Messages
     whatsappShareMessage: '',
     facebookShareMessage: '',
+    // Replay Settings
+    replayEnabled: true,
+    replayDurationDays: 7,
+    replayExpiresAt: null as string | null,
     // A/B Testing fields
     enableABTesting: false,
     trafficSplitPercent: 50,
@@ -164,6 +168,10 @@ export default function EditWebinarPage() {
         // Social Share Messages
         whatsappShareMessage: webinar.whatsappShareMessage || '',
         facebookShareMessage: webinar.facebookShareMessage || '',
+        // Replay Settings
+        replayEnabled: webinar.replayEnabled !== undefined ? webinar.replayEnabled : true,
+        replayDurationDays: webinar.replayDurationDays || 7,
+        replayExpiresAt: webinar.replayExpiresAt || null,
         // A/B Testing fields
         enableABTesting: webinar.enableABTesting || false,
         trafficSplitPercent: webinar.trafficSplitPercent || 50,
@@ -330,6 +338,10 @@ export default function EditWebinarPage() {
         status: isDraft ? 'DRAFT' : formData.status,
         schedules: allSchedules,
         showElapsedTime: formData.showElapsedTime,
+        // Replay Settings
+        replayEnabled: formData.replayEnabled,
+        replayDurationDays: formData.replayDurationDays || null,
+        replayExpiresAt: formData.replayExpiresAt || null,
         // A/B Testing data
         enableABTesting: formData.enableABTesting,
         trafficSplitPercent: formData.trafficSplitPercent,
@@ -735,23 +747,22 @@ export default function EditWebinarPage() {
                   <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-1">
                     Webinar Duration (minutes) <span className="text-red-500">*</span>
                   </label>
-                  <select
+                  <input
+                    type="number"
                     id="duration"
                     name="duration"
                     value={formData.duration}
                     onChange={handleInputChange}
+                    min={1}
+                    max={1440}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.duration ? 'border-red-300' : 'border-gray-300'
                     }`}
-                  >
-                    <option value={15}>15 minutes</option>
-                    <option value={30}>30 minutes</option>
-                    <option value={45}>45 minutes</option>
-                    <option value={60}>1 hour</option>
-                    <option value={90}>1.5 hours</option>
-                    <option value={120}>2 hours</option>
-                    <option value={180}>3 hours</option>
-                  </select>
+                    placeholder="60"
+                  />
+                  <p className="mt-1 text-xs text-gray-500">
+                    Enter duration in minutes (e.g., 60 for 1 hour, 90 for 1.5 hours)
+                  </p>
                   {errors.duration && (
                     <p className="mt-1 text-sm text-red-600">{errors.duration}</p>
                   )}
@@ -1199,6 +1210,95 @@ export default function EditWebinarPage() {
                     </div>
                   </div>
                 </label>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Replay Settings */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-xl font-semibold">🎬 Replay Settings</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Configure replay availability and expiration for this webinar
+              </p>
+            </CardHeader>
+            <CardBody>
+              <div className="space-y-4">
+                {/* Enable Replay Toggle */}
+                <label className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border-2 border-gray-200">
+                  <input
+                    type="checkbox"
+                    name="replayEnabled"
+                    checked={formData.replayEnabled}
+                    onChange={handleInputChange}
+                    className="w-5 h-5 mt-0.5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">Enable Replay Access</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      When enabled, attendees can watch the webinar replay after it ends. 
+                      They can access the replay at <code className="bg-gray-100 px-1 rounded">/w/[slug]/replay</code>
+                    </p>
+                  </div>
+                </label>
+
+                {/* Replay Duration Settings (only show if replay is enabled) */}
+                {formData.replayEnabled && (
+                  <div className="ml-8 space-y-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div>
+                      <label htmlFor="replayDurationDays" className="block text-sm font-medium text-gray-700 mb-2">
+                        Replay Availability Period
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          id="replayDurationDays"
+                          name="replayDurationDays"
+                          value={formData.replayDurationDays || ''}
+                          onChange={handleInputChange}
+                          min={1}
+                          max={365}
+                          className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          placeholder="7"
+                        />
+                        <span className="text-sm text-gray-700">days after the attendee's scheduled session</span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-600">
+                        ⏰ <strong>Important:</strong> The replay expires based on when each attendee registered for their specific session, not the webinar end time.
+                        This ensures personalized expiration for each attendee.
+                      </p>
+                      <div className="mt-3 p-3 bg-white border border-blue-300 rounded-lg">
+                        <p className="text-xs text-gray-700 font-medium mb-1">📋 Example:</p>
+                        <p className="text-xs text-gray-600">
+                          If set to <strong>7 days</strong>: An attendee who registered for the 3:00 PM session on Jan 1st can watch the replay 
+                          until Jan 8th at 3:00 PM. Another attendee registered for the 5:00 PM session on Jan 2nd can watch until Jan 9th at 5:00 PM.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Optional: Absolute Expiration Override */}
+                    <div className="pt-3 border-t border-blue-300">
+                      <label htmlFor="replayExpiresAt" className="block text-sm font-medium text-gray-700 mb-2">
+                        Absolute Expiration Date (Optional Override)
+                      </label>
+                      <input
+                        type="datetime-local"
+                        id="replayExpiresAt"
+                        name="replayExpiresAt"
+                        value={formData.replayExpiresAt ? new Date(formData.replayExpiresAt).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => {
+                          const value = e.target.value ? new Date(e.target.value).toISOString() : null
+                          setFormData({ ...formData, replayExpiresAt: value })
+                        }}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                      <p className="mt-2 text-xs text-gray-600">
+                        🔒 If set, this date overrides the duration setting above. The replay will expire on this date for <strong>all attendees</strong>, 
+                        regardless of when they registered. Leave empty to use the duration-based expiration.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </CardBody>
           </Card>

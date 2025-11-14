@@ -100,6 +100,11 @@ model Webinar {
   hasReactions Boolean @default(true)
   showElapsedTime Boolean @default(true) // Display elapsed time on the live video
 
+  // Replay Settings
+  replayEnabled       Boolean   @default(true) // Master toggle for replay availability
+  replayDurationDays  Int?      // How many days after user's session the replay is available
+  replayExpiresAt     DateTime? // Absolute expiration date (optional override)
+
   // Registration Settings
   maxSchedulesToShow     Int     @default(3) // How many upcoming schedules to show on registration page
   registrationPageId     String? // Reference to RegistrationPage table (replaces registrationTemplateId)

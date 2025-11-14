@@ -72,7 +72,13 @@ export async function POST(
       hasOffers: originalWebinar.hasOffers,
       hasChat: originalWebinar.hasChat,
       hasReactions: originalWebinar.hasReactions,
+      showElapsedTime: originalWebinar.showElapsedTime,
       hostId: user.id,
+      
+      // Replay Settings
+      replayEnabled: originalWebinar.replayEnabled,
+      replayDurationDays: originalWebinar.replayDurationDays,
+      replayExpiresAt: originalWebinar.replayExpiresAt,
       
       // Registration Settings
       maxSchedulesToShow: originalWebinar.maxSchedulesToShow,
