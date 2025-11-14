@@ -374,6 +374,7 @@ export default function WebinarLiveClient({
   const trackerRef = useRef<WebinarTracker | null>(null); // Analytics tracker
   const [isFullscreen, setIsFullscreen] = useState(false); // Track fullscreen state
   const [videoError, setVideoError] = useState(false); // Track if video failed to load
+  const [isMuted, setIsMuted] = useState(true); // Start muted for mobile compatibility
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -1277,6 +1278,20 @@ export default function WebinarLiveClient({
     }
   }, [isFullscreen]);
 
+  const toggleMute = useCallback(async () => {
+    if (!vimeoPlayerRef.current) return;
+
+    try {
+      const newMutedState = !isMuted;
+      await vimeoPlayerRef.current.setMuted(newMutedState);
+      await vimeoPlayerRef.current.setVolume(newMutedState ? 0 : 1);
+      setIsMuted(newMutedState);
+      console.log(`🔊 Volume ${newMutedState ? 'MUTED' : 'UNMUTED'}`);
+    } catch (err) {
+      console.error('Error toggling mute:', err);
+    }
+  }, [isMuted]);
+
   const openChat = useCallback(() => {
     if (webinar.hasChat === false) {
       return;
@@ -1384,31 +1399,34 @@ export default function WebinarLiveClient({
         const startTime = startTimeRef.current;
         console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
         
-        // More robust initialization sequence with better error handling
+        // Detect if mobile for different handling
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        console.log(`📱 Mobile device: ${isMobileDevice}`);
+        
+        // Mobile-optimized initialization sequence
         player.ready()
           .then(() => {
             console.log('✅ Player ready, setting initial time...');
             return player.setCurrentTime(startTime);
           })
           .then(() => {
-            console.log('✅ Time set, unmuting...');
-            return player.setMuted(false);
+            if (isMobileDevice) {
+              console.log('📱 Mobile: Starting MUTED for autoplay compatibility...');
+              setIsMuted(true);
+              return player.setMuted(true);
+            } else {
+              console.log('💻 Desktop: Starting UNMUTED...');
+              setIsMuted(false);
+              return player.setMuted(false);
+            }
           })
           .then(() => {
-            console.log('✅ Unmuted, setting volume to 100%...');
-            return player.setVolume(1);
+            console.log('✅ Mute state set, setting volume...');
+            return player.setVolume(isMobileDevice ? 0 : 1);
           })
           .then(() => {
             console.log('✅ Volume set, starting playback...');
             return player.play();
-          })
-          .then(() => {
-            console.log('✅ Video playing! Double-checking audio...');
-            // Double-check audio is unmuted (iOS workaround)
-            return Promise.all([
-              player.setMuted(false),
-              player.setVolume(1)
-            ]);
           })
           .then(() => {
             console.log(`🎉 Video playing successfully at ${formatTimeLabel(startTime)}`);
@@ -1422,16 +1440,15 @@ export default function WebinarLiveClient({
           })
           .catch((err: Error) => {
             console.error('❌ Error during video setup:', err);
-            console.log('🔄 Attempting simplified retry...');
+            console.log('🔄 Attempting emergency fallback - muted play...');
             
-            // Simplified retry - just try to play
-            Promise.all([
-              player.setMuted(false),
-              player.setVolume(1)
-            ])
+            // Emergency fallback: Always try muted playback
+            player.setMuted(true)
+              .then(() => player.setVolume(0))
               .then(() => player.play())
               .then(() => {
-                console.log('✅ Retry successful');
+                console.log('✅ Emergency fallback successful (MUTED)');
+                setIsMuted(true);
                 clearTimeout(emergencyTimeout);
                 setVideoLoading(false);
                 
@@ -1440,7 +1457,7 @@ export default function WebinarLiveClient({
                 }
               })
               .catch((retryErr: Error) => {
-                console.error('❌ Retry also failed:', retryErr);
+                console.error('❌ Emergency fallback also failed:', retryErr);
                 // Hide loading and reset so user can try again
                 clearTimeout(emergencyTimeout);
                 setVideoLoading(false);
@@ -1591,14 +1608,24 @@ export default function WebinarLiveClient({
                     </div>
                   )}
                   {broadcastStarted && (
-                    <button
-                      type="button"
-                      className={styles.fullscreenButton}
-                      onClick={toggleFullscreen}
-                      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
-                    >
-                      <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`} />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className={styles.muteButton}
+                        onClick={toggleMute}
+                        aria-label={isMuted ? 'Unmute video' : 'Mute video'}
+                      >
+                        <i className={`fas ${isMuted ? 'fa-volume-mute' : 'fa-volume-up'}`} />
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.fullscreenButton}
+                        onClick={toggleFullscreen}
+                        aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                      >
+                        <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`} />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>

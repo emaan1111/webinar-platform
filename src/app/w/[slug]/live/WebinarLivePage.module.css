@@ -329,6 +329,28 @@
   transform: scale(1.05);
 }
 
+/* Mute Button */
+.muteButton {
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+}
+
+.muteButton:hover {
+  background: rgba(0, 0, 0, 0.75);
+  transform: scale(1.05);
+}
+
 /* Red CTA Button in Top-Left Corner of Video */
 .videoTopLeftCTA {
   position: absolute;
@@ -1227,6 +1249,13 @@
     font-size: 1rem;
   }
 
+  /* Mute button for mobile */
+  .muteButton {
+    width: 36px;
+    height: 36px;
+    font-size: 1rem;
+  }
+
   /* Make CTA button smaller on mobile */
   .videoTopLeftCTA {
     top: 10px;
@@ -1279,6 +1308,13 @@
 
   /* Smaller fullscreen button for very small screens */
   .fullscreenButton {
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
+  }
+
+  /* Smaller mute button for very small screens */
+  .muteButton {
     width: 32px;
     height: 32px;
     font-size: 0.9rem;
