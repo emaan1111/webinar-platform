@@ -247,26 +247,40 @@ export async function POST(
       })
     )
 
-    // Apply or schedule ClickFunnels reminder tags based on timing
     if (registration.scheduledStartTime) {
       const webinarStart = new Date(registration.scheduledStartTime)
-      const hoursUntilWebinar =
-        (webinarStart.getTime() - Date.now()) / (1000 * 60 * 60)
+      const now = new Date()
+      const hoursUntilWebinar = (webinarStart.getTime() - now.getTime()) / (1000 * 60 * 60)
 
-      if (hoursUntilWebinar > 24) {
-        runInBackground('Schedule ClickFunnels 24HR reminder tag', () =>
+      const timingBuckets = [
+        { tagName: '24HRREMINDER', offsetHours: 24 },
+        { tagName: '2HRREMINDER', offsetHours: 2 },
+        { tagName: '1HRREMINDER', offsetHours: 1 },
+        { tagName: '15MINREMINDER', offsetHours: 0.25 },
+        { tagName: 'WESTARTED', offsetHours: 0 }
+      ] as const
+
+      const selectedBucket = timingBuckets.find(bucket => hoursUntilWebinar >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1]
+      const scheduledFor = selectedBucket.offsetHours > 0
+        ? new Date(webinarStart.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
+        : now
+
+      if (selectedBucket.offsetHours > 0 && scheduledFor > now) {
+        runInBackground(`Schedule ClickFunnels ${selectedBucket.tagName} reminder tag`, () =>
           scheduleDelayedClickFunnelsTag({
             registrationId: registration.id,
-            tagName: '24HRREMINDER',
-            scheduledFor: new Date(webinarStart.getTime() - 24 * 60 * 60 * 1000)
+            tagName: selectedBucket.tagName,
+            scheduledFor
           })
         )
       } else {
-        runInBackground('Apply ClickFunnels registration timing tag', async () => {
-          const { applyRegistrationTimingTag } = await import('@/lib/clickfunnels')
-          const result = await applyRegistrationTimingTag(registration.email, webinarStart)
-          if (result.success) {
-            console.log(`✅ Registration timing tag applied: ${result.tagApplied}`)
+        runInBackground(`Apply ClickFunnels reminder tag ${selectedBucket.tagName}`, async () => {
+          const { applyReminderTagToContact } = await import('@/lib/clickfunnels')
+          const success = await applyReminderTagToContact(registration.email, selectedBucket.tagName)
+          if (success) {
+            console.log(`✅ Reminder tag "${selectedBucket.tagName}" applied immediately`)
+          } else {
+            console.warn(`⚠️ Failed to apply reminder tag "${selectedBucket.tagName}" immediately`)
           }
         })
       }
