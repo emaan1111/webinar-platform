@@ -1299,7 +1299,7 @@
   }
 
   .container {
-    padding: 10px;
+    padding: 5px;
     transition: margin-right 0.3s ease;
     max-width: 100vw;
     height: 100vh;
@@ -1307,11 +1307,11 @@
 
   /* Push content when chat is open in landscape */
   .container.chatOpen {
-    margin-right: 320px !important;
+    margin-right: 280px !important;
   }
 
   .container.chatMinimized {
-    margin-right: 50px !important;
+    margin-right: 0 !important;
     margin-bottom: 0;
   }
 
@@ -1331,9 +1331,9 @@
   }
 
   .chatSidebar {
-    width: 320px;
+    width: 280px;
     height: 100vh;
-    right: -320px;
+    right: -280px;
     bottom: auto;
     top: 0;
     border-radius: 0;
@@ -1350,8 +1350,8 @@
   }
 
   .chatSidebarMinimized {
-    right: -270px !important;
-    width: 320px !important;
+    right: -280px !important;
+    width: 280px !important;
     height: 100vh !important;
     max-height: 100vh !important;
   }
@@ -1360,11 +1360,12 @@
   .chatSidebarMinimized .chatInputContainer,
   .chatSidebarMinimized .chatOfferBar,
   .chatSidebarMinimized .chatTabs {
-    display: flex;
+    display: none;
   }
 
   .chatHeader {
     border-radius: 0;
+    padding: 8px 12px;
   }
 
   .videoContainer {
@@ -1372,19 +1373,22 @@
     width: 100%;
     flex: 1;
     position: relative;
+    margin-bottom: 0;
   }
 
-  /* Adjust video embed to respect parent width */
+  /* Adjust video embed to fill container in landscape */
   .videoEmbed {
     width: 100%;
     height: 100%;
-    position: absolute;
-    top: 0;
-    left: 0;
+    object-fit: contain;
   }
 
   .sidebar {
     display: none; /* Hide offer sidebar in landscape */
+  }
+
+  .belowVideoOfferCTA {
+    display: none; /* Hide below video CTA in landscape */
   }
 
   /* Ensure overlay doesn't interfere */
@@ -1392,17 +1396,81 @@
     display: none;
   }
 
-  /* In fullscreen landscape, keep fullscreen button visible */
+  /* In landscape, keep fullscreen button visible but smaller */
   .fullscreenButton {
-    width: 36px;
-    height: 36px;
+    width: 32px;
+    height: 32px;
+    font-size: 0.9rem;
   }
 
-  /* Keep CTA visible in landscape fullscreen */
+  /* Keep CTA visible in landscape */
   .videoTopLeftCTA {
-    top: 15px;
-    left: 15px;
+    top: 10px;
+    left: 10px;
   }
+
+  .videoCtaButton {
+    padding: 8px 14px;
+    font-size: 0.8rem;
+  }
+
+  /* Make video controls more compact in landscape */
+  .videoControls {
+    padding: 10px;
+  }
+
+  .statusBadge {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+  }
+
+  .videoTime {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+  }
+
+  /* Reactions smaller in landscape */
+  .videoReactions {
+    right: 8px;
+    gap: 6px;
+  }
+
+  .videoReactionBtn {
+    width: 36px;
+    height: 36px;
+    font-size: 0.95rem;
+  }
+}
+
+/* Fullscreen styles */
+.videoContainer:fullscreen,
+.videoContainer:-webkit-full-screen,
+.videoContainer:-moz-full-screen,
+.videoContainer:-ms-fullscreen {
+  background: #000;
+  width: 100vw !important;
+  height: 100vh !important;
+}
+
+.videoContainer:fullscreen .videoEmbed,
+.videoContainer:-webkit-full-screen .videoEmbed,
+.videoContainer:-moz-full-screen .videoEmbed,
+.videoContainer:-ms-fullscreen .videoEmbed {
+  width: 100vw !important;
+  height: 100vh !important;
+  object-fit: contain;
+}
+
+/* Hide sidebar and offer CTA in fullscreen */
+.videoContainer:fullscreen ~ .sidebar,
+.videoContainer:-webkit-full-screen ~ .sidebar,
+.videoContainer:-moz-full-screen ~ .sidebar,
+.videoContainer:-ms-fullscreen ~ .sidebar,
+.videoContainer:fullscreen ~ .belowVideoOfferCTA,
+.videoContainer:-webkit-full-screen ~ .belowVideoOfferCTA,
+.videoContainer:-moz-full-screen ~ .belowVideoOfferCTA,
+.videoContainer:-ms-fullscreen ~ .belowVideoOfferCTA {
+  display: none;
 }
 
 /* Flying Reaction Animations */

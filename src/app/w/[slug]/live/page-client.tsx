@@ -373,6 +373,7 @@ export default function WebinarLiveClient({
   const broadcastStartTimeRef = useRef<number>(0); // Track when broadcast actually started
   const trackerRef = useRef<WebinarTracker | null>(null); // Analytics tracker
   const [isFullscreen, setIsFullscreen] = useState(false); // Track fullscreen state
+  const [videoError, setVideoError] = useState(false); // Track if video failed to load
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -623,35 +624,47 @@ export default function WebinarLiveClient({
     if (!isMobile || !broadcastStarted) return;
 
     const handleOrientationChange = async () => {
+      // Small delay to ensure orientation is fully changed
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Check if landscape mode
       const isLandscape = window.matchMedia('(orientation: landscape)').matches;
       
-      if (isLandscape && videoContainerRef.current) {
-        // Enter fullscreen
+      console.log(`📱 Orientation change detected: ${isLandscape ? 'LANDSCAPE' : 'PORTRAIT'}`);
+      
+      if (isLandscape && videoContainerRef.current && !isFullscreen) {
+        // Enter fullscreen in landscape mode
+        console.log('🎬 Entering fullscreen for landscape mode...');
         try {
-          if (videoContainerRef.current.requestFullscreen) {
-            await videoContainerRef.current.requestFullscreen();
-          } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
-            await (videoContainerRef.current as any).webkitRequestFullscreen();
-          } else if ((videoContainerRef.current as any).mozRequestFullScreen) {
-            await (videoContainerRef.current as any).mozRequestFullScreen();
-          } else if ((videoContainerRef.current as any).msRequestFullscreen) {
-            await (videoContainerRef.current as any).msRequestFullscreen();
+          const elem = videoContainerRef.current;
+          
+          if (elem.requestFullscreen) {
+            await elem.requestFullscreen();
+          } else if ((elem as any).webkitRequestFullscreen) {
+            await (elem as any).webkitRequestFullscreen();
+          } else if ((elem as any).mozRequestFullScreen) {
+            await (elem as any).mozRequestFullScreen();
+          } else if ((elem as any).msRequestFullscreen) {
+            await (elem as any).msRequestFullscreen();
           }
 
-          // Try to lock orientation to landscape
+          console.log('✅ Fullscreen entered');
+
+          // Try to lock orientation to landscape (may not work on all devices)
           if (screen.orientation && (screen.orientation as any).lock) {
             try {
               await (screen.orientation as any).lock('landscape');
+              console.log('✅ Orientation locked to landscape');
             } catch (err) {
-              console.log('Could not lock orientation:', err);
+              console.log('⚠️ Could not lock orientation:', err);
             }
           }
         } catch (err) {
-          console.log('Could not enter fullscreen:', err);
+          console.error('❌ Could not enter fullscreen:', err);
         }
       } else if (!isLandscape && isFullscreen) {
         // Exit fullscreen when rotating back to portrait
+        console.log('🎬 Exiting fullscreen for portrait mode...');
         try {
           if (document.exitFullscreen) {
             await document.exitFullscreen();
@@ -663,18 +676,25 @@ export default function WebinarLiveClient({
             await (document as any).msExitFullscreen();
           }
 
+          console.log('✅ Fullscreen exited');
+
           // Unlock orientation
           if (screen.orientation && (screen.orientation as any).unlock) {
             (screen.orientation as any).unlock();
+            console.log('✅ Orientation unlocked');
           }
         } catch (err) {
-          console.log('Could not exit fullscreen:', err);
+          console.error('❌ Could not exit fullscreen:', err);
         }
       }
     };
 
+    // Listen to both orientation change and resize events
     window.addEventListener('orientationchange', handleOrientationChange);
     window.addEventListener('resize', handleOrientationChange);
+    
+    // Also check immediately in case we're already in landscape
+    handleOrientationChange();
 
     return () => {
       window.removeEventListener('orientationchange', handleOrientationChange);
@@ -1332,6 +1352,14 @@ export default function WebinarLiveClient({
     
     console.log('🎯 Starting player initialization process...');
     
+    // Force hide loading after 8 seconds to prevent infinite loading
+    const emergencyTimeout = setTimeout(() => {
+      console.log('⚠️ EMERGENCY: Force hiding loading overlay after 8s');
+      setVideoLoading(false);
+      setVideoError(true);
+      setBroadcastStarted(false); // Allow user to try again
+    }, 8000);
+    
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
       if (!iframe) {
@@ -1352,17 +1380,11 @@ export default function WebinarLiveClient({
         vimeoPlayerRef.current = player;
         console.log('✅ Vimeo Player instance created');
         
-        // Fallback: Hide loading after 5 seconds max
-        const loadingTimeout = setTimeout(() => {
-          console.log('⏰ Timeout: Force hiding loading overlay');
-          setVideoLoading(false);
-        }, 5000);
-        
         // Use the stored start time from when user clicked the button
         const startTime = startTimeRef.current;
         console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
         
-        // More robust initialization sequence
+        // More robust initialization sequence with better error handling
         player.ready()
           .then(() => {
             console.log('✅ Player ready, setting initial time...');
@@ -1390,8 +1412,13 @@ export default function WebinarLiveClient({
           })
           .then(() => {
             console.log(`🎉 Video playing successfully at ${formatTimeLabel(startTime)}`);
-            clearTimeout(loadingTimeout);
+            clearTimeout(emergencyTimeout);
             setVideoLoading(false);
+            
+            // Track successful video start
+            if (trackerRef.current) {
+              trackerRef.current.trackVideoEvent('play', startTime);
+            }
           })
           .catch((err: Error) => {
             console.error('❌ Error during video setup:', err);
@@ -1405,19 +1432,28 @@ export default function WebinarLiveClient({
               .then(() => player.play())
               .then(() => {
                 console.log('✅ Retry successful');
-                clearTimeout(loadingTimeout);
+                clearTimeout(emergencyTimeout);
                 setVideoLoading(false);
+                
+                if (trackerRef.current) {
+                  trackerRef.current.trackVideoEvent('play', startTime);
+                }
               })
               .catch((retryErr: Error) => {
                 console.error('❌ Retry also failed:', retryErr);
-                // Still hide loading so user can see the overlay again
-                clearTimeout(loadingTimeout);
+                // Hide loading and reset so user can try again
+                clearTimeout(emergencyTimeout);
                 setVideoLoading(false);
+                setVideoError(true);
+                setBroadcastStarted(false);
               });
           });
       } catch (error) {
         console.error('❌ Error creating Vimeo player:', error);
+        clearTimeout(emergencyTimeout);
         setVideoLoading(false);
+        setVideoError(true);
+        setBroadcastStarted(false);
       }
     };
     
@@ -1433,8 +1469,9 @@ export default function WebinarLiveClient({
       };
       script.onerror = () => {
         console.error('❌ Failed to load Vimeo API script');
+        clearTimeout(emergencyTimeout);
         setVideoLoading(false);
-        // Reset broadcast started so user can try again
+        setVideoError(true);
         setBroadcastStarted(false);
       };
       document.head.appendChild(script);
@@ -1442,6 +1479,10 @@ export default function WebinarLiveClient({
       console.log('✅ Vimeo API already loaded, initializing immediately...');
       initPlayer();
     }
+    
+    return () => {
+      clearTimeout(emergencyTimeout);
+    };
   }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); // Removed elapsedSeconds - we use the ref instead
 
   return (
@@ -1489,6 +1530,14 @@ export default function WebinarLiveClient({
                         // Track when broadcast actually started (for reaction grace period)
                         broadcastStartTimeRef.current = Date.now();
                         
+                        // Clear any previous error
+                        setVideoError(false);
+                        
+                        // Clear previous player instance if any
+                        if (vimeoPlayerRef.current) {
+                          vimeoPlayerRef.current = null;
+                        }
+                        
                         // Set states to show video and hide overlay
                         setBroadcastStarted(true);
                         setVideoLoading(true);
@@ -1501,11 +1550,15 @@ export default function WebinarLiveClient({
                         <div className={styles.broadcastIcon}>
                           <i className="fas fa-play-circle" />
                         </div>
-                        <h2 className={styles.broadcastTitle}>Click to Start Broadcast</h2>
+                        <h2 className={styles.broadcastTitle}>
+                          {videoError ? 'Retry Video' : 'Click to Start Broadcast'}
+                        </h2>
                         <p className={styles.broadcastSubtitle}>
-                          {elapsedSeconds > 0 
-                            ? `Live webinar in progress - Starting at ${formatTimeLabel(elapsedSeconds)}`
-                            : 'The webinar is ready to begin'
+                          {videoError 
+                            ? 'Video failed to load. Click to try again or refresh the page.'
+                            : elapsedSeconds > 0 
+                              ? `Live webinar in progress - Starting at ${formatTimeLabel(elapsedSeconds)}`
+                              : 'The webinar is ready to begin'
                           }
                         </p>
                       </div>
