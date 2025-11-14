@@ -1367,31 +1367,33 @@ export default function WebinarLiveClient({
     
     console.log('🎯 Starting player initialization process...');
     
-    // Force hide loading after 8 seconds to prevent infinite loading
+    // Force hide loading after 6 seconds to prevent infinite loading
     const emergencyTimeout = setTimeout(() => {
-      console.log('⚠️ EMERGENCY: Force hiding loading overlay after 8s');
+      console.log('⚠️ EMERGENCY: Force hiding loading overlay after 6s');
       setVideoLoading(false);
       setVideoError(true);
       setBroadcastStarted(false); // Allow user to try again
-    }, 8000);
+    }, 6000);
     
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
       if (!iframe) {
-        console.log('⚠️ Vimeo iframe not found, retrying in 200ms...');
-        setTimeout(initPlayer, 200);
+        console.log('⚠️ Vimeo iframe not found, retrying in 300ms...');
+        setTimeout(initPlayer, 300);
         return;
       }
       
       if (!window.Vimeo) {
         console.log('⚠️ Vimeo Player API not loaded yet, waiting...');
-        setTimeout(initPlayer, 100);
+        setTimeout(initPlayer, 200);
         return;
       }
       
-      try {
-        console.log('🎬 Creating Vimeo Player instance...');
-        const player = new window.Vimeo.Player(iframe);
+      // Small delay to ensure iframe is fully initialized
+      setTimeout(() => {
+        try {
+          console.log('🎬 Creating Vimeo Player instance...');
+        const player = new window.Vimeo!.Player(iframe);
         vimeoPlayerRef.current = player;
         console.log('✅ Vimeo Player instance created');
         
@@ -1403,67 +1405,76 @@ export default function WebinarLiveClient({
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
         console.log(`📱 Mobile device: ${isMobileDevice}`);
         
-        // Mobile-optimized initialization sequence
+        // SIMPLIFIED: Always start muted on mobile, try unmuted on desktop
+        // This is the most reliable approach for mobile autoplay
+        const startMuted = isMobileDevice;
+        
         player.ready()
-          .then(() => {
-            console.log('✅ Player ready, setting initial time...');
-            return player.setCurrentTime(startTime);
+          .then(async () => {
+            console.log('✅ Player ready');
+            
+            // Set all properties at once without chaining
+            try {
+              await player.setMuted(startMuted);
+              console.log(`✅ Muted: ${startMuted}`);
+            } catch (e) {
+              console.log('⚠️ Could not set mute, continuing...');
+            }
+            
+            try {
+              await player.setVolume(startMuted ? 0 : 1);
+              console.log(`✅ Volume: ${startMuted ? 0 : 1}`);
+            } catch (e) {
+              console.log('⚠️ Could not set volume, continuing...');
+            }
+            
+            try {
+              await player.setCurrentTime(startTime);
+              console.log(`✅ Time set to: ${startTime}s`);
+            } catch (e) {
+              console.log('⚠️ Could not set time, starting from beginning...');
+            }
+            
+            // Now try to play - this is the critical part
+            try {
+              await player.play();
+              console.log('🎉 Video playing!');
+              setIsMuted(startMuted);
+              clearTimeout(emergencyTimeout);
+              setVideoLoading(false);
+              
+              if (trackerRef.current) {
+                trackerRef.current.trackVideoEvent('play', startTime);
+              }
+            } catch (playErr) {
+              console.error('❌ Play failed:', playErr);
+              // Last resort: force muted play
+              throw playErr;
+            }
           })
-          .then(() => {
-            if (isMobileDevice) {
-              console.log('📱 Mobile: Starting MUTED for autoplay compatibility...');
+          .catch(async (err: Error) => {
+            console.error('❌ Player ready/play failed:', err);
+            console.log('🔄 LAST RESORT: Force muted play...');
+            
+            // Absolute last resort - just try to play muted, ignore all errors
+            try {
+              await player.setMuted(true);
+              await player.play();
+              console.log('✅ Last resort successful - video playing MUTED');
               setIsMuted(true);
-              return player.setMuted(true);
-            } else {
-              console.log('💻 Desktop: Starting UNMUTED...');
-              setIsMuted(false);
-              return player.setMuted(false);
+              clearTimeout(emergencyTimeout);
+              setVideoLoading(false);
+              
+              if (trackerRef.current) {
+                trackerRef.current.trackVideoEvent('play', startTime);
+              }
+            } catch (lastErr) {
+              console.error('❌ Even last resort failed:', lastErr);
+              clearTimeout(emergencyTimeout);
+              setVideoLoading(false);
+              setVideoError(true);
+              setBroadcastStarted(false);
             }
-          })
-          .then(() => {
-            console.log('✅ Mute state set, setting volume...');
-            return player.setVolume(isMobileDevice ? 0 : 1);
-          })
-          .then(() => {
-            console.log('✅ Volume set, starting playback...');
-            return player.play();
-          })
-          .then(() => {
-            console.log(`🎉 Video playing successfully at ${formatTimeLabel(startTime)}`);
-            clearTimeout(emergencyTimeout);
-            setVideoLoading(false);
-            
-            // Track successful video start
-            if (trackerRef.current) {
-              trackerRef.current.trackVideoEvent('play', startTime);
-            }
-          })
-          .catch((err: Error) => {
-            console.error('❌ Error during video setup:', err);
-            console.log('🔄 Attempting emergency fallback - muted play...');
-            
-            // Emergency fallback: Always try muted playback
-            player.setMuted(true)
-              .then(() => player.setVolume(0))
-              .then(() => player.play())
-              .then(() => {
-                console.log('✅ Emergency fallback successful (MUTED)');
-                setIsMuted(true);
-                clearTimeout(emergencyTimeout);
-                setVideoLoading(false);
-                
-                if (trackerRef.current) {
-                  trackerRef.current.trackVideoEvent('play', startTime);
-                }
-              })
-              .catch((retryErr: Error) => {
-                console.error('❌ Emergency fallback also failed:', retryErr);
-                // Hide loading and reset so user can try again
-                clearTimeout(emergencyTimeout);
-                setVideoLoading(false);
-                setVideoError(true);
-                setBroadcastStarted(false);
-              });
           });
       } catch (error) {
         console.error('❌ Error creating Vimeo player:', error);
@@ -1472,6 +1483,7 @@ export default function WebinarLiveClient({
         setVideoError(true);
         setBroadcastStarted(false);
       }
+      }, 100); // Small delay for iframe initialization
     };
     
     // Load Vimeo Player API if not already loaded
