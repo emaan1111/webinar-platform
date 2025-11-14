@@ -13,4 +13,4 @@ cmds = [
 ]
 
 [start]
-cmd = "node .next/standalone/server.js"
+cmd = "DATABASE_URL=${DATABASE_PRIVATE_URL:-$DATABASE_URL} node .next/standalone/server.js"
