@@ -372,6 +372,7 @@ export default function WebinarLiveClient({
   const pausedTimeRef = useRef<number | null>(null); // Store elapsed time when tab becomes hidden
   const broadcastStartTimeRef = useRef<number>(0); // Track when broadcast actually started
   const trackerRef = useRef<WebinarTracker | null>(null); // Analytics tracker
+  const [isFullscreen, setIsFullscreen] = useState(false); // Track fullscreen state
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -590,6 +591,96 @@ export default function WebinarLiveClient({
     const diff = Math.ceil((startTimeMs - serverNowMs) / 1000);
     return diff > 0 ? diff : 0;
   });
+
+  // Handle fullscreen changes
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(
+        !!(
+          document.fullscreenElement ||
+          (document as any).webkitFullscreenElement ||
+          (document as any).mozFullScreenElement ||
+          (document as any).msFullscreenElement
+        )
+      );
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
+    };
+  }, []);
+
+  // Auto-fullscreen on mobile landscape orientation
+  useEffect(() => {
+    if (!isMobile || !broadcastStarted) return;
+
+    const handleOrientationChange = async () => {
+      // Check if landscape mode
+      const isLandscape = window.matchMedia('(orientation: landscape)').matches;
+      
+      if (isLandscape && videoContainerRef.current) {
+        // Enter fullscreen
+        try {
+          if (videoContainerRef.current.requestFullscreen) {
+            await videoContainerRef.current.requestFullscreen();
+          } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
+            await (videoContainerRef.current as any).webkitRequestFullscreen();
+          } else if ((videoContainerRef.current as any).mozRequestFullScreen) {
+            await (videoContainerRef.current as any).mozRequestFullScreen();
+          } else if ((videoContainerRef.current as any).msRequestFullscreen) {
+            await (videoContainerRef.current as any).msRequestFullscreen();
+          }
+
+          // Try to lock orientation to landscape
+          if (screen.orientation && (screen.orientation as any).lock) {
+            try {
+              await (screen.orientation as any).lock('landscape');
+            } catch (err) {
+              console.log('Could not lock orientation:', err);
+            }
+          }
+        } catch (err) {
+          console.log('Could not enter fullscreen:', err);
+        }
+      } else if (!isLandscape && isFullscreen) {
+        // Exit fullscreen when rotating back to portrait
+        try {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            await (document as any).webkitExitFullscreen();
+          } else if ((document as any).mozCancelFullScreen) {
+            await (document as any).mozCancelFullScreen();
+          } else if ((document as any).msExitFullscreen) {
+            await (document as any).msExitFullscreen();
+          }
+
+          // Unlock orientation
+          if (screen.orientation && (screen.orientation as any).unlock) {
+            (screen.orientation as any).unlock();
+          }
+        } catch (err) {
+          console.log('Could not exit fullscreen:', err);
+        }
+      }
+    };
+
+    window.addEventListener('orientationchange', handleOrientationChange);
+    window.addEventListener('resize', handleOrientationChange);
+
+    return () => {
+      window.removeEventListener('orientationchange', handleOrientationChange);
+      window.removeEventListener('resize', handleOrientationChange);
+    };
+  }, [isMobile, broadcastStarted, isFullscreen]);
 
   // Handle tab visibility to pause/resume elapsed time
   useEffect(() => {
@@ -1134,6 +1225,38 @@ export default function WebinarLiveClient({
     }
   }, [webinar.hasChat, isMobile]);
 
+  const toggleFullscreen = useCallback(async () => {
+    if (!videoContainerRef.current) return;
+
+    try {
+      if (!isFullscreen) {
+        // Enter fullscreen
+        if (videoContainerRef.current.requestFullscreen) {
+          await videoContainerRef.current.requestFullscreen();
+        } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
+          await (videoContainerRef.current as any).webkitRequestFullscreen();
+        } else if ((videoContainerRef.current as any).mozRequestFullScreen) {
+          await (videoContainerRef.current as any).mozRequestFullScreen();
+        } else if ((videoContainerRef.current as any).msRequestFullscreen) {
+          await (videoContainerRef.current as any).msRequestFullscreen();
+        }
+      } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen();
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen();
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen();
+        }
+      }
+    } catch (err) {
+      console.error('Fullscreen error:', err);
+    }
+  }, [isFullscreen]);
+
   const openChat = useCallback(() => {
     if (webinar.hasChat === false) {
       return;
@@ -1408,11 +1531,23 @@ export default function WebinarLiveClient({
                   <span className={styles.statusDot} />
                   {statusLabel}
                 </div>
-                {webinar.showElapsedTime !== false && (
-                  <div className={styles.videoTime}>
-                    {formattedElapsed}
-                  </div>
-                )}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {webinar.showElapsedTime !== false && (
+                    <div className={styles.videoTime}>
+                      {formattedElapsed}
+                    </div>
+                  )}
+                  {broadcastStarted && (
+                    <button
+                      type="button"
+                      className={styles.fullscreenButton}
+                      onClick={toggleFullscreen}
+                      aria-label={isFullscreen ? 'Exit fullscreen' : 'Enter fullscreen'}
+                    >
+                      <i className={`fas ${isFullscreen ? 'fa-compress' : 'fa-expand'}`} />
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Reaction buttons overlaid on video - only show after broadcast starts */}
@@ -1461,6 +1596,38 @@ export default function WebinarLiveClient({
                       <i className="fas fa-comments" />
                     </button>
                   )}
+                </div>
+              )}
+
+              {/* Red CTA Button in Top-Right Corner - show when offer is active */}
+              {webinar.hasOffers !== false && offerContent && broadcastStarted && (
+                <div className={styles.videoTopRightCTA}>
+                  <button
+                    type="button"
+                    className={styles.videoCtaButton}
+                    onClick={() => {
+                      // Track offer click
+                      if (trackerRef.current) {
+                        trackerRef.current.trackOffer(
+                          'click',
+                          offerContent.title,
+                          offerContent.ctaUrl || '#',
+                          elapsedSeconds
+                        );
+                        trackerRef.current.trackEngagement('offer_click', elapsedSeconds, {
+                          offerTitle: offerContent.title,
+                          ctaUrl: offerContent.ctaUrl
+                        });
+                      }
+                      
+                      if (offerContent.ctaUrl && offerContent.ctaUrl !== '#') {
+                        window.open(offerContent.ctaUrl, '_blank');
+                      }
+                    }}
+                  >
+                    <i className="fas fa-gift" />
+                    <span>{offerContent.ctaText}</span>
+                  </button>
                 </div>
               )}
             </div>
