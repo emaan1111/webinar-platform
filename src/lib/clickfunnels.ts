@@ -368,12 +368,15 @@ export async function sendContactToClickFunnels(
         statusText: response.statusText,
         error: errorText
       })
-      
-      // If contact already exists (409), try to update it
-      if (response.status === 409) {
+
+      const isDuplicate =
+        response.status === 409 ||
+        (response.status === 422 && /Duplicate entry/i.test(errorText || ''))
+
+      if (isDuplicate) {
         return await updateClickFunnelsContact(contactData)
       }
-      
+
       return null
     }
 
@@ -487,6 +490,13 @@ async function updateClickFunnelsContact(
     }
 
     const { tag_ids, ...contactFields } = contactData
+    const contactPayload: Record<string, any> = { ...contactFields }
+
+    // ClickFunnels sometimes requires *_attributes when updating nested objects
+    if (contactFields.custom_attributes) {
+      contactPayload.custom_attributes = contactFields.custom_attributes
+      contactPayload.custom_attributes_attributes = contactFields.custom_attributes
+    }
 
     const updateResponse = await fetch(`${CLICKFUNNELS_API_BASE}/contacts/${existingContact.id}`, {
       method: 'PUT',
@@ -496,7 +506,7 @@ async function updateClickFunnelsContact(
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        contact: contactFields
+        contact: contactPayload
       })
     })
 
@@ -510,12 +520,7 @@ async function updateClickFunnelsContact(
     console.log('✅ Contact updated in ClickFunnels - ID:', result?.id || 'Unknown')
 
     if (tag_ids && tag_ids.length > 0) {
-      const existingTagIds = (existingContact.tags || []).map((t: any) => t.id)
-      const missingTagIds = tag_ids.filter(id => !existingTagIds.includes(id))
-
-      if (missingTagIds.length > 0) {
-        await applyTagsToContact(existingContact.id, missingTagIds)
-      }
+      await applyTagsToContact(existingContact.id, tag_ids)
     }
 
     return result
