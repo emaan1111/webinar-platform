@@ -2,11 +2,8 @@
 const nextConfig = {
   reactStrictMode: true,
   
-  // Disable all static optimization
-  output: 'export' in process.env.RAILWAY_ENVIRONMENT ? 'standalone' : 'standalone',
-  
-  // Skip generation of 404/500 pages
-  generateBuildId: async () => 'build-' + Date.now(),
+  // Skip static page generation during build (fixes Railway build issues)
+  output: 'standalone',
   
   // Performance optimizations
   swcMinify: true,
