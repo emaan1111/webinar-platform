@@ -140,10 +140,10 @@ export async function GET(
       }
     }
 
-    // Sort by date (earliest first) and limit to maxSchedulesToShow
+    // Sort by date (most recent first) and limit to maxSchedulesToShow
     const sortedInstances = scheduleInstances
       .filter(s => s.scheduledAt) // Only ones with dates
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+      .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()) // Changed to descending order
       .slice(0, maxToShow)
 
     // Add just-in-time schedules at the end

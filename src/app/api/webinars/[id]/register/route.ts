@@ -80,34 +80,28 @@ export async function POST(
     }
 
     // Generate unique referral code for this registration
-    let uniqueReferralCode = generateReferralCode();
-    let attempts = 0;
-    const maxAttempts = 10;
+    // Use timestamp + random to minimize collision checks
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 7);
+    let uniqueReferralCode = `${timestamp}${random}`.toUpperCase().substring(0, 10);
+
+    // Quick collision check (single attempt, very unlikely to collide with timestamp approach)
+    const existingCode = await prisma.registration.findUnique({
+      where: { referralCode: uniqueReferralCode },
+      select: { id: true }
+    });
     
-    // Ensure referral code is unique
-    while (attempts < maxAttempts) {
-      const existing = await prisma.registration.findUnique({
-        where: { referralCode: uniqueReferralCode }
-      });
-      
-      if (!existing) break;
-      
+    if (existingCode) {
+      // Regenerate once if collision occurs (extremely rare)
       uniqueReferralCode = generateReferralCode();
-      attempts++;
     }
 
-    // Validate referral code if provided (who referred them)
+    // Validate referral code if provided (who referred them) - do this in background
     let referredBy: string | null = null;
     if (referredByCode) {
-      const referrer = await prisma.registration.findUnique({
-        where: { referralCode: referredByCode },
-        select: { referralCode: true }
-      });
-      
-      if (referrer) {
-        referredBy = referrer.referralCode;
-        console.log(`🎁 Referral tracked: New user referred by ${referredByCode}`);
-      }
+      // We'll validate this in background to not block registration
+      // For now just store the code they provided
+      referredBy = referredByCode;
     }
 
     // Note: Allowing multiple registrations per email
@@ -143,32 +137,69 @@ export async function POST(
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
 
-    // Get schedule data if scheduleId provided (to check for Zoom link)
-    let schedule = null
-    if (scheduleId) {
-      schedule = await prisma.webinarSchedule.findUnique({
-        where: { id: scheduleId },
-        select: {
-          isZoomSession: true,
-          zoomLink: true,
+    // Return success immediately - all integrations happen in background
+    const response = NextResponse.json(
+      { 
+        registrationId: registration.id,
+        registration: {
+          id: registration.id,
+          name: registration.name,
+          email: registration.email,
+          referralCode: registration.referralCode
+        },
+        message: 'Registration successful! Check your email for confirmation.' 
+      },
+      { status: 201 }
+    );
+
+    // All integration work happens in background after response is sent
+    runInBackground('Post-registration integrations', async () => {
+      // Get schedule data if scheduleId provided (to check for Zoom link)
+      let schedule = null;
+      if (scheduleId) {
+        schedule = await prisma.webinarSchedule.findUnique({
+          where: { id: scheduleId },
+          select: {
+            isZoomSession: true,
+            zoomLink: true,
+          }
+        });
+      }
+
+      // Validate referral code in background
+      if (referredByCode && referredBy) {
+        const referrer = await prisma.registration.findUnique({
+          where: { referralCode: referredByCode },
+          select: { referralCode: true }
+        });
+        
+        if (referrer) {
+          // Update the registration with validated referral
+          await prisma.registration.update({
+            where: { id: registration.id },
+            data: { referredBy: referrer.referralCode }
+          });
+          console.log(`🎁 Referral validated: New user referred by ${referredByCode}`);
+        } else {
+          // Invalid referral code, clear it
+          await prisma.registration.update({
+            where: { id: registration.id },
+            data: { referredBy: null }
+          });
         }
-      })
-    }
+      }
 
-    // Get IP address and user agent from request headers
-    const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
-                     request.headers.get('x-real-ip') || 
-                     'unknown'
-    const userAgent = request.headers.get('user-agent') || undefined
-    const cookieHeader = request.headers.get('cookie')
-    const { fbc, fbp } = extractFacebookCookies(cookieHeader)
+      // Get IP address and user agent from request headers
+      const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+                       request.headers.get('x-real-ip') || 
+                       'unknown';
+      const userAgent = request.headers.get('user-agent') || undefined;
+      const cookieHeader = request.headers.get('cookie');
+      const { fbc, fbp } = extractFacebookCookies(cookieHeader);
+      const referer = request.headers.get('referer') || undefined;
 
-    // Get referer URL
-    const referer = request.headers.get('referer') || undefined
-
-    // Send event to Facebook Conversions API in the background
-    runInBackground('Facebook Conversions API', () =>
-      sendFacebookRegistration({
+      // Send event to Facebook Conversions API
+      await sendFacebookRegistration({
         email: registration.email,
         name: registration.name,
         phone: registration.phone || undefined,
@@ -182,74 +213,61 @@ export async function POST(
         registrationId: registration.id,
         value: 0,
         currency: 'USD'
-      })
-    )
+      }).catch(err => console.error('Facebook API error:', err));
 
-    // Build countdown page link
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com'
-    const countdownLink = webinar.slug 
-      ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
-      : null
+      // Build countdown page link
+      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com';
+      const countdownLink = webinar.slug 
+        ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
+        : null;
 
-    // Build referral link
-    const referralLink = webinar.slug
-      ? `${baseUrl}/w/${webinar.slug}?ref=${uniqueReferralCode}`
-      : null
+      // Build referral link
+      const referralLink = webinar.slug
+        ? `${baseUrl}/w/${webinar.slug}?ref=${registration.referralCode}`
+        : null;
 
-    // Format scheduled time in US/Eastern timezone and attendee timezone
-    const formatInTimezone = (date: Date, timeZone: string) => {
-      return new Intl.DateTimeFormat('en-US', {
-        timeZone,
-        dateStyle: 'full',
-        timeStyle: 'long'
-      }).format(date)
-    }
+      // Format scheduled time in US/Eastern timezone and attendee timezone
+      const formatInTimezone = (date: Date, timeZone: string) => {
+        return new Intl.DateTimeFormat('en-US', {
+          timeZone,
+          dateStyle: 'full',
+          timeStyle: 'long'
+        }).format(date);
+      };
 
-    let formattedWebinarTime: string | null = null
-    let formattedLocalWebinarTime: string | null = null
-    let attendeeTimezoneLabel: string | null = null
-    if (registration.scheduledStartTime) {
-      try {
-        formattedWebinarTime = formatInTimezone(new Date(registration.scheduledStartTime), 'America/New_York')
-      } catch (error) {
-        console.error('Failed to format time for EST:', error)
-      }
-
-      const attendeeTimezone = registration.timezone || timezone
-      if (attendeeTimezone) {
+      let formattedWebinarTime: string | null = null;
+      let formattedLocalWebinarTime: string | null = null;
+      let attendeeTimezoneLabel: string | null = null;
+      
+      if (registration.scheduledStartTime) {
         try {
-          const userTime = formatInTimezone(new Date(registration.scheduledStartTime), attendeeTimezone)
-          const [region, city] = attendeeTimezone.split('/')
-          const cityLabel = city?.replace(/_/g, ' ') || attendeeTimezone
-          const regionLabel = region?.replace(/_/g, ' ')
-          attendeeTimezoneLabel = regionLabel ? `${cityLabel}, ${regionLabel}` : cityLabel
-          formattedLocalWebinarTime = `${userTime}${attendeeTimezoneLabel ? ` (${attendeeTimezoneLabel})` : ''}`
+          formattedWebinarTime = formatInTimezone(new Date(registration.scheduledStartTime), 'America/New_York');
         } catch (error) {
-          console.error('Failed to format attendee timezone time:', error)
+          console.error('Failed to format time for EST:', error);
+        }
+
+        const attendeeTimezone = registration.timezone || timezone;
+        if (attendeeTimezone) {
+          try {
+            const userTime = formatInTimezone(new Date(registration.scheduledStartTime), attendeeTimezone);
+            const [region, city] = attendeeTimezone.split('/');
+            const cityLabel = city?.replace(/_/g, ' ') || attendeeTimezone;
+            const regionLabel = region?.replace(/_/g, ' ');
+            attendeeTimezoneLabel = regionLabel ? `${cityLabel}, ${regionLabel}` : cityLabel;
+            formattedLocalWebinarTime = `${userTime}${attendeeTimezoneLabel ? ` (${attendeeTimezoneLabel})` : ''}`;
+          } catch (error) {
+            console.error('Failed to format attendee timezone time:', error);
+          }
         }
       }
-    }
 
-    // Fallback to EST time when attendee timezone formatting fails
-    if (!formattedLocalWebinarTime && formattedWebinarTime) {
-      formattedLocalWebinarTime = formattedWebinarTime
-    }
+      // Fallback to EST time when attendee timezone formatting fails
+      if (!formattedLocalWebinarTime && formattedWebinarTime) {
+        formattedLocalWebinarTime = formattedWebinarTime;
+      }
 
-    // Log the generated links for debugging
-    console.log('🔗 Generated ClickFunnels Links:', {
-      countdownLink,
-      referralLink,
-      formattedWebinarTime,
-      baseUrl,
-      slug: webinar.slug,
-      registrationId: registration.id,
-      scheduleId,
-      uniqueReferralCode
-    })
-
-    // Sync to ClickFunnels (background)
-    runInBackground('ClickFunnels sync', () =>
-      syncWebinarRegistrationToClickFunnels({
+      // Sync to ClickFunnels
+      await syncWebinarRegistrationToClickFunnels({
         name: registration.name,
         email: registration.email,
         phone: registration.phone,
@@ -265,65 +283,42 @@ export async function POST(
         attendeeTimezoneLabel,
         zoomLink: schedule?.zoomLink || undefined,
         isZoomSession: schedule?.isZoomSession || false,
-      })
-    )
+      }).catch(err => console.error('ClickFunnels sync error:', err));
 
-    if (registration.scheduledStartTime) {
-      const webinarStart = new Date(registration.scheduledStartTime)
-      const now = new Date()
-      const hoursUntilWebinar = (webinarStart.getTime() - now.getTime()) / (1000 * 60 * 60)
+      // Schedule reminder tags
+      if (registration.scheduledStartTime) {
+        const webinarStart = new Date(registration.scheduledStartTime);
+        const now = new Date();
+        const hoursUntilWebinar = (webinarStart.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-      const timingBuckets = [
-        { tagName: '24HRREMINDER', offsetHours: 24 },
-        { tagName: '2HRREMINDER', offsetHours: 2 },
-        { tagName: '1HRREMINDER', offsetHours: 1 },
-        { tagName: '15MINREMINDER', offsetHours: 0.25 },
-        { tagName: 'WESTARTED', offsetHours: 0 }
-      ] as const
+        const timingBuckets = [
+          { tagName: '24HRREMINDER', offsetHours: 24 },
+          { tagName: '2HRREMINDER', offsetHours: 2 },
+          { tagName: '1HRREMINDER', offsetHours: 1 },
+          { tagName: '15MINREMINDER', offsetHours: 0.25 },
+          { tagName: 'WESTARTED', offsetHours: 0 }
+        ] as const;
 
-      const selectedBucket = timingBuckets.find(bucket => hoursUntilWebinar >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1]
-      const scheduledFor = selectedBucket.offsetHours > 0
-        ? new Date(webinarStart.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
-        : now
+        const selectedBucket = timingBuckets.find(bucket => hoursUntilWebinar >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1];
+        const scheduledFor = selectedBucket.offsetHours > 0
+          ? new Date(webinarStart.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
+          : now;
 
-      if (selectedBucket.offsetHours > 0 && scheduledFor > now) {
-        runInBackground(`Schedule ClickFunnels ${selectedBucket.tagName} reminder tag`, () =>
-          scheduleDelayedClickFunnelsTag({
+        if (selectedBucket.offsetHours > 0 && scheduledFor > now) {
+          await scheduleDelayedClickFunnelsTag({
             registrationId: registration.id,
             tagName: selectedBucket.tagName,
             scheduledFor
-          })
-        )
-      } else {
-        runInBackground(`Apply ClickFunnels reminder tag ${selectedBucket.tagName}`, async () => {
-          const { applyReminderTagToContact } = await import('@/lib/clickfunnels')
-          const success = await applyReminderTagToContact(registration.email, selectedBucket.tagName)
-          if (success) {
-            console.log(`✅ Reminder tag "${selectedBucket.tagName}" applied immediately`)
-          } else {
-            console.warn(`⚠️ Failed to apply reminder tag "${selectedBucket.tagName}" immediately`)
-          }
-        })
+          }).catch(err => console.error(`Failed to schedule ${selectedBucket.tagName}:`, err));
+        } else {
+          const { applyReminderTagToContact } = await import('@/lib/clickfunnels');
+          await applyReminderTagToContact(registration.email, selectedBucket.tagName)
+            .catch(err => console.error(`Failed to apply ${selectedBucket.tagName}:`, err));
+        }
       }
-    }
+    });
 
-    // TODO: Send confirmation email
-    // TODO: Send calendar invite
-    // TODO: Add to email list if marketingConsent is true
-
-    return NextResponse.json(
-      { 
-        registrationId: registration.id, // Include ID for A/B tracking
-        registration: {
-          id: registration.id,
-          name: registration.name,
-          email: registration.email,
-          referralCode: registration.referralCode // Their unique referral code
-        },
-        message: 'Registration successful! Check your email for confirmation.' 
-      },
-      { status: 201 }
-    )
+    return response;
   } catch (error: any) {
     console.error('Registration error:', error)
     return NextResponse.json(
