@@ -106,8 +106,9 @@ export async function GET(
 
     for (const schedule of webinar.schedules) {
       if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
-        // Only show if in the future
-        if (new Date(schedule.scheduledAt) > now) {
+        const scheduleDate = new Date(schedule.scheduledAt)
+        // Only show if in the future (with a small buffer to account for server time differences)
+        if (scheduleDate.getTime() > now.getTime()) {
           scheduleInstances.push({
             id: schedule.id,
             scheduleType: 'specific',
@@ -140,10 +141,11 @@ export async function GET(
       }
     }
 
-    // Sort by date (most recent first) and limit to maxSchedulesToShow
+    // Sort by date (soonest/closest first - ascending order for upcoming events)
     const sortedInstances = scheduleInstances
       .filter(s => s.scheduledAt) // Only ones with dates
-      .sort((a, b) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()) // Changed to descending order
+      .filter(s => new Date(s.scheduledAt).getTime() > now.getTime()) // Double-check all are in future
+      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()) // Ascending: soonest first
       .slice(0, maxToShow)
 
     // Add just-in-time schedules at the end
