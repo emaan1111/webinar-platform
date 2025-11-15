@@ -103,12 +103,16 @@ export async function GET(
     const scheduleInstances: any[] = []
     const maxToShow = webinar.maxSchedulesToShow || 3
     const now = new Date()
+    const webinarDurationMinutes = webinar.duration || 60 // Default to 60 minutes if not set
 
     for (const schedule of webinar.schedules) {
       if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
         const scheduleDate = new Date(schedule.scheduledAt)
-        // Only show if in the future (with a small buffer to account for server time differences)
-        if (scheduleDate.getTime() > now.getTime()) {
+        // Calculate when the webinar ends (scheduled time + duration)
+        const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
+        
+        // Only show if the webinar hasn't ended yet
+        if (webinarEndTime.getTime() > now.getTime()) {
           scheduleInstances.push({
             id: schedule.id,
             scheduleType: 'specific',
@@ -144,7 +148,12 @@ export async function GET(
     // Sort by date (soonest/closest first - ascending order for upcoming events)
     const sortedInstances = scheduleInstances
       .filter(s => s.scheduledAt) // Only ones with dates
-      .filter(s => new Date(s.scheduledAt).getTime() > now.getTime()) // Double-check all are in future
+      .filter(s => {
+        // Double-check all are in future
+        const scheduleDate = new Date(s.scheduledAt)
+        const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
+        return webinarEndTime.getTime() > now.getTime()
+      })
       .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()) // Ascending: soonest first
       .slice(0, maxToShow)
 
