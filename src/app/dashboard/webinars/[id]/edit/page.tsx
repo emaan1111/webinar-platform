@@ -84,6 +84,8 @@ export default function EditWebinarPage() {
   const [additionalSchedules, setAdditionalSchedules] = useState<Array<any>>([])
   const [showAddSchedule, setShowAddSchedule] = useState(false)
   const [newScheduleType, setNewScheduleType] = useState<'specific' | 'justInTime' | 'recurring'>('specific')
+  const [isZoomSession, setIsZoomSession] = useState(false)
+  const [zoomLink, setZoomLink] = useState('')
   const [templates, setTemplates] = useState<any[]>([])
 
   // Load registration pages on mount
@@ -313,6 +315,8 @@ export default function EditWebinarPage() {
           mappedSchedule.scheduledAt = new Date(`${schedule.scheduledAt}T${schedule.scheduledTime}`).toISOString()
           mappedSchedule.timezone = schedule.timezone
           mappedSchedule.useUserTimezone = schedule.useUserTimezone
+          mappedSchedule.isZoomSession = schedule.isZoomSession || false
+          mappedSchedule.zoomLink = schedule.zoomLink || null
         } else if (schedule.scheduleType === 'justInTime') {
           mappedSchedule.minutesFromReg = schedule.minutesFromReg
         } else if (schedule.scheduleType === 'recurring') {
@@ -413,11 +417,25 @@ export default function EditWebinarPage() {
         return
       }
 
+      // Validate Zoom link if Zoom session is enabled
+      if (isZoomSession) {
+        if (!zoomLink.trim()) {
+          alert('Please enter a Zoom meeting link for this live session')
+          return
+        }
+        if (!zoomLink.startsWith('https://')) {
+          alert('Please enter a valid Zoom link starting with https://')
+          return
+        }
+      }
+
       const timezone = timezoneSelect.value
       newSchedule.scheduledAt = dateInput.value
       newSchedule.scheduledTime = timeInput.value
       newSchedule.timezone = timezone
       newSchedule.useUserTimezone = timezone === 'USER_TIMEZONE'
+      newSchedule.isZoomSession = isZoomSession
+      newSchedule.zoomLink = isZoomSession ? zoomLink : null
     } else if (newScheduleType === 'justInTime') {
       const minutesInput = document.getElementById('newScheduleMinutes') as HTMLInputElement
       const minutes = parseInt(minutesInput.value) || 30
@@ -470,6 +488,8 @@ export default function EditWebinarPage() {
     if (newScheduleType === 'specific' && dateEl && timeEl) {
       dateEl.value = ''
       timeEl.value = ''
+      setIsZoomSession(false)
+      setZoomLink('')
     } else if (newScheduleType === 'justInTime' && minutesEl) {
       minutesEl.value = '30'
     } else if (newScheduleType === 'recurring' && recurringTimeEl) {
@@ -941,6 +961,49 @@ export default function EditWebinarPage() {
                           ))}
                         </select>
                       </div>
+                      
+                      {/* Zoom Session Options */}
+                      <div className="pt-3 border-t border-gray-200 space-y-3">
+                        <div className="flex items-start">
+                          <input
+                            type="checkbox"
+                            id="newScheduleIsZoom"
+                            checked={isZoomSession}
+                            onChange={(e) => {
+                              setIsZoomSession(e.target.checked)
+                              if (!e.target.checked) {
+                                setZoomLink('')
+                              }
+                            }}
+                            className="mt-1 h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                          />
+                          <label htmlFor="newScheduleIsZoom" className="ml-2 block">
+                            <span className="text-sm font-medium text-gray-700">This is a live Zoom session</span>
+                            <p className="text-xs text-gray-500 mt-0.5">
+                              Use a Zoom meeting instead of the built-in webinar room
+                            </p>
+                          </label>
+                        </div>
+                        
+                        {isZoomSession && (
+                          <div>
+                            <label htmlFor="newScheduleZoomLink" className="block text-sm font-medium text-gray-700 mb-1">
+                              Zoom Meeting Link <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="url"
+                              id="newScheduleZoomLink"
+                              value={zoomLink}
+                              onChange={(e) => setZoomLink(e.target.value)}
+                              placeholder="https://zoom.us/j/..."
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <p className="mt-1 text-xs text-gray-500">
+                              Enter your Zoom meeting link. Attendees will be redirected here at webinar start time.
+                            </p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -1063,11 +1126,24 @@ export default function EditWebinarPage() {
                         {schedule.scheduleType === 'specific' && (
                           <>
                             <Calendar className="w-5 h-5 text-blue-600" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">
-                                {schedule.scheduledAt} at {schedule.scheduledTime}
-                              </p>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-gray-900">
+                                  {schedule.scheduledAt} at {schedule.scheduledTime}
+                                </p>
+                                {schedule.isZoomSession && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                    <Video className="w-3 h-3" />
+                                    Live Zoom
+                                  </span>
+                                )}
+                              </div>
                               <p className="text-xs text-gray-600">{schedule.timezone}</p>
+                              {schedule.isZoomSession && schedule.zoomLink && (
+                                <p className="text-xs text-gray-500 mt-1 truncate max-w-xs">
+                                  {schedule.zoomLink}
+                                </p>
+                              )}
                             </div>
                           </>
                         )}

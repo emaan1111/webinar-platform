@@ -180,6 +180,8 @@ export async function PATCH(
           useUserTimezone: schedule.useUserTimezone || false,
           minutesFromReg: schedule.minutesFromReg || null,
           recurringPattern: schedule.recurringPattern || null,
+          isZoomSession: schedule.isZoomSession || false,
+          zoomLink: schedule.zoomLink || null,
           isActive: true
         }))
 
