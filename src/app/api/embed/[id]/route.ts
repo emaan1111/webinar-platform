@@ -31,8 +31,11 @@ export async function GET(
       return new NextResponse('Webinar not found', { status: 404 })
     }
 
+    // Get the API base URL from the request
+    const apiBase = new URL(request.url).origin
+
     // Generate embed JavaScript
-    const embedScript = generateEmbedScript(webinar, type, theme)
+    const embedScript = generateEmbedScript(webinar, type, theme, apiBase)
 
     return new NextResponse(embedScript, {
       headers: {
@@ -47,7 +50,7 @@ export async function GET(
   }
 }
 
-function generateEmbedScript(webinar: any, type: string, theme: string): string {
+function generateEmbedScript(webinar: any, type: string, theme: string, apiBase: string): string {
   const webinarData = JSON.stringify({
     id: webinar.id,
     title: webinar.title,
@@ -92,7 +95,7 @@ function generateEmbedScript(webinar: any, type: string, theme: string): string 
   const WEBINAR_DATA = ${webinarData};
   const THEME = ${JSON.stringify(selectedTheme)};
   const TYPE = '${type}';
-  const API_BASE = '${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}';
+  const API_BASE = '${apiBase}';
 
   // CSS Styles
   const styles = \`
