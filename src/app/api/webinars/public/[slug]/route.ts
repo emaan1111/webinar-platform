@@ -105,11 +105,23 @@ export async function GET(
     const now = new Date()
     const webinarDurationMinutes = webinar.duration || 60 // Default to 60 minutes if not set
 
+    console.log('⏰ Current UTC time:', now.toISOString())
+
     for (const schedule of webinar.schedules) {
       if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
         const scheduleDate = new Date(schedule.scheduledAt)
         // Calculate when the webinar ends (scheduled time + duration)
         const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
+        
+        console.log('📅 Schedule check:', {
+          id: schedule.id,
+          scheduledAt: schedule.scheduledAt,
+          timezone: schedule.timezone,
+          startTime: scheduleDate.toISOString(),
+          endTime: webinarEndTime.toISOString(),
+          hasEnded: webinarEndTime.getTime() <= now.getTime(),
+          willShow: webinarEndTime.getTime() > now.getTime()
+        })
         
         // Only show if the webinar hasn't ended yet
         if (webinarEndTime.getTime() > now.getTime()) {

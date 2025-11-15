@@ -41,7 +41,7 @@ export async function GET(request: Request) {
       whereClause.attended = status === 'attended'
     }
 
-    // Get registrations with new fields
+    // Get registrations with detailed analytics
     const registrations = await prisma.registration.findMany({
       where: whereClause,
       include: {
@@ -55,7 +55,17 @@ export async function GET(request: Request) {
         webinar: {
           select: {
             id: true,
-            title: true
+            title: true,
+            duration: true
+          }
+        },
+        sessions: {
+          include: {
+            videoEvents: true,
+            engagements: true
+          },
+          orderBy: {
+            joinedAt: 'desc'
           }
         }
       },
@@ -77,8 +87,19 @@ export async function GET(request: Request) {
       )
     }
 
-    // Transform data with new fields
+    // Transform data with detailed analytics
     const attendees = filteredRegistrations.map((reg: any) => {
+      // Calculate total watch time from all sessions
+      const totalWatchTime = reg.sessions.reduce((sum: number, session: any) => {
+        return sum + (session.watchDuration || 0)
+      }, 0)
+
+      // Get most recent session data
+      const lastSession = reg.sessions[0]
+      const lastSessionDevice = lastSession?.device || null
+      const lastSessionBrowser = lastSession?.browser || null
+      const lastSessionOS = lastSession?.os || null
+
       // Calculate engagement score
       let engagementScore = 0
       if (reg.attended && reg.joinedAt && reg.leftAt) {
@@ -97,6 +118,22 @@ export async function GET(request: Request) {
         }
       }
 
+      // Count engagement events
+      const totalEngagements = reg.sessions.reduce((sum: number, session: any) => {
+        return sum + (session.engagements?.length || 0)
+      }, 0)
+
+      // Format watch time
+      const formatWatchTime = (seconds: number) => {
+        const hours = Math.floor(seconds / 3600)
+        const minutes = Math.floor((seconds % 3600) / 60)
+        const secs = seconds % 60
+        if (hours > 0) {
+          return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        }
+        return `${minutes}:${secs.toString().padStart(2, '0')}`
+      }
+
       return {
         id: reg.id,
         name: reg.name || reg.user?.name || 'Unknown',
@@ -113,7 +150,21 @@ export async function GET(request: Request) {
         engagementScore,
         gdprConsent: reg.gdprConsent,
         privacyConsent: reg.privacyConsent,
-        marketingConsent: reg.marketingConsent
+        marketingConsent: reg.marketingConsent,
+        // New analytics fields
+        registrationDevice: reg.registrationDevice || 'unknown',
+        watchedReplay: reg.watchedReplay || false,
+        replayWatchTime: reg.replayWatchTime || 0,
+        replayWatchTimeFormatted: formatWatchTime(reg.replayWatchTime || 0),
+        replayClickedCTA: reg.replayClickedCTA || false,
+        replayDevice: reg.replayDevice || null,
+        totalWatchTime,
+        totalWatchTimeFormatted: formatWatchTime(totalWatchTime),
+        lastSessionDevice,
+        lastSessionBrowser,
+        lastSessionOS,
+        totalEngagements,
+        sessionCount: reg.sessions.length
       }
     })
 

@@ -1,18 +1,20 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
+import ViewManager, { CustomView, defaultColumns, ColumnConfig } from '@/components/attendees/ViewManager'
 import {
   Search,
-  Filter,
   Download,
   Mail,
-  MoreVertical,
   CheckCircle,
   XCircle,
-  Eye
+  Eye,
+  Monitor,
+  Smartphone,
+  Clock
 } from 'lucide-react'
 
 interface Attendee {
@@ -22,6 +24,7 @@ interface Attendee {
   phone: string | null
   timezone: string | null
   country: string | null
+  webinarId: string
   webinarTitle: string
   registeredAt: string
   attended: boolean
@@ -31,7 +34,23 @@ interface Attendee {
   gdprConsent: boolean
   privacyConsent: boolean
   marketingConsent: boolean
+  // Analytics fields
+  registrationDevice?: string
+  watchedReplay?: boolean
+  replayWatchTime?: number
+  replayWatchTimeFormatted?: string
+  replayClickedCTA?: boolean
+  replayDevice?: string | null
+  totalWatchTime?: number
+  totalWatchTimeFormatted?: string
+  lastSessionDevice?: string | null
+  lastSessionBrowser?: string | null
+  lastSessionOS?: string | null
+  totalEngagements?: number
+  sessionCount?: number
 }
+
+const VIEWS_STORAGE_KEY = 'attendee_views'
 
 export default function AttendeesPage() {
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -41,8 +60,51 @@ export default function AttendeesPage() {
   const [webinarFilter, setWebinarFilter] = useState('all')
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([])
 
+  // View management
+  const [views, setViews] = useState<CustomView[]>([])
+  const [activeView, setActiveView] = useState<CustomView>({
+    id: 'default',
+    name: 'Default View',
+    columns: defaultColumns,
+    isDefault: true
+  })
+
+  // Load views from localStorage
+  useEffect(() => {
+    const savedViews = localStorage.getItem(VIEWS_STORAGE_KEY)
+    if (savedViews) {
+      try {
+        const parsed = JSON.parse(savedViews)
+        setViews(parsed)
+        
+        // Set first view as active
+        if (parsed.length > 0) {
+          setActiveView(parsed[0])
+        }
+      } catch (error) {
+        console.error('Failed to parse saved views:', error)
+      }
+    } else {
+      // Initialize with default view
+      const defaultView: CustomView = {
+        id: 'default',
+        name: 'Default View',
+        columns: defaultColumns,
+        isDefault: true
+      }
+      setViews([defaultView])
+      setActiveView(defaultView)
+    }
+  }, [])
+
+  // Save views to localStorage
+  const saveViews = (updatedViews: CustomView[]) => {
+    setViews(updatedViews)
+    localStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(updatedViews))
+  }
+
   // Fetch attendees from API
-  React.useEffect(() => {
+  useEffect(() => {
     fetch('/api/attendees')
       .then(res => res.json())
       .then(data => {
@@ -89,115 +151,297 @@ export default function AttendeesPage() {
     }
   }
 
+  const handleViewChange = (view: CustomView) => {
+    setActiveView(view)
+  }
+
+  const handleSaveView = (view: CustomView) => {
+    const existingIndex = views.findIndex(v => v.id === view.id)
+    let updatedViews: CustomView[]
+    
+    if (existingIndex >= 0) {
+      // Update existing view
+      updatedViews = [...views]
+      updatedViews[existingIndex] = view
+    } else {
+      // Add new view
+      updatedViews = [...views, view]
+    }
+    
+    saveViews(updatedViews)
+    setActiveView(view)
+  }
+
+  const handleDeleteView = (viewId: string) => {
+    const updatedViews = views.filter(v => v.id !== viewId)
+    saveViews(updatedViews)
+    
+    // If deleted view was active, switch to first available view
+    if (activeView.id === viewId && updatedViews.length > 0) {
+      setActiveView(updatedViews[0])
+    }
+  }
+
+  const handleCreateView = () => {
+    const newView: CustomView = {
+      id: `view_${Date.now()}`,
+      name: 'New View',
+      columns: defaultColumns.map(col => ({ ...col })) // Clone columns
+    }
+    
+    const updatedViews = [...views, newView]
+    saveViews(updatedViews)
+    setActiveView(newView)
+  }
+
   const handleExportCSV = () => {
-    const headers = ['Name', 'Email', 'Phone', 'Webinar', 'Timezone', 'Country', 'Registered', 'Attended', 'GDPR Consent', 'Marketing Consent', 'Engagement Score']
-    const rows = filteredAttendees.map(a => [
-      a.name,
-      a.email,
-      a.phone || 'N/A',
-      a.webinarTitle,
-      a.timezone || 'N/A',
-      a.country || 'N/A',
-      new Date(a.registeredAt).toLocaleString(),
-      a.attended ? 'Yes' : 'No',
-      a.gdprConsent ? 'Yes' : 'No',
-      a.marketingConsent ? 'Yes' : 'No',
-      a.engagementScore
-    ])
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.join(','))
-    ].join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const enabledColumns = activeView.columns.filter(c => c.enabled)
+    const headers = enabledColumns.map(c => c.label)
+    
+    const rows = filteredAttendees.map(a => 
+      enabledColumns.map(col => {
+        const value = (a as any)[col.key]
+        
+        // Format special values
+        if (col.key === 'registeredAt' || col.key === 'joinedAt' || col.key === 'leftAt') {
+          return value ? new Date(value).toLocaleString() : 'N/A'
+        }
+        if (col.key === 'attended' || col.key === 'watchedReplay' || col.key === 'replayClickedCTA' || 
+            col.key === 'gdprConsent' || col.key === 'privacyConsent' || col.key === 'marketingConsent') {
+          return value ? 'Yes' : 'No'
+        }
+        
+        return value?.toString() || 'N/A'
+      })
+    )
+    
+    const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `attendees-${new Date().toISOString().split('T')[0]}.csv`
+    a.download = `attendees-${activeView.name.toLowerCase().replace(/\s+/g, '-')}-${new Date().toISOString().split('T')[0]}.csv`
     a.click()
   }
 
-  const uniqueWebinars = Array.from(new Set(attendees.map((a: Attendee) => a.webinarTitle)))
+  const renderCellValue = (attendee: Attendee, column: ColumnConfig) => {
+    const value = (attendee as any)[column.key]
+    
+    switch (column.key) {
+      case 'name':
+        return (
+          <div className="flex items-center">
+            <div className="flex-shrink-0 h-8 w-8 bg-blue-600 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {attendee.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="ml-3">
+              <div className="text-sm font-medium text-gray-900">{attendee.name}</div>
+            </div>
+          </div>
+        )
+      
+      case 'email':
+        return <div className="text-sm text-gray-900">{value}</div>
+      
+      case 'phone':
+        return <div className="text-sm text-gray-500">{value || 'N/A'}</div>
+      
+      case 'webinarTitle':
+        return <div className="text-sm text-gray-900">{value}</div>
+      
+      case 'country':
+      case 'timezone':
+        return <div className="text-sm text-gray-500">{value || 'N/A'}</div>
+      
+      case 'registeredAt':
+      case 'joinedAt':
+      case 'leftAt':
+        if (!value) return <div className="text-sm text-gray-400">N/A</div>
+        return (
+          <div>
+            <div className="text-sm text-gray-900">{new Date(value).toLocaleDateString()}</div>
+            <div className="text-sm text-gray-500">{new Date(value).toLocaleTimeString()}</div>
+          </div>
+        )
+      
+      case 'attended':
+        return attendee.attended ? (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+            <CheckCircle className="w-3 h-3" />
+            Yes
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+            <XCircle className="w-3 h-3" />
+            No
+          </span>
+        )
+      
+      case 'engagementScore':
+        const score = value || 0
+        const color = score >= 70 ? 'text-green-600' : score >= 40 ? 'text-yellow-600' : 'text-red-600'
+        return <div className={`text-sm font-medium ${color}`}>{score}%</div>
+      
+      case 'registrationDevice':
+      case 'lastSessionDevice':
+      case 'replayDevice':
+        if (!value || value === 'unknown') return <div className="text-sm text-gray-400">Unknown</div>
+        const Icon = value === 'mobile' ? Smartphone : Monitor
+        return (
+          <div className="flex items-center gap-1 text-sm text-gray-700">
+            <Icon className="w-4 h-4" />
+            {value.charAt(0).toUpperCase() + value.slice(1)}
+          </div>
+        )
+      
+      case 'lastSessionBrowser':
+      case 'lastSessionOS':
+        return <div className="text-sm text-gray-700">{value || 'Unknown'}</div>
+      
+      case 'totalWatchTime':
+      case 'replayWatchTime':
+        const formattedKey = column.key === 'totalWatchTime' ? 'totalWatchTimeFormatted' : 'replayWatchTimeFormatted'
+        return (
+          <div className="flex items-center gap-1 text-sm text-gray-700">
+            <Clock className="w-4 h-4" />
+            {(attendee as any)[formattedKey] || '0:00'}
+          </div>
+        )
+      
+      case 'watchedReplay':
+      case 'replayClickedCTA':
+      case 'gdprConsent':
+      case 'privacyConsent':
+      case 'marketingConsent':
+        return value ? (
+          <CheckCircle className="w-4 h-4 text-green-600" />
+        ) : (
+          <XCircle className="w-4 h-4 text-gray-300" />
+        )
+      
+      case 'totalEngagements':
+      case 'sessionCount':
+        return <div className="text-sm text-gray-700">{value || 0}</div>
+      
+      default:
+        return <div className="text-sm text-gray-700">{value?.toString() || 'N/A'}</div>
+    }
+  }
+
+  const enabledColumns = activeView.columns.filter(c => c.enabled)
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Attendees</h1>
-            <p className="mt-1 text-sm text-gray-500">
-              Manage and export attendee data
+            <h1 className="text-2xl font-bold text-gray-900">Attendees</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Manage and analyze your webinar attendees
             </p>
           </div>
-          <Button onClick={handleExportCSV} className="inline-flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Export CSV
-          </Button>
         </div>
 
-        {/* Filters */}
+        {/* Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <Card>
+            <CardBody>
+              <h3 className="text-sm font-medium text-gray-600">Total Registrations</h3>
+              <p className="text-3xl font-bold text-gray-900 mt-2">{attendees.length}</p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <h3 className="text-sm font-medium text-gray-600">Attended</h3>
+              <p className="text-3xl font-bold text-green-600 mt-2">
+                {attendees.filter(a => a.attended).length}
+              </p>
+            </CardBody>
+          </Card>
+          <Card>
+            <CardBody>
+              <h3 className="text-sm font-medium text-gray-600">Attendance Rate</h3>
+              <p className="text-3xl font-bold text-blue-600 mt-2">
+                {attendees.length > 0 ? Math.round((attendees.filter(a => a.attended).length / attendees.length) * 100) : 0}%
+              </p>
+            </CardBody>
+          </Card>
+        </div>
+
+        {/* Filters and Actions */}
         <Card>
           <CardBody>
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Search */}
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search by name or email..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            <div className="flex flex-col gap-4">
+              {/* Search and View Manager */}
+              <div className="flex flex-col sm:flex-row gap-3 justify-between">
+                <div className="flex-1">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, email, or phone..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                  </div>
+                </div>
+                
+                <ViewManager
+                  views={views}
+                  activeView={activeView}
+                  onViewChange={handleViewChange}
+                  onSaveView={handleSaveView}
+                  onDeleteView={handleDeleteView}
+                  onCreateView={handleCreateView}
                 />
               </div>
-              
-              {/* Attendance Filter */}
-              <select
-                value={attendanceFilter}
-                onChange={(e) => setAttendanceFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Attendees</option>
-                <option value="attended">Attended</option>
-                <option value="no-show">No Show</option>
-              </select>
 
-              {/* Webinar Filter */}
-              <select
-                value={webinarFilter}
-                onChange={(e) => setWebinarFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="all">All Webinars</option>
-                {uniqueWebinars.map(webinar => (
-                  <option key={webinar} value={webinar}>{webinar}</option>
-                ))}
-              </select>
-            </div>
+              {/* Filters */}
+              <div className="flex flex-wrap gap-3">
+                <select
+                  value={attendanceFilter}
+                  onChange={(e) => setAttendanceFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="attended">Attended</option>
+                  <option value="no-show">No Show</option>
+                </select>
 
-            {/* Bulk Actions */}
-            {selectedAttendees.length > 0 && (
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg flex items-center justify-between">
-                <span className="text-sm text-blue-900 font-medium">
-                  {selectedAttendees.length} selected
-                </span>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="secondary">
-                    <Mail className="w-4 h-4 mr-2" />
-                    Send Email
-                  </Button>
-                  <Button size="sm" variant="secondary">
-                    Export Selected
-                  </Button>
-                </div>
+                <select
+                  value={webinarFilter}
+                  onChange={(e) => setWebinarFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="all">All Webinars</option>
+                  {Array.from(new Set(attendees.map(a => a.webinarTitle))).map(title => (
+                    <option key={title} value={title}>{title}</option>
+                  ))}
+                </select>
+
+                {selectedAttendees.length > 0 && (
+                  <>
+                    <Button variant="secondary" size="sm">
+                      <Mail className="w-4 h-4 mr-2" />
+                      Email Selected ({selectedAttendees.length})
+                    </Button>
+                  </>
+                )}
+
+                <Button variant="secondary" size="sm" onClick={handleExportCSV}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Export CSV
+                </Button>
               </div>
-            )}
+            </div>
           </CardBody>
         </Card>
 
-        {/* Attendees Table */}
+        {/* Table */}
         <Card>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -211,27 +455,15 @@ export default function AttendeesPage() {
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Attendee
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Contact
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Webinar
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Location
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Registered
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Consents
-                  </th>
+                  {enabledColumns.map(column => (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
+                    >
+                      {column.label}
+                    </th>
+                  ))}
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -248,79 +480,11 @@ export default function AttendeesPage() {
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       />
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-shrink-0 h-10 w-10 rounded-full bg-blue-600 flex items-center justify-center text-white font-medium">
-                          {attendee.name.charAt(0)}
-                        </div>
-                        <div className="ml-4">
-                          <div className="text-sm font-medium text-gray-900">{attendee.name}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{attendee.email}</div>
-                      {attendee.phone && (
-                        <div className="text-sm text-gray-500">{attendee.phone}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{attendee.webinarTitle}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {attendee.country && (
-                        <div className="text-sm text-gray-900">{attendee.country}</div>
-                      )}
-                      {attendee.timezone && (
-                        <div className="text-sm text-gray-500">{attendee.timezone}</div>
-                      )}
-                      {!attendee.country && !attendee.timezone && (
-                        <div className="text-sm text-gray-400">N/A</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">
-                        {new Date(attendee.registeredAt).toLocaleDateString()}
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(attendee.registeredAt).toLocaleTimeString()}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {attendee.attended ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                          <CheckCircle className="w-3 h-3" />
-                          Attended
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                          <XCircle className="w-3 h-3" />
-                          No Show
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        {attendee.gdprConsent && (
-                          <span className="inline-flex items-center gap-1 text-xs text-blue-600">
-                            <CheckCircle className="w-3 h-3" />
-                            GDPR
-                          </span>
-                        )}
-                        {attendee.privacyConsent && (
-                          <span className="inline-flex items-center gap-1 text-xs text-green-600">
-                            <CheckCircle className="w-3 h-3" />
-                            Privacy
-                          </span>
-                        )}
-                        {attendee.marketingConsent && (
-                          <span className="inline-flex items-center gap-1 text-xs text-purple-600">
-                            <CheckCircle className="w-3 h-3" />
-                            Marketing
-                          </span>
-                        )}
-                      </div>
-                    </td>
+                    {enabledColumns.map(column => (
+                      <td key={column.key} className="px-6 py-4 whitespace-nowrap">
+                        {renderCellValue(attendee, column)}
+                      </td>
+                    ))}
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button className="text-blue-600 hover:text-blue-900">
                         <Eye className="w-4 h-4" />
@@ -344,32 +508,6 @@ export default function AttendeesPage() {
             </div>
           )}
         </Card>
-
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <Card>
-            <CardBody>
-              <h3 className="text-sm font-medium text-gray-600">Total Registrations</h3>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{attendees.length}</p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
-              <h3 className="text-sm font-medium text-gray-600">Attended</h3>
-              <p className="text-3xl font-bold text-green-600 mt-2">
-                {attendees.filter((a: Attendee) => a.attended).length}
-              </p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
-              <h3 className="text-sm font-medium text-gray-600">Attendance Rate</h3>
-              <p className="text-3xl font-bold text-blue-600 mt-2">
-                {attendees.length > 0 ? Math.round((attendees.filter((a: Attendee) => a.attended).length / attendees.length) * 100) : 0}%
-              </p>
-            </CardBody>
-          </Card>
-        </div>
       </div>
     </DashboardLayout>
   )
