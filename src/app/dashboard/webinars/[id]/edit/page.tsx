@@ -201,7 +201,9 @@ export default function EditWebinarPage() {
               scheduledAt: date.toISOString().split('T')[0],
               scheduledTime: date.toTimeString().slice(0, 5),
               timezone: schedule.timezone || 'UTC',
-              useUserTimezone: schedule.useUserTimezone || false
+              useUserTimezone: schedule.useUserTimezone || false,
+              isZoomSession: schedule.isZoomSession || false,
+              zoomLink: schedule.zoomLink || null
             }
           } else if (schedule.scheduleType === 'justInTime') {
             return {

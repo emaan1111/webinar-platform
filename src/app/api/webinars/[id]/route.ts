@@ -137,11 +137,18 @@ export async function PATCH(
       'videoBId'
     ]
 
-    // Filter to only include allowed fields
+    // Filter to only include allowed fields and convert types
     const webinarData: any = {}
     for (const field of allowedFields) {
       if (bodyData[field] !== undefined) {
-        webinarData[field] = bodyData[field]
+        let value = bodyData[field]
+        
+        // Convert string numbers to integers for numeric fields
+        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent') {
+          value = value ? parseInt(value) : null
+        }
+        
+        webinarData[field] = value
       }
     }
 
