@@ -14,13 +14,7 @@ import {
   Eye,
   Monitor,
   Smartphone,
-  Clock,
-  ChevronUp,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronLeft,
-  ChevronRight,
-  Filter as FilterIcon
+  Clock
 } from 'lucide-react'
 
 interface Attendee {
@@ -58,15 +52,6 @@ interface Attendee {
 
 const VIEWS_STORAGE_KEY = 'attendee_views'
 
-type SortConfig = {
-  key: string
-  direction: 'asc' | 'desc'
-} | null
-
-type FilterConfig = {
-  [key: string]: string | boolean | number | null
-}
-
 export default function AttendeesPage() {
   const [attendees, setAttendees] = useState<Attendee[]>([])
   const [loading, setLoading] = useState(true)
@@ -74,13 +59,6 @@ export default function AttendeesPage() {
   const [attendanceFilter, setAttendanceFilter] = useState('all')
   const [webinarFilter, setWebinarFilter] = useState('all')
   const [selectedAttendees, setSelectedAttendees] = useState<string[]>([])
-  
-  // Advanced filtering, sorting, pagination
-  const [filters, setFilters] = useState<FilterConfig>({})
-  const [sortConfig, setSortConfig] = useState<SortConfig>(null)
-  const [currentPage, setCurrentPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
-  const [showFilters, setShowFilters] = useState(false)
 
   // View management
   const [views, setViews] = useState<CustomView[]>([])
@@ -154,82 +132,14 @@ export default function AttendeesPage() {
       webinarFilter === 'all' ||
       attendee.webinarTitle === webinarFilter
 
-    // Advanced filters
-    const matchesAdvancedFilters = Object.entries(filters).every(([key, value]) => {
-      if (value === null || value === '' || value === 'all') return true
-      
-      const attendeeValue = (attendee as any)[key]
-      
-      // Handle boolean filters
-      if (typeof value === 'boolean') {
-        return attendeeValue === value
-      }
-      
-      // Handle string filters (partial match)
-      if (typeof value === 'string' && typeof attendeeValue === 'string') {
-        return attendeeValue.toLowerCase().includes(value.toLowerCase())
-      }
-      
-      // Handle exact match
-      return attendeeValue === value
-    })
-
-    return matchesSearch && matchesAttendance && matchesWebinar && matchesAdvancedFilters
+    return matchesSearch && matchesAttendance && matchesWebinar
   })
 
-  // Sorting
-  const sortedAttendees = React.useMemo(() => {
-    if (!sortConfig) return filteredAttendees
-
-    const sorted = [...filteredAttendees].sort((a, b) => {
-      const aValue = (a as any)[sortConfig.key]
-      const bValue = (b as any)[sortConfig.key]
-
-      // Handle null/undefined
-      if (aValue == null && bValue == null) return 0
-      if (aValue == null) return 1
-      if (bValue == null) return -1
-
-      // Handle dates
-      if (sortConfig.key.includes('At') || sortConfig.key.includes('Date')) {
-        const aTime = new Date(aValue).getTime()
-        const bTime = new Date(bValue).getTime()
-        return sortConfig.direction === 'asc' ? aTime - bTime : bTime - aTime
-      }
-
-      // Handle numbers
-      if (typeof aValue === 'number' && typeof bValue === 'number') {
-        return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue
-      }
-
-      // Handle strings
-      const aString = String(aValue).toLowerCase()
-      const bString = String(bValue).toLowerCase()
-      
-      if (aString < bString) return sortConfig.direction === 'asc' ? -1 : 1
-      if (aString > bString) return sortConfig.direction === 'asc' ? 1 : -1
-      return 0
-    })
-
-    return sorted
-  }, [filteredAttendees, sortConfig])
-
-  // Pagination
-  const totalPages = Math.ceil(sortedAttendees.length / pageSize)
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const paginatedAttendees = sortedAttendees.slice(startIndex, endIndex)
-
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchQuery, attendanceFilter, webinarFilter, filters, sortConfig])
-
   const handleSelectAll = () => {
-    if (selectedAttendees.length === paginatedAttendees.length) {
+    if (selectedAttendees.length === filteredAttendees.length) {
       setSelectedAttendees([])
     } else {
-      setSelectedAttendees(paginatedAttendees.map(a => a.id))
+      setSelectedAttendees(filteredAttendees.map(a => a.id))
     }
   }
 
@@ -239,98 +149,6 @@ export default function AttendeesPage() {
     } else {
       setSelectedAttendees([...selectedAttendees, id])
     }
-  }
-
-  const handleSort = (columnKey: string) => {
-    setSortConfig(current => {
-      if (!current || current.key !== columnKey) {
-        return { key: columnKey, direction: 'asc' }
-      }
-      if (current.direction === 'asc') {
-        return { key: columnKey, direction: 'desc' }
-      }
-      return null // Clear sort
-    })
-  }
-
-  const handleFilterChange = (columnKey: string, value: any) => {
-    setFilters(prev => ({
-      ...prev,
-      [columnKey]: value
-    }))
-  }
-
-  const clearFilters = () => {
-    setFilters({})
-    setSearchQuery('')
-    setAttendanceFilter('all')
-    setWebinarFilter('all')
-    setSortConfig(null)
-  }
-
-  const renderFilterInput = (column: ColumnConfig) => {
-    const filterValue = filters[column.key]
-
-    // Boolean filters (checkboxes)
-    if (column.key === 'attended' || column.key === 'watchedReplay' || 
-        column.key === 'replayClickedCTA' || column.key === 'gdprConsent' || 
-        column.key === 'privacyConsent' || column.key === 'marketingConsent') {
-      return (
-        <select
-          value={filterValue === true ? 'true' : filterValue === false ? 'false' : 'all'}
-          onChange={(e) => {
-            const val = e.target.value
-            handleFilterChange(column.key, val === 'all' ? null : val === 'true')
-          }}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="all">All</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-      )
-    }
-
-    // Device filters
-    if (column.key === 'registrationDevice' || column.key === 'lastSessionDevice' || column.key === 'replayDevice') {
-      return (
-        <select
-          value={filterValue?.toString() || 'all'}
-          onChange={(e) => handleFilterChange(column.key, e.target.value === 'all' ? null : e.target.value)}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-        >
-          <option value="all">All</option>
-          <option value="mobile">Mobile</option>
-          <option value="desktop">Desktop</option>
-          <option value="unknown">Unknown</option>
-        </select>
-      )
-    }
-
-    // Numeric filters (engagement score, watch time, etc.)
-    if (column.key === 'engagementScore' || column.key === 'totalEngagements' || 
-        column.key === 'sessionCount' || column.key === 'totalWatchTime' || column.key === 'replayWatchTime') {
-      return (
-        <input
-          type="number"
-          placeholder="Min"
-          value={filterValue?.toString() || ''}
-          onChange={(e) => handleFilterChange(column.key, e.target.value ? Number(e.target.value) : null)}
-          className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-        />
-      )
-    }
-
-    // Text filters (default)
-    return (
-      <input
-        type="text"
-        placeholder="Filter..."
-        value={filterValue?.toString() || ''}
-        onChange={(e) => handleFilterChange(column.key, e.target.value || null)}
-        className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
-      />
-    )
   }
 
   const handleViewChange = (view: CustomView) => {
@@ -380,8 +198,7 @@ export default function AttendeesPage() {
     const enabledColumns = activeView.columns.filter(c => c.enabled)
     const headers = enabledColumns.map(c => c.label)
     
-    // Use sorted/filtered data for export
-    const rows = sortedAttendees.map(a => 
+    const rows = filteredAttendees.map(a => 
       enabledColumns.map(col => {
         const value = (a as any)[col.key]
         
@@ -617,31 +434,8 @@ export default function AttendeesPage() {
 
                 <Button variant="secondary" size="sm" onClick={handleExportCSV}>
                   <Download className="w-4 h-4 mr-2" />
-                  Export CSV ({sortedAttendees.length})
+                  Export CSV
                 </Button>
-
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
-                >
-                  <FilterIcon className="w-4 h-4 mr-2" />
-                  {showFilters ? 'Hide' : 'Show'} Filters
-                </Button>
-
-                {(Object.keys(filters).length > 0 || sortConfig || searchQuery) && (
-                  <Button variant="secondary" size="sm" onClick={clearFilters}>
-                    Clear All Filters
-                  </Button>
-                )}
-              </div>
-
-              {/* Results info */}
-              <div className="text-sm text-gray-600">
-                Showing {startIndex + 1}-{Math.min(endIndex, sortedAttendees.length)} of {sortedAttendees.length} attendees
-                {sortedAttendees.length !== attendees.length && (
-                  <span className="ml-2 text-gray-500">(filtered from {attendees.length} total)</span>
-                )}
               </div>
             </div>
           </CardBody>
@@ -652,12 +446,11 @@ export default function AttendeesPage() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
-                {/* Header Row */}
                 <tr>
                   <th scope="col" className="px-6 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedAttendees.length === paginatedAttendees.length && paginatedAttendees.length > 0}
+                      checked={selectedAttendees.length === filteredAttendees.length && filteredAttendees.length > 0}
                       onChange={handleSelectAll}
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
@@ -666,43 +459,18 @@ export default function AttendeesPage() {
                     <th
                       key={column.key}
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
-                      onClick={() => handleSort(column.key)}
+                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap"
                     >
-                      <div className="flex items-center gap-2">
-                        <span>{column.label}</span>
-                        {sortConfig?.key === column.key ? (
-                          sortConfig.direction === 'asc' ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )
-                        ) : (
-                          <ChevronsUpDown className="w-4 h-4 opacity-30" />
-                        )}
-                      </div>
+                      {column.label}
                     </th>
                   ))}
                   <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
                 </tr>
-                
-                {/* Filter Row */}
-                {showFilters && (
-                  <tr className="bg-gray-100">
-                    <th className="px-6 py-2"></th>
-                    {enabledColumns.map(column => (
-                      <th key={column.key} className="px-6 py-2">
-                        {renderFilterInput(column)}
-                      </th>
-                    ))}
-                    <th className="px-6 py-2"></th>
-                  </tr>
-                )}
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedAttendees.map((attendee) => (
+                {filteredAttendees.map((attendee) => (
                   <tr key={attendee.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
@@ -734,104 +502,9 @@ export default function AttendeesPage() {
             </div>
           )}
 
-          {!loading && paginatedAttendees.length === 0 && (
+          {!loading && filteredAttendees.length === 0 && (
             <div className="text-center py-12">
               <p className="text-gray-500">No attendees found</p>
-            </div>
-          )}
-
-          {/* Pagination */}
-          {!loading && sortedAttendees.length > 0 && (
-            <div className="px-6 py-4 border-t border-gray-200">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                {/* Page size selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">Show</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value))
-                      setCurrentPage(1)
-                    }}
-                    className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span className="text-sm text-gray-700">per page</span>
-                </div>
-
-                {/* Pagination controls */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-
-                  {/* Page numbers */}
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let pageNum: number
-                      
-                      // Show pages around current page
-                      if (totalPages <= 5) {
-                        pageNum = i + 1
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i
-                      } else {
-                        pageNum = currentPage - 2 + i
-                      }
-
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 text-sm rounded ${
-                            currentPage === pageNum
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    })}
-                    {totalPages > 5 && currentPage < totalPages - 2 && (
-                      <>
-                        <span className="px-2 text-gray-500">...</span>
-                        <button
-                          onClick={() => setCurrentPage(totalPages)}
-                          className="px-3 py-1 text-sm rounded bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
-                        >
-                          {totalPages}
-                        </button>
-                      </>
-                    )}
-                  </div>
-
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Page info */}
-                <div className="text-sm text-gray-700">
-                  Page {currentPage} of {totalPages}
-                </div>
-              </div>
             </div>
           )}
         </Card>
