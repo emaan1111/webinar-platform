@@ -259,17 +259,22 @@ function WebinarCard({
   const capacity = webinar.maxAttendees ? Math.round((registrationCount / webinar.maxAttendees) * 100) : 0
 
   const registrationUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/w/${webinar.slug || webinar.id}`
-  const embedUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/embed/${webinar.slug || webinar.id}`
   
-  const embedCode = `<!-- Webinar Registration Popup Form -->
-<iframe 
-  src="${embedUrl}" 
-  width="100%" 
-  height="700" 
-  frameborder="0" 
-  style="border: none; border-radius: 12px; box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); max-width: 500px; margin: 0 auto; display: block;"
-  title="${webinar.title} - Registration Form">
-</iframe>`
+  // State for embed type and theme
+  const [embedType, setEmbedType] = useState<'popup' | 'inline'>('popup')
+  const [embedTheme, setEmbedTheme] = useState<'purple' | 'blue' | 'green'>('purple')
+  
+  // Preview URL for the selected type and theme
+  const previewUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/embed/${webinar.id}/preview?type=${embedType}&theme=${embedTheme}`
+  
+  // Generate embed code based on type
+  const embedCode = embedType === 'popup' 
+    ? `<!-- Webinar Registration Popup -->
+<button data-webinar-popup="${webinar.id}">Register for Webinar</button>
+<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/api/embed/${webinar.id}?type=popup&theme=${embedTheme}"></script>`
+    : `<!-- Webinar Registration Inline Form -->
+<div id="webinar-embed-${webinar.id}"></div>
+<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/api/embed/${webinar.id}?type=inline&theme=${embedTheme}"></script>`
 
   const handleCopyEmbed = () => {
     navigator.clipboard.writeText(embedCode)
@@ -392,41 +397,87 @@ function WebinarCard({
               </div>
               
               <p className="text-sm text-gray-600 mb-4">
-                Copy and paste this code into your website to embed the registration form as a popup.
+                Choose your embed type and customize the theme, then copy the code to add to your website.
               </p>
 
               <div className="space-y-4">
-                {/* Embed URL */}
+                {/* Type Selector */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Embed Form URL
+                    Embed Type
                   </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={embedUrl}
-                      readOnly
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-sm font-mono"
-                    />
-                    <Button 
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(embedUrl)
-                        alert('Embed URL copied!')
-                      }}
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => setEmbedType('popup')}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        embedType === 'popup'
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
                     >
-                      <Copy className="w-4 h-4" />
-                    </Button>
+                      <div className="font-semibold text-sm mb-1">🎯 Popup Modal</div>
+                      <div className="text-xs text-gray-600">Opens as a modal overlay when button is clicked</div>
+                    </button>
+                    <button
+                      onClick={() => setEmbedType('inline')}
+                      className={`p-4 border-2 rounded-lg text-left transition-all ${
+                        embedType === 'inline'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="font-semibold text-sm mb-1">📋 Inline Form</div>
+                      <div className="text-xs text-gray-600">Embedded directly in your page content</div>
+                    </button>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    This URL shows only the registration form without the full page
-                  </p>
+                </div>
+
+                {/* Theme Selector */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Color Theme
+                  </label>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setEmbedTheme('purple')}
+                      className={`flex-1 p-3 border-2 rounded-lg transition-all ${
+                        embedTheme === 'purple'
+                          ? 'border-purple-500 bg-purple-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="w-full h-3 bg-gradient-to-r from-purple-500 to-indigo-500 rounded mb-2"></div>
+                      <div className="text-xs font-medium">Purple</div>
+                    </button>
+                    <button
+                      onClick={() => setEmbedTheme('blue')}
+                      className={`flex-1 p-3 border-2 rounded-lg transition-all ${
+                        embedTheme === 'blue'
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="w-full h-3 bg-gradient-to-r from-blue-500 to-cyan-500 rounded mb-2"></div>
+                      <div className="text-xs font-medium">Blue</div>
+                    </button>
+                    <button
+                      onClick={() => setEmbedTheme('green')}
+                      className={`flex-1 p-3 border-2 rounded-lg transition-all ${
+                        embedTheme === 'green'
+                          ? 'border-green-500 bg-green-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <div className="w-full h-3 bg-gradient-to-r from-green-500 to-emerald-500 rounded mb-2"></div>
+                      <div className="text-xs font-medium">Green</div>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Direct Link */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Full Page URL
+                    📍 Full Registration Page URL
                   </label>
                   <div className="flex gap-2">
                     <input
@@ -453,10 +504,10 @@ function WebinarCard({
                 {/* Embed Code */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Embed Code (iFrame)
+                    💻 Embed Code
                   </label>
                   <div className="relative">
-                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs font-mono">
+                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto text-xs font-mono whitespace-pre-wrap break-all">
                       {embedCode}
                     </pre>
                     <button
@@ -467,18 +518,25 @@ function WebinarCard({
                       Copy
                     </button>
                   </div>
+                  <p className="text-xs text-gray-500 mt-2">
+                    {embedType === 'popup' 
+                      ? '⚡ Paste both lines in your HTML. Clicking the button will open the registration modal.'
+                      : '📝 Paste both lines where you want the form to appear on your page.'
+                    }
+                  </p>
                 </div>
 
                 {/* Preview */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Preview
+                    👁️ Live Preview
                   </label>
-                  <div className="border border-gray-300 rounded-lg overflow-hidden bg-gradient-to-br from-blue-50 to-indigo-100">
+                  <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white">
                     <iframe
-                      src={embedUrl}
+                      key={`${embedType}-${embedTheme}`}
+                      src={previewUrl}
                       width="100%"
-                      height="600"
+                      height="650"
                       style={{ border: 'none' }}
                       title={`${webinar.title} - Preview`}
                     />
@@ -489,12 +547,23 @@ function WebinarCard({
                 <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <h3 className="text-sm font-semibold text-blue-900 mb-2">💡 Embedding Tips</h3>
                   <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• The embed shows a clean, popup-style registration form</li>
-                    <li>• Recommended width: 100% or max-width: 500px for best look</li>
-                    <li>• Recommended height: 700px (adjustable based on your needs)</li>
-                    <li>• The form is fully responsive and mobile-friendly</li>
-                    <li>• Perfect for embedding in modals, sidebars, or inline on pages</li>
-                    <li>• Use <code className="bg-blue-100 px-1 rounded">max-width</code> CSS to control form width</li>
+                    {embedType === 'popup' ? (
+                      <>
+                        <li>• The popup opens as a modal overlay when users click your button</li>
+                        <li>• Customize the button text and styling to match your site</li>
+                        <li>• Perfect for CTAs, landing pages, and marketing campaigns</li>
+                        <li>• Dark premium design optimized for conversions</li>
+                      </>
+                    ) : (
+                      <>
+                        <li>• The form embeds directly into your page content</li>
+                        <li>• Split-screen layout with promotional content on the left</li>
+                        <li>• Ideal for blog posts, resource pages, and content marketing</li>
+                        <li>• Fully responsive and mobile-friendly</li>
+                      </>
+                    )}
+                    <li>• All form data is securely processed and stored</li>
+                    <li>• Registrants receive automatic confirmation emails</li>
                   </ul>
                 </div>
               </div>

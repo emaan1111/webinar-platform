@@ -303,6 +303,7 @@ model Registration {
   // Replay Tracking
   watchedReplay      Boolean   @default(false) // Has watched replay
   replayWatchTime    Int       @default(0)     // Total seconds watched in replay
+  lastWatchedPosition Int      @default(0)     // Last video timestamp where user stopped (in seconds)
   replayClickedCTA   Boolean   @default(false) // Clicked CTA during replay
   replayDevice       String?   // Device used for replay: "mobile" | "desktop"
   registrationDevice String?   // Device used during registration

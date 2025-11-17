@@ -114,6 +114,10 @@ export async function GET(
       padding: 20px;
       background: #f7fafc;
       border-radius: 12px;
+      min-height: 400px;
+    }
+    #webinar-embed-${webinar.id} {
+      min-height: 500px;
     }
     .info-box {
       margin-top: 30px;
@@ -169,13 +173,36 @@ export async function GET(
       </div>
       
       <div class="inline-container">
-        <div id="webinar-embed-${webinar.id}"></div>
+        <div id="webinar-embed-${webinar.id}">
+          <div style="padding: 40px; text-align: center; color: #6b7280;">
+            <div style="font-size: 48px; margin-bottom: 16px;">⏳</div>
+            <div>Loading registration form...</div>
+          </div>
+        </div>
       </div>
     `}
   </div>
 
   <!-- Load the embed script -->
   <script src="${baseUrl}/api/embed/${webinar.id}?theme=${theme}&type=${type}"></script>
+  
+  <!-- Debug script -->
+  <script>
+    console.log('Preview page loaded');
+    console.log('Webinar ID: ${webinar.id}');
+    console.log('Type: ${type}');
+    console.log('Theme: ${theme}');
+    console.log('Embed script URL:', '${baseUrl}/api/embed/${webinar.id}?theme=${theme}&type=${type}');
+    
+    // Check if container exists
+    setTimeout(() => {
+      const container = document.getElementById('webinar-embed-${webinar.id}');
+      console.log('Container found:', !!container);
+      if (container) {
+        console.log('Container HTML:', container.innerHTML.substring(0, 200));
+      }
+    }, 2000);
+  </script>
 </body>
 </html>
     `.trim()

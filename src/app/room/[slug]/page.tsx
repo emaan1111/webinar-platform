@@ -18,6 +18,7 @@ interface RegistrationMeta {
   scheduleId: string | null;
   timezone: string | null;
   firstJoinedAt: Date | null;
+  lastWatchedPosition: number;
 }
 
 interface ChatMessagePayload {
@@ -223,6 +224,8 @@ export default async function WebinarRoomPage({
           webinarId: true,
           scheduledStartTime: true, // NEW: Get the stored start time
           firstJoinedAt: true, // For grace period tracking (never changes)
+          // @ts-ignore - Field exists in schema, TS server hasn't refreshed yet
+          lastWatchedPosition: true, // For replay resume functionality
         },
       })
     : null;
@@ -240,8 +243,14 @@ export default async function WebinarRoomPage({
         scheduleId: registration.scheduleId,
         timezone: registration.timezone,
         firstJoinedAt: registration.firstJoinedAt,
+        lastWatchedPosition: (registration as any).lastWatchedPosition || 0,
       }
     : null;
+
+  // Debug logging for replay position
+  if (registrationMeta) {
+    console.log('📊 [Room] Registration lastWatchedPosition:', registrationMeta.lastWatchedPosition);
+  }
 
   // Use stored scheduledStartTime if available, otherwise calculate it
   let originalStartTime: Date;
@@ -308,22 +317,29 @@ export default async function WebinarRoomPage({
     adjustedStartTime.getTime() + webinar.duration * 60 * 1000
   );
   
-  if (now > webinarEndTime) {
-    // Webinar has ended
-    if (webinar.replayEnabled) {
-      // Redirect to replay page with query params
-      const replayParams = new URLSearchParams();
-      if (registrationId) replayParams.set('r', registrationId);
-      if (searchParams.tz) replayParams.set('tz', searchParams.tz);
-      
-      const replayUrl = `/w/${slug}/replay${replayParams.toString() ? `?${replayParams.toString()}` : ''}`;
-      console.log(`🎬 Webinar ended, redirecting to replay: ${replayUrl}`);
-      redirect(replayUrl);
-    } else {
-      // Replay not enabled - show ended message
-      // For now, let them see the live room (can add custom "ended" page later)
-      console.log('⚠️ Webinar ended but replay is not enabled');
+  // Calculate replay expiration date (for countdown banner)
+  let calculatedReplayExpiresAt: string | null = null;
+  
+  if (now > webinarEndTime && webinar.replayEnabled) {
+    console.log('🎬 Webinar ended, showing replay on same page');
+    
+    // Priority: 1) Absolute expiration date, 2) Duration-based from scheduled start
+    if (webinar.replayExpiresAt) {
+      // Use absolute expiration if set (overrides everything)
+      calculatedReplayExpiresAt = webinar.replayExpiresAt.toISOString();
+      console.log('📅 Using absolute replay expiration:', calculatedReplayExpiresAt);
+    } else if (webinar.replayDurationDays && originalStartTime) {
+      // Calculate expiration based on scheduled start time + duration
+      const expirationDate = new Date(
+        originalStartTime.getTime() + webinar.replayDurationDays * 24 * 60 * 60 * 1000
+      );
+      calculatedReplayExpiresAt = expirationDate.toISOString();
+      console.log(`📅 Calculated replay expiration: ${webinar.replayDurationDays} days from start = ${calculatedReplayExpiresAt}`);
     }
+  } else if (now > webinarEndTime) {
+    // Replay not enabled - show ended message
+    console.log('⚠️ Webinar ended but replay is not enabled');
+    // Let them see the room with ended state
   }
 
   const chatMessages: ChatMessagePayload[] = webinar.chatMessages.map(
@@ -409,6 +425,8 @@ export default async function WebinarRoomPage({
         hasOffers: webinar.hasOffers,
         hasReactions: webinar.hasReactions,
         showElapsedTime: webinar.showElapsedTime !== undefined ? webinar.showElapsedTime : true,
+        replayEnabled: webinar.replayEnabled,
+        replayExpiresAt: calculatedReplayExpiresAt,
       }}
       offers={offers}
       chatMessages={chatMessages}
@@ -419,6 +437,7 @@ export default async function WebinarRoomPage({
               id: registrationMeta.id,
               name: registrationMeta.name,
               email: registrationMeta.email,
+              lastWatchedPosition: registrationMeta.lastWatchedPosition,
             }
           : null
       }
@@ -431,6 +450,7 @@ export default async function WebinarRoomPage({
             : initialElapsedSeconds,
         videoDuration: inferredVideoDuration,
       }}
+      isReplayMode={now > webinarEndTime && webinar.replayEnabled}
     />
   );
 }

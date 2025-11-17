@@ -19,6 +19,8 @@ declare global {
         getVolume(): Promise<number>;
         getMuted(): Promise<boolean>;
         setMuted(muted: boolean): Promise<boolean>;
+        on(event: string, callback: () => void): void;
+        off(event: string, callback?: () => void): void;
       };
     };
   }
@@ -61,6 +63,7 @@ interface ViewerInfo {
   id: string;
   name: string;
   email: string;
+  lastWatchedPosition?: number;
 }
 
 interface TimingMeta {
@@ -81,6 +84,8 @@ interface WebinarData {
   hasOffers?: boolean;
   hasReactions?: boolean;
   showElapsedTime?: boolean;
+  replayEnabled?: boolean;
+  replayExpiresAt?: string | null;
 }
 
 interface OfferContent {
@@ -102,6 +107,7 @@ interface WebinarLiveClientProps {
   reactionEvents: ReactionEvent[];
   viewer: ViewerInfo | null;
   timing: TimingMeta;
+  isReplayMode?: boolean;
 }
 
 const defaultFaqs = [
@@ -355,7 +361,14 @@ export default function WebinarLiveClient({
   reactionEvents,
   viewer,
   timing,
+  isReplayMode = false,
 }: WebinarLiveClientProps) {
+  // Debug: Log viewer data on mount
+  console.log('🎯 [WebinarLiveClient] Component mounted');
+  console.log('🎯 [WebinarLiveClient] Viewer:', viewer);
+  console.log('🎯 [WebinarLiveClient] Is replay mode:', isReplayMode);
+  console.log('🎯 [WebinarLiveClient] Viewer lastWatchedPosition:', viewer?.lastWatchedPosition);
+  
   const [isChatOpen, setIsChatOpen] = useState(true); // Changed to true - chat visible by default
   const [isChatMinimized, setIsChatMinimized] = useState(false); // New state for mobile minimization
   const [activeTab, setActiveTab] = useState<'chat' | 'faq'>('chat');
@@ -366,6 +379,7 @@ export default function WebinarLiveClient({
   const [broadcastStarted, setBroadcastStarted] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false); // Show loading state
   const [mounted, setMounted] = useState(false); // Track if component has mounted
+  const [playerReady, setPlayerReady] = useState(false); // Track if Vimeo player is ready
   const [liveViewerCount, setLiveViewerCount] = useState(0); // Simulated live viewer count
   const [isTyping, setIsTyping] = useState(false); // Show "someone is typing" indicator
   const [isTabVisible, setIsTabVisible] = useState(true); // Track tab visibility
@@ -375,6 +389,8 @@ export default function WebinarLiveClient({
   const [isFullscreen, setIsFullscreen] = useState(false); // Track fullscreen state
   const [videoError, setVideoError] = useState(false); // Track if video failed to load
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile compatibility
+  const [replayTimeRemaining, setReplayTimeRemaining] = useState<string | null>(null); // Countdown display
+  const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set()); // Track offers user has seen
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -620,6 +636,23 @@ export default function WebinarLiveClient({
     };
   }, []);
 
+  // Load seen offers from localStorage on mount
+  useEffect(() => {
+    if (!viewer?.id || !webinar.id) return;
+    
+    const storageKey = `seenOffers_${webinar.id}_${viewer.id}`;
+    try {
+      const stored = localStorage.getItem(storageKey);
+      if (stored) {
+        const seenIds = JSON.parse(stored) as string[];
+        setSeenOfferIds(new Set(seenIds));
+        console.log(`📦 Loaded ${seenIds.length} seen offers from localStorage`);
+      }
+    } catch (err) {
+      console.error('Failed to load seen offers:', err);
+    }
+  }, [viewer?.id, webinar.id]);
+
   // Auto-fullscreen on mobile landscape orientation
   useEffect(() => {
     if (!isMobile || !broadcastStarted) return;
@@ -710,18 +743,22 @@ export default function WebinarLiveClient({
       setIsTabVisible(isVisible);
 
       if (!isVisible) {
-        // Tab hidden - store current elapsed time and pause video
+        // Tab hidden - store current elapsed time
         pausedTimeRef.current = elapsedSeconds;
-        if (vimeoPlayerRef.current) {
+        
+        // Only pause if NOT in replay mode (let replays keep playing)
+        if (vimeoPlayerRef.current && !isReplayMode) {
           vimeoPlayerRef.current.pause().catch(() => {
             // Ignore pause errors
           });
+          console.log('⏸️ Tab hidden - paused at', elapsedSeconds, 'seconds');
+        } else {
+          console.log('👁️ Tab hidden but replay mode - keeping video playing');
         }
-        console.log('⏸️ Tab hidden - paused at', elapsedSeconds, 'seconds');
       } else {
         // Tab visible again - resume from paused time
-        console.log('▶️ Tab visible - resuming from', pausedTimeRef.current, 'seconds');
-        if (vimeoPlayerRef.current && broadcastStarted) {
+        console.log('▶️ Tab visible - resuming');
+        if (vimeoPlayerRef.current && broadcastStarted && !isReplayMode) {
           vimeoPlayerRef.current.play().catch(() => {
             // Ignore play errors
           });
@@ -733,7 +770,7 @@ export default function WebinarLiveClient({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [elapsedSeconds, broadcastStarted]);
+  }, [elapsedSeconds, broadcastStarted, isReplayMode]);
 
   useEffect(() => {
     const update = () => {
@@ -975,11 +1012,44 @@ export default function WebinarLiveClient({
     const latest = findOfferForElapsed(offersSorted, elapsedSeconds);
     const nextId = latest?.id ?? null;
 
-    if (nextId !== activeOfferId) {
-      setActiveOfferId(nextId);
+    // If offer is visible now, mark it as seen
+    if (nextId && !seenOfferIds.has(nextId)) {
+      const newSeenIds = new Set(seenOfferIds);
+      newSeenIds.add(nextId);
+      setSeenOfferIds(newSeenIds);
       
-      // Track offer view
-      if (nextId && latest && trackerRef.current) {
+      // Save to localStorage
+      if (viewer?.id && webinar.id) {
+        const storageKey = `seenOffers_${webinar.id}_${viewer.id}`;
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(Array.from(newSeenIds)));
+          console.log(`✅ Marked offer ${nextId} as seen and saved to localStorage`);
+        } catch (err) {
+          console.error('Failed to save seen offers:', err);
+        }
+      }
+    }
+
+    // Check if any previously seen offer should be shown
+    // (user has seen it before, even if they rewound)
+    let displayOfferId = nextId;
+    if (!nextId && seenOfferIds.size > 0) {
+      // Find the most recent seen offer that we're past the timestamp of
+      const seenOffers = offersSorted.filter(offer => 
+        seenOfferIds.has(offer.id) && elapsedSeconds >= offer.videoTimestamp
+      );
+      if (seenOffers.length > 0) {
+        const mostRecent = seenOffers[seenOffers.length - 1];
+        displayOfferId = mostRecent.id;
+        console.log(`🔄 Showing previously seen offer: ${mostRecent.title}`);
+      }
+    }
+
+    if (displayOfferId !== activeOfferId) {
+      setActiveOfferId(displayOfferId);
+      
+      // Track offer view (only for first time)
+      if (displayOfferId && latest && !seenOfferIds.has(displayOfferId) && trackerRef.current) {
         trackerRef.current.trackOffer(
           'view',
           latest.title,
@@ -993,7 +1063,7 @@ export default function WebinarLiveClient({
       }
       
       // Auto-switch to FAQ tab when offer appears
-      if (nextId) {
+      if (displayOfferId) {
         setActiveTab('faq');
       } else {
         // Switch back to Chat when offer ends
@@ -1005,6 +1075,9 @@ export default function WebinarLiveClient({
     offersSorted,
     webinar.hasOffers,
     activeOfferId,
+    seenOfferIds,
+    viewer?.id,
+    webinar.id,
   ]);
 
   const activeOffer = useMemo(() => {
@@ -1332,9 +1405,8 @@ export default function WebinarLiveClient({
     }, 250);
   }, []);
 
-  // Simulated webinar - always show as live
-  const isReplay =
-    totalDuration != null ? elapsedSeconds >= totalDuration : false;
+  // Determine replay vs live status
+  const isReplay = isReplayMode || (totalDuration != null ? elapsedSeconds >= totalDuration : false);
 
   const statusLabel = isReplay ? 'Replay' : 'Broadcasting';
 
@@ -1367,13 +1439,13 @@ export default function WebinarLiveClient({
     
     console.log('🎯 Starting player initialization process...');
     
-    // Force hide loading after 6 seconds to prevent infinite loading
+    // Force hide loading after 12 seconds to prevent infinite loading (increased from 6s)
     const emergencyTimeout = setTimeout(() => {
-      console.log('⚠️ EMERGENCY: Force hiding loading overlay after 6s');
+      console.log('⚠️ EMERGENCY: Force hiding loading overlay after 12s');
       setVideoLoading(false);
       setVideoError(true);
       setBroadcastStarted(false); // Allow user to try again
-    }, 6000);
+    }, 12000);
     
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
@@ -1397,9 +1469,16 @@ export default function WebinarLiveClient({
         vimeoPlayerRef.current = player;
         console.log('✅ Vimeo Player instance created');
         
-        // Use the stored start time from when user clicked the button
-        const startTime = startTimeRef.current;
-        console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
+        // Determine start time: 
+        // 1. If replay mode and has lastWatchedPosition, resume from there
+        // 2. Otherwise use the stored start time from when user clicked the button
+        let startTime = startTimeRef.current;
+        if (isReplay && viewer?.lastWatchedPosition && viewer.lastWatchedPosition > 0) {
+          startTime = viewer.lastWatchedPosition;
+          console.log(`🔄 REPLAY RESUME: Starting from ${formatTimeLabel(startTime)} (${startTime}s) - where user left off`);
+        } else {
+          console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
+        }
         
         // Detect if mobile for different handling
         const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1412,6 +1491,42 @@ export default function WebinarLiveClient({
         player.ready()
           .then(async () => {
             console.log('✅ Player ready');
+            setPlayerReady(true); // Mark player as ready for save effect
+            
+            // Add event listener for video end (to handle loop in replay mode)
+            player.on('ended', () => {
+              console.log('🎬 Video ended');
+              if (isReplay) {
+                // In replay mode, loop the video
+                console.log('🔄 Replay mode: Restarting video from beginning');
+                player.setCurrentTime(0).then(() => {
+                  player.play().catch((err: Error) => {
+                    console.error('❌ Failed to restart video:', err);
+                  });
+                });
+              }
+            });
+            
+            // Add event listener for play/pause to debug unexpected stops
+            player.on('pause', () => {
+              console.log('⏸️ Video paused');
+              
+              // In replay mode, auto-resume if video pauses unexpectedly
+              if (isReplay && broadcastStarted) {
+                console.log('🔄 Replay mode: Auto-resuming in 500ms...');
+                setTimeout(() => {
+                  if (vimeoPlayerRef.current) {
+                    vimeoPlayerRef.current.play().catch((err: Error) => {
+                      console.error('❌ Failed to auto-resume:', err);
+                    });
+                  }
+                }, 500);
+              }
+            });
+            
+            player.on('play', () => {
+              console.log('▶️ Video playing');
+            });
             
             // Set all properties at once without chaining
             try {
@@ -1514,6 +1629,125 @@ export default function WebinarLiveClient({
     };
   }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); // Removed elapsedSeconds - we use the ref instead
 
+  // Save replay watch position periodically (only in replay mode)
+  useEffect(() => {
+    // Early return if basic conditions aren't met
+    if (!isReplay || !viewer?.id || !broadcastStarted || !playerReady) {
+      console.log('⏭️ Skipping position save setup:', { isReplay, hasViewer: !!viewer?.id, broadcastStarted, playerReady });
+      return;
+    }
+
+    console.log('💾 Starting periodic position save for replay mode');
+    console.log('💾 Viewer ID:', viewer.id);
+    console.log('💾 Initial lastWatchedPosition:', viewer.lastWatchedPosition);
+
+    // Save position every 10 seconds
+    const saveInterval = setInterval(async () => {
+      if (vimeoPlayerRef.current && viewer?.id) {
+        try {
+          const currentTime = await vimeoPlayerRef.current.getCurrentTime();
+          const roundedTime = Math.floor(currentTime);
+          
+          console.log(`💾 Attempting to save position: ${roundedTime}s (last saved: ${viewer.lastWatchedPosition || 0}s)`);
+          
+          // Only save if position changed significantly (more than 2 seconds)
+          if (Math.abs(roundedTime - (viewer.lastWatchedPosition || 0)) > 2) {
+            const response = await fetch(`/api/registrations/${viewer.id}/watch-position`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ position: roundedTime }),
+              keepalive: true,
+            });
+            
+            if (response.ok) {
+              // Update viewer's lastWatchedPosition in memory
+              if (viewer) {
+                viewer.lastWatchedPosition = roundedTime;
+              }
+              console.log(`✅ Successfully saved watch position: ${roundedTime}s`);
+            } else {
+              console.error(`❌ Failed to save position, status: ${response.status}`);
+            }
+          } else {
+            console.log(`⏭️ Skipping save - position hasn't changed enough`);
+          }
+        } catch (err) {
+          console.error('Error saving watch position:', err);
+        }
+      } else {
+        console.log('⚠️ Cannot save position: player or viewer not available');
+      }
+    }, 10000); // Save every 10 seconds
+
+    // Save position when user leaves the page
+    const handleBeforeUnload = async () => {
+      if (vimeoPlayerRef.current && viewer?.id) {
+        try {
+          const currentTime = await vimeoPlayerRef.current.getCurrentTime();
+          const roundedTime = Math.floor(currentTime);
+          
+          // Use sendBeacon for reliable sending during page unload
+          const blob = new Blob(
+            [JSON.stringify({ position: roundedTime })],
+            { type: 'application/json' }
+          );
+          navigator.sendBeacon(`/api/registrations/${viewer.id}/watch-position`, blob);
+          console.log(`💾 Saved final watch position on unload: ${roundedTime}s`);
+        } catch (err) {
+          console.error('Error saving final watch position:', err);
+        }
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(saveInterval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Final save on cleanup
+      handleBeforeUnload();
+    };
+  }, [isReplay, viewer?.id, broadcastStarted, playerReady]);
+
+  // Countdown timer for replay expiration
+  useEffect(() => {
+    if (!isReplay || !webinar.replayExpiresAt) {
+      setReplayTimeRemaining(null);
+      return;
+    }
+
+    const updateCountdown = () => {
+      const now = Date.now();
+      const expiresAt = new Date(webinar.replayExpiresAt!).getTime();
+      const diff = expiresAt - now;
+
+      if (diff <= 0) {
+        setReplayTimeRemaining('EXPIRED');
+        return;
+      }
+
+      const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+      if (days > 0) {
+        setReplayTimeRemaining(`${days}d ${hours}h ${minutes}m`);
+      } else if (hours > 0) {
+        setReplayTimeRemaining(`${hours}h ${minutes}m ${seconds}s`);
+      } else if (minutes > 0) {
+        setReplayTimeRemaining(`${minutes}m ${seconds}s`);
+      } else {
+        setReplayTimeRemaining(`${seconds}s`);
+      }
+    };
+
+    updateCountdown();
+    const interval = setInterval(updateCountdown, 1000);
+
+    return () => clearInterval(interval);
+  }, [isReplay, webinar.replayExpiresAt]);
+
   return (
     <div className={styles.root}>
       {/* Preconnect to Vimeo for faster loading */}
@@ -1526,13 +1760,26 @@ export default function WebinarLiveClient({
           isChatOpen ? styles.chatOpen : ''
         } ${isChatMinimized ? styles.chatMinimized : ''}`}
       >
+        {/* Replay Expiration Banner */}
+        {isReplay && replayTimeRemaining && replayTimeRemaining !== 'EXPIRED' && (
+          <div className={styles.replayExpirationBanner}>
+            <div className={styles.replayBannerContent}>
+              <i className="fas fa-clock" style={{ marginRight: '12px', fontSize: '20px' }} />
+              <span className={styles.replayBannerText}>
+                <strong>Replay Expires In:</strong> {replayTimeRemaining}
+              </span>
+              <i className="fas fa-exclamation-triangle" style={{ marginLeft: '12px', fontSize: '18px' }} />
+            </div>
+          </div>
+        )}
+        
         <div className={styles.webinarLayout}>
           <div className={styles.mainContent}>
             <div className={styles.videoContainer} ref={videoContainerRef}>
               {embedUrl ? (
                 <>
                   <iframe
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=0&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0`}
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=0&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&autopause=0&background=0&transparent=0`}
                     className={styles.videoEmbed}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
@@ -1614,6 +1861,52 @@ export default function WebinarLiveClient({
                   {statusLabel}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {/* Rewind/Forward buttons - only show in replay mode */}
+                  {isReplay && broadcastStarted && (
+                    <>
+                      <button
+                        type="button"
+                        className={styles.skipButton}
+                        onClick={async () => {
+                          if (!vimeoPlayerRef.current) return;
+                          try {
+                            const currentTime = await vimeoPlayerRef.current.getCurrentTime();
+                            const newTime = Math.max(0, currentTime - 10);
+                            await vimeoPlayerRef.current.setCurrentTime(newTime);
+                            console.log(`⏪ Rewound 10 seconds: ${currentTime}s → ${newTime}s`);
+                          } catch (err) {
+                            console.error('Error rewinding:', err);
+                          }
+                        }}
+                        aria-label="Rewind 10 seconds"
+                        title="Rewind 10 seconds"
+                      >
+                        <i className="fas fa-backward" />
+                        <span className={styles.skipTime}>10</span>
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.skipButton}
+                        onClick={async () => {
+                          if (!vimeoPlayerRef.current) return;
+                          try {
+                            const currentTime = await vimeoPlayerRef.current.getCurrentTime();
+                            const duration = await vimeoPlayerRef.current.getDuration();
+                            const newTime = Math.min(duration, currentTime + 10);
+                            await vimeoPlayerRef.current.setCurrentTime(newTime);
+                            console.log(`⏩ Fast-forwarded 10 seconds: ${currentTime}s → ${newTime}s`);
+                          } catch (err) {
+                            console.error('Error fast-forwarding:', err);
+                          }
+                        }}
+                        aria-label="Forward 10 seconds"
+                        title="Forward 10 seconds"
+                      >
+                        <i className="fas fa-forward" />
+                        <span className={styles.skipTime}>10</span>
+                      </button>
+                    </>
+                  )}
                   {webinar.showElapsedTime !== false && (
                     <div className={styles.videoTime}>
                       {formattedElapsed}

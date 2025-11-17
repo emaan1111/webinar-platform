@@ -7,6 +7,7 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import ABTestingConfig from '@/components/dashboard/ABTestingConfig'
+import { fromZonedTime } from 'date-fns-tz'
 import {
   ArrowLeft,
   Save,
@@ -151,10 +152,6 @@ export default function CreateWebinarPage() {
       newErrors.description = 'Description must be at least 20 characters'
     }
 
-    if (formData.duration < 15) {
-      newErrors.duration = 'Duration must be at least 15 minutes'
-    }
-
     // At least one schedule is required
     if (additionalSchedules.length === 0) {
       newErrors.schedules = 'At least one schedule is required. Click "Add Schedule" to create one.'
@@ -187,7 +184,23 @@ export default function CreateWebinarPage() {
         }
 
         if (schedule.scheduleType === 'specific') {
-          mappedSchedule.scheduledAt = new Date(`${schedule.scheduledAt}T${schedule.scheduledTime}`).toISOString()
+          // Proper timezone conversion using date-fns-tz
+          const dateTimeStr = `${schedule.scheduledAt}T${schedule.scheduledTime}:00`
+          
+          if (schedule.timezone && schedule.timezone !== 'USER_TIMEZONE' && schedule.timezone !== 'UTC') {
+            try {
+              const dateInLocalTZ = new Date(dateTimeStr)
+              const utcDate = fromZonedTime(dateInLocalTZ, schedule.timezone)
+              mappedSchedule.scheduledAt = utcDate.toISOString()
+              console.log(`✅ Created schedule: ${dateTimeStr} (${schedule.timezone}) → ${mappedSchedule.scheduledAt} (UTC)`)
+            } catch (error) {
+              console.error('Timezone conversion error:', error)
+              mappedSchedule.scheduledAt = new Date(dateTimeStr).toISOString()
+            }
+          } else {
+            mappedSchedule.scheduledAt = new Date(dateTimeStr).toISOString()
+          }
+          
           mappedSchedule.timezone = schedule.timezone
           mappedSchedule.useUserTimezone = schedule.useUserTimezone
         } else if (schedule.scheduleType === 'justInTime') {
@@ -304,7 +317,23 @@ export default function CreateWebinarPage() {
         }
 
         if (schedule.scheduleType === 'specific') {
-          mappedSchedule.scheduledAt = new Date(`${schedule.scheduledAt}T${schedule.scheduledTime}`).toISOString()
+          // Proper timezone conversion using date-fns-tz
+          const dateTimeStr = `${schedule.scheduledAt}T${schedule.scheduledTime}:00`
+          
+          if (schedule.timezone && schedule.timezone !== 'USER_TIMEZONE' && schedule.timezone !== 'UTC') {
+            try {
+              const dateInLocalTZ = new Date(dateTimeStr)
+              const utcDate = fromZonedTime(dateInLocalTZ, schedule.timezone)
+              mappedSchedule.scheduledAt = utcDate.toISOString()
+              console.log(`✅ Created schedule: ${dateTimeStr} (${schedule.timezone}) → ${mappedSchedule.scheduledAt} (UTC)`)
+            } catch (error) {
+              console.error('Timezone conversion error:', error)
+              mappedSchedule.scheduledAt = new Date(dateTimeStr).toISOString()
+            }
+          } else {
+            mappedSchedule.scheduledAt = new Date(dateTimeStr).toISOString()
+          }
+          
           mappedSchedule.timezone = schedule.timezone
           mappedSchedule.useUserTimezone = schedule.useUserTimezone
         } else if (schedule.scheduleType === 'justInTime') {
@@ -624,20 +653,21 @@ export default function CreateWebinarPage() {
                     <label htmlFor="duration" className="block text-sm font-medium text-gray-700 mb-2">
                       Webinar Duration (minutes) <span className="text-red-500">*</span>
                     </label>
-                    <select
+                    <input
+                      type="number"
                       id="duration"
                       value={formData.duration}
-                      onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) })}
+                      onChange={(e) => setFormData({ ...formData, duration: parseInt(e.target.value) || 60 })}
+                      min={1}
                       className="block w-full max-w-xs px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                    >
-                      <option value={15}>15 minutes</option>
-                      <option value={30}>30 minutes</option>
-                      <option value={45}>45 minutes</option>
-                      <option value={60}>1 hour</option>
-                      <option value={90}>1.5 hours</option>
-                      <option value={120}>2 hours</option>
-                      <option value={180}>3 hours</option>
-                    </select>
+                      placeholder="Enter duration in minutes"
+                    />
+                    <p className="mt-1 text-xs text-gray-500">
+                      Enter any duration in minutes (e.g., 60 for 1 hour, 120 for 2 hours, 300 for 5 hours)
+                    </p>
+                    {errors.duration && (
+                      <p className="mt-1 text-sm text-red-600">{errors.duration}</p>
+                    )}
                   </div>
 
                   {/* Thumbnail Upload */}

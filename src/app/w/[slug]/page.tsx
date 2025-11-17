@@ -13,15 +13,45 @@ interface PageProps {
 export default async function WebinarRegisterServerPage({ params }: PageProps) {
   const { slug } = params;
   
-  console.log('=== REGISTRATION PAGE LOADING START ===');
-  console.log('Slug:', slug);
-  
   try {
-    // Fetch webinar with A/B testing configuration
+    // Fetch webinar with A/B testing configuration - optimized query
     const webinar = await prisma.webinar.findUnique({
       where: { slug },
-      include: {
-        schedules: true,
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        description: true,
+        duration: true,
+        videoUrl: true,
+        vimeoVideoId: true,
+        registrationPageId: true,
+        enableABTesting: true,
+        testRegistrationPage: true,
+        regPageAId: true,
+        regPageBId: true,
+        testSchedule: true,
+        scheduleAIds: true,
+        scheduleBIds: true,
+        testVideo: true,
+        videoAId: true,
+        videoBId: true,
+        testOffer: true,
+        offerAId: true,
+        offerBId: true,
+        trafficSplitPercent: true,
+        maxSchedulesToShow: true,
+        schedules: {
+          select: {
+            id: true,
+            scheduleType: true,
+            scheduledAt: true,
+            minutesFromReg: true,
+            timezone: true,
+            useUserTimezone: true,
+            recurringPattern: true,
+          },
+        },
       },
     });
 
@@ -35,22 +65,15 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       );
     }
 
-    console.log('📝 Webinar found:', webinar.title);
-    console.log('🆔 Webinar ID:', webinar.id);
-    console.log('🔧 A/B Testing enabled:', webinar.enableABTesting);
-    console.log('📄 Registration Page ID:', webinar.registrationPageId);
-
     // Get visitor test group if A/B testing is enabled
     let testGroup: 'A' | 'B' | null = null;
     let testConfig = null;
     let registrationPage = null;
+    let activeOffer = null;
 
     if (webinar.enableABTesting) {
-      console.log('🧪 A/B Testing is ENABLED');
       testGroup = await getVisitorTestGroup(webinar.id, webinar.trafficSplitPercent);
       testConfig = getTestConfiguration(webinar, testGroup);
-      console.log('👥 Test Group:', testGroup);
-      console.log('⚙️ Test Registration Page:', webinar.testRegistrationPage);
 
       // Track page view with all active test elements
       const activeElements: Array<{ element: 'registration' | 'schedule' | 'offer' | 'video'; variantShown: string }> = [];
@@ -86,34 +109,49 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       // Track page view (non-blocking)
       if (activeElements.length > 0) {
         const headersList = await headers();
-        trackPageViewFromRequest(webinar.id, testGroup, activeElements, headersList).catch(err => {
-          console.error('Failed to track page view:', err);
+        trackPageViewFromRequest(webinar.id, testGroup, activeElements, headersList).catch(() => {
+          // Silent fail - don't block page render
         });
       }
 
-      // Load registration page if testing
+      // Parallel fetch registration page and offer if testing
+      const fetchPromises: Promise<any>[] = [];
+      
       if (webinar.testRegistrationPage && testConfig.registrationPageId) {
-        console.log('📄 Loading A/B test registration page:', testConfig.registrationPageId);
-        registrationPage = await prisma.registrationPage.findUnique({
-          where: { id: testConfig.registrationPageId },
-        });
+        fetchPromises.push(
+          prisma.registrationPage.findUnique({
+            where: { id: testConfig.registrationPageId },
+          })
+        );
       } else if (webinar.registrationPageId) {
-        // Even with A/B testing enabled, if not testing registration page, use the default one
-        console.log('📄 Loading default registration page (A/B testing enabled but not testing reg page):', webinar.registrationPageId);
-        registrationPage = await prisma.registrationPage.findUnique({
-          where: { id: webinar.registrationPageId },
-        });
+        fetchPromises.push(
+          prisma.registrationPage.findUnique({
+            where: { id: webinar.registrationPageId },
+          })
+        );
+      } else {
+        fetchPromises.push(Promise.resolve(null));
       }
+
+      if (webinar.testOffer && testConfig.offerId) {
+        fetchPromises.push(
+          prisma.offer.findUnique({
+            where: { id: testConfig.offerId },
+          })
+        );
+      } else {
+        fetchPromises.push(Promise.resolve(null));
+      }
+
+      const [regPage, offer] = await Promise.all(fetchPromises);
+      registrationPage = regPage;
+      activeOffer = offer;
     } else {
       // Load default registration page if specified
-      console.log('🔍 Checking for registration page. registrationPageId:', webinar.registrationPageId);
       if (webinar.registrationPageId) {
         registrationPage = await prisma.registrationPage.findUnique({
           where: { id: webinar.registrationPageId },
         });
-        console.log('✅ Registration page fetched:', registrationPage ? registrationPage.name : 'NULL');
-      } else {
-        console.log('⚠️ No registrationPageId set on webinar');
       }
     }
 
@@ -143,22 +181,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       }
     }
 
-    // Prepare offer data based on test group
-    let activeOffer = null;
-    if (webinar.enableABTesting && webinar.testOffer && testConfig?.offerId) {
-      activeOffer = await prisma.offer.findUnique({
-        where: { id: testConfig.offerId },
-      });
-    }
-
     // Prepare webinar data for client
-    console.log('🔧 SERVER: Preparing webinar data:', {
-      id: webinar.id,
-      slug: webinar.slug,
-      maxSchedulesToShow: webinar.maxSchedulesToShow,
-      schedulesCount: filteredSchedules.length
-    });
-    
     const webinarData = {
       id: webinar.id,
       slug: webinar.slug,

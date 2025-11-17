@@ -1839,3 +1839,174 @@
 .videoControls {
   z-index: 15; /* Above progress bar */
 }
+
+/* Skip Buttons (Rewind/Forward) - Replay Mode Only */
+.skipButton {
+  position: relative;
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.skipButton:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.skipButton:active {
+  transform: scale(0.95);
+}
+
+.skipTime {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(123, 104, 238, 0.9);
+  color: white;
+  border-radius: 4px;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.videoTime {
+  color: white;
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 6px;
+  backdrop-filter: blur(4px);
+}
+
+.muteButton,
+.fullscreenButton {
+  background: rgba(255, 255, 255, 0.15);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+}
+
+.muteButton:hover,
+.fullscreenButton:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+}
+
+.muteButton:active,
+.fullscreenButton:active {
+  transform: scale(0.95);
+}
+
+@media (max-width: 768px) {
+  .skipButton,
+  .muteButton,
+  .fullscreenButton {
+    width: 38px;
+    height: 38px;
+    font-size: 0.9rem;
+  }
+
+  .skipTime {
+    font-size: 9px;
+    padding: 1px 3px;
+  }
+}
+
+
+/* Replay Expiration Banner */
+.replayExpirationBanner {
+  position: relative;
+  width: 100%;
+  z-index: 100;
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  color: white;
+  padding: 16px 24px;
+  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  animation: slideDown 0.5s ease-out, pulse 2s ease-in-out infinite;
+  margin-bottom: 0;
+}
+
+@keyframes slideDown {
+  from {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+  }
+  50% {
+    box-shadow: 0 4px 20px rgba(220, 38, 38, 0.5), 0 0 0 4px rgba(220, 38, 38, 0.2);
+  }
+}
+
+.replayBannerContent {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.replayBannerText {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.replayBannerText strong {
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+  .replayExpirationBanner {
+    padding: 12px 16px;
+  }
+  
+  .replayBannerContent {
+    font-size: 14px;
+  }
+  
+  .replayBannerContent i {
+    font-size: 16px !important;
+  }
+  
+  .replayBannerContent i:last-child {
+    font-size: 14px !important;
+  }
+}

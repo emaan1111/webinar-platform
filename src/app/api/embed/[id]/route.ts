@@ -50,6 +50,429 @@ export async function GET(
   }
 }
 
+// Purple theme: Split-screen layout with left info, right form
+function generatePurpleInlineStyles(theme: any): string {
+  return `
+    .webinar-embed-inline {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 0;
+      background: white;
+      border-radius: 20px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+    }
+
+    .webinar-embed-inline-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      min-height: 600px;
+    }
+
+    .webinar-embed-inline-info {
+      background: ${theme.headerBg};
+      color: ${theme.headerText};
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .webinar-embed-inline-info h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin: 0 0 16px 0;
+      line-height: 1.2;
+    }
+
+    .webinar-embed-inline-info p {
+      font-size: 16px;
+      opacity: 0.95;
+      line-height: 1.6;
+      margin: 0 0 32px 0;
+    }
+
+    .webinar-embed-inline-features {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .webinar-embed-inline-features li {
+      padding: 12px 0;
+      display: flex;
+      align-items: center;
+      font-size: 15px;
+      opacity: 0.9;
+    }
+
+    .webinar-embed-inline-features li:before {
+      content: '✓';
+      margin-right: 12px;
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .webinar-embed-inline-form {
+      padding: 48px 40px;
+      background: #fafafa;
+    }
+
+    @media (max-width: 768px) {
+      .webinar-embed-inline-grid {
+        grid-template-columns: 1fr;
+      }
+      .webinar-embed-inline-info {
+        padding: 32px 24px;
+      }
+      .webinar-embed-inline-form {
+        padding: 32px 24px;
+      }
+    }
+  `;
+}
+
+// Blue theme: Top banner layout with horizontal design
+function generateBlueInlineStyles(theme: any): string {
+  return `
+    .webinar-embed-inline {
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+      overflow: hidden;
+    }
+
+    .webinar-embed-inline-banner {
+      background: ${theme.headerBg};
+      color: ${theme.headerText};
+      padding: 40px 48px;
+      text-align: center;
+      position: relative;
+    }
+
+    .webinar-embed-inline-banner:after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.7) 50%, rgba(255,255,255,0.3) 100%);
+    }
+
+    .webinar-embed-inline-banner h2 {
+      font-size: 36px;
+      font-weight: 800;
+      margin: 0 0 12px 0;
+      letter-spacing: -0.5px;
+    }
+
+    .webinar-embed-inline-banner p {
+      font-size: 18px;
+      margin: 0;
+      opacity: 0.95;
+    }
+
+    .webinar-embed-inline-form {
+      padding: 40px 48px;
+      background: white;
+    }
+
+    .webinar-embed-inline-form-title {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: #1f2937;
+      margin: 0 0 32px 0;
+    }
+
+    @media (max-width: 768px) {
+      .webinar-embed-inline-banner {
+        padding: 32px 24px;
+      }
+      .webinar-embed-inline-banner h2 {
+        font-size: 28px;
+      }
+      .webinar-embed-inline-form {
+        padding: 32px 24px;
+      }
+    }
+  `;
+}
+
+// Green theme: Compact card layout with centered design
+function generateGreenInlineStyles(theme: any): string {
+  return `
+    .webinar-embed-inline {
+      max-width: 600px;
+      margin: 0 auto;
+      padding: 40px;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+      border: 3px solid transparent;
+      background-image: linear-gradient(white, white), ${theme.headerBg};
+      background-origin: border-box;
+      background-clip: padding-box, border-box;
+    }
+
+    .webinar-embed-inline-card-header {
+      text-align: center;
+      margin-bottom: 32px;
+      padding-bottom: 24px;
+      border-bottom: 2px solid #f3f4f6;
+    }
+
+    .webinar-embed-inline-icon {
+      width: 64px;
+      height: 64px;
+      background: ${theme.headerBg};
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 32px;
+    }
+
+    .webinar-embed-inline-card-header h2 {
+      font-size: 28px;
+      font-weight: 800;
+      color: #1f2937;
+      margin: 0 0 8px 0;
+      line-height: 1.2;
+    }
+
+    .webinar-embed-inline-card-header p {
+      font-size: 16px;
+      color: #6b7280;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .webinar-embed-inline-form {
+      padding: 0;
+    }
+
+    @media (max-width: 768px) {
+      .webinar-embed-inline {
+        padding: 32px 24px;
+      }
+      .webinar-embed-inline-card-header h2 {
+        font-size: 24px;
+      }
+    }
+  `;
+}
+
+// Purple theme popup: Classic modal with gradient header
+function generatePurplePopupStyles(theme: any): string {
+  return `
+    .webinar-embed-modal-purple {
+      background: white;
+      border-radius: 24px;
+      max-width: 600px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+      animation: slideUp 0.4s ease-out;
+      position: relative;
+    }
+
+    .webinar-embed-header-purple {
+      background: ${theme.headerBg};
+      color: ${theme.headerText};
+      padding: 40px 32px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .webinar-embed-header-purple::before {
+      content: '';
+      position: absolute;
+      top: -100px;
+      right: -100px;
+      width: 200px;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+
+    .webinar-embed-header-purple h2 {
+      font-size: 28px;
+      font-weight: 800;
+      margin: 0 0 8px 0;
+      position: relative;
+      z-index: 1;
+    }
+
+    .webinar-embed-header-purple p {
+      margin: 0;
+      opacity: 0.95;
+      font-size: 16px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .webinar-embed-content-purple {
+      padding: 32px;
+      max-height: calc(90vh - 140px);
+      overflow-y: auto;
+    }
+  `;
+}
+
+// Blue theme popup: Side image with form (wide modal)
+function generateBluePopupStyles(theme: any): string {
+  return `
+    .webinar-embed-modal-blue {
+      background: white;
+      border-radius: 20px;
+      max-width: 900px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: 0 30px 60px -12px rgba(0, 0, 0, 0.6);
+      animation: slideUp 0.4s ease-out;
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+    }
+
+    .webinar-embed-modal-blue-image {
+      background: ${theme.headerBg};
+      padding: 48px 32px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      color: ${theme.headerText};
+      position: relative;
+    }
+
+    .webinar-embed-modal-blue-image::after {
+      content: '';
+      position: absolute;
+      bottom: -50px;
+      right: -50px;
+      width: 200px;
+      height: 200px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+
+    .webinar-embed-modal-blue-icon {
+      width: 80px;
+      height: 80px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin-bottom: 24px;
+    }
+
+    .webinar-embed-modal-blue-image h2 {
+      font-size: 32px;
+      font-weight: 800;
+      margin: 0 0 16px 0;
+      line-height: 1.2;
+    }
+
+    .webinar-embed-modal-blue-image p {
+      font-size: 16px;
+      margin: 0;
+      opacity: 0.95;
+      line-height: 1.6;
+    }
+
+    .webinar-embed-content-blue {
+      padding: 48px 40px;
+      max-height: 90vh;
+      overflow-y: auto;
+      background: #fafafa;
+    }
+
+    @media (max-width: 768px) {
+      .webinar-embed-modal-blue {
+        grid-template-columns: 1fr;
+        max-width: 600px;
+      }
+      .webinar-embed-modal-blue-image {
+        padding: 32px 24px;
+      }
+      .webinar-embed-content-blue {
+        padding: 32px 24px;
+      }
+    }
+  `;
+}
+
+// Green theme popup: Minimal card with border
+function generateGreenPopupStyles(theme: any): string {
+  return `
+    .webinar-embed-modal-green {
+      background: white;
+      border-radius: 28px;
+      max-width: 550px;
+      width: 100%;
+      max-height: 90vh;
+      overflow: hidden;
+      box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.4);
+      animation: slideUp 0.4s ease-out;
+      position: relative;
+      border: 4px solid transparent;
+      background-image: linear-gradient(white, white), ${theme.headerBg};
+      background-origin: border-box;
+      background-clip: padding-box, border-box;
+    }
+
+    .webinar-embed-header-green {
+      padding: 40px 32px 32px;
+      text-align: center;
+      border-bottom: 2px solid #f3f4f6;
+    }
+
+    .webinar-embed-modal-green-icon {
+      width: 80px;
+      height: 80px;
+      background: ${theme.headerBg};
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 40px;
+      margin: 0 auto 20px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    }
+
+    .webinar-embed-header-green h2 {
+      font-size: 26px;
+      font-weight: 800;
+      color: #1f2937;
+      margin: 0 0 8px 0;
+      line-height: 1.2;
+    }
+
+    .webinar-embed-header-green p {
+      font-size: 15px;
+      color: #6b7280;
+      margin: 0;
+      line-height: 1.5;
+    }
+
+    .webinar-embed-content-green {
+      padding: 32px;
+      max-height: calc(90vh - 220px);
+      overflow-y: auto;
+    }
+  `;
+}
+
 function generateEmbedScript(webinar: any, type: string, theme: string, apiBase: string): string {
   const webinarData = JSON.stringify({
     id: webinar.id,
@@ -88,6 +511,22 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   const selectedTheme = themes[theme] || themes.purple
 
+  // Generate theme-specific inline styles
+  const themeInlineStyles: Record<string, string> = {
+    purple: generatePurpleInlineStyles(selectedTheme),
+    blue: generateBlueInlineStyles(selectedTheme),
+    green: generateGreenInlineStyles(selectedTheme)
+  }
+  const inlineStyles = themeInlineStyles[theme] || themeInlineStyles.purple
+
+  // Generate theme-specific popup styles
+  const themePopupStyles: Record<string, string> = {
+    purple: generatePurplePopupStyles(selectedTheme),
+    blue: generateBluePopupStyles(selectedTheme),
+    green: generateGreenPopupStyles(selectedTheme)
+  }
+  const popupThemeStyles = themePopupStyles[theme] || themePopupStyles.purple
+
   return `
 (function() {
   'use strict';
@@ -96,9 +535,10 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
   const THEME = ${JSON.stringify(selectedTheme)};
   const TYPE = '${type}';
   const API_BASE = '${apiBase}';
+  const THEME_NAME = '${theme}';
 
   // CSS Styles
-  const styles = \`
+  const popupBaseStyles = \`
     .webinar-embed-overlay {
       position: fixed;
       top: 0;
@@ -179,19 +619,20 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       transition: all 0.2s;
       font-size: 24px;
       line-height: 1;
+      z-index: 10;
     }
 
     .webinar-embed-close:hover {
       background: rgba(255, 255, 255, 0.3);
       transform: rotate(90deg);
     }
+  \`;
 
-    .webinar-embed-content {
-      padding: 32px;
-      max-height: calc(90vh - 120px);
-      overflow-y: auto;
-    }
+  const popupThemeStylesCSS = \`
+    ${popupThemeStyles}
+  \`;
 
+  const sharedFormStyles = \`
     .webinar-embed-form-group {
       margin-bottom: 20px;
     }
@@ -295,21 +736,19 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       font-size: 14px;
       color: #1e40af;
     }
-
-    /* Inline mode styles */
-    .webinar-embed-inline {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 32px;
-      background: white;
-      border-radius: 16px;
-      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
   \`;
 
-  // Inject styles
+  const inlineStylesCSS = \`
+    ${inlineStyles}
+  \`;
+
+  // Inject styles based on type
   const styleSheet = document.createElement('style');
-  styleSheet.textContent = styles;
+  if (TYPE === 'popup') {
+    styleSheet.textContent = popupBaseStyles + popupThemeStylesCSS + sharedFormStyles;
+  } else {
+    styleSheet.textContent = sharedFormStyles + inlineStylesCSS;
+  }
   document.head.appendChild(styleSheet);
 
   // Country codes
@@ -483,41 +922,104 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   // Show success message
   function showSuccess() {
-    const contentEl = document.querySelector('.webinar-embed-content') || document.getElementById('webinar-embed-${webinar.id}');
-    contentEl.innerHTML = \`
-      <div class="webinar-embed-success">
-        <div class="webinar-embed-success-icon">✓</div>
-        <h2 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 12px;">
-          You're Registered!
-        </h2>
-        <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">
-          Check your email for confirmation and webinar details.
-        </p>
-        <button onclick="window.location.reload()" style="padding: 12px 24px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-          Close
-        </button>
-      </div>
-    \`;
+    const contentEl = document.querySelector('.webinar-embed-content-purple, .webinar-embed-content-blue, .webinar-embed-content-green, .webinar-embed-content') 
+      || document.getElementById(\`webinar-embed-\${WEBINAR_DATA.id}\`);
+    
+    if (contentEl) {
+      contentEl.innerHTML = \`
+        <div class="webinar-embed-success">
+          <div class="webinar-embed-success-icon">✓</div>
+          <h2 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 12px;">
+            You're Registered!
+          </h2>
+          <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">
+            Check your email for confirmation and webinar details.
+          </p>
+          <button onclick="window.location.reload()" style="padding: 12px 24px; background: \${THEME.buttonBg}; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+            Close
+          </button>
+        </div>
+      \`;
+    }
   }
 
   // Create popup modal
   function createPopupModal() {
     const overlay = document.createElement('div');
     overlay.className = 'webinar-embed-overlay';
-    overlay.innerHTML = \`
-      <div class="webinar-embed-modal">
-        <div class="webinar-embed-header">
-          <button class="webinar-embed-close" onclick="this.closest('.webinar-embed-overlay').remove()">×</button>
-          <h2 style="font-size: 24px; font-weight: 800; margin: 0 0 8px 0;">Register for \${WEBINAR_DATA.title}</h2>
-          <p style="margin: 0; opacity: 0.9; font-size: 14px;">Join us for this exclusive webinar</p>
+    
+    let modalHTML = '';
+    const formHTML = createFormHTML();
+    
+    if (THEME_NAME === 'purple') {
+      // Purple: Classic gradient header modal
+      modalHTML = \`
+        <div class="webinar-embed-modal-purple">
+          <div class="webinar-embed-header-purple">
+            <button class="webinar-embed-close" onclick="this.closest('.webinar-embed-overlay').remove()">×</button>
+            <h2>Register for \${WEBINAR_DATA.title}</h2>
+            <p>Join us for this exclusive webinar</p>
+          </div>
+          <div class="webinar-embed-content-purple">
+            <form id="webinar-embed-form">
+              \${formHTML}
+            </form>
+          </div>
         </div>
-        <div class="webinar-embed-content">
-          <form id="webinar-embed-form">
-            \${createFormHTML()}
-          </form>
+      \`;
+    } else if (THEME_NAME === 'blue') {
+      // Blue: Wide modal with side image
+      modalHTML = \`
+        <div class="webinar-embed-modal-blue">
+          <div class="webinar-embed-modal-blue-image">
+            <div class="webinar-embed-modal-blue-icon">🎯</div>
+            <h2>\${WEBINAR_DATA.title}</h2>
+            <p>\${WEBINAR_DATA.description || 'Join us for this exclusive webinar session with industry experts.'}</p>
+          </div>
+          <div class="webinar-embed-content-blue">
+            <button class="webinar-embed-close" onclick="this.closest('.webinar-embed-overlay').remove()" style="color: #374151;">×</button>
+            <form id="webinar-embed-form">
+              \${formHTML}
+            </form>
+          </div>
         </div>
-      </div>
-    \`;
+      \`;
+    } else if (THEME_NAME === 'green') {
+      // Green: Minimal card with gradient border
+      modalHTML = \`
+        <div class="webinar-embed-modal-green">
+          <button class="webinar-embed-close" onclick="this.closest('.webinar-embed-overlay').remove()" style="color: #374151;">×</button>
+          <div class="webinar-embed-header-green">
+            <div class="webinar-embed-modal-green-icon">🚀</div>
+            <h2>\${WEBINAR_DATA.title}</h2>
+            <p>\${WEBINAR_DATA.description || 'Limited spots available - Register today!'}</p>
+          </div>
+          <div class="webinar-embed-content-green">
+            <form id="webinar-embed-form">
+              \${formHTML}
+            </form>
+          </div>
+        </div>
+      \`;
+    } else {
+      // Default fallback
+      modalHTML = \`
+        <div class="webinar-embed-modal-purple">
+          <div class="webinar-embed-header-purple">
+            <button class="webinar-embed-close" onclick="this.closest('.webinar-embed-overlay').remove()">×</button>
+            <h2>Register for \${WEBINAR_DATA.title}</h2>
+            <p>Join us for this exclusive webinar</p>
+          </div>
+          <div class="webinar-embed-content-purple">
+            <form id="webinar-embed-form">
+              \${formHTML}
+            </form>
+          </div>
+        </div>
+      \`;
+    }
+    
+    overlay.innerHTML = modalHTML;
 
     document.body.appendChild(overlay);
 
@@ -537,6 +1039,71 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
         overlay.remove();
       }
     });
+  }
+
+  // Create theme-specific inline HTML
+  function createInlineHTML(themeType) {
+    const formHTML = createFormHTML();
+    
+    if (themeType === 'purple') {
+      // Split-screen layout
+      return \`
+        <div class="webinar-embed-inline-grid">
+          <div class="webinar-embed-inline-info">
+            <h2>\${WEBINAR_DATA.title}</h2>
+            <p>\${WEBINAR_DATA.description || 'Join us for this exclusive webinar session.'}</p>
+            <ul class="webinar-embed-inline-features">
+              <li>Live Q&A with experts</li>
+              <li>Exclusive insights and strategies</li>
+              <li>Certificate of completion</li>
+              <li>Networking opportunities</li>
+            </ul>
+          </div>
+          <div class="webinar-embed-inline-form">
+            <form id="webinar-embed-form">
+              \${formHTML}
+            </form>
+          </div>
+        </div>
+      \`;
+    } else if (themeType === 'blue') {
+      // Top banner layout
+      return \`
+        <div class="webinar-embed-inline-banner">
+          <h2>\${WEBINAR_DATA.title}</h2>
+          <p>\${WEBINAR_DATA.description || 'Register now to secure your spot!'}</p>
+        </div>
+        <div class="webinar-embed-inline-form">
+          <div class="webinar-embed-inline-form-title">Complete the form below to register</div>
+          <form id="webinar-embed-form">
+            \${formHTML}
+          </form>
+        </div>
+      \`;
+    } else if (themeType === 'green') {
+      // Compact card layout
+      return \`
+        <div class="webinar-embed-inline-card-header">
+          <div class="webinar-embed-inline-icon">🎯</div>
+          <h2>\${WEBINAR_DATA.title}</h2>
+          <p>\${WEBINAR_DATA.description || 'Limited spots available - Register today!'}</p>
+        </div>
+        <div class="webinar-embed-inline-form">
+          <form id="webinar-embed-form">
+            \${formHTML}
+          </form>
+        </div>
+      \`;
+    } else {
+      // Default/fallback layout
+      return \`
+        <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #1f2937;">Register for \${WEBINAR_DATA.title}</h2>
+        <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">\${WEBINAR_DATA.description}</p>
+        <form id="webinar-embed-form">
+          \${formHTML}
+        </form>
+      \`;
+    }
   }
 
   // Initialize based on type
@@ -561,13 +1128,7 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     const container = document.getElementById(\`webinar-embed-\${WEBINAR_DATA.id}\`);
     if (container) {
       container.className = 'webinar-embed-inline';
-      container.innerHTML = \`
-        <h2 style="font-size: 24px; font-weight: 700; margin-bottom: 8px; color: #1f2937;">Register for \${WEBINAR_DATA.title}</h2>
-        <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">\${WEBINAR_DATA.description}</p>
-        <form id="webinar-embed-form">
-          \${createFormHTML()}
-        </form>
-      \`;
+      container.innerHTML = createInlineHTML(THEME_NAME);
 
       const form = document.getElementById('webinar-embed-form');
       form.addEventListener('submit', async (e) => {

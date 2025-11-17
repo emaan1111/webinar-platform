@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
+import MultiSelect from '@/components/ui/MultiSelect'
+import DateRangePicker from '@/components/ui/DateRangePicker'
 import ViewManager, { CustomView, defaultColumns, ColumnConfig } from '@/components/attendees/ViewManager'
 import {
   Search,
@@ -20,7 +22,12 @@ import {
   ChevronsUpDown,
   ChevronLeft,
   ChevronRight,
-  Filter as FilterIcon
+  Filter as FilterIcon,
+  Users,
+  TrendingUp,
+  Calendar,
+  Globe,
+  X
 } from 'lucide-react'
 
 interface Attendee {
@@ -81,6 +88,13 @@ export default function AttendeesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [showFilters, setShowFilters] = useState(false)
+  
+  // New filters
+  const [selectedCountries, setSelectedCountries] = useState<string[]>([])
+  const [registeredDateStart, setRegisteredDateStart] = useState('')
+  const [registeredDateEnd, setRegisteredDateEnd] = useState('')
+  const [joinedDateStart, setJoinedDateStart] = useState('')
+  const [joinedDateEnd, setJoinedDateEnd] = useState('')
 
   // View management
   const [views, setViews] = useState<CustomView[]>([])
@@ -154,6 +168,38 @@ export default function AttendeesPage() {
       webinarFilter === 'all' ||
       attendee.webinarTitle === webinarFilter
 
+    // Country multi-select filter
+    const matchesCountry = 
+      selectedCountries.length === 0 ||
+      (attendee.country && selectedCountries.includes(attendee.country))
+
+    // Registered date range filter
+    const matchesRegisteredDate = (() => {
+      if (!registeredDateStart && !registeredDateEnd) return true
+      const regDate = new Date(attendee.registeredAt)
+      if (registeredDateStart && regDate < new Date(registeredDateStart)) return false
+      if (registeredDateEnd) {
+        const endDate = new Date(registeredDateEnd)
+        endDate.setHours(23, 59, 59, 999) // Include the entire end day
+        if (regDate > endDate) return false
+      }
+      return true
+    })()
+
+    // Joined date range filter
+    const matchesJoinedDate = (() => {
+      if (!joinedDateStart && !joinedDateEnd) return true
+      if (!attendee.joinedAt) return false
+      const joinDate = new Date(attendee.joinedAt)
+      if (joinedDateStart && joinDate < new Date(joinedDateStart)) return false
+      if (joinedDateEnd) {
+        const endDate = new Date(joinedDateEnd)
+        endDate.setHours(23, 59, 59, 999)
+        if (joinDate > endDate) return false
+      }
+      return true
+    })()
+
     // Advanced filters
     const matchesAdvancedFilters = Object.entries(filters).every(([key, value]) => {
       if (value === null || value === '' || value === 'all') return true
@@ -174,7 +220,8 @@ export default function AttendeesPage() {
       return attendeeValue === value
     })
 
-    return matchesSearch && matchesAttendance && matchesWebinar && matchesAdvancedFilters
+    return matchesSearch && matchesAttendance && matchesWebinar && matchesCountry && 
+           matchesRegisteredDate && matchesJoinedDate && matchesAdvancedFilters
   })
 
   // Sorting
@@ -220,10 +267,13 @@ export default function AttendeesPage() {
   const endIndex = startIndex + pageSize
   const paginatedAttendees = sortedAttendees.slice(startIndex, endIndex)
 
+  // Get unique countries for multi-select
+  const uniqueCountries = Array.from(new Set(attendees.map(a => a.country).filter((c): c is string => c !== null))).sort()
+
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, attendanceFilter, webinarFilter, filters, sortConfig])
+  }, [searchQuery, attendanceFilter, webinarFilter, filters, sortConfig, selectedCountries, registeredDateStart, registeredDateEnd, joinedDateStart, joinedDateEnd])
 
   const handleSelectAll = () => {
     if (selectedAttendees.length === paginatedAttendees.length) {
@@ -266,6 +316,11 @@ export default function AttendeesPage() {
     setAttendanceFilter('all')
     setWebinarFilter('all')
     setSortConfig(null)
+    setSelectedCountries([])
+    setRegisteredDateStart('')
+    setRegisteredDateEnd('')
+    setJoinedDateStart('')
+    setJoinedDateEnd('')
   }
 
   const renderFilterInput = (column: ColumnConfig) => {
@@ -528,169 +583,261 @@ export default function AttendeesPage() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-          <Card>
-            <CardBody>
+        {/* Stats - Clean Minimal Design */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-blue-50 rounded-lg">
+                <Users className="w-5 h-5 text-blue-600" />
+              </div>
               <h3 className="text-sm font-medium text-gray-600">Total Registrations</h3>
-              <p className="text-3xl font-bold text-gray-900 mt-2">{attendees.length}</p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
+            </div>
+            <p className="text-3xl font-bold text-gray-900">{attendees.length}</p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-green-50 rounded-lg">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
               <h3 className="text-sm font-medium text-gray-600">Attended</h3>
-              <p className="text-3xl font-bold text-green-600 mt-2">
-                {attendees.filter(a => a.attended).length}
-              </p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
+            </div>
+            <p className="text-3xl font-bold text-gray-900">
+              {attendees.filter(a => a.attended).length}
+            </p>
+          </div>
+
+          <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="p-2 bg-purple-50 rounded-lg">
+                <TrendingUp className="w-5 h-5 text-purple-600" />
+              </div>
               <h3 className="text-sm font-medium text-gray-600">Attendance Rate</h3>
-              <p className="text-3xl font-bold text-blue-600 mt-2">
-                {attendees.length > 0 ? Math.round((attendees.filter(a => a.attended).length / attendees.length) * 100) : 0}%
-              </p>
-            </CardBody>
-          </Card>
+            </div>
+            <p className="text-3xl font-bold text-gray-900">
+              {attendees.length > 0 ? Math.round((attendees.filter(a => a.attended).length / attendees.length) * 100) : 0}%
+            </p>
+          </div>
         </div>
 
-        {/* Filters and Actions */}
-        <Card>
-          <CardBody>
-            <div className="flex flex-col gap-4">
-              {/* Search and View Manager */}
-              <div className="flex flex-col sm:flex-row gap-3 justify-between">
-                <div className="flex-1">
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                    <input
-                      type="text"
-                      placeholder="Search by name, email, or phone..."
-                      value={searchQuery}
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
+        {/* Filters and Actions - Cleaner Layout */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex flex-col gap-6">
+            {/* Search and View Manager */}
+            <div className="flex flex-col sm:flex-row gap-3 items-center">
+              <div className="flex-1 w-full">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                  <input
+                    type="text"
+                    placeholder="Search by name, email, or phone..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm"
+                  />
                 </div>
-                
-                <ViewManager
-                  views={views}
-                  activeView={activeView}
-                  onViewChange={handleViewChange}
-                  onSaveView={handleSaveView}
-                  onDeleteView={handleDeleteView}
-                  onCreateView={handleCreateView}
-                />
               </div>
+              
+              <ViewManager
+                views={views}
+                activeView={activeView}
+                onViewChange={handleViewChange}
+                onSaveView={handleSaveView}
+                onDeleteView={handleDeleteView}
+                onCreateView={handleCreateView}
+              />
+            </div>
 
-              {/* Filters */}
-              <div className="flex flex-wrap gap-3">
+            {/* Filters - Simplified Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {/* Attendance Filter */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Attendance</label>
                 <select
                   value={attendanceFilter}
                   onChange={(e) => setAttendanceFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
                 >
                   <option value="all">All Statuses</option>
                   <option value="attended">Attended</option>
                   <option value="no-show">No Show</option>
                 </select>
+              </div>
 
+              {/* Webinar Filter */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Webinar</label>
                 <select
                   value={webinarFilter}
                   onChange={(e) => setWebinarFilter(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
                 >
                   <option value="all">All Webinars</option>
                   {Array.from(new Set(attendees.map(a => a.webinarTitle))).map(title => (
                     <option key={title} value={title}>{title}</option>
                   ))}
                 </select>
+              </div>
 
+              {/* Country Multi-Select */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Countries</label>
+                <MultiSelect
+                  options={uniqueCountries}
+                  selected={selectedCountries}
+                  onChange={setSelectedCountries}
+                  label="Select countries"
+                />
+              </div>
+
+              {/* Page Size */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Per Page</label>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value))
+                    setCurrentPage(1)
+                  }}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Date Range Filters - Cleaner */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Registration Date Range */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Registration Date</label>
+                <DateRangePicker
+                  startDate={registeredDateStart}
+                  endDate={registeredDateEnd}
+                  onStartDateChange={setRegisteredDateStart}
+                  onEndDateChange={setRegisteredDateEnd}
+                  onClear={() => {
+                    setRegisteredDateStart('')
+                    setRegisteredDateEnd('')
+                  }}
+                  label=""
+                />
+              </div>
+
+              {/* Joined Date Range */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5">Joined Date</label>
+                <DateRangePicker
+                  startDate={joinedDateStart}
+                  endDate={joinedDateEnd}
+                  onStartDateChange={setJoinedDateStart}
+                  onEndDateChange={setJoinedDateEnd}
+                  onClear={() => {
+                    setJoinedDateStart('')
+                    setJoinedDateEnd('')
+                  }}
+                  label=""
+                />
+              </div>
+            </div>
+
+            {/* Action Buttons - Minimal Design */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2">
                 {selectedAttendees.length > 0 && (
-                  <>
-                    <Button variant="secondary" size="sm">
-                      <Mail className="w-4 h-4 mr-2" />
-                      Email Selected ({selectedAttendees.length})
-                    </Button>
-                  </>
+                  <button className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors">
+                    <Mail className="w-4 h-4" />
+                    Email ({selectedAttendees.length})
+                  </button>
                 )}
 
-                <Button variant="secondary" size="sm" onClick={handleExportCSV}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Export CSV ({sortedAttendees.length})
-                </Button>
-
-                <Button 
-                  variant="secondary" 
-                  size="sm"
-                  onClick={() => setShowFilters(!showFilters)}
+                <button 
+                  onClick={handleExportCSV}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <FilterIcon className="w-4 h-4 mr-2" />
-                  {showFilters ? 'Hide' : 'Show'} Filters
-                </Button>
+                  <Download className="w-4 h-4" />
+                  Export
+                </button>
 
-                {(Object.keys(filters).length > 0 || sortConfig || searchQuery) && (
-                  <Button variant="secondary" size="sm" onClick={clearFilters}>
-                    Clear All Filters
-                  </Button>
+                <button 
+                  onClick={() => setShowFilters(!showFilters)}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                >
+                  <FilterIcon className="w-4 h-4" />
+                  {showFilters ? 'Hide' : 'Show'} Advanced
+                </button>
+
+                {(Object.keys(filters).length > 0 || sortConfig || searchQuery || 
+                  selectedCountries.length > 0 || registeredDateStart || registeredDateEnd || 
+                  joinedDateStart || joinedDateEnd) && (
+                  <button 
+                    onClick={clearFilters}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                    Clear
+                  </button>
                 )}
               </div>
 
               {/* Results info */}
-              <div className="text-sm text-gray-600">
-                Showing {startIndex + 1}-{Math.min(endIndex, sortedAttendees.length)} of {sortedAttendees.length} attendees
+              <div className="text-xs text-gray-500">
+                <span className="font-medium text-gray-700">{startIndex + 1}-{Math.min(endIndex, sortedAttendees.length)}</span> of <span className="font-medium text-gray-700">{sortedAttendees.length}</span>
                 {sortedAttendees.length !== attendees.length && (
-                  <span className="ml-2 text-gray-500">(filtered from {attendees.length} total)</span>
+                  <span className="ml-1">(filtered from {attendees.length})</span>
                 )}
               </div>
             </div>
-          </CardBody>
-        </Card>
+          </div>
+        </div>
 
-        {/* Table */}
-        <Card>
+        {/* Table - Clean Modern Design */}
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full">
+              <thead className="bg-gray-50 border-b border-gray-200">
                 {/* Header Row */}
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left">
+                  <th scope="col" className="px-6 py-3.5 text-left">
                     <input
                       type="checkbox"
                       checked={selectedAttendees.length === paginatedAttendees.length && paginatedAttendees.length > 0}
                       onChange={handleSelectAll}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                     />
                   </th>
                   {enabledColumns.map(column => (
                     <th
                       key={column.key}
                       scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none"
+                      className="px-6 py-3.5 text-left text-xs font-semibold text-gray-600 whitespace-nowrap cursor-pointer hover:bg-gray-100 select-none transition-colors"
                       onClick={() => handleSort(column.key)}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <span>{column.label}</span>
                         {sortConfig?.key === column.key ? (
                           sortConfig.direction === 'asc' ? (
-                            <ChevronUp className="w-4 h-4" />
+                            <ChevronUp className="w-3.5 h-3.5 text-blue-600" />
                           ) : (
-                            <ChevronDown className="w-4 h-4" />
+                            <ChevronDown className="w-3.5 h-3.5 text-blue-600" />
                           )
                         ) : (
-                          <ChevronsUpDown className="w-4 h-4 opacity-30" />
+                          <ChevronsUpDown className="w-3.5 h-3.5 opacity-20" />
                         )}
                       </div>
                     </th>
                   ))}
-                  <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3.5 text-right text-xs font-semibold text-gray-600">
                     Actions
                   </th>
                 </tr>
                 
                 {/* Filter Row */}
                 {showFilters && (
-                  <tr className="bg-gray-100">
+                  <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-6 py-2"></th>
                     {enabledColumns.map(column => (
                       <th key={column.key} className="px-6 py-2">
@@ -701,15 +848,18 @@ export default function AttendeesPage() {
                   </tr>
                 )}
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {paginatedAttendees.map((attendee) => (
-                  <tr key={attendee.id} className="hover:bg-gray-50 transition-colors">
+              <tbody className="bg-white">
+                {paginatedAttendees.map((attendee, index) => (
+                  <tr 
+                    key={attendee.id} 
+                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={selectedAttendees.includes(attendee.id)}
                         onChange={() => handleSelectAttendee(attendee.id)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                       />
                     </td>
                     {enabledColumns.map(column => (
@@ -739,102 +889,65 @@ export default function AttendeesPage() {
               <p className="text-gray-500">No attendees found</p>
             </div>
           )}
+        </div>
 
-          {/* Pagination */}
-          {!loading && sortedAttendees.length > 0 && (
-            <div className="px-6 py-4 border-t border-gray-200">
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                {/* Page size selector */}
-                <div className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700">Show</span>
-                  <select
-                    value={pageSize}
-                    onChange={(e) => {
-                      setPageSize(Number(e.target.value))
-                      setCurrentPage(1)
-                    }}
-                    className="px-2 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        {/* Pagination - Minimal Clean Design */}
+        {!loading && sortedAttendees.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 px-6 py-4">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => i + 1).map(page => (
+                  <button
+                    key={page}
+                    onClick={() => setCurrentPage(page)}
+                    className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                      currentPage === page
+                        ? 'bg-blue-600 text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
                   >
-                    <option value={10}>10</option>
-                    <option value={25}>25</option>
-                    <option value={50}>50</option>
-                    <option value={100}>100</option>
-                  </select>
-                  <span className="text-sm text-gray-700">per page</span>
-                </div>
-
-                {/* Pagination controls */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-                    disabled={currentPage === 1}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Button>
-
-                  {/* Page numbers */}
-                  <div className="flex items-center gap-1">
-                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
-                      let pageNum: number
-                      
-                      // Show pages around current page
-                      if (totalPages <= 5) {
-                        pageNum = i + 1
-                      } else if (currentPage <= 3) {
-                        pageNum = i + 1
-                      } else if (currentPage >= totalPages - 2) {
-                        pageNum = totalPages - 4 + i
-                      } else {
-                        pageNum = currentPage - 2 + i
-                      }
-
-                      return (
-                        <button
-                          key={i}
-                          onClick={() => setCurrentPage(pageNum)}
-                          className={`px-3 py-1 text-sm rounded ${
-                            currentPage === pageNum
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-300'
-                          }`}
-                        >
-                          {pageNum}
-                        </button>
-                      )
-                    })}
-                    {totalPages > 5 && currentPage < totalPages - 2 && (
-                      <>
-                        <span className="px-2 text-gray-500">...</span>
-                        <button
-                          onClick={() => setCurrentPage(totalPages)}
-                          className="px-3 py-1 text-sm rounded bg-white text-gray-700 hover:bg-gray-100 border border-gray-300"
-                        >
-                          {totalPages}
-                        </button>
-                      </>
+                    {page}
+                  </button>
+                ))}
+                {totalPages > 5 && (
+                  <>
+                    {currentPage < totalPages - 2 && (
+                      <span className="px-2 text-gray-400">...</span>
                     )}
-                  </div>
-
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-                    disabled={currentPage === totalPages}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Page info */}
-                <div className="text-sm text-gray-700">
-                  Page {currentPage} of {totalPages}
-                </div>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                        currentPage === totalPages
+                          ? 'bg-blue-600 text-white'
+                          : 'text-gray-600 hover:bg-gray-100'
+                      }`}
+                    >
+                      {totalPages}
+                    </button>
+                  </>
+                )}
               </div>
+
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
-          )}
-        </Card>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )

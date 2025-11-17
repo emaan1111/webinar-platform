@@ -166,12 +166,26 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
   const webinar = webinarData
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
-  const [userTimezone, setUserTimezone] = useState('')
-  const [selectedTimezone, setSelectedTimezone] = useState('')
+  const [schedulesLoading, setSchedulesLoading] = useState(true)
+  const [userTimezone, setUserTimezone] = useState(() => {
+    // Initialize with browser timezone immediately
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    } catch {
+      return 'UTC'
+    }
+  })
+  const [selectedTimezone, setSelectedTimezone] = useState(() => {
+    // Initialize with browser timezone immediately
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+    } catch {
+      return 'UTC'
+    }
+  })
   const [userCountry, setUserCountry] = useState('')
   const [isEU, setIsEU] = useState(false)
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 })
-  const [loading, setLoading] = useState(true)
   const [registering, setRegistering] = useState(false)
   const [registered, setRegistered] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
@@ -195,12 +209,11 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     return timezoneValue.split('/').pop()?.replace(/_/g, ' ') || timezoneValue
   }
 
-  // Detect browser timezone immediately so the page can render without waiting for network calls
+  // Detect browser timezone immediately - non-blocking
   useEffect(() => {
     const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
     setUserTimezone(detectedTimezone)
     setSelectedTimezone(detectedTimezone)
-    setLoading(false)
   }, [])
 
   // Fetch country info after the first paint so slow geo requests never block rendering
@@ -263,7 +276,23 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     return () => window.clearInterval(timer)
   }, [])
 
+  // Mark schedules as loaded after component mounts and schedules are available
   useEffect(() => {
+    if (webinar?.schedules && webinar.schedules.length > 0) {
+      // Small delay to ensure DOM is ready and schedules are processed
+      const timer = setTimeout(() => {
+        setSchedulesLoading(false)
+      }, 100)
+      return () => clearTimeout(timer)
+    } else if (webinar?.schedules) {
+      // If there are no schedules, stop loading immediately
+      setSchedulesLoading(false)
+    }
+  }, [webinar?.schedules])
+
+  useEffect(() => {
+    if (!webinar) return; // Guard against null webinar
+    
     const handleOpenModal = () => {
       setShowScheduleModal(true)
     }
@@ -296,7 +325,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
 
   // Setup button listeners for custom template (runs after DOM is rendered)
   useEffect(() => {
-    if (!registrationPage || registered) return
+    if (!registrationPage || registered || !webinar) return; // Guard against null webinar
 
     // Longer delay to ensure DOM is fully rendered with dangerouslySetInnerHTML
     const timer = setTimeout(() => {
@@ -451,8 +480,28 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     return slots
   }
 
+  // Helper function to parse schedule time with proper timezone handling
+  const parseScheduleTime = (schedule: Schedule): Date | null => {
+    if (!schedule.scheduledAt) return null
+    
+    // The scheduledAt from database should be a UTC timestamp
+    // However, if it was saved incorrectly (without timezone conversion),
+    // we need to handle it based on the schedule's timezone field
+    
+    const date = new Date(schedule.scheduledAt)
+    
+    // Check if the date is valid
+    if (isNaN(date.getTime())) {
+      console.error('Invalid date:', schedule.scheduledAt)
+      return null
+    }
+    
+    return date
+  }
+
   const formatScheduleTime = (schedule: Schedule, slotTime?: Date) => {
-    const tz = selectedTimezone || userTimezone
+    // Ensure we always have a valid timezone
+    const tz = selectedTimezone || userTimezone || 'UTC'
     
     // Get friendly timezone name
     const tzFriendly = getTimezoneFriendlyName(tz)
@@ -546,7 +595,15 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
     
     if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
-      const date = new Date(schedule.scheduledAt)
+      // Get the date from database
+      const date = parseScheduleTime(schedule)
+      if (!date) {
+        return 'Invalid schedule time'
+      }
+      
+      // Format the date and time in the user's selected timezone
+      // The toLocaleString with timeZone parameter will automatically convert
+      // from UTC (database storage) to the user's timezone
       const dateStr = date.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
@@ -639,6 +696,12 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         scheduledStartTime = new Date(Date.now() + minutesFromReg * 60000).toISOString()
       }
       
+      // Check if webinar starts within 15 minutes
+      const now = Date.now()
+      const startTime = scheduledStartTime ? new Date(scheduledStartTime).getTime() : now
+      const minutesUntilStart = (startTime - now) / (1000 * 60)
+      const shouldRedirectToCountdown = minutesUntilStart <= 15 && minutesUntilStart > 0
+      
       const response = await fetch(`/api/webinars/${webinar!.id}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -668,7 +731,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
 
       const registrationData = await response.json()
       
-      // Track A/B test conversion if enabled
+      // Track A/B test conversion if enabled (non-blocking for faster redirect)
       if (webinar?.enableABTesting && registrationData.registrationId) {
         const payload = JSON.stringify({
           webinarId: webinar.id,
@@ -679,37 +742,36 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
           const blob = new Blob([payload], { type: 'application/json' })
           navigator.sendBeacon('/api/ab-test/track-conversion', blob)
         } else {
+          // Fire-and-forget - don't wait for response
           fetch('/api/ab-test/track-conversion', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: payload,
-          }).catch(err => {
-            console.error('Failed to track conversion:', err)
+            keepalive: true
+          }).catch(() => {
+            // Silently fail - tracking is not critical
           })
         }
       }
 
-      // Redirect to thank you page
-      const thankYouUrl = `/thank-you/${webinar!.slug}?r=${registrationData.registrationId}&s=${scheduleId}`
-      window.location.href = thankYouUrl
+      // Decide where to redirect based on start time
+      let redirectUrl: string
+      if (shouldRedirectToCountdown) {
+        // Redirect to countdown page if webinar starts within 15 minutes
+        redirectUrl = `/countdown/${webinar!.slug}?r=${registrationData.registrationId}`
+        console.log(`🚀 Webinar starts in ${Math.round(minutesUntilStart)} minutes - redirecting to countdown page`)
+      } else {
+        // Redirect to thank you page for webinars starting later
+        redirectUrl = `/thank-you/${webinar!.slug}?r=${registrationData.registrationId}&s=${scheduleId}`
+      }
+      
+      window.location.href = redirectUrl
       
     } catch (error: any) {
       console.error('Registration error:', error)
       setErrors({ submit: error.message || 'Registration failed. Please try again.' })
-    } finally {
       setRegistering(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading...</p>
-        </div>
-      </div>
-    )
   }
 
   if (!webinar) {
@@ -920,9 +982,14 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                       className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium ${
                         errors.schedule ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                       } bg-white`}
+                      disabled={schedulesLoading}
                     >
-                      <option value="">Choose your preferred time...</option>
-                      {(() => {
+                      {schedulesLoading ? (
+                        <option value="">⏳ Loading available times...</option>
+                      ) : (
+                        <option value="">Choose your preferred time...</option>
+                      )}
+                      {!schedulesLoading && (() => {
                         const maxSchedulesToShow = webinar.maxSchedulesToShow || 5
                         
                         // Collect all time slots with their dates for sorting
@@ -934,21 +1001,30 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                         }
                         
                         const allTimeSlots: TimeSlot[] = []
+                        const now = new Date()
                         
-                        // STEP 1: Add specific and just-in-time schedules
+                        // STEP 1: Add specific and just-in-time schedules (only future dates)
                         webinar.schedules.forEach((schedule) => {
                           if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
-                            allTimeSlots.push({
-                              id: schedule.id,
-                              time: new Date(schedule.scheduledAt),
-                              schedule,
-                              isRecurring: false
-                            })
+                            // Parse the schedule time - it's already in UTC from the database
+                            const scheduleTime = new Date(schedule.scheduledAt)
+                            
+                            // Only add if schedule is in the future
+                            if (scheduleTime > now) {
+                              allTimeSlots.push({
+                                id: schedule.id,
+                                time: scheduleTime,
+                                schedule,
+                                isRecurring: false
+                              })
+                            }
                           } else if (schedule.scheduleType === 'justInTime') {
-                            // JIT gets current time (will be sorted first)
+                            // Calculate JIT time: current time + minutes from registration
+                            const jitTime = new Date()
+                            jitTime.setMinutes(jitTime.getMinutes() + (schedule.minutesFromReg || 5))
                             allTimeSlots.push({
                               id: schedule.id,
-                              time: new Date(),
+                              time: jitTime,
                               schedule,
                               isRecurring: false
                             })
@@ -959,7 +1035,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                         const recurringSchedules = webinar.schedules.filter(s => s.scheduleType === 'recurring')
                         recurringSchedules.forEach((schedule) => {
                           // Generate plenty of slots (we'll sort and limit later)
-                          const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 2)
+                          const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 3)
                           slots.forEach((slot) => {
                             allTimeSlots.push({
                               id: slot.id,
@@ -970,11 +1046,21 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                           })
                         })
                         
-                        // STEP 3: Sort all slots by time (earliest first)
-                        allTimeSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
+                        // STEP 3: Remove duplicate time slots (same time within 1 minute window)
+                        const uniqueSlots = allTimeSlots.filter((slot, index, self) => {
+                          // Find if there's an earlier slot with same/similar time
+                          const duplicateIndex = self.findIndex(s => 
+                            Math.abs(s.time.getTime() - slot.time.getTime()) < 60000 // Within 1 minute
+                          )
+                          // Keep only the first occurrence
+                          return duplicateIndex === index
+                        })
                         
-                        // STEP 4: Take the first N slots and convert to options
-                        const finalSlots = allTimeSlots.slice(0, maxSchedulesToShow)
+                        // STEP 4: Sort all slots by time (earliest first)
+                        uniqueSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
+                        
+                        // STEP 5: Take the first N slots and convert to options
+                        const finalSlots = uniqueSlots.slice(0, maxSchedulesToShow)
                         const allScheduleOptions = finalSlots.map((slot) => (
                           <option key={slot.id} value={slot.id}>
                             {slot.isRecurring 
@@ -1626,9 +1712,14 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                       className={`w-full px-4 py-3 border-2 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium ${
                         errors.schedule ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
                       } bg-white`}
+                      disabled={schedulesLoading}
                     >
-                      <option value="">Choose your preferred time...</option>
-                      {(() => {
+                      {schedulesLoading ? (
+                        <option value="">⏳ Loading available times...</option>
+                      ) : (
+                        <option value="">Choose your preferred time...</option>
+                      )}
+                      {!schedulesLoading && (() => {
                         const maxSchedulesToShow = webinar.maxSchedulesToShow || 5
                         
                         // Collect all time slots with their dates for sorting
@@ -1640,21 +1731,30 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                         }
                         
                         const allTimeSlots: TimeSlot[] = []
+                        const now = new Date()
                         
-                        // STEP 1: Add specific and just-in-time schedules
+                        // STEP 1: Add specific and just-in-time schedules (only future dates)
                         webinar.schedules.forEach((schedule) => {
                           if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
-                            allTimeSlots.push({
-                              id: schedule.id,
-                              time: new Date(schedule.scheduledAt),
-                              schedule,
-                              isRecurring: false
-                            })
+                            // Parse the schedule time - it's already in UTC from the database
+                            const scheduleTime = new Date(schedule.scheduledAt)
+                            
+                            // Only add if schedule is in the future
+                            if (scheduleTime > now) {
+                              allTimeSlots.push({
+                                id: schedule.id,
+                                time: scheduleTime,
+                                schedule,
+                                isRecurring: false
+                              })
+                            }
                           } else if (schedule.scheduleType === 'justInTime') {
-                            // JIT gets current time (will be sorted first)
+                            // Calculate JIT time: current time + minutes from registration
+                            const jitTime = new Date()
+                            jitTime.setMinutes(jitTime.getMinutes() + (schedule.minutesFromReg || 5))
                             allTimeSlots.push({
                               id: schedule.id,
-                              time: new Date(),
+                              time: jitTime,
                               schedule,
                               isRecurring: false
                             })
@@ -1665,7 +1765,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                         const recurringSchedules = webinar.schedules.filter(s => s.scheduleType === 'recurring')
                         recurringSchedules.forEach((schedule) => {
                           // Generate plenty of slots (we'll sort and limit later)
-                          const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 2)
+                          const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 3)
                           slots.forEach((slot) => {
                             allTimeSlots.push({
                               id: slot.id,
@@ -1676,11 +1776,21 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                           })
                         })
                         
-                        // STEP 3: Sort all slots by time (earliest first)
-                        allTimeSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
+                        // STEP 3: Remove duplicate time slots (same time within 1 minute window)
+                        const uniqueSlots = allTimeSlots.filter((slot, index, self) => {
+                          // Find if there's an earlier slot with same/similar time
+                          const duplicateIndex = self.findIndex(s => 
+                            Math.abs(s.time.getTime() - slot.time.getTime()) < 60000 // Within 1 minute
+                          )
+                          // Keep only the first occurrence
+                          return duplicateIndex === index
+                        })
                         
-                        // STEP 4: Take the first N slots and convert to options
-                        const finalSlots = allTimeSlots.slice(0, maxSchedulesToShow)
+                        // STEP 4: Sort all slots by time (earliest first)
+                        uniqueSlots.sort((a, b) => a.time.getTime() - b.time.getTime())
+                        
+                        // STEP 5: Take the first N slots and convert to options
+                        const finalSlots = uniqueSlots.slice(0, maxSchedulesToShow)
                         const allScheduleOptions = finalSlots.map((slot) => (
                           <option key={slot.id} value={slot.id}>
                             {slot.isRecurring 

@@ -9,6 +9,8 @@ import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import ABTestingConfig from '@/components/dashboard/ABTestingConfig'
 import EmbedCodeGenerator from '@/components/dashboard/EmbedCodeGenerator'
 import ThankYouTemplateSelector from '@/components/dashboard/ThankYouTemplateSelector'
+import { toZonedTime, fromZonedTime, format as formatTz } from 'date-fns-tz'
+import { parseISO } from 'date-fns'
 import CountdownTemplateSelector from '@/components/dashboard/CountdownTemplateSelector'
 import {
   ArrowLeft,
@@ -195,11 +197,37 @@ export default function EditWebinarPage() {
       if (webinar.schedules && Array.isArray(webinar.schedules)) {
         const formattedSchedules = webinar.schedules.map((schedule: any) => {
           if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
-            const date = new Date(schedule.scheduledAt)
+            // The scheduledAt from database is in UTC
+            // We need to convert it back to the schedule's timezone for editing
+            const utcDate = new Date(schedule.scheduledAt)
+            
+            let dateStr: string
+            let timeStr: string
+            
+            if (schedule.timezone && schedule.timezone !== 'USER_TIMEZONE' && schedule.timezone !== 'UTC') {
+              try {
+                // Convert UTC to the schedule's timezone for display/editing
+                const zonedDate = toZonedTime(utcDate, schedule.timezone)
+                dateStr = formatTz(zonedDate, 'yyyy-MM-dd', { timeZone: schedule.timezone })
+                timeStr = formatTz(zonedDate, 'HH:mm', { timeZone: schedule.timezone })
+                
+                console.log(`📅 Loading schedule: ${schedule.scheduledAt} (UTC) → ${dateStr} ${timeStr} (${schedule.timezone})`)
+              } catch (error) {
+                console.error('Error converting timezone for display:', error)
+                // Fallback to UTC display
+                dateStr = utcDate.toISOString().split('T')[0]
+                timeStr = utcDate.toTimeString().slice(0, 5)
+              }
+            } else {
+              // For UTC or USER_TIMEZONE, display as-is
+              dateStr = utcDate.toISOString().split('T')[0]
+              timeStr = utcDate.toTimeString().slice(0, 5)
+            }
+            
             return {
               scheduleType: 'specific',
-              scheduledAt: date.toISOString().split('T')[0],
-              scheduledTime: date.toTimeString().slice(0, 5),
+              scheduledAt: dateStr,
+              scheduledTime: timeStr,
               timezone: schedule.timezone || 'UTC',
               useUserTimezone: schedule.useUserTimezone || false,
               isZoomSession: schedule.isZoomSession || false,
@@ -274,10 +302,6 @@ export default function EditWebinarPage() {
       newErrors.description = 'Description must be at least 20 characters'
     }
 
-    if (formData.duration < 15) {
-      newErrors.duration = 'Duration must be at least 15 minutes'
-    }
-
     if (additionalSchedules.length === 0) {
       newErrors.schedules = 'At least one schedule is required. Click "Add Schedule" to create one.'
       setError('At least one schedule is required. Please add at least one schedule before saving.')
@@ -308,23 +332,85 @@ export default function EditWebinarPage() {
 
     try {
       // Map schedules to API format
-      const allSchedules = additionalSchedules.map((schedule: any) => {
+      const allSchedules = additionalSchedules.map((schedule: any, index: number) => {
         const mappedSchedule: any = {
           scheduleType: schedule.scheduleType
         }
         
         if (schedule.scheduleType === 'specific') {
-          mappedSchedule.scheduledAt = new Date(`${schedule.scheduledAt}T${schedule.scheduledTime}`).toISOString()
-          mappedSchedule.timezone = schedule.timezone
-          mappedSchedule.useUserTimezone = schedule.useUserTimezone
+          // Handle scheduledAt - combine date and time, then convert timezone
+          let scheduledAtISO: string;
+          
+          // ALWAYS process date + time with timezone conversion
+          // Whether it's a new schedule or editing existing, we need proper conversion
+          if (schedule.scheduledAt && schedule.scheduledTime) {
+            // Combine date and time
+            const dateStr = schedule.scheduledAt.includes('-') ? schedule.scheduledAt : new Date(schedule.scheduledAt).toISOString().split('T')[0]
+            const timeStr = schedule.scheduledTime.includes(':') ? schedule.scheduledTime : `${schedule.scheduledTime}:00`
+            const dateTimeStr = `${dateStr} ${timeStr}` // e.g., "2025-11-18 12:42:00"
+            
+            // PROPER TIMEZONE CONVERSION using date-fns-tz
+            // The schedule.timezone tells us what timezone this time is in
+            // We need to interpret it in that timezone, then convert to UTC for storage
+            
+            if (schedule.timezone && schedule.timezone !== 'USER_TIMEZONE' && schedule.timezone !== 'UTC') {
+              try {
+                // Convert from the schedule's timezone to UTC using date-fns-tz
+                // We need to interpret the date/time string as if it's in the schedule's timezone
+                // then get the UTC equivalent
+                
+                // Create a date object from the string (will be in local browser time initially)
+                const dateInLocalTZ = new Date(`${dateStr}T${timeStr}`)
+                
+                // Get what this date would be in the target timezone
+                // Then convert that back to UTC
+                // This is a two-step process:
+                // 1. Treat the time as if it's already in the schedule's timezone
+                // 2. Get the UTC equivalent
+                
+                // Parse as if the time is in the schedule's timezone
+                // fromZonedTime(date, timezone) treats the date as if it's in that timezone
+                // and returns the equivalent UTC time
+                const utcDate = fromZonedTime(dateInLocalTZ, schedule.timezone)
+                scheduledAtISO = utcDate.toISOString()
+                
+                console.log(`✅ Timezone conversion: ${dateTimeStr} (${schedule.timezone}) → ${scheduledAtISO} (UTC)`)
+              } catch (error) {
+                console.error('Timezone conversion error:', error)
+                // Fallback to treating as local time if timezone is invalid
+                scheduledAtISO = new Date(`${dateStr}T${timeStr}`).toISOString()
+              }
+            } else {
+              // For UTC or USER_TIMEZONE, treat as is
+              scheduledAtISO = new Date(`${dateStr}T${timeStr}`).toISOString()
+            }
+          } else {
+            console.error(`Schedule ${index} missing scheduledAt or scheduledTime:`, schedule)
+            throw new Error(`Schedule ${index + 1}: Please provide both date and time for specific schedules`)
+          }
+          
+          // Validate the date
+          if (isNaN(new Date(scheduledAtISO).getTime())) {
+            throw new Error(`Schedule ${index + 1}: Invalid date/time format`)
+          }
+          
+          mappedSchedule.scheduledAt = scheduledAtISO
+          mappedSchedule.timezone = schedule.timezone || 'UTC'
+          mappedSchedule.useUserTimezone = schedule.useUserTimezone || false
           mappedSchedule.isZoomSession = schedule.isZoomSession || false
           mappedSchedule.zoomLink = schedule.zoomLink || null
         } else if (schedule.scheduleType === 'justInTime') {
-          mappedSchedule.minutesFromReg = schedule.minutesFromReg
+          if (!schedule.minutesFromReg || schedule.minutesFromReg < 1) {
+            throw new Error(`Schedule ${index + 1}: Minutes from registration must be at least 1`)
+          }
+          mappedSchedule.minutesFromReg = parseInt(schedule.minutesFromReg)
         } else if (schedule.scheduleType === 'recurring') {
+          if (!schedule.recurringPattern) {
+            throw new Error(`Schedule ${index + 1}: Recurring pattern is required`)
+          }
           mappedSchedule.recurringPattern = schedule.recurringPattern
-          mappedSchedule.timezone = schedule.timezone
-          mappedSchedule.useUserTimezone = schedule.useUserTimezone
+          mappedSchedule.timezone = schedule.timezone || 'UTC'
+          mappedSchedule.useUserTimezone = schedule.useUserTimezone || false
         }
         
         return mappedSchedule
@@ -379,7 +465,8 @@ export default function EditWebinarPage() {
 
       if (!response.ok) {
         const data = await response.json()
-        throw new Error(data.error || 'Failed to update webinar')
+        console.error('API Error Response:', data)
+        throw new Error(data.message || data.error || 'Failed to update webinar')
       }
 
       setSuccess(true)
@@ -387,7 +474,10 @@ export default function EditWebinarPage() {
         router.push('/dashboard/webinars')
       }, 1500)
     } catch (err: any) {
-      setError(err.message)
+      console.error('Submit error details:', err)
+      setError(err.message || 'Something went wrong while saving')
+      // Scroll to top to show error
+      window.scrollTo({ top: 0, behavior: 'smooth' })
       console.error('Update webinar error:', err)
     } finally {
       setIsLoading(false)
@@ -568,11 +658,22 @@ export default function EditWebinarPage() {
           </div>
         )}
 
+        {/* Success Alert */}
+        {success && (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-green-50 border border-green-200">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <p className="text-sm text-green-800">Webinar updated successfully! Redirecting...</p>
+          </div>
+        )}
+
         {/* Error Alert */}
         {error && (
           <div className="flex items-center gap-3 p-4 rounded-lg bg-red-50 border border-red-200">
             <AlertCircle className="w-5 h-5 text-red-600" />
-            <p className="text-sm text-red-800">{error}</p>
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-red-800 mb-1">Error saving webinar</p>
+              <p className="text-sm text-red-700">{error}</p>
+            </div>
           </div>
         )}
 
@@ -776,7 +877,6 @@ export default function EditWebinarPage() {
                     value={formData.duration}
                     onChange={handleInputChange}
                     min={1}
-                    max={1440}
                     className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
                       errors.duration ? 'border-red-300' : 'border-gray-300'
                     }`}
@@ -1314,8 +1414,7 @@ export default function EditWebinarPage() {
                   <div className="flex-1">
                     <p className="text-sm font-medium text-gray-900">Enable Replay Access</p>
                     <p className="text-xs text-gray-600 mt-1">
-                      When enabled, attendees can watch the webinar replay after it ends. 
-                      They can access the replay at <code className="bg-gray-100 px-1 rounded">/w/[slug]/replay</code>
+                      When enabled, attendees can watch the webinar replay after it ends on the same live room page with a "Replay" badge.
                     </p>
                   </div>
                 </label>
