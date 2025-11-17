@@ -147,6 +147,7 @@ export default function DateRangePicker({
               }}
               className="p-1 text-gray-400 hover:text-gray-600 rounded transition-colors"
               title="Clear dates"
+              aria-label="Clear dates"
             >
               <X className="w-3 h-3" />
             </button>

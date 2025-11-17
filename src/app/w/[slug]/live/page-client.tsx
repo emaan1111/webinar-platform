@@ -636,6 +636,23 @@ export default function WebinarLiveClient({
     };
   }, []);
 
+  // Mark component as mounted and auto-start replay mode
+  useEffect(() => {
+    setMounted(true);
+    console.log('✅ Component mounted');
+    
+    // Auto-start replay mode (no button click required)
+    if (isReplayMode) {
+      console.log('🎬 Auto-starting replay mode...');
+      setBroadcastStarted(true);
+      setVideoLoading(true);
+      
+      // Store the initial elapsed time for video seeking
+      startTimeRef.current = timing.initialElapsedSeconds;
+      console.log(`📍 Initial replay position: ${timing.initialElapsedSeconds}s`);
+    }
+  }, [isReplayMode, timing.initialElapsedSeconds]);
+
   // Load seen offers from localStorage on mount
   useEffect(() => {
     if (!viewer?.id || !webinar.id) return;
