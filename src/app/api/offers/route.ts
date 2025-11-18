@@ -19,7 +19,7 @@ const parseBulletPoints = (value: unknown): string[] | undefined => {
   return normalized
 }
 
-// GET /api/offers - Get all offers for user's webinars
+// GET /api/offers - Get all offers (admins see all offers)
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions)
@@ -31,21 +31,8 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const webinarId = searchParams.get('webinarId')
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Build query
-    const whereClause: any = {
-      webinar: {
-        hostId: user.id
-      }
-    }
+    // Build query - all admins can see all offers
+    const whereClause: any = {}
 
     if (webinarId) {
       whereClause.webinarId = webinarId
@@ -77,7 +64,7 @@ export async function GET(request: Request) {
   }
 }
 
-// POST /api/offers - Create a new offer
+// POST /api/offers - Create a new offer (admins can create offers for any webinar)
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
@@ -103,28 +90,18 @@ export async function POST(request: Request) {
     } = body
     const normalizedBulletPoints = parseBulletPoints(bulletPoints)
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Verify webinar ownership
-    const webinar = await prisma.webinar.findFirst({
+    // Verify webinar exists
+    const webinar = await prisma.webinar.findUnique({
       where: {
-        id: webinarId,
-        hostId: user.id
+        id: webinarId
       }
     })
 
     if (!webinar) {
-      return NextResponse.json({ error: 'Webinar not found or unauthorized' }, { status: 404 })
+      return NextResponse.json({ error: 'Webinar not found' }, { status: 404 })
     }
 
-    // Create offer
+    // Create offer (no ownership check - all admins can create offers for any webinar)
     const offer = await prisma.offer.create({
       data: {
         title,
@@ -168,7 +145,7 @@ export async function POST(request: Request) {
   }
 }
 
-// PATCH /api/offers - Update an offer
+// PATCH /api/offers - Update an offer (admins can update any offer)
 export async function PATCH(request: Request) {
   try {
     const session = await getServerSession(authOptions)
@@ -201,27 +178,13 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Offer ID required' }, { status: 400 })
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Verify offer ownership through webinar
-    const offer = await prisma.offer.findFirst({
-      where: {
-        id,
-        webinar: {
-          hostId: user.id
-        }
-      }
+    // Verify offer exists (no ownership check)
+    const offer = await prisma.offer.findUnique({
+      where: { id }
     })
 
     if (!offer) {
-      return NextResponse.json({ error: 'Offer not found or unauthorized' }, { status: 404 })
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
     }
 
     // Update offer
@@ -278,7 +241,7 @@ export async function PATCH(request: Request) {
   }
 }
 
-// DELETE /api/offers - Delete an offer
+// DELETE /api/offers - Delete an offer (admins can delete any offer)
 export async function DELETE(request: Request) {
   try {
     const session = await getServerSession(authOptions)
@@ -294,27 +257,13 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Offer ID required' }, { status: 400 })
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Verify offer ownership through webinar
-    const offer = await prisma.offer.findFirst({
-      where: {
-        id,
-        webinar: {
-          hostId: user.id
-        }
-      }
+    // Verify offer exists (no ownership check)
+    const offer = await prisma.offer.findUnique({
+      where: { id }
     })
 
     if (!offer) {
-      return NextResponse.json({ error: 'Offer not found or unauthorized' }, { status: 404 })
+      return NextResponse.json({ error: 'Offer not found' }, { status: 404 })
     }
 
     // Delete offer

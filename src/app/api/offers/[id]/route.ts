@@ -17,7 +17,7 @@ const parseBulletPoints = (value: unknown): string[] | undefined => {
     .filter(Boolean)
 }
 
-// PATCH /api/offers/[id] - Update an offer
+// PATCH /api/offers/[id] - Update an offer (admins can update any offer)
 export async function PATCH(
   request: Request,
   { params }: { params: { id: string } }
@@ -31,23 +31,9 @@ export async function PATCH(
 
     const body = await request.json()
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Verify ownership
-    const existingOffer = await prisma.offer.findFirst({
-      where: {
-        id: params.id,
-        webinar: {
-          hostId: user.id
-        }
-      }
+    // Verify offer exists (no ownership check)
+    const existingOffer = await prisma.offer.findUnique({
+      where: { id: params.id }
     })
 
     if (!existingOffer) {
@@ -111,7 +97,7 @@ export async function PATCH(
   }
 }
 
-// DELETE /api/offers/[id] - Delete an offer
+// DELETE /api/offers/[id] - Delete an offer (admins can delete any offer)
 export async function DELETE(
   request: Request,
   { params }: { params: { id: string } }
@@ -123,23 +109,9 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Find user
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email }
-    })
-
-    if (!user) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 })
-    }
-
-    // Verify ownership
-    const offer = await prisma.offer.findFirst({
-      where: {
-        id: params.id,
-        webinar: {
-          hostId: user.id
-        }
-      }
+    // Verify offer exists (no ownership check)
+    const offer = await prisma.offer.findUnique({
+      where: { id: params.id }
     })
 
     if (!offer) {
