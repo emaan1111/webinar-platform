@@ -1,0 +1,19 @@
+# Ignore files that don't need to be deployed
+.git
+.github
+.vscode
+*.md
+*.log
+.DS_Store
+.env.example
+node_modules/.cache
+.next/cache
+test-*
+check-*.js
+add-*.js
+backfill-*.js
+complete-*.js
+create-*.js
+deploy*.sh
+*.csv
+cf-test-logs.txt
