@@ -209,6 +209,7 @@ export default function WebinarRemindersPage() {
   }
 
   const getPresetOptions = () => [
+    { label: '5 minutes before', value: 5 },
     { label: '15 minutes before', value: 15 },
     { label: '30 minutes before', value: 30 },
     { label: '1 hour before', value: 60 },
