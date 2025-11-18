@@ -92,8 +92,13 @@ export async function POST(request: NextRequest) {
     // Build context from program documents
     const programContext = buildProgramContext(webinar.programDocuments);
 
-    // Create system prompt
-    const systemPrompt = webinar.aiChatConfig.systemPrompt || generateDefaultSystemPrompt(webinar);
+    // Create system prompt and ensure [SKIP] instructions are included
+    let systemPrompt = webinar.aiChatConfig.systemPrompt || generateDefaultSystemPrompt(webinar);
+    
+    // Always append [SKIP] instructions to ensure AI stays quiet when appropriate
+    if (!systemPrompt.includes('[SKIP]')) {
+      systemPrompt += `\n\nIMPORTANT OVERRIDE: If you cannot answer confidently or the question is off-topic, output ONLY the text "[SKIP]" with no other words or explanations. Do NOT apologize or say you don't know - just output [SKIP].`;
+    }
 
     // Generate AI response
     const aiResponse = await generateAIResponse(
@@ -103,6 +108,27 @@ export async function POST(request: NextRequest) {
       webinar.aiChatConfig.temperature || 0.7,
       webinar.aiChatConfig.maxTokens || 500
     );
+
+    // Check if AI decided to skip this question
+    const trimmedResponse = aiResponse.trim();
+    const shouldSkip = 
+      trimmedResponse === '[SKIP]' ||
+      trimmedResponse.includes('[SKIP]') ||
+      trimmedResponse.toLowerCase().includes("i don't have information") ||
+      trimmedResponse.toLowerCase().includes("i don't have that information") ||
+      trimmedResponse.toLowerCase().includes("i'm sorry, but i don't have") ||
+      trimmedResponse.toLowerCase().includes("i apologize") ||
+      trimmedResponse.toLowerCase().includes("i don't know") ||
+      (trimmedResponse.toLowerCase().includes("sorry") && trimmedResponse.length < 150);
+
+    if (shouldSkip) {
+      console.log('🤫 AI staying quiet:', trimmedResponse.substring(0, 100));
+      return NextResponse.json({
+        shouldRespond: false,
+        message: 'AI chose not to respond to this question (outside scope or insufficient information)',
+        skipped: true,
+      });
+    }
 
     // If auto-respond is enabled, save the response as a chat message
     if (webinar.aiChatConfig.autoRespond && !webinar.aiChatConfig.requireApproval) {
@@ -182,17 +208,55 @@ function buildProgramContext(documents: any[]): string {
 function generateDefaultSystemPrompt(webinar: any): string {
   return `You are a helpful assistant for the "${webinar.title}" program. 
 
-Your role is to answer questions about the program ONLY. Follow these rules:
+CRITICAL INSTRUCTION: Your ONLY allowed outputs are either:
+1. A helpful answer about the program (if you have the information)
+2. EXACTLY the text "[SKIP]" with no other words
 
-1. ONLY answer questions related to the program, pricing, curriculum, benefits, or logistics.
-2. Be friendly, professional, and concise.
-3. If someone asks something off-topic, politely redirect them to program-related questions.
-4. Use the program information provided to give accurate answers.
-5. If you don't have the information to answer, say "I don't have that specific information, but I can connect you with our team."
-6. Encourage interested attendees to take action (enroll, sign up, etc.)
-7. Never make up information - only use what's provided in the context.
+EXAMPLES OF CORRECT BEHAVIOR:
 
-Remember: You're here to help attendees learn about the program and make an informed decision.`;
+Question: "lbtw"
+Your Response: [SKIP]
+
+Question: "What's the weather?"
+Your Response: [SKIP]
+
+Question: "hi"
+Your Response: [SKIP]
+
+Question: "Can you tell me about the refund policy?"
+(If no refund info in program documents)
+Your Response: [SKIP]
+
+Question: "What's included in the program?"
+(If you have program information)
+Your Response: The program includes [specific details from documents]...
+
+Question: "How much does it cost?"
+(If you have pricing information)
+Your Response: The program is priced at [specific pricing from documents]...
+
+RULES:
+
+1. ONLY answer questions directly related to the program, pricing, curriculum, benefits, or logistics
+2. If off-topic → Output ONLY: [SKIP]
+3. If insufficient information → Output ONLY: [SKIP]
+4. If casual chat or gibberish → Output ONLY: [SKIP]
+5. If you don't understand → Output ONLY: [SKIP]
+6. NEVER say "I don't have information" → Just output: [SKIP]
+7. NEVER apologize or explain → Just output: [SKIP]
+8. NEVER add extra text to [SKIP] → Just output: [SKIP]
+
+When you output [SKIP] (and ONLY [SKIP]), you become invisible in chat.
+This is BETTER than apologizing because it keeps the conversation natural.
+
+Use the program information provided to give accurate answers ONLY when:
+- Question is directly about the program
+- You have clear information
+- You can answer with 100% confidence
+
+Otherwise → Output EXACTLY: [SKIP]
+
+Remember: [SKIP] means "stay silent". Use it liberally. Better to stay silent than to say you don't know.`;
 }
 
 // Generate AI response using OpenAI

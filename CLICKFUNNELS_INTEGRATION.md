@@ -96,7 +96,7 @@ Replace `yourdomain.com` with your actual domain.
    - **Event Types**: Select these events:
      - ✅ `contact.created`
      - ✅ `contact.updated`
-     - ✅ `order.created` (optional)
+     - ✅ `order.created` *(required for purchase tracking)*
    - **Status**: Active
 
 ### Step 5: Add Custom Fields to Your Funnel Forms
@@ -124,6 +124,19 @@ marketing_consent: "true"  // If user opts in to marketing
 2. Check your webinar dashboard
 3. Verify the registration was created
 4. Check the webhook logs in ClickFunnels
+
+---
+
+## 💰 Track Purchases From ClickFunnels Order Forms
+
+When you enable the `order.created` webhook event, every purchase from your ClickFunnels order forms is captured automatically.
+
+1. **Send the same webhook fields** you use for registrations (`webinar_id` or `webinar_slug`).  
+2. **Our webhook** matches the order to the registrant by email and webinar.  
+3. **Sales are stored** in the `webinar_sales` table and linked to the registration when possible.  
+4. **Attendees Dashboard** now includes `Purchased`, `Purchase Count`, `Last Purchase`, and `Revenue` columns so you can sort/filter/export buyers instantly.
+
+If the email doesn't match an existing registration, the sale is still recorded so you can reconcile it later.
 
 ---
 

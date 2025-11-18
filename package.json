@@ -53,7 +53,7 @@
     "jsdom": "^24.1.0",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
-    "tsconfig-paths": "^4.2.0",
+    "tsconfig-paths": "^4.3.2",
     "ts-node": "^10.9.2",
     "tsx": "^4.20.6",
     "typescript": "^5.6.3",

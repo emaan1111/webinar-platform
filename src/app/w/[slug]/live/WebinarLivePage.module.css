@@ -207,6 +207,101 @@
   }
 }
 
+/* Replay Prompt Overlay - Shows when live webinar ends */
+.replayPromptOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.95);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  animation: fadeIn 0.5s ease;
+}
+
+.replayPromptContent {
+  text-align: center;
+  color: white;
+  padding: 50px;
+  max-width: 600px;
+  animation: slideUp 0.6s ease;
+}
+
+.replayPromptIcon {
+  margin-bottom: 30px;
+  animation: scaleIn 0.5s ease;
+}
+
+.replayPromptTitle {
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 16px;
+  letter-spacing: 0.5px;
+  background: linear-gradient(135deg, #ffffff, #e0e0e0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.replayPromptSubtitle {
+  font-size: 1.2rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-weight: 300;
+  margin-bottom: 40px;
+  line-height: 1.6;
+}
+
+.startReplayButton {
+  background: linear-gradient(135deg, var(--primary), var(--primary-light));
+  color: white;
+  border: none;
+  padding: 18px 40px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  border-radius: 50px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 25px rgba(123, 104, 238, 0.4);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.startReplayButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 35px rgba(123, 104, 238, 0.6);
+  background: linear-gradient(135deg, var(--primary-light), var(--primary));
+}
+
+.startReplayButton:active {
+  transform: translateY(0);
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
 .countdownLabel {
   font-size: 0.95rem;
   text-transform: uppercase;

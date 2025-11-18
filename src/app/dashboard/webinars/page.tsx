@@ -21,7 +21,8 @@ import {
   Ban,
   Loader2,
   Code,
-  X
+  X,
+  Bot
 } from 'lucide-react'
 
 interface Webinar {
@@ -362,6 +363,12 @@ function WebinarCard({
                 <Button variant="secondary" size="sm">
                   <Edit className="w-4 h-4 mr-2" />
                   Edit
+                </Button>
+              </Link>
+              <Link href={`/dashboard/webinars/${webinar.id}/ai-assistant`}>
+                <Button variant="secondary" size="sm" className="bg-purple-50 hover:bg-purple-100 text-purple-700 border-purple-200">
+                  <Bot className="w-4 h-4 mr-2" />
+                  AI Assistant
                 </Button>
               </Link>
               <Button variant="secondary" size="sm" onClick={() => navigator.clipboard.writeText(`${window.location.origin}/w/${webinar.slug || webinar.id}`)}>

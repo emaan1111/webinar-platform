@@ -8,7 +8,7 @@ export interface ColumnConfig {
   key: string
   label: string
   enabled: boolean
-  category: 'basic' | 'location' | 'engagement' | 'device' | 'replay' | 'consents'
+  category: 'basic' | 'location' | 'engagement' | 'device' | 'replay' | 'consents' | 'sales'
 }
 
 export interface CustomView {
@@ -64,6 +64,13 @@ export const defaultColumns: ColumnConfig[] = [
   { key: 'gdprConsent', label: 'GDPR Consent', enabled: false, category: 'consents' },
   { key: 'privacyConsent', label: 'Privacy Consent', enabled: false, category: 'consents' },
   { key: 'marketingConsent', label: 'Marketing Consent', enabled: false, category: 'consents' },
+  
+  // Sales
+  { key: 'hasPurchased', label: 'Purchased', enabled: true, category: 'sales' },
+  { key: 'purchaseCount', label: 'Purchase Count', enabled: false, category: 'sales' },
+  { key: 'lastPurchaseAt', label: 'Last Purchase', enabled: false, category: 'sales' },
+  { key: 'lastPurchaseAmount', label: 'Last Purchase Amount', enabled: false, category: 'sales' },
+  { key: 'totalPurchaseAmount', label: 'Total Purchase Amount', enabled: false, category: 'sales' }
 ]
 
 export default function ViewManager({
@@ -108,7 +115,8 @@ export default function ViewManager({
     { key: 'engagement', label: 'Engagement & Watch Time' },
     { key: 'device', label: 'Device Information' },
     { key: 'replay', label: 'Replay Analytics' },
-    { key: 'consents', label: 'Consents' }
+    { key: 'consents', label: 'Consents' },
+    { key: 'sales', label: 'Sales & Purchases' }
   ]
 
   return (

@@ -61,6 +61,14 @@ interface Attendee {
   lastSessionOS?: string | null
   totalEngagements?: number
   sessionCount?: number
+  hasPurchased?: boolean
+  purchaseCount?: number
+  lastPurchaseAt?: string | null
+  lastPurchaseAmount?: number | null
+  lastPurchaseCurrency?: string | null
+  lastPurchaseProduct?: string | null
+  totalPurchaseAmount?: number
+  purchaseCurrency?: string | null
 }
 
 const VIEWS_STORAGE_KEY = 'attendee_views'
@@ -323,13 +331,29 @@ export default function AttendeesPage() {
     setJoinedDateEnd('')
   }
 
+  const formatCurrencyValue = (amount?: number | null, currency?: string | null) => {
+    if (amount === null || amount === undefined || Number.isNaN(amount)) {
+      return 'N/A'
+    }
+
+    try {
+      return new Intl.NumberFormat(undefined, {
+        style: 'currency',
+        currency: currency || 'USD'
+      }).format(amount)
+    } catch {
+      return `$${amount.toFixed(2)}`
+    }
+  }
+
   const renderFilterInput = (column: ColumnConfig) => {
     const filterValue = filters[column.key]
 
     // Boolean filters (checkboxes)
     if (column.key === 'attended' || column.key === 'watchedReplay' || 
         column.key === 'replayClickedCTA' || column.key === 'gdprConsent' || 
-        column.key === 'privacyConsent' || column.key === 'marketingConsent') {
+        column.key === 'privacyConsent' || column.key === 'marketingConsent' ||
+        column.key === 'hasPurchased') {
       return (
         <select
           value={filterValue === true ? 'true' : filterValue === false ? 'false' : 'all'}
@@ -364,7 +388,8 @@ export default function AttendeesPage() {
 
     // Numeric filters (engagement score, watch time, etc.)
     if (column.key === 'engagementScore' || column.key === 'totalEngagements' || 
-        column.key === 'sessionCount' || column.key === 'totalWatchTime' || column.key === 'replayWatchTime') {
+        column.key === 'sessionCount' || column.key === 'totalWatchTime' || column.key === 'replayWatchTime' ||
+        column.key === 'purchaseCount' || column.key === 'lastPurchaseAmount' || column.key === 'totalPurchaseAmount') {
       return (
         <input
           type="number"
@@ -441,11 +466,18 @@ export default function AttendeesPage() {
         const value = (a as any)[col.key]
         
         // Format special values
-        if (col.key === 'registeredAt' || col.key === 'joinedAt' || col.key === 'leftAt') {
+        if (col.key === 'registeredAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastPurchaseAt') {
           return value ? new Date(value).toLocaleString() : 'N/A'
         }
+        if (col.key === 'lastPurchaseAmount') {
+          return value != null ? formatCurrencyValue(value, (a as any).lastPurchaseCurrency) : 'N/A'
+        }
+        if (col.key === 'totalPurchaseAmount') {
+          return value != null ? formatCurrencyValue(value, (a as any).purchaseCurrency) : 'N/A'
+        }
         if (col.key === 'attended' || col.key === 'watchedReplay' || col.key === 'replayClickedCTA' || 
-            col.key === 'gdprConsent' || col.key === 'privacyConsent' || col.key === 'marketingConsent') {
+            col.key === 'gdprConsent' || col.key === 'privacyConsent' || col.key === 'marketingConsent' ||
+            col.key === 'hasPurchased') {
           return value ? 'Yes' : 'No'
         }
         
@@ -496,6 +528,7 @@ export default function AttendeesPage() {
       case 'registeredAt':
       case 'joinedAt':
       case 'leftAt':
+      case 'lastPurchaseAt':
         if (!value) return <div className="text-sm text-gray-400">N/A</div>
         return (
           <div>
@@ -516,6 +549,22 @@ export default function AttendeesPage() {
             No
           </span>
         )
+
+      case 'hasPurchased':
+        return attendee.hasPurchased ? (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+            <CheckCircle className="w-3 h-3" />
+            Purchased
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+            <XCircle className="w-3 h-3" />
+            Not Yet
+          </span>
+        )
+      
+      case 'purchaseCount':
+        return <div className="text-sm text-gray-900">{value ?? 0}</div>
       
       case 'engagementScore':
         const score = value || 0
@@ -567,7 +616,22 @@ export default function AttendeesPage() {
         return <div className="text-sm text-gray-700">{value?.toString() || 'N/A'}</div>
     }
   }
+      
+      case 'lastPurchaseAmount':
+        if (value == null) return <div className="text-sm text-gray-400">N/A</div>
+        return (
+          <div className="text-sm font-medium text-gray-900">
+            {formatCurrencyValue(value, attendee.lastPurchaseCurrency)}
+          </div>
+        )
 
+      case 'totalPurchaseAmount':
+        if (value == null) return <div className="text-sm text-gray-400">N/A</div>
+        return (
+          <div className="text-sm font-medium text-gray-900">
+            {formatCurrencyValue(value, attendee.purchaseCurrency)}
+          </div>
+        )
   const enabledColumns = activeView.columns.filter(c => c.enabled)
 
   return (

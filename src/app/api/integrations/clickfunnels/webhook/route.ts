@@ -355,6 +355,14 @@ async function handleOrderCreated(payload: ClickFunnelsWebhookPayload) {
   }
 
   if (registration) {
+    // Mark registration as having purchased
+    await prisma.registration.update({
+      where: { id: registration.id },
+      data: { hasPurchased: true },
+    }).catch((error) => {
+      console.error('Failed to update registration hasPurchased flag', error);
+    });
+
     await prisma.offerAnalytics
       .updateMany({
         where: {

@@ -67,6 +67,11 @@ export async function GET(request: Request) {
           orderBy: {
             joinedAt: 'desc'
           }
+        },
+        sales: {
+          orderBy: {
+            purchasedAt: 'desc'
+          }
         }
       },
       orderBy: {
@@ -89,6 +94,16 @@ export async function GET(request: Request) {
 
     // Transform data with detailed analytics
     const attendees = filteredRegistrations.map((reg: any) => {
+      const sales = reg.sales || []
+      const lastSale = sales[0]
+      const totalPurchaseAmount = sales.reduce((sum: number, sale: any) => {
+        return sum + (sale.amount || 0)
+      }, 0)
+      const purchaseCurrency =
+        lastSale?.currency ||
+        sales.find((sale: any) => sale.currency)?.currency ||
+        null
+
       // Calculate total watch time from all sessions
       const totalWatchTime = reg.sessions.reduce((sum: number, session: any) => {
         return sum + (session.watchDuration || 0)
@@ -164,7 +179,15 @@ export async function GET(request: Request) {
         lastSessionBrowser,
         lastSessionOS,
         totalEngagements,
-        sessionCount: reg.sessions.length
+        sessionCount: reg.sessions.length,
+        hasPurchased: sales.length > 0,
+        purchaseCount: sales.length,
+        lastPurchaseAt: lastSale?.purchasedAt || null,
+        lastPurchaseAmount: lastSale?.amount || null,
+        lastPurchaseCurrency: lastSale?.currency || purchaseCurrency,
+        lastPurchaseProduct: lastSale?.productName || null,
+        totalPurchaseAmount,
+        purchaseCurrency
       }
     })
 

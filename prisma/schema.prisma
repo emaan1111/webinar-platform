@@ -311,6 +311,9 @@ model Registration {
   // A/B Testing
   testGroup String? // "A" or "B" - which test group they were in
 
+  // Sales Tracking
+  hasPurchased Boolean @default(false) // Set to true when they make a purchase
+
   // Referral System
   referralCode    String?  @unique // Unique code for this person to share (e.g., "ABC123")
   referredBy      String? // referralCode of the person who referred them

@@ -391,6 +391,8 @@ export default function WebinarLiveClient({
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile compatibility
   const [replayTimeRemaining, setReplayTimeRemaining] = useState<string | null>(null); // Countdown display
   const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set()); // Track offers user has seen
+  const [webinarEnded, setWebinarEnded] = useState(false); // Track if live webinar has ended
+  const [showReplayPrompt, setShowReplayPrompt] = useState(false); // Show replay start prompt
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -641,8 +643,9 @@ export default function WebinarLiveClient({
     setMounted(true);
     console.log('✅ Component mounted');
     
-    // Auto-start replay mode (no button click required)
-    if (isReplayMode) {
+    // Auto-start replay mode ONLY if user is accessing replay mode directly
+    // Do NOT auto-start if webinar just ended (showReplayPrompt will handle that)
+    if (isReplayMode && !showReplayPrompt && !webinarEnded) {
       console.log('🎬 Auto-starting replay mode...');
       setBroadcastStarted(true);
       setVideoLoading(true);
@@ -651,7 +654,7 @@ export default function WebinarLiveClient({
       startTimeRef.current = timing.initialElapsedSeconds;
       console.log(`📍 Initial replay position: ${timing.initialElapsedSeconds}s`);
     }
-  }, [isReplayMode, timing.initialElapsedSeconds]);
+  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded]);
 
   // Load seen offers from localStorage on mount
   useEffect(() => {
@@ -1079,13 +1082,8 @@ export default function WebinarLiveClient({
         });
       }
       
-      // Auto-switch to FAQ tab when offer appears
-      if (displayOfferId) {
-        setActiveTab('faq');
-      } else {
-        // Switch back to Chat when offer ends
-        setActiveTab('chat');
-      }
+      // Don't auto-switch tabs - let users control their own tab preference
+      // The FAQ tab will become available when offer appears, but won't force switch
     }
   }, [
     elapsedSeconds,
@@ -1305,13 +1303,64 @@ export default function WebinarLiveClient({
             msg.id === tempId ? { ...msg, id: data.message.id } : msg
           )
         );
+
+        // Check if we should get an AI response (after CTA is shown)
+        if (activeOfferId) {
+          console.log('🤖 Checking for AI response after CTA...');
+          try {
+            const aiResponse = await fetch('/api/chat/ai-response', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                webinarId: webinar.id,
+                question: text,
+                currentVideoTime: elapsedSeconds,
+                registrationId: viewer?.id,
+              }),
+            });
+
+            if (aiResponse.ok) {
+              const aiData = await aiResponse.json();
+              console.log('🤖 AI Response:', aiData);
+              
+              // Check if AI decided to skip this question (not relevant or insufficient info)
+              if (aiData.skipped || !aiData.shouldRespond) {
+                console.log('🤖 AI chose to stay quiet for this question');
+                return; // AI stays silent - no message posted
+              }
+              
+              if (aiData.shouldRespond && aiData.autoSent) {
+                console.log('✅ AI response automatically posted to chat');
+                // Add AI response to chat immediately
+                const aiMessage: ChatMessage = {
+                  id: `ai-${Date.now()}`,
+                  userName: 'Program Assistant (AI)',
+                  message: aiData.response,
+                  videoTimestamp: elapsedSeconds,
+                  isScripted: false,
+                  createdAt: new Date().toISOString(),
+                };
+                
+                // Add with a slight delay to feel more natural
+                setTimeout(() => {
+                  addChatMessage(aiMessage);
+                }, 800);
+              }
+            }
+          } catch (error) {
+            console.error('Error getting AI response:', error);
+            // Silently fail - don't interrupt user experience
+          }
+        }
       } else {
         console.error('Failed to save message:', await response.text());
       }
     } catch (error) {
       console.error('Error saving message:', error);
     }
-  }, [chatInput, elapsedSeconds, webinar.id, viewer, addChatMessage]);
+  }, [chatInput, elapsedSeconds, webinar.id, viewer, addChatMessage, activeOfferId]);
 
   const handleChatKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
@@ -1422,6 +1471,31 @@ export default function WebinarLiveClient({
     }, 250);
   }, []);
 
+  const handleStartReplay = useCallback(async () => {
+    console.log('🎬 User clicked Start Replay button');
+    setShowReplayPrompt(false);
+    setBroadcastStarted(true);
+    setVideoLoading(true);
+    
+    if (vimeoPlayerRef.current) {
+      try {
+        // Reset to beginning and play
+        await vimeoPlayerRef.current.setCurrentTime(0);
+        await vimeoPlayerRef.current.play();
+        setVideoLoading(false);
+        console.log('✅ Replay started from beginning');
+        
+        if (trackerRef.current) {
+          trackerRef.current.trackVideoEvent('play', 0);
+        }
+      } catch (err) {
+        console.error('❌ Failed to start replay:', err);
+        setVideoLoading(false);
+        setVideoError(true);
+      }
+    }
+  }, []);
+
   // Determine replay vs live status
   const isReplay = isReplayMode || (totalDuration != null ? elapsedSeconds >= totalDuration : false);
 
@@ -1521,6 +1595,13 @@ export default function WebinarLiveClient({
                     console.error('❌ Failed to restart video:', err);
                   });
                 });
+              } else {
+                // Live webinar just ended - show replay prompt screen
+                console.log('🎬 Live webinar ended - showing replay prompt');
+                setWebinarEnded(true);
+                setShowReplayPrompt(true);
+                setBroadcastStarted(false); // Stop the broadcast
+                player.pause(); // Pause the video
               }
             });
             
@@ -1844,7 +1925,12 @@ export default function WebinarLiveClient({
                           <i className="fas fa-play-circle" />
                         </div>
                         <h2 className={styles.broadcastTitle}>
-                          {videoError ? 'Retry Video' : 'Click to Start Broadcast'}
+                          {videoError 
+                            ? 'Retry Video' 
+                            : isReplayMode 
+                              ? 'Click to Start' 
+                              : 'Click to Start Broadcast'
+                          }
                         </h2>
                         <p className={styles.broadcastSubtitle}>
                           {videoError 
@@ -1863,6 +1949,30 @@ export default function WebinarLiveClient({
                     <div className={styles.videoLoadingOverlay}>
                       <div className={styles.spinner}></div>
                       <p className={styles.loadingText}>Starting broadcast...</p>
+                    </div>
+                  )}
+                  
+                  {/* Replay Prompt Screen - shows when live webinar ends */}
+                  {showReplayPrompt && webinarEnded && (
+                    <div className={styles.replayPromptOverlay}>
+                      <div className={styles.replayPromptContent}>
+                        <div className={styles.replayPromptIcon}>
+                          <i className="fas fa-check-circle" style={{ color: '#10b981', fontSize: '64px' }} />
+                        </div>
+                        <h2 className={styles.replayPromptTitle}>
+                          Webinar Has Ended
+                        </h2>
+                        <p className={styles.replayPromptSubtitle}>
+                          Thank you for attending! The replay is now available.
+                        </p>
+                        <button 
+                          className={styles.startReplayButton}
+                          onClick={handleStartReplay}
+                        >
+                          <i className="fas fa-play" style={{ marginRight: '10px' }} />
+                          Start Replay
+                        </button>
+                      </div>
                     </div>
                   )}
                 </>
