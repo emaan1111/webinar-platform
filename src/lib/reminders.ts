@@ -1,6 +1,7 @@
 // Webinar Reminder System
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
+import { sendClickSendSMS } from '@/lib/clicksend'
 
 interface ReminderTemplateData {
   minutesBefore: number
@@ -248,120 +249,142 @@ function formatWebinarTime(
 }
 
 /**
- * Send a reminder email
+ * Build placeholder data shared between email and SMS
  */
-async function sendReminderEmail(
-  reminderId: string,
-  registration: any,
-  template: any,
-  webinar: any
-): Promise<boolean> {
-  try {
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                    process.env.NEXTAUTH_URL || 
-                    'https://webinar-platform-production.up.railway.app'
-    
-    // Build countdown link
-    const countdownLink = webinar.slug
-      ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${registration.scheduleId ? `&s=${registration.scheduleId}` : ''}`
-      : `${baseUrl}/countdown`
+function buildReminderPlaceholders(registration: any, webinar: any) {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXTAUTH_URL ||
+    'https://webinar-platform-production.up.railway.app'
 
-    // Build referral link
-    const referralLink = webinar.slug && registration.referralCode
+  const countdownLink = webinar.slug
+    ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${
+        registration.scheduleId ? `&s=${registration.scheduleId}` : ''
+      }`
+    : `${baseUrl}/countdown`
+
+  const referralLink =
+    webinar.slug && registration.referralCode
       ? `${baseUrl}/w/${webinar.slug}?ref=${registration.referralCode}`
       : `${baseUrl}/w/${webinar.slug}`
 
-    // Format webinar time
-    const webinarTime = formatWebinarTime(
-      new Date(registration.scheduledStartTime),
-      registration.timezone
-    )
+  const webinarTime = formatWebinarTime(
+    new Date(registration.scheduledStartTime),
+    registration.timezone
+  )
 
-    // Replace placeholders
-    const emailData = {
-      name: registration.name,
-      email: registration.email,
-      webinarTitle: webinar.title,
-      webinarTime,
-      countdownLink,
-      referralLink,
-      webinarTimezone: registration.timezone || 'UTC'
-    }
+  return {
+    name: registration.name,
+    email: registration.email,
+    webinarTitle: webinar.title,
+    webinarTime,
+    countdownLink,
+    referralLink,
+    webinarTimezone: registration.timezone || 'UTC'
+  }
+}
 
-    const subject = replacePlaceholders(template.emailSubject, emailData)
-    const body = replacePlaceholders(template.emailBody, emailData)
+/**
+ * Send a reminder email without updating the reminder status
+ */
+async function sendReminderEmailMessage(
+  reminderId: string,
+  registration: any,
+  template: any,
+  placeholders: ReturnType<typeof buildReminderPlaceholders>
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const subject = replacePlaceholders(template.emailSubject, placeholders)
+    const body = replacePlaceholders(template.emailBody, placeholders)
 
-    // Send email (if channel includes EMAIL)
-    let emailSuccess = true
-    if (template.channel === 'EMAIL' || template.channel === 'BOTH') {
-      emailSuccess = await sendEmail({
-        to: registration.email,
-        subject,
-        htmlBody: body
-      })
-    }
-
-    // Apply ClickFunnels tag (if configured)
-    let tagSuccess = true
-    if (template.applyClickFunnelsTag && template.clickFunnelsTag) {
-      const { applyReminderTagToContact } = await import('./clickfunnels')
-      tagSuccess = await applyReminderTagToContact(
-        registration.email,
-        template.clickFunnelsTag
-      )
-    }
-
-    const overallSuccess = emailSuccess && tagSuccess
-
-    if (overallSuccess) {
-      // Update reminder status
-      await prisma.webinarReminderSent.update({
-        where: { id: reminderId },
-        data: {
-          status: 'SENT',
-          sentAt: new Date(),
-          emailSentTo: registration.email
-        }
-      })
-
-      console.log('✅ Reminder sent successfully:', {
-        reminderId,
-        email: registration.email,
-        subject,
-        tagApplied: template.applyClickFunnelsTag ? template.clickFunnelsTag : 'N/A'
-      })
-
-      return true
-    } else {
-      // Mark as failed
-      await prisma.webinarReminderSent.update({
-        where: { id: reminderId },
-        data: {
-          status: 'FAILED',
-          errorMessage: 'Email sending failed',
-          retryCount: { increment: 1 },
-          lastRetryAt: new Date()
-        }
-      })
-
-      return false
-    }
-  } catch (error: any) {
-    console.error('❌ Failed to send reminder:', error)
-
-    // Update reminder with error
-    await prisma.webinarReminderSent.update({
-      where: { id: reminderId },
-      data: {
-        status: 'FAILED',
-        errorMessage: error.message || 'Unknown error',
-        retryCount: { increment: 1 },
-        lastRetryAt: new Date()
-      }
+    console.log('📧 Sending reminder email', {
+      reminderId,
+      to: registration.email,
+      subject
     })
 
-    return false
+    const success = await sendEmail({
+      to: registration.email,
+      subject,
+      htmlBody: body
+    })
+
+    if (success) {
+      console.log('✅ Reminder email sent', {
+        reminderId,
+        to: registration.email,
+        subject
+      })
+      return { success: true }
+    }
+
+    console.error('⚠️ Reminder email failed', { reminderId })
+    return { success: false, error: 'Email sending failed' }
+  } catch (error: any) {
+    console.error('⚠️ Reminder email error', {
+      reminderId,
+      error: error?.message || error
+    })
+    return {
+      success: false,
+      error: error?.message || 'Email sending exception'
+    }
   }
+}
+
+/**
+ * Normalize phone numbers (digits + optional leading +)
+ */
+function normalizePhoneNumber(phone?: string | null): string | null {
+  if (!phone) {
+    return null
+  }
+
+  const normalized = phone.trim().replace(/[^\d+]/g, '')
+  if (!normalized) {
+    return null
+  }
+
+  return normalized
+}
+
+/**
+ * Send a reminder SMS via ClickSend
+ */
+async function sendReminderSMSMessage(
+  reminderId: string,
+  registration: any,
+  template: any,
+  placeholders: ReturnType<typeof buildReminderPlaceholders>
+): Promise<{ success: boolean; error?: string; to?: string }> {
+  if (!template.smsBody?.trim()) {
+    return { success: false, error: 'SMS body is missing' }
+  }
+
+  const normalizedPhone = normalizePhoneNumber(registration.phone)
+
+  if (!normalizedPhone) {
+    return { success: false, error: 'Registration is missing a valid phone number' }
+  }
+
+  const body = replacePlaceholders(template.smsBody, placeholders)
+
+  const { success, error } = await sendClickSendSMS(normalizedPhone, body)
+
+  if (success) {
+    console.log('📱 Reminder SMS sent', {
+      reminderId,
+      to: normalizedPhone
+    })
+    return { success: true, to: normalizedPhone }
+  }
+
+  console.error('⚠️ Reminder SMS failed', {
+    reminderId,
+    to: normalizedPhone,
+    error
+  })
+  return { success: false, error: error || 'ClickSend SMS failed' }
 }
 
 /**
@@ -427,23 +450,129 @@ export async function processPendingReminders(): Promise<{
         continue
       }
 
-      // Send the reminder
-      if (reminder.channel === 'EMAIL' || reminder.channel === 'BOTH') {
-        const success = await sendReminderEmail(
+      const placeholders = buildReminderPlaceholders(
+        reminder.registration,
+        reminder.registration.webinar
+      )
+
+      const shouldSendEmail =
+        reminder.channel === 'EMAIL' || reminder.channel === 'BOTH'
+      const shouldSendSMS =
+        reminder.channel === 'SMS' || reminder.channel === 'BOTH'
+
+      let emailResult: { success: boolean; error?: string } = { success: true }
+      if (shouldSendEmail) {
+        emailResult = await sendReminderEmailMessage(
           reminder.id,
           reminder.registration,
           reminder.template,
-          reminder.registration.webinar
+          placeholders
         )
-
-        if (success) {
-          stats.sent++
-        } else {
-          stats.failed++
-        }
       }
 
-      // TODO: Add SMS sending if channel is SMS or BOTH
+      let smsResult: { success: boolean; error?: string; to?: string } = {
+        success: true
+      }
+      if (shouldSendSMS) {
+        smsResult = await sendReminderSMSMessage(
+          reminder.id,
+          reminder.registration,
+          reminder.template,
+          placeholders
+        )
+      }
+
+      const channelSuccess =
+        (shouldSendEmail ? emailResult.success : true) &&
+        (shouldSendSMS ? smsResult.success : true)
+
+      let tagResult = { success: true }
+      if (
+        channelSuccess &&
+        reminder.template.applyClickFunnelsTag &&
+        reminder.template.clickFunnelsTag
+      ) {
+        const { applyReminderTagToContact } = await import('./clickfunnels')
+        const tagSuccess = await applyReminderTagToContact(
+          reminder.registration.email,
+          reminder.template.clickFunnelsTag
+        )
+        tagResult = {
+          success: tagSuccess,
+          error: tagSuccess
+            ? undefined
+            : `Failed to apply ClickFunnels tag "${reminder.template.clickFunnelsTag}"`
+        }
+      } else if (
+        reminder.template.applyClickFunnelsTag &&
+        !channelSuccess
+      ) {
+        console.log(
+          '⚠️ Skipping ClickFunnels tag because reminder channels failed',
+          {
+            reminderId: reminder.id
+          }
+        )
+      }
+
+      const overallSuccess = channelSuccess && tagResult.success
+      const errors: string[] = []
+      if (!emailResult.success) {
+        errors.push(emailResult.error || 'Email sending failed')
+      }
+      if (!smsResult.success) {
+        errors.push(smsResult.error || 'SMS sending failed')
+      }
+      if (!tagResult.success) {
+        errors.push(tagResult.error || 'ClickFunnels tag failed')
+      }
+
+      const reminderUpdate: any = {
+        status: overallSuccess ? 'SENT' : 'FAILED',
+        ...(overallSuccess ? { sentAt: new Date(), errorMessage: null } : {})
+      }
+
+      if (shouldSendEmail) {
+        reminderUpdate.emailSentTo = emailResult.success
+          ? reminder.registration.email
+          : null
+      }
+
+      if (shouldSendSMS) {
+        reminderUpdate.smsSentTo = smsResult.success
+          ? smsResult.to
+          : null
+      }
+
+      if (!overallSuccess) {
+        reminderUpdate.errorMessage =
+          errors.length > 0 ? errors.join(' | ') : 'Reminder delivery failed'
+        reminderUpdate.retryCount = { increment: 1 }
+        reminderUpdate.lastRetryAt = new Date()
+      }
+
+      await prisma.webinarReminderSent.update({
+        where: { id: reminder.id },
+        data: reminderUpdate
+      })
+
+      if (overallSuccess) {
+        stats.sent++
+        console.log('✅ Reminder processed successfully', {
+          reminderId: reminder.id,
+          registrationId: reminder.registrationId,
+          channels: reminder.channel,
+          tag: reminder.template.applyClickFunnelsTag
+            ? reminder.template.clickFunnelsTag
+            : 'N/A'
+        })
+      } else {
+        stats.failed++
+        console.error('⚠️ Reminder processing failed', {
+          reminderId: reminder.id,
+          errors
+        })
+      }
     }
 
     console.log('✅ Reminder processing complete:', stats)

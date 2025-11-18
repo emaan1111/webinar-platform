@@ -339,7 +339,7 @@ export default function WebinarRemindersPage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-3">
                 <Bell className="h-8 w-8 text-blue-600" />
-                Email Reminders
+                Reminder Templates
               </h1>
               <p className="text-gray-600 mt-2">
                 {webinar?.title || 'Loading...'}
@@ -369,16 +369,21 @@ export default function WebinarRemindersPage() {
         )}
 
         {/* Info Banner */}
-        <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex items-start gap-3">
-          <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
-          <div className="text-sm">
-            <p className="font-medium mb-1">How reminders work:</p>
-            <ul className="list-disc list-inside space-y-1 text-blue-700">
-              <li>Reminders are automatically scheduled when someone registers</li>
-              <li>Only future reminders are sent (if someone registers 1 hour before, they won't get the 24-hour reminder)</li>
-              <li>Use placeholders to personalize emails (click the "Show Placeholders" button)</li>
-            </ul>
+        <div className="mb-6 bg-blue-50 border border-blue-200 text-blue-800 px-4 py-3 rounded-lg flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 mt-0.5 flex-shrink-0" />
+            <div className="text-sm">
+              <p className="font-medium mb-1">How reminders work:</p>
+              <ul className="list-disc list-inside space-y-1 text-blue-700">
+                <li>Reminders are automatically scheduled when someone registers</li>
+                <li>Only future reminders are sent (if someone registers 1 hour before, they won't get the 24-hour reminder)</li>
+                <li>Use placeholders to personalize emails and SMS (click the "Show Placeholders" button)</li>
+              </ul>
+            </div>
           </div>
+          <p className="text-sm text-blue-800">
+            Keep running your existing cron job so callbacks or ClickFunnels tags stay in sync when reminders are sent.
+          </p>
         </div>
 
         {/* Form */}
@@ -438,6 +443,33 @@ export default function WebinarRemindersPage() {
                         className="px-3 py-1.5 text-sm bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
                       >
                         {template.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Channel Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Channel
+                  </label>
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { value: 'EMAIL', label: 'Email Only' },
+                      { value: 'SMS', label: 'SMS Only' },
+                      { value: 'BOTH', label: 'Email + SMS' }
+                    ].map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setFormData({ ...formData, channel: option.value as ReminderTemplate['channel'] })}
+                        className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                          formData.channel === option.value
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                        }`}
+                      >
+                        {option.label}
                       </button>
                     ))}
                   </div>
@@ -505,6 +537,24 @@ export default function WebinarRemindersPage() {
                     </div>
                   )}
                 </div>
+
+                {(formData.channel === 'SMS' || formData.channel === 'BOTH') && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      SMS Body
+                    </label>
+                    <textarea
+                      id="smsBody"
+                      value={formData.smsBody}
+                      onChange={(e) => setFormData({ ...formData, smsBody: e.target.value })}
+                      placeholder="Hi {{name}}, your webinar {{webinarTitle}} starts soon. Join: {{countdownLink}}"
+                      className="w-full min-h-[120px] px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Keep SMS concise (under 160 characters). All placeholders work here too.
+                    </p>
+                  </div>
+                )}
 
                 {/* Email Body */}
                 <div>
@@ -684,6 +734,10 @@ export default function WebinarRemindersPage() {
                             <Clock className="h-4 w-4" />
                             {formatMinutes(reminder.minutesBefore)} before
                           </div>
+                          <div className="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-200">
+                            <Send className="h-4 w-4" />
+                            {reminder.channel === 'EMAIL' ? 'Email Only' : reminder.channel === 'SMS' ? 'SMS Only' : 'Email + SMS'}
+                          </div>
                           {reminder.isActive ? (
                             <span className="flex items-center gap-1 text-sm text-green-600">
                               <CheckCircle2 className="h-4 w-4" />
@@ -705,6 +759,11 @@ export default function WebinarRemindersPage() {
                         <div className="prose prose-sm max-w-none text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200">
                           <div dangerouslySetInnerHTML={{ __html: reminder.emailBody.substring(0, 200) + (reminder.emailBody.length > 200 ? '...' : '') }} />
                         </div>
+                        {(reminder.smsBody && reminder.smsBody.trim().length > 0 && (reminder.channel === 'SMS' || reminder.channel === 'BOTH')) && (
+                          <p className="text-sm text-gray-500 mt-2 border border-dashed border-gray-200 rounded-lg p-2 bg-white">
+                            <span className="font-semibold text-gray-700">SMS preview:</span> {reminder.smsBody.substring(0, 120)}{reminder.smsBody.length > 120 ? '…' : ''}
+                          </p>
+                        )}
                         <p className="text-xs text-gray-500 mt-2">
                           Updated {new Date(reminder.updatedAt).toLocaleDateString()}
                         </p>
