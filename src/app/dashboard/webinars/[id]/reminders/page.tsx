@@ -760,7 +760,7 @@ export default function WebinarRemindersPage() {
                         <div className="prose prose-sm max-w-none text-gray-600 bg-gray-50 p-3 rounded-lg border border-gray-200">
                           <div dangerouslySetInnerHTML={{ __html: reminder.emailBody.substring(0, 200) + (reminder.emailBody.length > 200 ? '...' : '') }} />
                         </div>
-                        {(reminder.smsBody && reminder.smsBody.trim().length > 0 && (reminder.channel === 'SMS' || reminder.channel === 'BOTH')) && (
+                        {reminder.smsBody && reminder.smsBody.trim().length > 0 && (reminder.channel === 'SMS' || reminder.channel === 'BOTH') && (
                           <p className="text-sm text-gray-500 mt-2 border border-dashed border-gray-200 rounded-lg p-2 bg-white">
                             <span className="font-semibold text-gray-700">SMS preview:</span> {reminder.smsBody.substring(0, 120)}{reminder.smsBody.length > 120 ? '…' : ''}
                           </p>
