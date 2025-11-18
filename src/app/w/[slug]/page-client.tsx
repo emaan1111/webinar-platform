@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Gift, Clock, CheckCircle, X, AlertCircle, Globe } from 'lucide-react'
 import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker'
+import { roundToNearest15Minutes } from '@/lib/webinarSchedule'
 
 interface Schedule {
   id: string
@@ -523,17 +524,18 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
     
     if (schedule.scheduleType === 'justInTime') {
-      // Calculate exact time based on current time + minutes
+      // Calculate exact time based on current time + minutes, rounded to nearest 15 min
       const futureTime = new Date()
       futureTime.setMinutes(futureTime.getMinutes() + (schedule.minutesFromReg || 0))
+      const roundedTime = roundToNearest15Minutes(futureTime)
       
-      const dateStr = futureTime.toLocaleDateString('en-US', {
+      const dateStr = roundedTime.toLocaleDateString('en-US', {
         weekday: 'long',
         month: 'short',
         day: 'numeric',
         timeZone: tz
       })
-      const timeStr = futureTime.toLocaleTimeString('en-US', {
+      const timeStr = roundedTime.toLocaleTimeString('en-US', {
         hour: 'numeric',
         minute: '2-digit',
         timeZone: tz
@@ -691,9 +693,10 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         // Specific schedule - use the scheduled time
         scheduledStartTime = selectedSchedule!.scheduledAt
       } else if (selectedSchedule!.scheduleType === 'justInTime') {
-        // Just-in-time - calculate from now
+        // Just-in-time - calculate from now and round to nearest 15 minutes
         const minutesFromReg = selectedSchedule!.minutesFromReg || 5
-        scheduledStartTime = new Date(Date.now() + minutesFromReg * 60000).toISOString()
+        const calculatedTime = new Date(Date.now() + minutesFromReg * 60000)
+        scheduledStartTime = roundToNearest15Minutes(calculatedTime).toISOString()
       }
       
       // Check if webinar starts within 15 minutes
@@ -1019,12 +1022,13 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                               })
                             }
                           } else if (schedule.scheduleType === 'justInTime') {
-                            // Calculate JIT time: current time + minutes from registration
+                            // Calculate JIT time: current time + minutes from registration, rounded to nearest 15 min
                             const jitTime = new Date()
                             jitTime.setMinutes(jitTime.getMinutes() + (schedule.minutesFromReg || 5))
+                            const roundedJitTime = roundToNearest15Minutes(jitTime)
                             allTimeSlots.push({
                               id: schedule.id,
-                              time: jitTime,
+                              time: roundedJitTime,
                               schedule,
                               isRecurring: false
                             })
@@ -1749,12 +1753,13 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                               })
                             }
                           } else if (schedule.scheduleType === 'justInTime') {
-                            // Calculate JIT time: current time + minutes from registration
+                            // Calculate JIT time: current time + minutes from registration, rounded to nearest 15 min
                             const jitTime = new Date()
                             jitTime.setMinutes(jitTime.getMinutes() + (schedule.minutesFromReg || 5))
+                            const roundedJitTime = roundToNearest15Minutes(jitTime)
                             allTimeSlots.push({
                               id: schedule.id,
-                              time: jitTime,
+                              time: roundedJitTime,
                               schedule,
                               isRecurring: false
                             })

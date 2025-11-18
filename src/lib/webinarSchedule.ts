@@ -20,6 +20,26 @@ const dayNameToNumber: Record<string, number> = {
 }
 
 /**
+ * Round a date to the nearest 15-minute interval
+ * Examples: 9:07 -> 9:15, 9:09 -> 9:15, 9:23 -> 9:30, 9:38 -> 9:45
+ */
+export function roundToNearest15Minutes(date: Date): Date {
+  const rounded = new Date(date)
+  const minutes = rounded.getMinutes()
+  const remainder = minutes % 15
+  
+  // Round up to next 15-minute mark
+  if (remainder > 0) {
+    rounded.setMinutes(minutes + (15 - remainder))
+  }
+  
+  // Reset seconds and milliseconds
+  rounded.setSeconds(0, 0)
+  
+  return rounded
+}
+
+/**
  * Returns the next Date when the given schedule occurs.
  */
 export function calculateScheduleDateTime(
@@ -31,7 +51,9 @@ export function calculateScheduleDateTime(
     const regTime = registration?.registeredAt
       ? new Date(registration.registeredAt)
       : referenceDate
-    return new Date(regTime.getTime() + schedule.minutesFromReg * 60000)
+    const calculatedTime = new Date(regTime.getTime() + schedule.minutesFromReg * 60000)
+    // Round to nearest 15-minute interval
+    return roundToNearest15Minutes(calculatedTime)
   }
 
   if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { scheduleDelayedClickFunnelsTag } from '@/lib/clickfunnelsReminderTags';
+import { roundToNearest15Minutes } from '@/lib/webinarSchedule';
 
 /**
  * ClickFunnels 2.0 Webhook Integration
@@ -141,7 +142,8 @@ export async function POST(request: NextRequest) {
       if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
         scheduledStartTime = schedule.scheduledAt;
       } else if (schedule.scheduleType === 'justInTime' && schedule.minutesFromReg) {
-        scheduledStartTime = new Date(Date.now() + schedule.minutesFromReg * 60 * 1000);
+        const calculatedTime = new Date(Date.now() + schedule.minutesFromReg * 60 * 1000);
+        scheduledStartTime = roundToNearest15Minutes(calculatedTime);
       }
     }
 
