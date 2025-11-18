@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If auto-respond is enabled, save the response as a chat message
+    // AI responses need moderation approval before appearing in future replays
     if (webinar.aiChatConfig.autoRespond && !webinar.aiChatConfig.requireApproval) {
       await prisma.chatMessage.create({
         data: {
@@ -140,7 +141,7 @@ export async function POST(request: NextRequest) {
           videoTimestamp: currentVideoTime || null,
           isScripted: false,
           isHidden: false,
-          isApproved: true,
+          isApproved: false,  // Changed: Requires post-webinar moderation approval
           registrationId: registrationId || null,
         },
       });
