@@ -650,7 +650,32 @@ export default async function CountdownPage({ params, searchParams }: PageProps)
     searchParams.tz
   )
 
-  return <TemplateRenderer html={processedHtml} />
+  // Inject client-side timezone detection script if no timezone parameter provided
+  const timezoneDetectionScript = !searchParams.tz ? `
+    <script>
+      (function() {
+        // Only run in browser
+        if (typeof window === 'undefined') return;
+        
+        // Check if we already have timezone in URL
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.has('tz')) return;
+        
+        // Detect user's timezone
+        const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!userTimezone) return;
+        
+        // Add timezone to URL and reload
+        urlParams.set('tz', userTimezone);
+        const newUrl = window.location.pathname + '?' + urlParams.toString();
+        window.location.replace(newUrl);
+      })();
+    </script>
+  ` : '';
+
+  const finalHtml = processedHtml + timezoneDetectionScript;
+
+  return <TemplateRenderer html={finalHtml} />
 }
 
 export async function generateMetadata({ params }: PageProps) {
