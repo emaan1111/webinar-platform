@@ -842,8 +842,7 @@ model Image {
   id           String   @id @default(cuid())
   filename     String   // Unique filename on disk
   originalName String   // Original uploaded filename
-  url          String   // Public URL to access image (data URL for database storage)
-  data         String?  @db.Text // Base64 encoded image data (for database storage)
+  url          String   // Public URL to access image
   size         Int      // File size in bytes
   mimeType     String   // image/jpeg, image/png, etc.
   width        Int?     // Image width in pixels

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { existsSync } from 'fs'
 import sharp from 'sharp'
 
 // Simple ID generator
@@ -53,15 +56,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid file type. Only images are allowed.' }, { status: 400 })
     }
 
-    // Validate file size (max 5MB for database storage)
-    const maxSize = 5 * 1024 * 1024
+    // Validate file size (max 10MB)
+    const maxSize = 10 * 1024 * 1024
     if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 })
+      return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 })
     }
 
     // Generate unique filename
     const fileExtension = file.name.split('.').pop()
     const uniqueFilename = `${Date.now()}-${generateId()}.${fileExtension}`
+    
+    // Use /data/uploads for Railway volume storage, fallback to public/uploads for local
+    const uploadDir = process.env.RAILWAY_ENVIRONMENT 
+      ? '/data/uploads' 
+      : join(process.cwd(), 'public', 'uploads')
+    
+    // Ensure upload directory exists
+    if (!existsSync(uploadDir)) {
+      await mkdir(uploadDir, { recursive: true })
+    }
+    
+    const filePath = join(uploadDir, uniqueFilename)
 
     // Convert file to buffer
     const bytes = await file.arrayBuffer()
@@ -79,9 +94,13 @@ export async function POST(request: NextRequest) {
       console.error('Error getting image dimensions:', error)
     }
 
-    // Convert to base64 for database storage
-    const base64Data = buffer.toString('base64')
-    const dataUrl = `data:${file.type};base64,${base64Data}`
+    // Write file to disk
+    await writeFile(filePath, buffer)
+    
+    // URL path for accessing the image
+    const imageUrl = process.env.RAILWAY_ENVIRONMENT
+      ? `/api/images/serve/${uniqueFilename}` // Serve via API on Railway
+      : `/uploads/${uniqueFilename}` // Serve from public folder locally
 
     // Save to database
     const image = await (prisma as any).image.create({
@@ -89,8 +108,7 @@ export async function POST(request: NextRequest) {
         id: generateId() + generateId(),
         filename: uniqueFilename,
         originalName: file.name,
-        url: dataUrl, // Data URL for immediate access
-        data: base64Data, // Store base64 separately for easier access
+        url: imageUrl,
         size: file.size,
         mimeType: file.type,
         width,
