@@ -15,7 +15,9 @@ export default function EmbedCodeGenerator({ webinarId, webinarSlug }: EmbedCode
 
   const baseUrl = typeof window !== 'undefined' 
     ? window.location.origin 
-    : 'http://localhost:3000'
+    : (process.env.NEXT_PUBLIC_APP_URL || 
+       process.env.NEXTAUTH_URL || 
+       'https://webinar-platform-production.up.railway.app')
 
   const getEmbedCode = () => {
     if (formType === 'inline') {

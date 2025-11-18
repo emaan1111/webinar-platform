@@ -461,7 +461,9 @@ function processCountdownTemplate(
     // In production, this would be your actual domain
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
                     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-                    'http://localhost:3001'
+                    process.env.NEXT_PUBLIC_APP_URL ||
+                    process.env.NEXTAUTH_URL ||
+                    'https://webinar-platform-production.up.railway.app'
     fullReferralLink = `${baseUrl}${referralLink}`
     
     console.log('🔗 [Countdown] Generated referral link:', {

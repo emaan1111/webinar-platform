@@ -216,7 +216,9 @@ export async function POST(
       }).catch(err => console.error('Facebook API error:', err));
 
       // Build countdown page link
-      const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com';
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                      process.env.NEXTAUTH_URL || 
+                      'https://webinar-platform-production.up.railway.app';
       const countdownLink = webinar.slug 
         ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
         : null;

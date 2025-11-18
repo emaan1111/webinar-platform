@@ -34,12 +34,13 @@ export function buildReferralLink(
   referralCode: string,
   baseUrl?: string
 ): string {
-  // Priority: 1) Provided baseUrl, 2) NEXT_PUBLIC_APP_URL, 3) VERCEL_URL, 4) localhost
+  // Priority: 1) Provided baseUrl, 2) NEXT_PUBLIC_APP_URL, 3) NEXTAUTH_URL, 4) Request host
   const base = baseUrl || 
                process.env.NEXT_PUBLIC_APP_URL || 
-               process.env.NEXT_PUBLIC_BASE_URL ||
+               process.env.NEXTAUTH_URL ||
+               (typeof window !== 'undefined' ? window.location.origin : '') ||
                (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-               'http://localhost:3001';
+               'https://webinar-platform-production.up.railway.app';
   return `${base}/w/${webinarSlug}?ref=${referralCode}`;
 }
 

@@ -257,7 +257,9 @@ async function sendReminderEmail(
   webinar: any
 ): Promise<boolean> {
   try {
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://yoursite.com'
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                    process.env.NEXTAUTH_URL || 
+                    'https://webinar-platform-production.up.railway.app'
     
     // Build countdown link
     const countdownLink = webinar.slug
