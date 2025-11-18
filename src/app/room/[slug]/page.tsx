@@ -1,4 +1,5 @@
-import { notFound, redirect } from 'next/navigation';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
 import { calculateScheduleDateTime } from '@/lib/webinarSchedule';
 import WebinarLiveClient from '@/app/w/[slug]/live/page-client';
@@ -136,6 +137,30 @@ function findScheduleStart(
     schedule: upcoming?.schedule ?? fallback.schedule,
     startTime: upcoming?.start ?? fallback.start,
   };
+}
+
+function ReplayExpiredPage({ slug }: { slug: string }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center px-4 py-16">
+      <div className="max-w-xl w-full bg-white border border-gray-200 shadow-xl rounded-3xl p-10 text-center space-y-6">
+        <div className="text-7xl" aria-hidden="true">
+          😢
+        </div>
+        <h1 className="text-3xl font-semibold text-gray-900">
+          Sorry, replay expired
+        </h1>
+        <p className="text-gray-500">
+          This replay window has closed, or the host opted not to publish a replay. You can register again to join the next live session.
+        </p>
+        <Link
+          href={`/w/${slug}`}
+          className="inline-flex items-center justify-center rounded-full bg-indigo-600 px-6 py-3 text-lg font-semibold text-white shadow-lg shadow-indigo-300/50 transition hover:bg-indigo-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+        >
+          Register again
+        </Link>
+      </div>
+    </div>
+  );
 }
 
 export default async function WebinarRoomPage({
@@ -340,6 +365,17 @@ export default async function WebinarRoomPage({
     // Replay not enabled - show ended message
     console.log('⚠️ Webinar ended but replay is not enabled');
     // Let them see the room with ended state
+  }
+
+  const replayHasExpired = calculatedReplayExpiresAt
+    ? new Date(calculatedReplayExpiresAt).getTime() <= now.getTime()
+    : false;
+  const showReplayExpiredPage =
+    now > webinarEndTime &&
+    (!webinar.replayEnabled || replayHasExpired);
+
+  if (showReplayExpiredPage) {
+    return <ReplayExpiredPage slug={slug} />;
   }
 
   const chatMessages: ChatMessagePayload[] = webinar.chatMessages.map(
