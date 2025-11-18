@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { writeFile } from 'fs/promises'
-import { join } from 'path'
 import sharp from 'sharp'
 
 // Simple ID generator
@@ -55,17 +53,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid file type. Only images are allowed.' }, { status: 400 })
     }
 
-    // Validate file size (max 10MB)
-    const maxSize = 10 * 1024 * 1024
+    // Validate file size (max 5MB for database storage)
+    const maxSize = 5 * 1024 * 1024
     if (file.size > maxSize) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 10MB.' }, { status: 400 })
+      return NextResponse.json({ error: 'File too large. Maximum size is 5MB.' }, { status: 400 })
     }
 
     // Generate unique filename
     const fileExtension = file.name.split('.').pop()
     const uniqueFilename = `${Date.now()}-${generateId()}.${fileExtension}`
-    const uploadDir = join(process.cwd(), 'public', 'uploads')
-    const filePath = join(uploadDir, uniqueFilename)
 
     // Convert file to buffer
     const bytes = await file.arrayBuffer()
@@ -83,8 +79,9 @@ export async function POST(request: NextRequest) {
       console.error('Error getting image dimensions:', error)
     }
 
-    // Write file to disk
-    await writeFile(filePath, buffer)
+    // Convert to base64 for database storage
+    const base64Data = buffer.toString('base64')
+    const dataUrl = `data:${file.type};base64,${base64Data}`
 
     // Save to database
     const image = await (prisma as any).image.create({
@@ -92,7 +89,8 @@ export async function POST(request: NextRequest) {
         id: generateId() + generateId(),
         filename: uniqueFilename,
         originalName: file.name,
-        url: `/uploads/${uniqueFilename}`,
+        url: dataUrl, // Data URL for immediate access
+        data: base64Data, // Store base64 separately for easier access
         size: file.size,
         mimeType: file.type,
         width,
