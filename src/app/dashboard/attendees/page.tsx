@@ -612,11 +612,6 @@ export default function AttendeesPage() {
       case 'sessionCount':
         return <div className="text-sm text-gray-700">{value || 0}</div>
       
-      default:
-        return <div className="text-sm text-gray-700">{value?.toString() || 'N/A'}</div>
-    }
-  }
-      
       case 'lastPurchaseAmount':
         if (value == null) return <div className="text-sm text-gray-400">N/A</div>
         return (
@@ -632,6 +627,11 @@ export default function AttendeesPage() {
             {formatCurrencyValue(value, attendee.purchaseCurrency)}
           </div>
         )
+      
+      default:
+        return <div className="text-sm text-gray-700">{value?.toString() || 'N/A'}</div>
+    }
+  }
   const enabledColumns = activeView.columns.filter(c => c.enabled)
 
   return (
