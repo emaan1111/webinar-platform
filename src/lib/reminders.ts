@@ -486,7 +486,7 @@ export async function processPendingReminders(): Promise<{
         (shouldSendEmail ? emailResult.success : true) &&
         (shouldSendSMS ? smsResult.success : true)
 
-      let tagResult = { success: true }
+      let tagResult: { success: boolean; error?: string } = { success: true }
       if (
         channelSuccess &&
         reminder.template.applyClickFunnelsTag &&
