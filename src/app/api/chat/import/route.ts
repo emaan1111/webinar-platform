@@ -58,12 +58,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      if (webinar.hostId !== session.user.id) {
-        return NextResponse.json(
-          { error: 'Only the host can import chat messages' },
-          { status: 403 }
-        )
-      }
+      // Removed ownership check - all admins can import chat messages
 
       // Create or find users and insert chat messages
       const createdMessages = []
@@ -148,12 +143,7 @@ export async function POST(req: NextRequest) {
         )
       }
 
-      if (webinar.hostId !== session.user.id) {
-        return NextResponse.json(
-          { error: 'Only the host can import chat messages' },
-          { status: 403 }
-        )
-      }
+      // Removed ownership check - all admins can import chat messages
 
       // Parse CSV
       const text = await file.text()

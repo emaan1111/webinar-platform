@@ -16,12 +16,9 @@ export async function GET(
 
     const webinarId = params.id;
 
-    // Verify user owns this webinar
-    const webinar = await prisma.webinar.findFirst({
-      where: {
-        id: webinarId,
-        hostId: session.user.id,
-      },
+    // Removed ownership check - all admins can view attendees
+    const webinar = await prisma.webinar.findUnique({
+      where: { id: webinarId },
     });
 
     if (!webinar) {

@@ -54,12 +54,9 @@ export async function GET(request: NextRequest) {
         dateFilter = undefined;
     }
 
-    // Build where clause for registrations
+    // Build where clause for registrations - removed hostId filter
     const whereClause: any = {
       webinarId: webinarIds.length > 0 ? { in: webinarIds } : undefined,
-      webinar: {
-        hostId: user.id,
-      },
     };
 
     if (dateFilter) {
@@ -68,7 +65,7 @@ export async function GET(request: NextRequest) {
       };
     }
 
-    // Fetch all registrations with related data
+    // Fetch all registrations with related data - removed hostId filter
     const registrations = await prisma.registration.findMany({
       where: whereClause,
       include: {

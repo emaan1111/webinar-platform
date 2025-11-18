@@ -45,11 +45,8 @@ export async function GET(request: Request) {
         startDate.setDate(now.getDate() - 30)
     }
 
-    // Get user's webinars
+    // Get all webinars - removed hostId filter so all admins can see all analytics
     const webinars = await prisma.webinar.findMany({
-      where: {
-        hostId: user.id,
-      },
       include: {
         _count: {
           select: {
@@ -59,12 +56,9 @@ export async function GET(request: Request) {
       }
     })
 
-    // Get registrations with attendance data
+    // Get registrations with attendance data - removed hostId filter
     const registrations = await prisma.registration.findMany({
       where: {
-        webinar: {
-          hostId: user.id,
-        },
         registeredAt: {
           gte: startDate
         }

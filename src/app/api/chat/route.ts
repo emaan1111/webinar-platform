@@ -25,12 +25,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Build query
-    const whereClause: any = {
-      webinar: {
-        hostId: user.id
-      }
-    }
+    // Build query - removed hostId filter so all admins can see all chats
+    const whereClause: any = {}
 
     if (webinarId) {
       whereClause.webinarId = webinarId

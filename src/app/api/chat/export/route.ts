@@ -42,12 +42,7 @@ export async function GET(req: NextRequest) {
       )
     }
 
-    if (webinar.hostId !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Only the host can export chat messages' },
-        { status: 403 }
-      )
-    }
+    // Removed ownership check - all admins can export chat messages
 
     // Fetch chat messages
     const messages = await prisma.chatMessage.findMany({
