@@ -160,7 +160,11 @@ export default function OffersPage() {
           body: JSON.stringify(payload)
         })
 
-        if (!response.ok) throw new Error('Failed to update offer')
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('Update offer error:', errorData)
+          throw new Error(errorData.error || 'Failed to update offer')
+        }
         
         setSuccess('Offer updated successfully!')
       } else {
@@ -171,7 +175,12 @@ export default function OffersPage() {
           body: JSON.stringify(payload)
         })
 
-        if (!response.ok) throw new Error('Failed to create offer')
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          console.error('Create offer error:', errorData)
+          console.error('Payload sent:', payload)
+          throw new Error(errorData.error || 'Failed to create offer')
+        }
         
         setSuccess('Offer created successfully!')
       }

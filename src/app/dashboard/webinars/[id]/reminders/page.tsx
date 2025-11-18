@@ -42,6 +42,24 @@ interface ReminderTemplate {
   clickFunnelsTag?: string | null
 }
 
+interface ReminderLog {
+  id: string
+  status: 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED' | 'CANCELLED'
+  scheduledFor: string
+  sentAt: string | null
+  errorMessage?: string | null
+  channel: 'EMAIL' | 'SMS' | 'BOTH'
+  registration: {
+    name?: string | null
+    email: string
+    phone?: string | null
+  }
+  template: {
+    minutesBefore: number
+    channel: 'EMAIL' | 'SMS' | 'BOTH'
+  }
+}
+
 interface Webinar {
   id: string
   title: string
@@ -59,6 +77,10 @@ export default function WebinarRemindersPage() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [showPlaceholders, setShowPlaceholders] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [reminderLogs, setReminderLogs] = useState<ReminderLog[]>([])
+  const [logStats, setLogStats] = useState<Record<string, number>>({})
+  const [loadingLogs, setLoadingLogs] = useState(false)
+  const [logError, setLogError] = useState('')
 
   // Form state
   const [formData, setFormData] = useState({
@@ -90,6 +112,30 @@ export default function WebinarRemindersPage() {
     }
   }
 
+  const fetchReminderLogs = async () => {
+    if (!params.id) return
+    setLoadingLogs(true)
+    setLogError('')
+
+    try {
+      const response = await fetch(`/api/webinars/${params.id}/reminders/logs`)
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null)
+        throw new Error(payload?.error || 'Failed to fetch reminder queue')
+      }
+
+      const data = await response.json()
+      setReminderLogs(data.reminders || [])
+      setLogStats(data.stats || {})
+    } catch (err: any) {
+      setLogError(err.message || 'Unable to load reminder queue')
+      console.error('Fetch reminder logs error:', err)
+    } finally {
+      setLoadingLogs(false)
+    }
+  }
+
   const fetchReminders = async () => {
     try {
       setLoading(true)
@@ -98,6 +144,7 @@ export default function WebinarRemindersPage() {
       const data = await response.json()
       const reminderList = Array.isArray(data) ? data : data.reminders || []
       setReminders(reminderList)
+      await fetchReminderLogs()
     } catch (err: any) {
       setError(err.message)
       console.error('Fetch reminders error:', err)
@@ -209,7 +256,11 @@ export default function WebinarRemindersPage() {
   }
 
   const getPresetOptions = () => [
+    { label: '1 minute before', value: 1 },
+    { label: '2 minutes before', value: 2 },
+    { label: '3 minutes before', value: 3 },
     { label: '5 minutes before', value: 5 },
+    { label: '10 minutes before', value: 10 },
     { label: '15 minutes before', value: 15 },
     { label: '30 minutes before', value: 30 },
     { label: '1 hour before', value: 60 },
@@ -312,6 +363,27 @@ export default function WebinarRemindersPage() {
       emailSubject: template.emailSubject,
       emailBody: template.emailBody
     })
+  }
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return '—'
+    return new Date(value).toLocaleString()
+  }
+
+  const statusLabels: Record<ReminderLog['status'], string> = {
+    PENDING: 'Pending',
+    SENT: 'Sent',
+    FAILED: 'Failed',
+    SKIPPED: 'Skipped',
+    CANCELLED: 'Cancelled'
+  }
+
+  const statusStyles: Record<ReminderLog['status'], string> = {
+    PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    SENT: 'bg-green-100 text-green-800 border-green-200',
+    FAILED: 'bg-red-100 text-red-800 border-red-200',
+    SKIPPED: 'bg-gray-100 text-gray-800 border-gray-200',
+    CANCELLED: 'bg-pink-100 text-pink-800 border-pink-200'
   }
 
   if (loading) {
@@ -802,6 +874,121 @@ export default function WebinarRemindersPage() {
               ))}
             </>
           )}
+        </div>
+
+        {/* Reminder Queue */}
+        <div className="mt-10 space-y-4">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">Reminder Queue</h3>
+              <p className="text-sm text-gray-500">
+                See what reminders are pending, sent, failed, or skipped for this webinar.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-sm text-gray-500">
+                <span className="font-semibold">{reminderLogs.length || 0}</span>
+                records
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={fetchReminderLogs}
+                disabled={loadingLogs}
+                className="flex items-center gap-2"
+              >
+                {loadingLogs ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Refreshing
+                  </>
+                ) : (
+                  'Refresh'
+                )}
+              </Button>
+            </div>
+          </div>
+
+          {logError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {logError}
+            </div>
+          )}
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {(['PENDING', 'SENT', 'FAILED', 'SKIPPED', 'CANCELLED'] as ReminderLog['status'][]).map(
+              (status) => (
+                <div
+                  key={status}
+                  className={`px-4 py-3 rounded-lg border ${statusStyles[status]}`}
+                >
+                  <p className="text-xs uppercase tracking-wide text-gray-500">{statusLabels[status]}</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {logStats[status] ?? 0}
+                  </p>
+                </div>
+              )
+            )}
+          </div>
+
+          <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-sm">
+                <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
+                  <tr>
+                    <th className="px-4 py-3">Recipient</th>
+                    <th className="px-4 py-3">Scheduled</th>
+                    <th className="px-4 py-3">Sent At</th>
+                    <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3">Channel</th>
+                    <th className="px-4 py-3">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reminderLogs.map((log) => (
+                    <tr
+                      key={log.id}
+                      className="border-t border-gray-100 hover:bg-gray-50"
+                    >
+                      <td className="px-4 py-3 align-top">
+                        <p className="font-semibold text-gray-900">
+                          {log.registration.name || log.registration.email}
+                        </p>
+                        <p className="text-xs text-gray-500">{log.registration.email}</p>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {formatDateTime(log.scheduledFor)}
+                        <p className="text-xs text-gray-400">
+                          {log.template.minutesBefore} min before
+                        </p>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {formatDateTime(log.sentAt)}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusStyles[log.status]}`}>
+                          {statusLabels[log.status]}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {log.channel === 'BOTH' ? 'Email + SMS' : log.channel === 'SMS' ? 'SMS' : 'Email'}
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        <p className="text-xs text-gray-600">{log.errorMessage || '—'}</p>
+                      </td>
+                    </tr>
+                  ))}
+                  {reminderLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                        No reminder activity yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     </DashboardLayout>
