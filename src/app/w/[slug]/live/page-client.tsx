@@ -1530,29 +1530,58 @@ export default function WebinarLiveClient({
     
     console.log('🎯 Starting player initialization process...');
     
-    // Force hide loading after 12 seconds to prevent infinite loading (increased from 6s)
+    // Detect mobile early for better timeouts
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    console.log(`📱 Mobile device detected: ${isMobileDevice}`);
+    
+    // Longer timeout for mobile devices (20s vs 12s)
+    const timeoutDuration = isMobileDevice ? 20000 : 12000;
     const emergencyTimeout = setTimeout(() => {
-      console.log('⚠️ EMERGENCY: Force hiding loading overlay after 12s');
+      console.log(`⚠️ EMERGENCY: Force hiding loading overlay after ${timeoutDuration/1000}s`);
       setVideoLoading(false);
       setVideoError(true);
       setBroadcastStarted(false); // Allow user to try again
-    }, 12000);
+    }, timeoutDuration);
+    
+    // Track retry attempts
+    let iframeRetries = 0;
+    let apiRetries = 0;
+    const maxRetries = isMobileDevice ? 30 : 20; // More retries on mobile
     
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
       if (!iframe) {
-        console.log('⚠️ Vimeo iframe not found, retrying in 300ms...');
-        setTimeout(initPlayer, 300);
+        iframeRetries++;
+        if (iframeRetries >= maxRetries) {
+          console.error('❌ Vimeo iframe not found after max retries');
+          clearTimeout(emergencyTimeout);
+          setVideoLoading(false);
+          setVideoError(true);
+          setBroadcastStarted(false);
+          return;
+        }
+        console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying in 400ms...`);
+        setTimeout(initPlayer, 400);
         return;
       }
       
       if (!window.Vimeo) {
-        console.log('⚠️ Vimeo Player API not loaded yet, waiting...');
-        setTimeout(initPlayer, 200);
+        apiRetries++;
+        if (apiRetries >= maxRetries) {
+          console.error('❌ Vimeo Player API not loaded after max retries');
+          clearTimeout(emergencyTimeout);
+          setVideoLoading(false);
+          setVideoError(true);
+          setBroadcastStarted(false);
+          return;
+        }
+        console.log(`⚠️ Vimeo Player API not loaded yet (attempt ${apiRetries}/${maxRetries}), waiting...`);
+        setTimeout(initPlayer, 300);
         return;
       }
       
-      // Small delay to ensure iframe is fully initialized
+      // Longer delay for mobile to ensure iframe is ready (200ms vs 100ms)
+      const initDelay = isMobileDevice ? 200 : 100;
       setTimeout(() => {
         try {
           console.log('🎬 Creating Vimeo Player instance...');
@@ -1571,12 +1600,10 @@ export default function WebinarLiveClient({
           console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
         }
         
-        // Detect if mobile for different handling
-        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        console.log(`📱 Mobile device: ${isMobileDevice}`);
+        console.log(`📱 Applying mobile-optimized settings for ${isMobileDevice ? 'mobile' : 'desktop'} device`);
         
-        // SIMPLIFIED: Always start muted on mobile, try unmuted on desktop
-        // This is the most reliable approach for mobile autoplay
+        // MOBILE OPTIMIZATION: Always start muted on mobile, try unmuted on desktop
+        // This is the most reliable approach for mobile autoplay restrictions
         const startMuted = isMobileDevice;
         
         player.ready()
@@ -1650,30 +1677,37 @@ export default function WebinarLiveClient({
             
             // Now try to play - this is the critical part
             try {
+              console.log('🎮 Attempting to play video...');
               await player.play();
               console.log('🎉 Video playing!');
               setIsMuted(startMuted);
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
               
+              // Show unmute hint on mobile
+              if (isMobileDevice && startMuted) {
+                console.log('💡 Mobile: Video started muted. User can unmute with button.');
+              }
+              
               if (trackerRef.current) {
                 trackerRef.current.trackVideoEvent('play', startTime);
               }
             } catch (playErr) {
               console.error('❌ Play failed:', playErr);
-              // Last resort: force muted play
-              throw playErr;
+              console.log('🔄 Attempting recovery strategy...');
+              throw playErr; // Pass to catch block for recovery
             }
           })
           .catch(async (err: Error) => {
             console.error('❌ Player ready/play failed:', err);
-            console.log('🔄 LAST RESORT: Force muted play...');
             
-            // Absolute last resort - just try to play muted, ignore all errors
+            // RECOVERY STRATEGY 1: Force muted play
+            console.log('🔄 RECOVERY 1: Trying force muted play...');
             try {
               await player.setMuted(true);
+              await player.setVolume(0);
               await player.play();
-              console.log('✅ Last resort successful - video playing MUTED');
+              console.log('✅ Recovery successful - video playing MUTED');
               setIsMuted(true);
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
@@ -1681,13 +1715,71 @@ export default function WebinarLiveClient({
               if (trackerRef.current) {
                 trackerRef.current.trackVideoEvent('play', startTime);
               }
-            } catch (lastErr) {
-              console.error('❌ Even last resort failed:', lastErr);
+              return; // Success!
+            } catch (recovery1Err) {
+              console.error('❌ Recovery 1 failed:', recovery1Err);
+            }
+            
+            // RECOVERY STRATEGY 2: Wait longer and retry with basic play
+            console.log('🔄 RECOVERY 2: Waiting 2s and retrying...');
+            try {
+              await new Promise(resolve => setTimeout(resolve, 2000));
+              await player.setMuted(true);
+              await player.play();
+              console.log('✅ Recovery 2 successful - video playing after delay');
+              setIsMuted(true);
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
-              setVideoError(true);
-              setBroadcastStarted(false);
+              
+              if (trackerRef.current) {
+                trackerRef.current.trackVideoEvent('play', startTime);
+              }
+              return; // Success!
+            } catch (recovery2Err) {
+              console.error('❌ Recovery 2 failed:', recovery2Err);
             }
+            
+            // RECOVERY STRATEGY 3: Reload iframe and retry
+            if (isMobileDevice) {
+              console.log('🔄 RECOVERY 3: Mobile detected - reloading iframe...');
+              try {
+                const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
+                if (iframe) {
+                  const currentSrc = iframe.src;
+                  iframe.src = '';
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1').replace('muted=0', 'muted=1');
+                  
+                  // Wait for reload
+                  await new Promise(resolve => setTimeout(resolve, 3000));
+                  
+                  const newPlayer = new window.Vimeo!.Player(iframe);
+                  vimeoPlayerRef.current = newPlayer;
+                  await newPlayer.ready();
+                  await newPlayer.setCurrentTime(startTime);
+                  await newPlayer.play();
+                  
+                  console.log('✅ Recovery 3 successful - video playing after iframe reload');
+                  setIsMuted(true);
+                  clearTimeout(emergencyTimeout);
+                  setVideoLoading(false);
+                  
+                  if (trackerRef.current) {
+                    trackerRef.current.trackVideoEvent('play', startTime);
+                  }
+                  return; // Success!
+                }
+              } catch (recovery3Err) {
+                console.error('❌ Recovery 3 failed:', recovery3Err);
+              }
+            }
+            
+            // All recovery attempts failed
+            console.error('❌ All recovery attempts failed');
+            clearTimeout(emergencyTimeout);
+            setVideoLoading(false);
+            setVideoError(true);
+            setBroadcastStarted(false);
           });
       } catch (error) {
         console.error('❌ Error creating Vimeo player:', error);
@@ -1877,7 +1969,7 @@ export default function WebinarLiveClient({
               {embedUrl ? (
                 <>
                   <iframe
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=0&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&autopause=0&background=0&transparent=0`}
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&autopause=0&background=0&transparent=0&playsinline=1`}
                     className={styles.videoEmbed}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
