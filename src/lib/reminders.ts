@@ -12,9 +12,6 @@ interface ReminderTemplateData {
   isActive?: boolean
   applyClickFunnelsTag?: boolean
   clickFunnelsTag?: string | null
-  isPostWebinar?: boolean
-  watchTargetType?: 'ANY' | 'WATCHED_UP_TO' | 'WATCHED_AT_LEAST'
-  watchTargetSeconds?: number | null
 }
 
 /**
@@ -35,13 +32,7 @@ export async function createReminderTemplate(
       isActive: data.isActive ?? true,
       applyClickFunnelsTag: data.applyClickFunnelsTag ?? false,
       clickFunnelsTag:
-        data.applyClickFunnelsTag ? (data.clickFunnelsTag || null) : null,
-      isPostWebinar: data.isPostWebinar ?? false,
-      watchTargetType: data.watchTargetType || 'ANY',
-      watchTargetSeconds:
-        data.watchTargetType && data.watchTargetType !== 'ANY'
-          ? data.watchTargetSeconds ?? null
-          : null
+        data.applyClickFunnelsTag ? (data.clickFunnelsTag || null) : null
     }
   })
 }
@@ -69,10 +60,6 @@ export async function updateReminderTemplate(
     updateData.clickFunnelsTag = null
   } else if (data.clickFunnelsTag !== undefined) {
     updateData.clickFunnelsTag = data.clickFunnelsTag || null
-  }
-
-  if (data.watchTargetType === 'ANY') {
-    updateData.watchTargetSeconds = null
   }
 
   return await prisma.webinarReminderTemplate.update({
@@ -134,118 +121,6 @@ export async function applyRegistrationTag(
   }
 }
 
-function getWebinarDurationMinutes(webinar: any): number {
-  if (typeof webinar?.duration === 'number' && webinar.duration > 0) {
-    return webinar.duration
-  }
-
-  if (
-    typeof webinar?.videoDuration === 'number' &&
-    webinar.videoDuration > 0
-  ) {
-    return Math.ceil(webinar.videoDuration / 60)
-  }
-
-  return 60
-}
-
-function calculateReminderScheduleTime(
-  webinarStartTime: Date,
-  webinar: any,
-  template: any
-): Date {
-  const offsetMinutes = template.minutesBefore || 0
-
-  if (template.isPostWebinar) {
-    const durationMinutes = getWebinarDurationMinutes(webinar)
-    const totalMinutes = durationMinutes + offsetMinutes
-    return new Date(
-      webinarStartTime.getTime() + totalMinutes * 60 * 1000
-    )
-  }
-
-  return new Date(
-    webinarStartTime.getTime() - offsetMinutes * 60 * 1000
-  )
-}
-
-function computeRegistrationWatchStats(registration: any) {
-  const sessions = registration.sessions || []
-
-  let maxPosition = Math.max(
-    registration.lastWatchedPosition || 0,
-    0
-  )
-  let totalWatchTime = registration.replayWatchTime || 0
-
-  for (const session of sessions) {
-    const sessionPosition = session.videoPosition || 0
-    const sessionWatchTime = session.totalWatchTime || 0
-    if (sessionPosition > maxPosition) {
-      maxPosition = sessionPosition
-    }
-    totalWatchTime += sessionWatchTime
-  }
-
-  return {
-    maxPosition,
-    totalWatchTime,
-    hasWatchData:
-      Boolean(registration.attended) ||
-      maxPosition > 0 ||
-      totalWatchTime > 0
-  }
-}
-
-function evaluateWatchTarget(
-  template: any,
-  registration: any
-): { matches: boolean; reason?: string } {
-  if (
-    !template.watchTargetType ||
-    template.watchTargetType === 'ANY' ||
-    !template.watchTargetSeconds ||
-    template.watchTargetSeconds <= 0
-  ) {
-    return { matches: true }
-  }
-
-  const stats = computeRegistrationWatchStats(registration)
-
-  if (!stats.hasWatchData) {
-    return {
-      matches: false,
-      reason: 'No attendance data available for this registrant'
-    }
-  }
-
-  if (template.watchTargetType === 'WATCHED_UP_TO') {
-    const matches =
-      stats.maxPosition > 0 &&
-      stats.maxPosition <= template.watchTargetSeconds
-
-    return {
-      matches,
-      reason: matches
-        ? undefined
-        : 'Attendee watched beyond the target point'
-    }
-  }
-
-  if (template.watchTargetType === 'WATCHED_AT_LEAST') {
-    const matches = stats.maxPosition >= template.watchTargetSeconds
-
-    return {
-      matches,
-      reason: matches
-        ? undefined
-        : 'Attendee did not reach the target point'
-    }
-  }
-
-  return { matches: true }
-}
-
 /**
  * Schedule reminders for a new registration
  * Creates reminder records for all applicable templates
@@ -290,11 +165,7 @@ export async function scheduleRemindersForRegistration(
 
     for (const template of registration.webinar.reminderTemplates) {
       // Calculate when this reminder should be sent
-      const scheduledFor = calculateReminderScheduleTime(
-        webinarStartTime,
-        registration.webinar,
-        template
-      )
+      const scheduledFor = new Date(webinarStartTime.getTime() - template.minutesBefore * 60 * 1000)
 
       // Only schedule if the reminder time is in the future
       if (scheduledFor > now) {
@@ -306,21 +177,9 @@ export async function scheduleRemindersForRegistration(
           channel: template.channel
         })
 
-        console.log(
-          `  ⏰ Scheduled reminder: ${
-            template.isPostWebinar
-              ? `${template.minutesBefore} minutes after end`
-              : `${template.minutesBefore} minutes before`
-          } (${scheduledFor.toISOString()})`
-        )
+        console.log(`  ⏰ Scheduled reminder: ${template.minutesBefore} minutes before (${scheduledFor.toISOString()})`)
       } else {
-        console.log(
-          `  ⏭️  Skipped reminder: ${
-            template.isPostWebinar
-              ? `${template.minutesBefore} minutes after end`
-              : `${template.minutesBefore} minutes before`
-          } (time has passed)`
-        )
+        console.log(`  ⏭️  Skipped reminder: ${template.minutesBefore} minutes before (time has passed)`)
       }
     }
 
@@ -559,13 +418,7 @@ export async function processPendingReminders(): Promise<{
         template: true,
         registration: {
           include: {
-            webinar: true,
-            sessions: {
-              select: {
-                totalWatchTime: true,
-                videoPosition: true
-              }
-            }
+            webinar: true
           }
         }
       },
@@ -584,32 +437,13 @@ export async function processPendingReminders(): Promise<{
       }
       
       const webinarStart = new Date(reminder.registration.scheduledStartTime)
-      if (!reminder.template.isPostWebinar && webinarStart <= now) {
+      if (webinarStart <= now) {
         // Mark as skipped
         await prisma.webinarReminderSent.update({
           where: { id: reminder.id },
           data: {
             status: 'SKIPPED',
             errorMessage: 'Webinar time has passed'
-          }
-        })
-        stats.skipped++
-        continue
-      }
-
-      const watchTargetResult = evaluateWatchTarget(
-        reminder.template,
-        reminder.registration
-      )
-
-      if (!watchTargetResult.matches) {
-        await prisma.webinarReminderSent.update({
-          where: { id: reminder.id },
-          data: {
-            status: 'SKIPPED',
-            errorMessage:
-              watchTargetResult.reason ||
-              'Registration did not meet watch target requirements'
           }
         })
         stats.skipped++

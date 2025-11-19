@@ -17,36 +17,8 @@ export async function PATCH(
 
     const { templateId } = params
     const body = await request.json()
-    const updateData = { ...body }
 
-    if (body.watchTargetType) {
-      if (
-        body.watchTargetType === 'WATCHED_UP_TO' ||
-        body.watchTargetType === 'WATCHED_AT_LEAST'
-      ) {
-        const parsedWatchSeconds =
-          typeof body.watchTargetSeconds === 'number'
-            ? Math.round(body.watchTargetSeconds)
-            : Math.round(Number(body.watchTargetSeconds))
-
-        if (
-          Number.isNaN(parsedWatchSeconds) ||
-          parsedWatchSeconds <= 0
-        ) {
-          return NextResponse.json(
-            { error: 'watchTargetSeconds must be provided for this targeting mode' },
-            { status: 400 }
-          )
-        }
-
-        updateData.watchTargetSeconds = parsedWatchSeconds
-      } else {
-        updateData.watchTargetType = 'ANY'
-        updateData.watchTargetSeconds = null
-      }
-    }
-
-    const template = await updateReminderTemplate(templateId, updateData)
+    const template = await updateReminderTemplate(templateId, body)
 
     return NextResponse.json(template)
   } catch (error: any) {

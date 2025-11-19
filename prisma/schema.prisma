@@ -875,12 +875,6 @@ enum ReminderChannel {
   BOTH
 }
 
-enum ReminderWatchTargetType {
-  ANY
-  WATCHED_UP_TO
-  WATCHED_AT_LEAST
-}
-
 // Template for reminder timing (e.g., "24 hours before", "2 hours before")
 model WebinarReminderTemplate {
   id          String   @id @default(cuid())
@@ -889,7 +883,6 @@ model WebinarReminderTemplate {
   
   // Timing
   minutesBefore Int     // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
-  isPostWebinar Boolean @default(false) // When true, minutesBefore is treated as minutes after webinar end
   
   // Channels
   channel     ReminderChannel @default(EMAIL)
@@ -907,8 +900,6 @@ model WebinarReminderTemplate {
   
   // Status
   isActive    Boolean  @default(true)
-  watchTargetType   ReminderWatchTargetType @default(ANY)
-  watchTargetSeconds Int?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -925,23 +916,32 @@ model WebinarReminderTemplate {
 model WebinarReminderSent {
   id             String   @id @default(cuid())
   
-  // Links to template and registration
-  templateId     String
-  template       WebinarReminderTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  // Links to template and registration (template is optional for post-webinar reminders)
+  templateId     String?
+  template       WebinarReminderTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
   
   registrationId String
   registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   
   // Timing
-  scheduledFor   DateTime  // When this reminder should be sent
+  scheduledFor   DateTime?  // When this reminder should be sent (optional for immediate sends)
+  sendAt         DateTime?  // Alias for scheduledFor (for post-webinar reminders)
   sentAt         DateTime? // When it was actually sent
   
   // Status
   status         ReminderStatus @default(PENDING)
-  channel        ReminderChannel
+  channel        ReminderChannel @default(SMS)
+  
+  // Type of reminder
+  type           String @default("pre_webinar") // 'pre_webinar' or 'post_webinar'
+  
+  // Direct message content (for post-webinar reminders without templates)
+  message        String?   @db.Text
+  phone          String?   // Phone number for direct SMS
   
   // Error tracking
   errorMessage   String?   @db.Text
+  error          String?   @db.Text // Alias for errorMessage
   retryCount     Int       @default(0)
   lastRetryAt    DateTime?
   

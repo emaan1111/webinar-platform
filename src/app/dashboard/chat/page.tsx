@@ -282,6 +282,55 @@ export default function ChatModerationPage() {
     }
   }
 
+  const bulkDelete = async () => {
+    if (selectedMessages.size === 0) return
+    if (!confirm(`⚠️ PERMANENTLY DELETE ${selectedMessages.size} message(s)?\n\nThis action cannot be undone!`)) return
+    
+    try {
+      const promises = Array.from(selectedMessages).map(id => 
+        fetch(`/api/chat/${id}`, {
+          method: 'DELETE'
+        })
+      )
+      
+      await Promise.all(promises)
+      
+      // Remove deleted messages from state
+      setMessages(messages.filter(msg => !selectedMessages.has(msg.id)))
+      setSelectedMessages(new Set())
+      alert(`Successfully deleted ${selectedMessages.size} message(s)`)
+    } catch (error) {
+      console.error('Error bulk deleting:', error)
+      alert('Failed to delete some messages')
+    }
+  }
+
+  const deleteAllFiltered = async () => {
+    if (filteredMessages.length === 0) return
+    
+    const confirmText = `⚠️ PERMANENTLY DELETE ALL ${filteredMessages.length} FILTERED MESSAGE(S)?\n\nCurrent filter: ${statusFilter}\nThis will delete ALL messages currently visible in the list.\n\nThis action CANNOT be undone!`
+    
+    if (!confirm(confirmText)) return
+    
+    try {
+      const promises = filteredMessages.map(msg => 
+        fetch(`/api/chat/${msg.id}`, {
+          method: 'DELETE'
+        })
+      )
+      
+      await Promise.all(promises)
+      
+      // Remove deleted messages from state
+      const deletedIds = new Set(filteredMessages.map(m => m.id))
+      setMessages(messages.filter(msg => !deletedIds.has(msg.id)))
+      alert(`Successfully deleted ${filteredMessages.length} message(s)`)
+    } catch (error) {
+      console.error('Error deleting all:', error)
+      alert('Failed to delete some messages')
+    }
+  }
+
   const handleToggleVisibility = async (id: string) => {
     const message = messages.find(msg => msg.id === id)
     if (!message) return
@@ -449,6 +498,16 @@ export default function ChatModerationPage() {
               <Download className="w-4 h-4" />
               Export JSON
             </Button>
+            {filteredMessages.length > 0 && (
+              <Button
+                variant="danger"
+                onClick={deleteAllFiltered}
+                className="inline-flex items-center gap-2"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete All ({filteredMessages.length})
+              </Button>
+            )}
           </div>
         </div>
 
@@ -534,6 +593,13 @@ export default function ChatModerationPage() {
                     onClick={bulkReject}
                   >
                     Reject Selected
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={bulkDelete}
+                  >
+                    <Trash2 className="w-4 h-4 mr-1" />
+                    Delete Selected
                   </Button>
                 </div>
               </div>
