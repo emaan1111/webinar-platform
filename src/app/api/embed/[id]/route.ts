@@ -991,29 +991,38 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     if (schedule.scheduleType === 'justInTime') {
       return \`Starts \${schedule.minutesFromReg} minutes after registration\`;
     }
-    if (schedule.scheduleType === 'recurring') {
-      const patterns = {
-        daily: 'Daily',
-        weekdays: 'Weekdays',
-        weekly: 'Weekly',
-        biweekly: 'Bi-weekly',
-        monthly: 'Monthly'
-      };
-      const interval = patterns[schedule.recurringInterval] || schedule.recurringInterval;
-      const time = schedule.recurringTime || '11:00';
-      return \`Recurring: \${interval} at \${time}\`;
+    if (schedule.scheduleType === 'recurring' && schedule.scheduledAt) {
+      // For recurring schedules, scheduledAt contains the specific occurrence time
+      const date = new Date(schedule.scheduledAt);
+      const dateStr = date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        month: 'short',
+        day: 'numeric'
+      });
+      const timeStr = date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const tzParts = tz.split('/');
+      const tzShort = tzParts[tzParts.length - 1].replace(/_/g, ' ');
+      return \`\${dateStr}, \${timeStr} • \${tzShort}\`;
     }
     if (schedule.scheduledAt) {
       const date = new Date(schedule.scheduledAt);
-      return date.toLocaleString('en-US', {
-        weekday: 'short',
+      const dateStr = date.toLocaleDateString('en-US', {
+        weekday: 'long',
         month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-        timeZoneName: 'short'
+        day: 'numeric'
       });
+      const timeStr = date.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit'
+      });
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const tzParts = tz.split('/');
+      const tzShort = tzParts[tzParts.length - 1].replace(/_/g, ' ');
+      return \`\${dateStr}, \${timeStr} • \${tzShort}\`;
     }
     return 'Schedule TBD';
   }
