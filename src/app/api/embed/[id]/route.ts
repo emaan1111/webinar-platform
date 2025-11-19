@@ -72,6 +72,126 @@ export async function GET(
   }
 }
 
+// Registration theme: Modern popup-style with purple gradient header and trust badges
+function generateRegistrationInlineStyles(theme: any): string {
+  return `
+    .webinar-embed-inline {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 0;
+      background: white;
+      border-radius: 24px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    /* Purple gradient header with decorative circles */
+    .webinar-embed-inline-registration-header {
+      position: relative;
+      background: ${theme.headerBg};
+      padding: 48px 32px 32px;
+      overflow: hidden;
+    }
+
+    /* Decorative circles in header */
+    .webinar-embed-inline-registration-header::before {
+      content: '';
+      position: absolute;
+      top: -60px;
+      right: -60px;
+      width: 240px;
+      height: 240px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 50%;
+    }
+
+    .webinar-embed-inline-registration-header::after {
+      content: '';
+      position: absolute;
+      bottom: -60px;
+      left: -60px;
+      width: 192px;
+      height: 192px;
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+    }
+
+    .webinar-embed-inline-registration-header-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .webinar-embed-inline-registration-title {
+      font-size: 32px;
+      font-weight: 800;
+      color: white;
+      margin: 0 0 4px 0;
+      line-height: 1.2;
+      letter-spacing: -0.02em;
+    }
+
+    .webinar-embed-inline-registration-subtitle {
+      font-size: 14px;
+      color: rgba(255, 255, 255, 0.95);
+      margin: 0 0 16px 0;
+      font-weight: 500;
+    }
+
+    /* Trust badges */
+    .webinar-embed-inline-trust-badges {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 16px;
+    }
+
+    .webinar-embed-inline-trust-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: rgba(255, 255, 255, 0.9);
+    }
+
+    .webinar-embed-inline-trust-badge svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    .webinar-embed-inline-trust-badge span {
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    /* Form section */
+    .webinar-embed-inline-form {
+      padding: 32px;
+      background: linear-gradient(to bottom, #f9fafb 0%, white 100%);
+    }
+
+    @media (max-width: 640px) {
+      .webinar-embed-inline-registration-header {
+        padding: 32px 24px 24px;
+      }
+
+      .webinar-embed-inline-registration-title {
+        font-size: 24px;
+      }
+
+      .webinar-embed-inline-trust-badges {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 12px;
+      }
+
+      .webinar-embed-inline-form {
+        padding: 24px;
+      }
+    }
+  `;
+}
+
 // Purple theme: Split-screen layout with left info, right form
 function generatePurpleInlineStyles(theme: any): string {
   return `
@@ -508,6 +628,13 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   // Theme configurations matching page-client.tsx
   const themes: Record<string, any> = {
+    registration: {
+      headerBg: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
+      headerText: '#ffffff',
+      buttonBg: 'linear-gradient(135deg, #dc2626 0%, #991b1b 100%)',
+      buttonHoverBg: 'linear-gradient(135deg, #b91c1c 0%, #7f1d1d 100%)',
+      focusColor: '#8b5cf6'
+    },
     purple: {
       headerBg: 'linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%)',
       headerText: '#ffffff',
@@ -535,19 +662,12 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   // Generate theme-specific inline styles
   const themeInlineStyles: Record<string, string> = {
+    registration: generateRegistrationInlineStyles(selectedTheme),
     purple: generatePurpleInlineStyles(selectedTheme),
     blue: generateBlueInlineStyles(selectedTheme),
     green: generateGreenInlineStyles(selectedTheme)
   }
   const inlineStyles = themeInlineStyles[theme] || themeInlineStyles.purple
-
-  // Generate theme-specific popup styles
-  const themePopupStyles: Record<string, string> = {
-    purple: generatePurplePopupStyles(selectedTheme),
-    blue: generateBluePopupStyles(selectedTheme),
-    green: generateGreenPopupStyles(selectedTheme)
-  }
-  const popupThemeStyles = themePopupStyles[theme] || themePopupStyles.purple
 
   return `
 (function() {
@@ -655,10 +775,6 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       background: rgba(255, 255, 255, 0.3);
       transform: rotate(90deg);
     }
-  \`;
-
-  const popupThemeStylesCSS = \`
-    ${popupThemeStyles}
   \`;
 
   const sharedFormStyles = \`
@@ -1074,7 +1190,37 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
   function createInlineHTML(themeType) {
     const formHTML = createFormHTML();
     
-    if (themeType === 'purple') {
+    if (themeType === 'registration') {
+      // Registration page style with purple gradient header and trust badges
+      return \`
+        <div class="webinar-embed-inline-registration-header">
+          <div class="webinar-embed-inline-registration-header-content">
+            <h2 class="webinar-embed-inline-registration-title">Secure Your Spot!</h2>
+            <p class="webinar-embed-inline-registration-subtitle">Join thousands who've already registered</p>
+            
+            <div class="webinar-embed-inline-trust-badges">
+              <div class="webinar-embed-inline-trust-badge">
+                <svg fill="currentColor" viewBox="0 0 20 20">
+                  <path fill-rule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                </svg>
+                <span>100% Secure</span>
+              </div>
+              <div class="webinar-embed-inline-trust-badge">
+                <svg fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 10.5a1.5 1.5 0 113 0v6a1.5 1.5 0 01-3 0v-6zM6 10.333v5.43a2 2 0 001.106 1.79l.05.025A4 4 0 008.943 18h5.416a2 2 0 001.962-1.608l1.2-6A2 2 0 0015.56 8H12V4a2 2 0 00-2-2 1 1 0 00-1 1v.667a4 4 0 01-.8 2.4L6.8 7.933a4 4 0 00-.8 2.4z" />
+                </svg>
+                <span>No Spam</span>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="webinar-embed-inline-form">
+          <form id="webinar-embed-form">
+            \${formHTML}
+          </form>
+        </div>
+      \`;
+    } else if (themeType === 'purple') {
       // Split-screen layout
       return \`
         <div class="webinar-embed-inline-grid">
