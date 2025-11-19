@@ -27,10 +27,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Reset analytics data for the webinar
-    // Delete all analytics events
-    await prisma.analyticsEvent.deleteMany({
-      where: { webinarId }
-    })
+    // Note: analyticsEvent table doesn't exist in current schema
+    // await prisma.analyticsEvent.deleteMany({
+    //   where: { webinarId }
+    // })
 
     // Reset registration analytics data
     await prisma.registration.updateMany({
@@ -47,8 +47,8 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // Delete all page views
-    await prisma.pageView.deleteMany({
+    // Delete all page visits
+    await prisma.pageVisit.deleteMany({
       where: { webinarId }
     })
 
