@@ -156,7 +156,7 @@ export default function ChatModerationPage() {
     { value: 'all', label: 'All', count: messages.length },
     { value: 'pending', label: 'Pending', count: pendingMessages.length },
     { value: 'approved', label: 'Approved', count: approvedMessages.length },
-    { value: 'scripted', label: 'Scripted', count: scriptedMessages.length },
+    { value: 'scripted', label: 'Imported', count: scriptedMessages.length },
     { value: 'visible', label: 'Visible', count: visibleMessages.length },
     { value: 'hidden', label: 'Hidden', count: hiddenMessages.length }
   ]
@@ -1030,7 +1030,7 @@ export default function ChatModerationPage() {
                         </span>
                         {message.isScripted ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
-                            Scripted
+                            Imported
                           </span>
                         ) : message.isApproved ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
