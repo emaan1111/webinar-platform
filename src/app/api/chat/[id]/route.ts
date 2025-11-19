@@ -24,13 +24,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Verify ownership - message must be from user's webinar
-    const message = await prisma.chatMessage.findFirst({
+    // Check if message exists (removed hostId check so all admins can delete)
+    const message = await prisma.chatMessage.findUnique({
       where: {
-        id: params.id,
-        webinar: {
-          hostId: user.id
-        }
+        id: params.id
       }
     })
 

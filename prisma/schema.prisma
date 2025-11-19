@@ -875,6 +875,12 @@ enum ReminderChannel {
   BOTH
 }
 
+enum ReminderWatchTargetType {
+  ANY
+  WATCHED_UP_TO
+  WATCHED_AT_LEAST
+}
+
 // Template for reminder timing (e.g., "24 hours before", "2 hours before")
 model WebinarReminderTemplate {
   id          String   @id @default(cuid())
@@ -883,6 +889,7 @@ model WebinarReminderTemplate {
   
   // Timing
   minutesBefore Int     // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
+  isPostWebinar Boolean @default(false) // When true, minutesBefore is treated as minutes after webinar end
   
   // Channels
   channel     ReminderChannel @default(EMAIL)
@@ -900,6 +907,8 @@ model WebinarReminderTemplate {
   
   // Status
   isActive    Boolean  @default(true)
+  watchTargetType   ReminderWatchTargetType @default(ANY)
+  watchTargetSeconds Int?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

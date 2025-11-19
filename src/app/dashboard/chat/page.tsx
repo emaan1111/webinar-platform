@@ -104,8 +104,8 @@ export default function ChatModerationPage() {
     fetchMessages()
   }, [webinarFilter, searchQuery])
 
-  const pendingMessages = messages.filter(msg => !msg.isScripted && !msg.isApproved)
-  const approvedMessages = messages.filter(msg => !msg.isScripted && msg.isApproved)
+  const pendingMessages = messages.filter(msg => !msg.isScripted && msg.isApproved !== true)
+  const approvedMessages = messages.filter(msg => !msg.isScripted && msg.isApproved === true)
   const scriptedMessages = messages.filter(msg => msg.isScripted)
   const visibleMessages = messages.filter(msg => !msg.isHidden)
   const hiddenMessages = messages.filter(msg => msg.isHidden)
@@ -133,8 +133,8 @@ export default function ChatModerationPage() {
         statusFilter === 'all' ||
         (statusFilter === 'visible' && !msg.isHidden) ||
         (statusFilter === 'hidden' && msg.isHidden) ||
-        (statusFilter === 'pending' && !msg.isScripted && !msg.isApproved) ||
-        (statusFilter === 'approved' && !msg.isScripted && msg.isApproved) ||
+        (statusFilter === 'pending' && !msg.isScripted && msg.isApproved !== true) ||
+        (statusFilter === 'approved' && !msg.isScripted && msg.isApproved === true) ||
         (statusFilter === 'scripted' && msg.isScripted)
 
       return matchesSearch && matchesWebinar && matchesStatus

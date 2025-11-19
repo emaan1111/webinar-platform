@@ -96,13 +96,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    // Verify ownership
-    const message = await prisma.chatMessage.findFirst({
+    // Check if message exists (removed hostId check so all admins can update)
+    const message = await prisma.chatMessage.findUnique({
       where: {
-        id,
-        webinar: {
-          hostId: user.id
-        }
+        id
       }
     })
 
