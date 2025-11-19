@@ -206,8 +206,8 @@ export async function POST(request: Request) {
         registrationId: regId,
         userName,
         message,
-        isHidden: false,
-        isApproved: true // Auto-approve messages from registered attendees
+        isHidden: false, // Visible in current session
+        isApproved: false // Needs approval to show in future sessions
       },
       include: {
         user: userId ? {

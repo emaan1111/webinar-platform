@@ -182,10 +182,8 @@ export default async function WebinarRoomPage({
       chatMessages: {
         where: {
           isHidden: false,
-          OR: [
-            { isScripted: true },
-            { isApproved: true },
-          ],
+          // Fetch all non-hidden messages
+          // Client will handle filtering approved vs current session
         },
         orderBy: [
           { videoTimestamp: 'asc' },
