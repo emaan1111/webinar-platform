@@ -206,6 +206,40 @@ export default function ClickFunnelsTagQueuePage() {
         </div>
       </div>
 
+      {/* Info Banner */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-0.5">
+              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-semibold text-blue-900 mb-1">How the Tag Queue Works</h3>
+              <p className="text-sm text-blue-800 mb-2">
+                Tags are scheduled based on when registrants signed up and when the webinar starts. 
+                A cron job runs every 5 minutes to apply tags that are due.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-blue-700">
+                <div>
+                  <strong>PENDING (Future):</strong> Tag scheduled for future time
+                </div>
+                <div>
+                  <strong>PENDING (Overdue):</strong> Will apply in next cron run (~5 min)
+                </div>
+                <div>
+                  <strong>APPLIED:</strong> Successfully tagged in ClickFunnels
+                </div>
+                <div>
+                  <strong>FAILED:</strong> Error occurred (check error message)
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
@@ -356,9 +390,17 @@ export default function ClickFunnelsTagQueuePage() {
                           <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
                           <div>
                             <p className="text-sm text-gray-900">{formatDate(tag.scheduledFor)}</p>
-                            {isOverdue(tag.scheduledFor, tag.status) && (
-                              <p className="text-xs text-red-600 font-semibold mt-1">⚠️ Overdue</p>
-                            )}
+                            {isOverdue(tag.scheduledFor, tag.status) ? (
+                              <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
+                                <span className="inline-block w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                                Overdue - Will process in next cron run
+                              </p>
+                            ) : tag.status === 'PENDING' ? (
+                              <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                In {Math.ceil((new Date(tag.scheduledFor).getTime() - Date.now()) / (1000 * 60))} minutes
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       </td>
