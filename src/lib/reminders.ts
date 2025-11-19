@@ -4,11 +4,15 @@ import { sendEmail } from '@/lib/email'
 import { sendClickSendSMS } from '@/lib/clicksend'
 
 interface ReminderTemplateData {
-  minutesBefore: number
+  type?: 'pre_webinar' | 'post_webinar'
+  minutesBefore?: number
+  minutesAfter?: number
+  minWatchedMinutes?: number | null
+  minWatchedPercentage?: number | null
   channel: 'EMAIL' | 'SMS' | 'BOTH'
-  emailSubject: string
-  emailBody: string
-  smsBody?: string
+  emailSubject?: string | null
+  emailBody?: string | null
+  smsBody?: string | null
   isActive?: boolean
   applyClickFunnelsTag?: boolean
   clickFunnelsTag?: string | null
@@ -24,11 +28,15 @@ export async function createReminderTemplate(
   return await prisma.webinarReminderTemplate.create({
     data: {
       webinarId,
-      minutesBefore: data.minutesBefore,
+      type: data.type || 'pre_webinar',
+      minutesBefore: data.minutesBefore || null,
+      minutesAfter: data.minutesAfter || null,
+      minWatchedMinutes: data.minWatchedMinutes || null,
+      minWatchedPercentage: data.minWatchedPercentage || null,
       channel: data.channel,
-      emailSubject: data.emailSubject,
-      emailBody: data.emailBody,
-      smsBody: data.smsBody,
+      emailSubject: data.emailSubject || null,
+      emailBody: data.emailBody || null,
+      smsBody: data.smsBody || null,
       isActive: data.isActive ?? true,
       applyClickFunnelsTag: data.applyClickFunnelsTag ?? false,
       clickFunnelsTag:

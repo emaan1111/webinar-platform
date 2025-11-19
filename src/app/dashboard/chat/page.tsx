@@ -66,10 +66,16 @@ export default function ChatModerationPage() {
       const response = await fetch('/api/webinars')
       if (response.ok) {
         const data = await response.json()
-        setWebinars(data.webinars)
+        setWebinars(data.webinars || [])
+      } else {
+        console.error('Failed to fetch webinars:', response.status, response.statusText)
+        // Don't show error to user, just log it and continue with empty list
+        setWebinars([])
       }
     } catch (error) {
       console.error('Error fetching webinars:', error)
+      // Don't show error to user, just log it and continue with empty list
+      setWebinars([])
     }
   }
 
@@ -438,19 +444,120 @@ export default function ChatModerationPage() {
     a.click()
   }
 
-  const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // Show loading state
+    setLoading(true)
+
     const reader = new FileReader()
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
-        const imported = JSON.parse(event.target?.result as string)
-        // Process and merge imported messages
-        console.log('Imported messages:', imported)
-        alert('Chat log imported successfully!')
+        const content = event.target?.result as string
+        
+        // Check if it's CSV or JSON
+        if (file.name.endsWith('.csv')) {
+          // Parse CSV format: Hour,Minute,Second,Name,Role,Message,Mode
+          const lines = content.split('\n').filter(line => line.trim())
+          const headers = lines[0].split(',')
+          
+          if (!headers.includes('Message') || !headers.includes('Name')) {
+            alert('Invalid CSV format. Expected columns: Hour,Minute,Second,Name,Role,Message,Mode')
+            setLoading(false)
+            return
+          }
+
+          // Convert CSV to chat messages
+          const csvMessages = lines.slice(1).map((line, index) => {
+            const values = line.split(',')
+            return {
+              hour: values[0],
+              minute: values[1],
+              second: values[2],
+              name: values[3],
+              role: values[4],
+              message: values[5],
+              mode: values[6]
+            }
+          }).filter(msg => msg.message && msg.name)
+
+          if (csvMessages.length === 0) {
+            alert('No valid messages found in CSV file')
+            setLoading(false)
+            return
+          }
+
+          // Ask user which webinar to import to
+          if (!webinarFilter || webinarFilter === 'all') {
+            alert('Please select a webinar from the filter dropdown before importing')
+            setLoading(false)
+            return
+          }
+
+          // Send to API
+          const response = await fetch('/api/chat/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              webinarId: webinarFilter,
+              messages: csvMessages
+            })
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            alert(`Successfully imported ${data.imported || csvMessages.length} messages!`)
+            fetchMessages() // Refresh the list
+          } else {
+            const error = await response.json()
+            alert(`Import failed: ${error.error || 'Unknown error'}`)
+          }
+        } else if (file.name.endsWith('.json')) {
+          // Parse JSON format
+          const imported = JSON.parse(content)
+          
+          if (!Array.isArray(imported) || imported.length === 0) {
+            alert('Invalid JSON format. Expected an array of messages')
+            setLoading(false)
+            return
+          }
+
+          // Ask user which webinar to import to
+          if (!webinarFilter || webinarFilter === 'all') {
+            alert('Please select a webinar from the filter dropdown before importing')
+            setLoading(false)
+            return
+          }
+
+          // Send to API
+          const response = await fetch('/api/chat/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              webinarId: webinarFilter,
+              messages: imported
+            })
+          })
+
+          if (response.ok) {
+            const data = await response.json()
+            alert(`Successfully imported ${data.imported || imported.length} messages!`)
+            fetchMessages() // Refresh the list
+          } else {
+            const error = await response.json()
+            alert(`Import failed: ${error.error || 'Unknown error'}`)
+          }
+        } else {
+          alert('Unsupported file format. Please use .csv or .json files')
+        }
       } catch (error) {
-        alert('Error importing file. Please check the format.')
+        console.error('Import error:', error)
+        alert('Error importing file. Please check the format and try again.')
+      } finally {
+        setLoading(false)
+        // Reset file input
+        e.target.value = ''
       }
     }
     reader.readAsText(file)
@@ -470,19 +577,26 @@ export default function ChatModerationPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <label htmlFor="import-chat" className="cursor-pointer">
-              <Button variant="secondary" className="inline-flex items-center gap-2">
-                <Upload className="w-4 h-4" />
-                Import
-              </Button>
-              <input
-                id="import-chat"
-                type="file"
-                accept=".json"
-                onChange={handleImport}
-                className="hidden"
-              />
-            </label>
+            <input
+              id="import-chat"
+              type="file"
+              accept=".json,.csv"
+              onChange={handleImport}
+              className="hidden"
+              ref={(input) => {
+                if (input) {
+                  (window as any).chatFileInput = input
+                }
+              }}
+            />
+            <Button 
+              variant="secondary" 
+              onClick={() => document.getElementById('import-chat')?.click()}
+              className="inline-flex items-center gap-2"
+            >
+              <Upload className="w-4 h-4" />
+              Import
+            </Button>
             <Button
               variant="secondary"
               onClick={handleExportTXT}

@@ -11,10 +11,6 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
-    const webinarIdsParam = searchParams.get('webinarIds');
-    const webinarIds = webinarIdsParam
-      ? webinarIdsParam.split(',').map(id => id.trim()).filter(Boolean)
-      : [];
 
     if (!from || !to) {
       return NextResponse.json(
@@ -23,11 +19,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const fromDate = new Date(from);
-    const toDate = new Date(to);
-    toDate.setHours(23, 59, 59, 999); // End of day
+    // Parse dates in local timezone (not UTC)
+    // Date strings like "2025-11-19" should be treated as local dates
+    const fromDate = new Date(from + 'T00:00:00');
+    const toDate = new Date(to + 'T23:59:59.999');
 
     console.log('📊 Generating reports from', from, 'to', to);
+    console.log('📅 Date range:', fromDate.toISOString(), 'to', toDate.toISOString());
     console.log('⏱️  Engagement threshold:', engagementMinutes, 'minutes');
 
     // Fetch Facebook Ads data
@@ -64,9 +62,17 @@ export async function GET(request: NextRequest) {
     const currentDate = new Date(fromDate);
 
     while (currentDate <= toDate) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      // Get date string in local format
+      const year = currentDate.getFullYear();
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+      const day = String(currentDate.getDate()).padStart(2, '0');
+      const dateStr = `${year}-${month}-${day}`;
+      
+      // Create next day boundary
       const nextDate = new Date(currentDate);
       nextDate.setDate(nextDate.getDate() + 1);
+
+      console.log(`📅 Processing ${dateStr}: ${currentDate.toISOString()} to ${nextDate.toISOString()}`);
 
       // Get registrations for this date
       const registrations = await prisma.registration.findMany({
@@ -74,14 +80,7 @@ export async function GET(request: NextRequest) {
           registeredAt: {
             gte: currentDate,
             lt: nextDate
-          },
-          ...(webinarIds.length
-            ? {
-                webinarId: {
-                  in: webinarIds
-                }
-              }
-            : {})
+          }
         },
         include: {
           sessions: true,
@@ -104,22 +103,18 @@ export async function GET(request: NextRequest) {
       // Calculate metrics
       const visitors = pageVisits.length;
       const registrationCount = registrations.length;
-      let attendees = 0;
-      let replayAttendees = 0;
+      let liveAttendees = 0;
       let engaged = 0;
       let sales = 0;
 
       for (const reg of registrations) {
         // Check if attended live
         if (reg.attended) {
-          attendees++;
-        }
-        if (reg.watchedReplay || (reg.replayWatchTime || 0) > 0) {
-          replayAttendees++;
+          liveAttendees++;
         }
 
         // Calculate total watch time from sessions
-        const totalWatchTime = reg.sessions.reduce((sum, session) => {
+        const totalWatchTime = reg.sessions.reduce((sum: number, session: any) => {
           return sum + (session.totalWatchTime || 0);
         }, 0);
 
@@ -146,10 +141,10 @@ export async function GET(request: NextRequest) {
 
       // Calculate percentages
       const registrationRate = visitors > 0 ? (registrationCount / visitors) * 100 : 0;
-      const attendanceRate = registrationCount > 0 ? (attendees / registrationCount) * 100 : 0;
+      const attendanceRate = registrationCount > 0 ? (liveAttendees / registrationCount) * 100 : 0;
       const engagedPerVisitor = visitors > 0 ? (engaged / visitors) * 100 : 0;
       const engagedPerRegistered = registrationCount > 0 ? (engaged / registrationCount) * 100 : 0;
-      const engagementRate = attendees > 0 ? (engaged / attendees) * 100 : 0;
+      const engagementRate = liveAttendees > 0 ? (engaged / liveAttendees) * 100 : 0;
       const costPerReg = registrationCount > 0 ? fbData.spend / registrationCount : 0;
 
       reports.push({
@@ -157,8 +152,7 @@ export async function GET(request: NextRequest) {
         fbResults: fbData,
         visitors,
         registrations: registrationCount,
-        attendees,
-        replayAttendees,
+        liveAttendees,
         engaged,
         sales,
         registrationRate,

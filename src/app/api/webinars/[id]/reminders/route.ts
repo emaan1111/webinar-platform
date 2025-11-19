@@ -50,7 +50,11 @@ export async function POST(
     const body = await request.json()
 
     const {
+      type,
       minutesBefore,
+      minutesAfter,
+      minWatchedMinutes,
+      minWatchedPercentage,
       channel,
       emailSubject,
       emailBody,
@@ -60,21 +64,78 @@ export async function POST(
       clickFunnelsTag
     } = body
 
-    const minutesBeforeNumber =
-      typeof minutesBefore === 'number'
-        ? minutesBefore
-        : Number(minutesBefore)
+    const reminderType = type || 'pre_webinar'
 
-    // Validation
-    if (
-      Number.isNaN(minutesBeforeNumber) ||
-      emailSubject?.trim()?.length === 0 ||
-      emailBody?.trim()?.length === 0
-    ) {
-      return NextResponse.json(
-        { error: 'minutesBefore, emailSubject, and emailBody are required' },
-        { status: 400 }
-      )
+    // Type-specific validation
+    if (reminderType === 'pre_webinar') {
+      const minutesBeforeNumber =
+        typeof minutesBefore === 'number'
+          ? minutesBefore
+          : Number(minutesBefore)
+
+      if (Number.isNaN(minutesBeforeNumber)) {
+        return NextResponse.json(
+          { error: 'minutesBefore is required for pre-webinar reminders' },
+          { status: 400 }
+        )
+      }
+
+      // For pre-webinar, validate based on channel
+      if (channel === 'EMAIL' || channel === 'BOTH') {
+        if (!emailSubject?.trim() || !emailBody?.trim()) {
+          return NextResponse.json(
+            { error: 'emailSubject and emailBody are required when sending emails' },
+            { status: 400 }
+          )
+        }
+      }
+
+      if (channel === 'SMS' || channel === 'BOTH') {
+        if (!smsBody?.trim()) {
+          return NextResponse.json(
+            { error: 'smsBody is required when sending SMS' },
+            { status: 400 }
+          )
+        }
+      }
+    } else if (reminderType === 'post_webinar') {
+      const minutesAfterNumber =
+        typeof minutesAfter === 'number'
+          ? minutesAfter
+          : Number(minutesAfter)
+
+      if (Number.isNaN(minutesAfterNumber)) {
+        return NextResponse.json(
+          { error: 'minutesAfter is required for post-session reminders' },
+          { status: 400 }
+        )
+      }
+
+      if (!minWatchedMinutes && !minWatchedPercentage) {
+        return NextResponse.json(
+          { error: 'Either minWatchedMinutes or minWatchedPercentage is required for post-session reminders' },
+          { status: 400 }
+        )
+      }
+
+      // For post-session, validate based on channel
+      if (channel === 'EMAIL' || channel === 'BOTH') {
+        if (!emailSubject?.trim() || !emailBody?.trim()) {
+          return NextResponse.json(
+            { error: 'emailSubject and emailBody are required when sending emails' },
+            { status: 400 }
+          )
+        }
+      }
+
+      if (channel === 'SMS' || channel === 'BOTH') {
+        if (!smsBody?.trim()) {
+          return NextResponse.json(
+            { error: 'smsBody is required when sending SMS' },
+            { status: 400 }
+          )
+        }
+      }
     }
 
     if (applyClickFunnelsTag && !clickFunnelsTag) {
@@ -84,16 +145,27 @@ export async function POST(
       )
     }
 
-    const template = await createReminderTemplate(id, {
-      minutesBefore: minutesBeforeNumber,
+    // Prepare data based on type
+    const templateData: any = {
       channel: channel || 'EMAIL',
-      emailSubject,
-      emailBody,
-      smsBody,
+      emailSubject: emailSubject || null,
+      emailBody: emailBody || null,
+      smsBody: smsBody || null,
       isActive: typeof isActive === 'boolean' ? isActive : true,
       applyClickFunnelsTag: Boolean(applyClickFunnelsTag),
-      clickFunnelsTag: clickFunnelsTag ? String(clickFunnelsTag).toUpperCase() : null
-    })
+      clickFunnelsTag: clickFunnelsTag ? String(clickFunnelsTag).toUpperCase() : null,
+      type: reminderType
+    }
+
+    if (reminderType === 'pre_webinar') {
+      templateData.minutesBefore = typeof minutesBefore === 'number' ? minutesBefore : Number(minutesBefore)
+    } else if (reminderType === 'post_webinar') {
+      templateData.minutesAfter = typeof minutesAfter === 'number' ? minutesAfter : Number(minutesAfter)
+      templateData.minWatchedMinutes = minWatchedMinutes || null
+      templateData.minWatchedPercentage = minWatchedPercentage || null
+    }
+
+    const template = await createReminderTemplate(id, templateData)
 
     return NextResponse.json(template, { status: 201 })
   } catch (error: any) {

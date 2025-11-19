@@ -201,18 +201,27 @@ export default function ChatManagerClient({ webinarId, webinarTitle, initialMess
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Import Chat from CSV</h2>
           
           <div className="mb-4">
-            <p className="text-sm text-gray-600 mb-2">
-              CSV Format: <code className="bg-gray-100 px-2 py-1 rounded">timestamp,username,message</code>
-            </p>
-            <p className="text-sm text-gray-600 mb-4">
-              Timestamp can be in MM:SS format (e.g., 1:30) or seconds (e.g., 90)
-            </p>
+            <p className="text-sm text-gray-600 mb-2 font-semibold">Supported CSV Formats:</p>
+            <div className="space-y-2">
+              <p className="text-sm text-gray-600">
+                <strong>Format 1:</strong> <code className="bg-gray-100 px-2 py-1 rounded">timestamp,username,message</code>
+              </p>
+              <p className="text-xs text-gray-500 ml-4">
+                Timestamp can be MM:SS (e.g., 1:30) or seconds (e.g., 90)
+              </p>
+              <p className="text-sm text-gray-600 mt-2">
+                <strong>Format 2:</strong> <code className="bg-gray-100 px-2 py-1 rounded">Hour,Minute,Second,Name,Message</code>
+              </p>
+              <p className="text-xs text-gray-500 ml-4">
+                For exports with separate hour/minute/second columns
+              </p>
+            </div>
           </div>
 
           <textarea
             value={csvContent}
             onChange={(e) => setCsvContent(e.target.value)}
-            placeholder="timestamp,username,message&#10;0:15,Sarah,Hello everyone!&#10;1:30,Fatima,This is great!"
+            placeholder="Format 1: timestamp,username,message&#10;0:15,Sarah,Hello everyone!&#10;1:30,Fatima,This is great!&#10;&#10;Format 2: Hour,Minute,Second,Name,Message&#10;0,0,15,Sarah,Hello everyone!&#10;0,1,30,Fatima,This is great!"
             className="w-full h-48 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono text-sm"
           />
 

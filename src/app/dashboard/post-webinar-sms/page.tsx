@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
@@ -19,6 +19,7 @@ interface Webinar {
 
 export default function PostWebinarRemindersPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [webinars, setWebinars] = useState<Webinar[]>([])
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
@@ -37,6 +38,14 @@ export default function PostWebinarRemindersPage() {
   useEffect(() => {
     fetchWebinars()
   }, [])
+  
+  useEffect(() => {
+    // Pre-select webinar from URL parameter
+    const webinarId = searchParams.get('webinar')
+    if (webinarId) {
+      setSelectedWebinar(webinarId)
+    }
+  }, [searchParams, webinars])
   
   const fetchWebinars = async () => {
     try {

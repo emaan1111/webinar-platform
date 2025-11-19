@@ -64,9 +64,31 @@ export async function POST(req: NextRequest) {
       const createdMessages = []
       
       for (const msg of messages) {
-        const { userName, userEmail, message, videoTimestamp } = msg
+        // Support both formats: 
+        // 1. {userName, userEmail, message, videoTimestamp}
+        // 2. {hour, minute, second, name, role, message, mode}
+        
+        let userName, userEmail, message, videoTimestamp
+        
+        if (msg.hour !== undefined && msg.name && msg.message) {
+          // CSV format from chat_log_141.csv
+          userName = msg.name
+          userEmail = `${msg.name.toLowerCase().replace(/\s+/g, '.')}@scripted.local`
+          message = msg.message
+          // Convert hour:minute:second to total seconds
+          const hour = parseInt(msg.hour) || 0
+          const minute = parseInt(msg.minute) || 0
+          const second = parseInt(msg.second) || 0
+          videoTimestamp = (hour * 3600) + (minute * 60) + second
+        } else {
+          // Standard format
+          userName = msg.userName
+          userEmail = msg.userEmail
+          message = msg.message
+          videoTimestamp = msg.videoTimestamp
+        }
 
-        if (!userName || !userEmail || !message || videoTimestamp === undefined) {
+        if (!userName || !message || videoTimestamp === undefined) {
           continue // Skip invalid entries
         }
 
@@ -113,6 +135,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         message: `Successfully imported ${createdMessages.length} chat messages`,
+        imported: createdMessages.length,
         count: createdMessages.length,
         messages: createdMessages
       })

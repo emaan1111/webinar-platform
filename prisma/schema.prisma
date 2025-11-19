@@ -881,17 +881,27 @@ model WebinarReminderTemplate {
   webinarId   String
   webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   
-  // Timing
-  minutesBefore Int     // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
+  // Type of reminder
+  type        String   @default("pre_webinar") // 'pre_webinar' or 'post_webinar'
+  
+  // Timing - Pre-webinar
+  minutesBefore Int?    // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
+  
+  // Timing - Post-session
+  minutesAfter Int?    // Minutes after session completion (e.g., 0 for immediate, 1440 for 1 day)
+  
+  // Watch criteria for post-session
+  minWatchedMinutes Int?     // Minimum minutes watched (e.g., 30)
+  minWatchedPercentage Int?  // Minimum percentage watched (e.g., 50)
   
   // Channels
   channel     ReminderChannel @default(EMAIL)
   
   // Email content
-  emailSubject String  @default("Your webinar starts soon!")
-  emailBody    String  @db.Text // Can use placeholders: {{name}}, {{webinarTitle}}, {{countdownLink}}, {{referralLink}}, {{webinarTime}}
+  emailSubject String?  // Optional when using SMS only
+  emailBody    String?  @db.Text // Can use placeholders: {{name}}, {{webinarTitle}}, {{countdownLink}}, {{referralLink}}, {{webinarTime}}
   
-  // SMS content (for future)
+  // SMS content
   smsBody      String? @db.Text
   
   // ClickFunnels Integration
