@@ -39,10 +39,6 @@ export async function POST(request: NextRequest) {
         attended: false,
         joinedAt: null,
         leftAt: null,
-        watchTimeSeconds: 0,
-        lastHeartbeat: null,
-        sawOffer: false,
-        clickedOffer: false,
         hasPurchased: false,
       }
     })
