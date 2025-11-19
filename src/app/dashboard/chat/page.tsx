@@ -152,7 +152,7 @@ export default function ChatModerationPage() {
       
       const matchesWebinar = 
         webinarFilter === 'all' ||
-        msg.webinarTitle === webinarFilter
+        msg.webinar?.id === webinarFilter
       
       const matchesStatus =
         statusFilter === 'all' ||
@@ -563,8 +563,6 @@ export default function ChatModerationPage() {
     reader.readAsText(file)
   }
 
-  const uniqueWebinars = Array.from(new Set(messages.map(m => m.webinarTitle)))
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -649,8 +647,8 @@ export default function ChatModerationPage() {
                   className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="all">All Webinars</option>
-                  {uniqueWebinars.map(webinar => (
-                    <option key={webinar} value={webinar}>{webinar}</option>
+                  {webinars.map(webinar => (
+                    <option key={webinar.id} value={webinar.id}>{webinar.title}</option>
                   ))}
                 </select>
               </div>
