@@ -1137,12 +1137,20 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   // Initialize inline embed
   function initializeInlineEmbed() {
+    console.log('[Webinar Embed] Initializing inline embed...');
+    console.log('[Webinar Embed] Looking for container:', \`webinar-embed-\${WEBINAR_DATA.id}\`);
+    
     const container = document.getElementById(\`webinar-embed-\${WEBINAR_DATA.id}\`);
+    console.log('[Webinar Embed] Container found:', !!container);
+    
     if (container) {
+      console.log('[Webinar Embed] Setting up inline form...');
       container.className = 'webinar-embed-inline';
       container.innerHTML = createInlineHTML(THEME_NAME);
 
       const form = document.getElementById('webinar-embed-form');
+      console.log('[Webinar Embed] Form found:', !!form);
+      
       if (form) {
         form.addEventListener('submit', async (e) => {
           e.preventDefault();
@@ -1151,34 +1159,46 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
             await submitRegistration(validation.data);
           }
         });
+      } else {
+        console.error('[Webinar Embed] Form element not found after initialization');
       }
     } else {
-      console.warn('Webinar embed container not found:', \`webinar-embed-\${WEBINAR_DATA.id}\`);
+      console.error('[Webinar Embed] Container not found:', \`webinar-embed-\${WEBINAR_DATA.id}\`);
+      console.error('[Webinar Embed] Make sure you have a div with id:', \`webinar-embed-\${WEBINAR_DATA.id}\`);
     }
   }
 
   // Initialize popup embed
   function initializePopupEmbed() {
+    console.log('[Webinar Embed] Initializing popup embed...');
     const buttons = document.querySelectorAll(\`[data-webinar-popup="\${WEBINAR_DATA.id}"]\`);
+    console.log('[Webinar Embed] Found', buttons.length, 'popup buttons');
     buttons.forEach(button => {
       button.addEventListener('click', createPopupModal);
     });
   }
 
   // Initialize based on type
+  console.log('[Webinar Embed] Script loaded. Type:', TYPE, 'Theme:', THEME_NAME, 'Webinar ID:', WEBINAR_DATA.id);
+  console.log('[Webinar Embed] Document ready state:', document.readyState);
+  
   if (TYPE === 'popup') {
     // Find all buttons with data-webinar-popup attribute
     if (document.readyState === 'loading') {
+      console.log('[Webinar Embed] Waiting for DOM to load (popup mode)...');
       document.addEventListener('DOMContentLoaded', initializePopupEmbed);
     } else {
+      console.log('[Webinar Embed] DOM already loaded, initializing popup...');
       initializePopupEmbed();
     }
   } else {
     // Inline mode - wait for DOM to be ready
     if (document.readyState === 'loading') {
+      console.log('[Webinar Embed] Waiting for DOM to load (inline mode)...');
       document.addEventListener('DOMContentLoaded', initializeInlineEmbed);
     } else {
       // DOM is already ready, but use setTimeout to ensure container exists
+      console.log('[Webinar Embed] DOM already loaded, initializing inline...');
       setTimeout(initializeInlineEmbed, 0);
     }
   }
