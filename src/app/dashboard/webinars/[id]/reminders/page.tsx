@@ -1236,6 +1236,7 @@ export default function WebinarRemindersPage() {
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="px-4 py-3">Recipient</th>
+                    <th className="px-4 py-3">Phone</th>
                     <th className="px-4 py-3">Scheduled</th>
                     <th className="px-4 py-3">Sent At</th>
                     <th className="px-4 py-3">Status</th>
@@ -1254,6 +1255,13 @@ export default function WebinarRemindersPage() {
                           {log.registration.name || log.registration.email}
                         </p>
                         <p className="text-xs text-gray-500">{log.registration.email}</p>
+                      </td>
+                      <td className="px-4 py-3 align-top">
+                        {log.registration.phone ? (
+                          <span className="font-mono text-sm text-gray-900">{log.registration.phone}</span>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 align-top">
                         {formatDateTime(log.scheduledFor)}
@@ -1279,7 +1287,7 @@ export default function WebinarRemindersPage() {
                   ))}
                   {reminderLogs.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="px-4 py-8 text-center text-sm text-gray-500">
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
                         No reminder activity yet.
                       </td>
                     </tr>
