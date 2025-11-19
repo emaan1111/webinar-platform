@@ -37,7 +37,8 @@ export async function POST(request: Request) {
       select: {
         id: true,
         title: true,
-        duration: true
+        duration: true,
+        scheduledAt: true
       }
     });
 
@@ -107,7 +108,7 @@ export async function POST(request: Request) {
           phone: registration.phone!,
           message: personalizedMessage,
           sendAt,
-          status: sendTiming === 'immediate' ? 'PENDING' : 'SCHEDULED',
+          status: 'PENDING', // All reminders start as PENDING
           type: 'post_webinar'
         }
       });
