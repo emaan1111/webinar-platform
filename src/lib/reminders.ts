@@ -516,7 +516,7 @@ export async function processPendingReminders(): Promise<{
             : `Failed to apply ClickFunnels tag "${reminder.template.clickFunnelsTag}"`
         }
       } else if (
-        reminder.template.applyClickFunnelsTag &&
+        reminder.template?.applyClickFunnelsTag &&
         !channelSuccess
       ) {
         console.log(
