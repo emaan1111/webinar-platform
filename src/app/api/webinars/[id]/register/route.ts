@@ -5,6 +5,7 @@ import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
 import { scheduleDelayedClickFunnelsTag } from '@/lib/clickfunnelsReminderTags'
 import { generateReferralCode } from '@/lib/referral'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
+import { scheduleRemindersForRegistration } from '@/lib/reminders'
 
 const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
   Promise.resolve()
@@ -286,6 +287,10 @@ export async function POST(
         zoomLink: schedule?.zoomLink || undefined,
         isZoomSession: schedule?.isZoomSession || false,
       }).catch(err => console.error('ClickFunnels sync error:', err));
+
+      // Schedule email and SMS reminders
+      await scheduleRemindersForRegistration(registration.id)
+        .catch(err => console.error('Failed to schedule reminders:', err));
 
       // Schedule reminder tags
       if (registration.scheduledStartTime) {
