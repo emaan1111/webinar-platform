@@ -536,6 +536,13 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
   const TYPE = '${type}';
   const API_BASE = '${apiBase}';
   const THEME_NAME = '${theme}';
+  
+  console.log('🎯 Webinar Embed Script Loaded', {
+    type: TYPE,
+    theme: THEME_NAME,
+    webinarId: WEBINAR_DATA.id,
+    readyState: document.readyState
+  });
 
   // CSS Styles
   const popupBaseStyles = \`
@@ -1106,38 +1113,51 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     }
   }
 
-  // Initialize based on type
-  if (TYPE === 'popup') {
-    // Find all buttons with data-webinar-popup attribute
-    document.addEventListener('DOMContentLoaded', () => {
-      const buttons = document.querySelectorAll(\`[data-webinar-popup="\${WEBINAR_DATA.id}"]\`);
-      buttons.forEach(button => {
-        button.addEventListener('click', createPopupModal);
-      });
-    });
-
-    // If already loaded, attach immediately
-    if (document.readyState === 'complete' || document.readyState === 'interactive') {
-      const buttons = document.querySelectorAll(\`[data-webinar-popup="\${WEBINAR_DATA.id}"]\`);
-      buttons.forEach(button => {
-        button.addEventListener('click', createPopupModal);
-      });
-    }
-  } else {
-    // Inline mode
+  // Initialize inline embed
+  function initializeInlineEmbed() {
     const container = document.getElementById(\`webinar-embed-\${WEBINAR_DATA.id}\`);
     if (container) {
       container.className = 'webinar-embed-inline';
       container.innerHTML = createInlineHTML(THEME_NAME);
 
       const form = document.getElementById('webinar-embed-form');
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const validation = validateForm();
-        if (validation.isValid) {
-          await submitRegistration(validation.data);
-        }
-      });
+      if (form) {
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const validation = validateForm();
+          if (validation.isValid) {
+            await submitRegistration(validation.data);
+          }
+        });
+      }
+    } else {
+      console.warn('Webinar embed container not found:', \`webinar-embed-\${WEBINAR_DATA.id}\`);
+    }
+  }
+
+  // Initialize popup embed
+  function initializePopupEmbed() {
+    const buttons = document.querySelectorAll(\`[data-webinar-popup="\${WEBINAR_DATA.id}"]\`);
+    buttons.forEach(button => {
+      button.addEventListener('click', createPopupModal);
+    });
+  }
+
+  // Initialize based on type
+  if (TYPE === 'popup') {
+    // Find all buttons with data-webinar-popup attribute
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializePopupEmbed);
+    } else {
+      initializePopupEmbed();
+    }
+  } else {
+    // Inline mode - wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initializeInlineEmbed);
+    } else {
+      // DOM is already ready, but use setTimeout to ensure container exists
+      setTimeout(initializeInlineEmbed, 0);
     }
   }
 })();
