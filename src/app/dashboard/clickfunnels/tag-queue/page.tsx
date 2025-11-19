@@ -1,0 +1,413 @@
+'use client'
+
+import { useState, useEffect } from 'react'
+import { useSession } from 'next-auth/react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { 
+  ArrowLeft, 
+  RefreshCw, 
+  CheckCircle, 
+  Clock, 
+  XCircle, 
+  Calendar,
+  User,
+  Mail,
+  Tag as TagIcon,
+  Filter,
+  AlertCircle
+} from 'lucide-react'
+
+interface ClickFunnelsTag {
+  id: string
+  registrationId: string
+  tagName: string
+  scheduledFor: string
+  status: 'PENDING' | 'APPLIED' | 'FAILED'
+  appliedAt?: string
+  errorMessage?: string
+  createdAt: string
+  registration: {
+    id: string
+    name: string
+    email: string
+    createdAt: string
+    webinar: {
+      id: string
+      title: string
+    }
+    schedule: {
+      id: string
+      scheduledAt?: string
+      scheduleType: string
+    }
+  }
+}
+
+interface Stats {
+  total: number
+  pending: number
+  applied: number
+  failed: number
+}
+
+interface Webinar {
+  id: string
+  title: string
+}
+
+export default function ClickFunnelsTagQueuePage() {
+  const { data: session, status } = useSession()
+  const router = useRouter()
+  const [tags, setTags] = useState<ClickFunnelsTag[]>([])
+  const [stats, setStats] = useState<Stats>({ total: 0, pending: 0, applied: 0, failed: 0 })
+  const [webinars, setWebinars] = useState<Webinar[]>([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [webinarFilter, setWebinarFilter] = useState('')
+
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/auth/signin')
+    } else if (status === 'authenticated') {
+      fetchTags()
+    }
+  }, [status, statusFilter, webinarFilter])
+
+  const fetchTags = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (statusFilter !== 'all') params.append('status', statusFilter)
+      if (webinarFilter) params.append('webinarId', webinarFilter)
+      
+      const response = await fetch(`/api/clickfunnels/tag-queue?${params}`)
+      const data = await response.json()
+      
+      setTags(data.tags || [])
+      setStats(data.stats || { total: 0, pending: 0, applied: 0, failed: 0 })
+      setWebinars(data.webinars || [])
+    } catch (error) {
+      console.error('Failed to fetch tags:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRefresh = async () => {
+    setRefreshing(true)
+    await fetchTags()
+    setRefreshing(false)
+  }
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'PENDING':
+        return <Clock className="w-5 h-5 text-yellow-500" />
+      case 'APPLIED':
+        return <CheckCircle className="w-5 h-5 text-green-500" />
+      case 'FAILED':
+        return <XCircle className="w-5 h-5 text-red-500" />
+      default:
+        return <AlertCircle className="w-5 h-5 text-gray-500" />
+    }
+  }
+
+  const getStatusBadge = (status: string) => {
+    const styles = {
+      PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      APPLIED: 'bg-green-100 text-green-800 border-green-200',
+      FAILED: 'bg-red-100 text-red-800 border-red-200'
+    }
+    
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${styles[status as keyof typeof styles]}`}>
+        {status}
+      </span>
+    )
+  }
+
+  const getTagBadge = (tagName: string) => {
+    const styles = {
+      '24HRREMINDER': 'bg-blue-100 text-blue-800',
+      '2HRREMINDER': 'bg-indigo-100 text-indigo-800',
+      '1HRREMINDER': 'bg-purple-100 text-purple-800',
+      '15MINREMINDER': 'bg-pink-100 text-pink-800',
+      'WESTARTED': 'bg-green-100 text-green-800'
+    }
+    
+    const displayNames = {
+      '24HRREMINDER': '24 Hour',
+      '2HRREMINDER': '2 Hour',
+      '1HRREMINDER': '1 Hour',
+      '15MINREMINDER': '15 Min',
+      'WESTARTED': 'Started'
+    }
+    
+    return (
+      <span className={`px-2 py-1 rounded text-xs font-medium ${styles[tagName as keyof typeof styles] || 'bg-gray-100 text-gray-800'}`}>
+        {displayNames[tagName as keyof typeof displayNames] || tagName}
+      </span>
+    )
+  }
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString)
+    return date.toLocaleString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
+  }
+
+  const isOverdue = (scheduledFor: string, status: string) => {
+    if (status !== 'PENDING') return false
+    return new Date(scheduledFor) < new Date()
+  }
+
+  if (status === 'loading' || loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading tag queue...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link 
+                href="/dashboard" 
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <ArrowLeft className="w-5 h-5 text-gray-600" />
+              </Link>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">ClickFunnels Tag Queue</h1>
+                <p className="text-sm text-gray-600 mt-1">Monitor tag application status for all registrations</p>
+              </div>
+            </div>
+            <button
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Total Tags</p>
+                <p className="text-3xl font-bold text-gray-900">{stats.total}</p>
+              </div>
+              <TagIcon className="w-10 h-10 text-gray-400" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-yellow-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-yellow-700 mb-1">Pending</p>
+                <p className="text-3xl font-bold text-yellow-600">{stats.pending}</p>
+              </div>
+              <Clock className="w-10 h-10 text-yellow-400" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-green-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-green-700 mb-1">Applied</p>
+                <p className="text-3xl font-bold text-green-600">{stats.applied}</p>
+              </div>
+              <CheckCircle className="w-10 h-10 text-green-400" />
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm p-6 border border-red-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-red-700 mb-1">Failed</p>
+                <p className="text-3xl font-bold text-red-600">{stats.failed}</p>
+              </div>
+              <XCircle className="w-10 h-10 text-red-400" />
+            </div>
+          </div>
+        </div>
+
+        {/* Filters */}
+        <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
+          <div className="flex items-center gap-4">
+            <Filter className="w-5 h-5 text-gray-400" />
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="APPLIED">Applied</option>
+                  <option value="FAILED">Failed</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Webinar</label>
+                <select
+                  value={webinarFilter}
+                  onChange={(e) => setWebinarFilter(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Webinars</option>
+                  {webinars.map((webinar) => (
+                    <option key={webinar.id} value={webinar.id}>
+                      {webinar.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tags Table */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {tags.length === 0 ? (
+            <div className="text-center py-12">
+              <TagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No tags found</h3>
+              <p className="text-gray-600">
+                {statusFilter !== 'all' || webinarFilter 
+                  ? 'Try adjusting your filters' 
+                  : 'Tags will appear here when registrations are created'}
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b border-gray-200">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Contact
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Webinar
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Tag
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Scheduled For
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                      Applied At
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200">
+                  {tags.map((tag) => (
+                    <tr 
+                      key={tag.id} 
+                      className={`hover:bg-gray-50 transition-colors ${
+                        isOverdue(tag.scheduledFor, tag.status) ? 'bg-red-50' : ''
+                      }`}
+                    >
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-3">
+                          <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-gray-900">{tag.registration.name}</p>
+                            <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                              <Mail className="w-3 h-3" />
+                              {tag.registration.email}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <p className="text-sm text-gray-900">{tag.registration.webinar.title}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        {getTagBadge(tag.tagName)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-start gap-2">
+                          <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                          <div>
+                            <p className="text-sm text-gray-900">{formatDate(tag.scheduledFor)}</p>
+                            {isOverdue(tag.scheduledFor, tag.status) && (
+                              <p className="text-xs text-red-600 font-semibold mt-1">⚠️ Overdue</p>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                          {getStatusIcon(tag.status)}
+                          {getStatusBadge(tag.status)}
+                        </div>
+                        {tag.errorMessage && (
+                          <p className="text-xs text-red-600 mt-2 max-w-xs">{tag.errorMessage}</p>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        {tag.appliedAt ? (
+                          <p className="text-sm text-gray-900">{formatDate(tag.appliedAt)}</p>
+                        ) : (
+                          <span className="text-sm text-gray-400">-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Info Box */}
+        <div className="mt-6 bg-blue-50 border border-blue-200 rounded-xl p-6">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">How it works</h3>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li>• Tags are queued when someone registers for a webinar</li>
+                <li>• The cron job runs every 5 minutes to apply overdue tags</li>
+                <li>• <strong>PENDING</strong> = Tag is queued and waiting for scheduled time</li>
+                <li>• <strong>APPLIED</strong> = Tag was successfully applied to ClickFunnels</li>
+                <li>• <strong>FAILED</strong> = Tag application failed (check error message)</li>
+                <li>• Overdue tags are highlighted in red and will be processed on next cron run</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
