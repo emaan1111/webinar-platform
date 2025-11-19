@@ -98,64 +98,63 @@ export async function applyRegistrationTag(
     const now = new Date()
     const minutesUntilStart = Math.floor((webinarStartTime.getTime() - now.getTime()) / (1000 * 60))
 
-    console.log(`📋 Scheduling ClickFunnels registration tags for ${email} (${minutesUntilStart} minutes until start)`)
+    console.log(`📋 Scheduling ClickFunnels registration tag for ${email} (${minutesUntilStart} minutes until start)`)
 
     const { scheduleDelayedClickFunnelsTag } = await import('./clickfunnelsReminderTags')
 
-    // Schedule 24HR tag to be applied 24 hours before webinar
-    if (minutesUntilStart > 1440) { // More than 24 hours away
-      const apply24HrAt = new Date(webinarStartTime.getTime() - 24 * 60 * 60 * 1000) // 24 hours before
+    // Schedule ONLY ONE tag based on when they registered
+    // ClickFunnels will handle the rest of the reminder sequence from there
+    
+    if (minutesUntilStart > 1440) { 
+      // More than 24 hours away → Schedule 24HR tag
+      const apply24HrAt = new Date(webinarStartTime.getTime() - 24 * 60 * 60 * 1000)
       await scheduleDelayedClickFunnelsTag({
         registrationId,
         tagName: '24HRREMINDER',
         scheduledFor: apply24HrAt
       })
       console.log(`⏰ Scheduled 24HRREMINDER tag for ${apply24HrAt.toISOString()}`)
-    }
-
-    // Schedule 2HR tag to be applied 2 hours before webinar
-    if (minutesUntilStart > 120) { // More than 2 hours away
-      const apply2HrAt = new Date(webinarStartTime.getTime() - 2 * 60 * 60 * 1000) // 2 hours before
+      
+    } else if (minutesUntilStart > 120) { 
+      // Between 2-24 hours away → Schedule 2HR tag
+      const apply2HrAt = new Date(webinarStartTime.getTime() - 2 * 60 * 60 * 1000)
       await scheduleDelayedClickFunnelsTag({
         registrationId,
         tagName: '2HRREMINDER',
         scheduledFor: apply2HrAt
       })
       console.log(`⏰ Scheduled 2HRREMINDER tag for ${apply2HrAt.toISOString()}`)
-    }
-
-    // Schedule 1HR tag to be applied 1 hour before webinar  
-    if (minutesUntilStart > 60) { // More than 1 hour away
-      const apply1HrAt = new Date(webinarStartTime.getTime() - 1 * 60 * 60 * 1000) // 1 hour before
+      
+    } else if (minutesUntilStart > 60) { 
+      // Between 1-2 hours away → Schedule 1HR tag
+      const apply1HrAt = new Date(webinarStartTime.getTime() - 1 * 60 * 60 * 1000)
       await scheduleDelayedClickFunnelsTag({
         registrationId,
         tagName: '1HRREMINDER',
         scheduledFor: apply1HrAt
       })
       console.log(`⏰ Scheduled 1HRREMINDER tag for ${apply1HrAt.toISOString()}`)
-    }
-
-    // Schedule 15MIN tag to be applied 15 minutes before webinar
-    if (minutesUntilStart > 15) { // More than 15 minutes away
-      const apply15MinAt = new Date(webinarStartTime.getTime() - 15 * 60 * 1000) // 15 minutes before
+      
+    } else if (minutesUntilStart > 15) { 
+      // Between 15 min - 1 hour away → Schedule 15MIN tag
+      const apply15MinAt = new Date(webinarStartTime.getTime() - 15 * 60 * 1000)
       await scheduleDelayedClickFunnelsTag({
         registrationId,
         tagName: '15MINREMINDER',
         scheduledFor: apply15MinAt
       })
       console.log(`⏰ Scheduled 15MINREMINDER tag for ${apply15MinAt.toISOString()}`)
-    }
-
-    // If webinar already started or starting very soon, apply WESTARTED immediately
-    if (minutesUntilStart <= 15 && minutesUntilStart >= 0) {
+      
+    } else if (minutesUntilStart >= 0) {
+      // Less than 15 minutes away → Apply WESTARTED immediately
       const { applyReminderTagToContact } = await import('./clickfunnels')
       await applyReminderTagToContact(email, 'WESTARTED')
       console.log(`✅ Applied WESTARTED tag immediately (webinar starting soon)`)
     }
 
-    console.log(`✅ ClickFunnels tags scheduled successfully for ${email}`)
+    console.log(`✅ ClickFunnels tag scheduled successfully for ${email}`)
   } catch (error) {
-    console.error('❌ Failed to schedule registration tags:', error)
+    console.error('❌ Failed to schedule registration tag:', error)
   }
 }
 

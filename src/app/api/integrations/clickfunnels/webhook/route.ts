@@ -170,17 +170,20 @@ export async function POST(request: NextRequest) {
 
     console.log('Registration created:', registration.id);
 
-    // Schedule ClickFunnels reminder tags (queued for cron job to apply at appropriate times)
+    // Schedule ClickFunnels reminder tag (ONE tag only - CF handles the rest)
     if (registration.scheduledStartTime) {
       const webinarStart = new Date(registration.scheduledStartTime)
       const minutesUntilStart = Math.floor((webinarStart.getTime() - Date.now()) / (1000 * 60))
 
-      console.log(`📋 Scheduling ClickFunnels tags for CF webhook registration (${minutesUntilStart} minutes until start)`)
+      console.log(`📋 Scheduling ClickFunnels tag for CF webhook registration (${minutesUntilStart} minutes until start)`)
 
       const { scheduleDelayedClickFunnelsTag } = await import('@/lib/clickfunnelsReminderTags')
 
-      // Schedule 24HR tag if more than 24 hours away
+      // Schedule ONLY ONE tag based on when they registered
+      // ClickFunnels will handle the rest of the reminder sequence from there
+      
       if (minutesUntilStart > 1440) {
+        // More than 24 hours away → Schedule 24HR tag
         await scheduleDelayedClickFunnelsTag({
           registrationId: registration.id,
           tagName: '24HRREMINDER',
@@ -188,10 +191,9 @@ export async function POST(request: NextRequest) {
         }).catch((error) => {
           console.error('⚠️ Failed to schedule 24HRREMINDER tag:', error)
         })
-      }
-
-      // Schedule 2HR tag if more than 2 hours away
-      if (minutesUntilStart > 120) {
+        
+      } else if (minutesUntilStart > 120) {
+        // Between 2-24 hours away → Schedule 2HR tag
         await scheduleDelayedClickFunnelsTag({
           registrationId: registration.id,
           tagName: '2HRREMINDER',
@@ -199,10 +201,9 @@ export async function POST(request: NextRequest) {
         }).catch((error) => {
           console.error('⚠️ Failed to schedule 2HRREMINDER tag:', error)
         })
-      }
-
-      // Schedule 1HR tag if more than 1 hour away
-      if (minutesUntilStart > 60) {
+        
+      } else if (minutesUntilStart > 60) {
+        // Between 1-2 hours away → Schedule 1HR tag
         await scheduleDelayedClickFunnelsTag({
           registrationId: registration.id,
           tagName: '1HRREMINDER',
@@ -210,10 +211,9 @@ export async function POST(request: NextRequest) {
         }).catch((error) => {
           console.error('⚠️ Failed to schedule 1HRREMINDER tag:', error)
         })
-      }
-
-      // Schedule 15MIN tag if more than 15 minutes away
-      if (minutesUntilStart > 15) {
+        
+      } else if (minutesUntilStart > 15) {
+        // Between 15 min - 1 hour away → Schedule 15MIN tag
         await scheduleDelayedClickFunnelsTag({
           registrationId: registration.id,
           tagName: '15MINREMINDER',
@@ -221,10 +221,9 @@ export async function POST(request: NextRequest) {
         }).catch((error) => {
           console.error('⚠️ Failed to schedule 15MINREMINDER tag:', error)
         })
-      }
-
-      // If webinar starting very soon, apply WESTARTED immediately
-      if (minutesUntilStart <= 15 && minutesUntilStart >= 0) {
+        
+      } else if (minutesUntilStart >= 0) {
+        // Less than 15 minutes away → Apply WESTARTED immediately
         const { applyReminderTagToContact } = await import('@/lib/clickfunnels')
         await applyReminderTagToContact(registration.email, 'WESTARTED').catch((error) => {
           console.error('⚠️ Failed to apply WESTARTED tag:', error)
