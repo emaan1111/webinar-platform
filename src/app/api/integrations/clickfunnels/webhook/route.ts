@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
         device: 'desktop', // ClickFunnels doesn't provide this
         enteredAt: new Date(),
       }
-    }).catch(err => {
+    }).catch((err: unknown) => {
       console.error('Failed to track page visit:', err);
       // Don't fail the registration if tracking fails
     });
@@ -394,7 +394,7 @@ async function handleOrderCreated(payload: ClickFunnelsWebhookPayload) {
     await prisma.registration.update({
       where: { id: registration.id },
       data: { hasPurchased: true },
-    }).catch((error) => {
+    }).catch((error: unknown) => {
       console.error('Failed to update registration hasPurchased flag', error);
     });
 
@@ -410,7 +410,7 @@ async function handleOrderCreated(payload: ClickFunnelsWebhookPayload) {
           convertedAt: new Date(),
         },
       })
-      .catch((error) => {
+      .catch((error: unknown) => {
         console.error('Failed to update offer analytics for sale', error);
       });
   }
