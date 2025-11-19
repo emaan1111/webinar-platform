@@ -21,6 +21,8 @@ export default function UserManagementPage() {
   const [creating, setCreating] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -111,6 +113,126 @@ export default function UserManagementPage() {
     }
   }
 
+  const handleToggleSelectUser = (userId: string) => {
+    const newSelection = new Set(selectedUserIds)
+    if (newSelection.has(userId)) {
+      newSelection.delete(userId)
+    } else {
+      newSelection.add(userId)
+    }
+    setSelectedUserIds(newSelection)
+  }
+
+  const handleSelectAll = () => {
+    if (selectedUserIds.size === users.length) {
+      setSelectedUserIds(new Set())
+    } else {
+      setSelectedUserIds(new Set(users.map(u => u.id)))
+    }
+  }
+
+  const handleBulkDelete = async () => {
+    if (selectedUserIds.size === 0) {
+      setError('Please select at least one user to delete')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete ${selectedUserIds.size} user(s)?`)) {
+      return
+    }
+
+    setDeleting(true)
+    setError('')
+
+    try {
+      const deletePromises = Array.from(selectedUserIds).map(userId =>
+        fetch(`/api/users/${userId}`, { method: 'DELETE' })
+      )
+
+      const results = await Promise.all(deletePromises)
+      const failedCount = results.filter(r => !r.ok).length
+
+      if (failedCount === 0) {
+        setSuccess(`Successfully deleted ${selectedUserIds.size} user(s)!`)
+        setSelectedUserIds(new Set())
+      } else {
+        setError(`Failed to delete ${failedCount} user(s). ${results.length - failedCount} deleted successfully.`)
+      }
+
+      fetchUsers()
+      setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 3000)
+    } catch (error) {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteScriptedUsers = async () => {
+    // Identify users that look scripted/fake (test emails, scripted names, etc.)
+    const scriptedUsers = users.filter(user => {
+      const email = user.email.toLowerCase()
+      const name = user.name.toLowerCase()
+      
+      // Check for test/demo/fake patterns
+      return (
+        email.includes('test') ||
+        email.includes('demo') ||
+        email.includes('fake') ||
+        email.includes('scripted') ||
+        email.includes('example') ||
+        email.includes('sample') ||
+        name.includes('test') ||
+        name.includes('demo') ||
+        name.includes('fake') ||
+        name.includes('scripted') ||
+        name.includes('sample')
+      )
+    })
+
+    if (scriptedUsers.length === 0) {
+      setError('No scripted/test users found')
+      setTimeout(() => setError(''), 3000)
+      return
+    }
+
+    if (!confirm(`Found ${scriptedUsers.length} potential test/scripted user(s). Delete them all?`)) {
+      return
+    }
+
+    setDeleting(true)
+    setError('')
+
+    try {
+      const deletePromises = scriptedUsers.map(user =>
+        fetch(`/api/users/${user.id}`, { method: 'DELETE' })
+      )
+
+      const results = await Promise.all(deletePromises)
+      const failedCount = results.filter(r => !r.ok).length
+
+      if (failedCount === 0) {
+        setSuccess(`Successfully deleted ${scriptedUsers.length} test/scripted user(s)!`)
+      } else {
+        setError(`Failed to delete ${failedCount} user(s). ${results.length - failedCount} deleted successfully.`)
+      }
+
+      fetchUsers()
+      setSelectedUserIds(new Set())
+      setTimeout(() => {
+        setSuccess('')
+        setError('')
+      }, 3000)
+    } catch (error) {
+      setError('Something went wrong. Please try again.')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -125,10 +247,34 @@ export default function UserManagementPage() {
               Manage administrator accounts and permissions
             </p>
           </div>
-          <Button onClick={() => setShowCreateModal(true)}>
-            <Plus className="w-4 h-4 mr-2" />
-            Create User
-          </Button>
+          <div className="flex items-center gap-3">
+            {selectedUserIds.size > 0 && (
+              <>
+                <Button
+                  variant="secondary"
+                  onClick={handleBulkDelete}
+                  disabled={deleting}
+                  className="flex items-center gap-2"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  {deleting ? 'Deleting...' : `Delete ${selectedUserIds.size} Selected`}
+                </Button>
+              </>
+            )}
+            <Button
+              variant="secondary"
+              onClick={handleDeleteScriptedUsers}
+              disabled={deleting}
+              className="flex items-center gap-2 bg-orange-100 text-orange-700 hover:bg-orange-200"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Test Users
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)}>
+              <Plus className="w-4 h-4 mr-2" />
+              Create User
+            </Button>
+          </div>
         </div>
 
         {/* Success/Error Messages */}
@@ -165,6 +311,14 @@ export default function UserManagementPage() {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr>
+                      <th className="px-6 py-3 text-left">
+                        <input
+                          type="checkbox"
+                          checked={users.length > 0 && selectedUserIds.size === users.length}
+                          onChange={handleSelectAll}
+                          className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                        />
+                      </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         User
                       </th>
@@ -183,42 +337,68 @@ export default function UserManagementPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {users.map((user) => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div className="flex-shrink-0 h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center">
-                              <span className="text-white text-sm font-medium">
-                                {user.name.charAt(0).toUpperCase()}
-                              </span>
+                    {users.map((user) => {
+                      const isScripted = 
+                        user.email.toLowerCase().includes('test') ||
+                        user.email.toLowerCase().includes('demo') ||
+                        user.email.toLowerCase().includes('fake') ||
+                        user.email.toLowerCase().includes('scripted') ||
+                        user.name.toLowerCase().includes('test') ||
+                        user.name.toLowerCase().includes('demo') ||
+                        user.name.toLowerCase().includes('fake')
+                      
+                      return (
+                        <tr key={user.id} className={isScripted ? 'bg-orange-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <input
+                              type="checkbox"
+                              checked={selectedUserIds.has(user.id)}
+                              onChange={() => handleToggleSelectUser(user.id)}
+                              className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-blue-600 rounded-full flex items-center justify-center">
+                                <span className="text-white text-sm font-medium">
+                                  {user.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <div className="ml-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                  {isScripted && (
+                                    <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-orange-200 text-orange-800">
+                                      TEST
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(user.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <button
-                            onClick={() => handleDeleteUser(user.id)}
-                            className="text-red-600 hover:text-red-900"
-                            title="Delete user"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-900">{user.email}</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                              {user.role}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {new Date(user.createdAt).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              className="text-red-600 hover:text-red-900"
+                              title="Delete user"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>
