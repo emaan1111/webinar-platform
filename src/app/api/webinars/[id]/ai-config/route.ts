@@ -23,12 +23,9 @@ export async function GET(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    const webinar = await prisma.webinar.findFirst({
-      where: {
-        id: params.id,
-        hostId: user.id,
-      },
+    // Get webinar (removed hostId check so all admins can access)
+    const webinar = await prisma.webinar.findUnique({
+      where: { id: params.id },
       include: {
         aiChatConfig: true,
         programDocuments: {
@@ -74,12 +71,9 @@ export async function POST(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Verify ownership
-    const webinar = await prisma.webinar.findFirst({
-      where: {
-        id: params.id,
-        hostId: user.id,
-      },
+    // Get webinar (removed hostId check so all admins can access)
+    const webinar = await prisma.webinar.findUnique({
+      where: { id: params.id },
     });
 
     if (!webinar) {

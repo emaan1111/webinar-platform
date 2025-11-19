@@ -30,17 +30,14 @@ export async function PUT(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Verify the webinar belongs to the user
-    const webinar = await prisma.webinar.findFirst({
-      where: {
-        id: params.id,
-        hostId: user.id,
-      },
+    // Verify the webinar exists (removed hostId check so all admins can access)
+    const webinar = await prisma.webinar.findUnique({
+      where: { id: params.id },
     });
 
     if (!webinar) {
       return NextResponse.json(
-        { error: 'Webinar not found or access denied' },
+        { error: 'Webinar not found' },
         { status: 404 }
       );
     }
@@ -127,17 +124,14 @@ export async function DELETE(
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Verify the webinar belongs to the user
-    const webinar = await prisma.webinar.findFirst({
-      where: {
-        id: params.id,
-        hostId: user.id,
-      },
+    // Verify the webinar exists (removed hostId check so all admins can access)
+    const webinar = await prisma.webinar.findUnique({
+      where: { id: params.id },
     });
 
     if (!webinar) {
       return NextResponse.json(
-        { error: 'Webinar not found or access denied' },
+        { error: 'Webinar not found' },
         { status: 404 }
       );
     }
