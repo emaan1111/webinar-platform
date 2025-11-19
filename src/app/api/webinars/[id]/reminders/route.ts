@@ -57,13 +57,29 @@ export async function POST(
       smsBody,
       isActive,
       applyClickFunnelsTag,
-      clickFunnelsTag
+      clickFunnelsTag,
+      isPostWebinar,
+      watchTargetType,
+      watchTargetSeconds
     } = body
 
     const minutesBeforeNumber =
       typeof minutesBefore === 'number'
         ? minutesBefore
         : Number(minutesBefore)
+    const normalizedWatchType =
+      watchTargetType === 'WATCHED_UP_TO' ||
+      watchTargetType === 'WATCHED_AT_LEAST'
+        ? watchTargetType
+        : 'ANY'
+    const parsedWatchSeconds =
+      normalizedWatchType === 'ANY'
+        ? null
+        : Math.round(
+            typeof watchTargetSeconds === 'number'
+              ? watchTargetSeconds
+              : Number(watchTargetSeconds)
+          )
 
     // Validation
     if (
@@ -84,6 +100,18 @@ export async function POST(
       )
     }
 
+    if (
+      normalizedWatchType !== 'ANY' &&
+      (parsedWatchSeconds === null ||
+        Number.isNaN(parsedWatchSeconds) ||
+        parsedWatchSeconds <= 0)
+    ) {
+      return NextResponse.json(
+        { error: 'watchTargetSeconds must be provided for this targeting mode' },
+        { status: 400 }
+      )
+    }
+
     const template = await createReminderTemplate(id, {
       minutesBefore: minutesBeforeNumber,
       channel: channel || 'EMAIL',
@@ -92,7 +120,10 @@ export async function POST(
       smsBody,
       isActive: typeof isActive === 'boolean' ? isActive : true,
       applyClickFunnelsTag: Boolean(applyClickFunnelsTag),
-      clickFunnelsTag: clickFunnelsTag ? String(clickFunnelsTag).toUpperCase() : null
+      clickFunnelsTag: clickFunnelsTag ? String(clickFunnelsTag).toUpperCase() : null,
+      isPostWebinar: Boolean(isPostWebinar),
+      watchTargetType: normalizedWatchType,
+      watchTargetSeconds: parsedWatchSeconds
     })
 
     return NextResponse.json(template, { status: 201 })

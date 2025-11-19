@@ -19,7 +19,7 @@ interface ChatMessage {
   userId: string
   message: string
   isHidden: boolean
-  isApproved: boolean
+  isApproved: boolean  // Always boolean in DB (default: false)
   isScripted: boolean
   videoTimestamp: number | null
   createdAt: string
@@ -110,6 +110,25 @@ export default function ChatModerationPage() {
   const visibleMessages = messages.filter(msg => !msg.isHidden)
   const hiddenMessages = messages.filter(msg => msg.isHidden)
 
+  // Debug logging - shows what we're working with
+  React.useEffect(() => {
+    if (messages.length > 0) {
+      console.log('📊 Chat Debug Info:', {
+        totalMessages: messages.length,
+        pendingCount: pendingMessages.length,
+        approvedCount: approvedMessages.length,
+        scriptedCount: scriptedMessages.length,
+        currentFilter: statusFilter,
+        sampleMessages: messages.slice(0, 3).map(m => ({
+          id: m.id.slice(0, 8),
+          isScripted: m.isScripted,
+          isApproved: m.isApproved,
+          message: m.message.slice(0, 30)
+        }))
+      })
+    }
+  }, [messages, statusFilter])
+
   const statusOptions: Array<{ value: StatusFilter; label: string; count: number }> = [
     { value: 'all', label: 'All', count: messages.length },
     { value: 'pending', label: 'Pending', count: pendingMessages.length },
@@ -136,6 +155,17 @@ export default function ChatModerationPage() {
         (statusFilter === 'pending' && !msg.isScripted && msg.isApproved !== true) ||
         (statusFilter === 'approved' && !msg.isScripted && msg.isApproved === true) ||
         (statusFilter === 'scripted' && msg.isScripted)
+
+      // Debug for pending filter
+      if (statusFilter === 'pending' && !matchesStatus) {
+        console.log('❌ Rejected by pending filter:', {
+          msg: msg.message.slice(0, 30),
+          isScripted: msg.isScripted,
+          isApproved: msg.isApproved,
+          isApprovedType: typeof msg.isApproved,
+          condition: `!isScripted: ${!msg.isScripted}, isApproved !== true: ${msg.isApproved !== true}`
+        })
+      }
 
       return matchesSearch && matchesWebinar && matchesStatus
     })

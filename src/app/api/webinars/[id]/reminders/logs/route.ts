@@ -45,7 +45,10 @@ export async function GET(
         template: {
           select: {
             minutesBefore: true,
-            channel: true
+            channel: true,
+            isPostWebinar: true,
+            watchTargetType: true,
+            watchTargetSeconds: true
           }
         }
       },

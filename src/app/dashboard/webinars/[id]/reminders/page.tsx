@@ -27,11 +27,14 @@ import {
   Info
 } from 'lucide-react'
 
+type ReminderChannel = 'EMAIL' | 'SMS' | 'BOTH'
+type WatchTargetType = 'ANY' | 'WATCHED_UP_TO' | 'WATCHED_AT_LEAST'
+
 interface ReminderTemplate {
   id: string
   webinarId: string
   minutesBefore: number
-  channel: 'EMAIL' | 'SMS' | 'BOTH'
+  channel: ReminderChannel
   emailSubject: string
   emailBody: string
   smsBody?: string
@@ -40,6 +43,9 @@ interface ReminderTemplate {
   updatedAt: string
   applyClickFunnelsTag: boolean
   clickFunnelsTag?: string | null
+  isPostWebinar?: boolean
+  watchTargetType?: WatchTargetType
+  watchTargetSeconds?: number | null
 }
 
 interface ReminderLog {
@@ -56,7 +62,10 @@ interface ReminderLog {
   }
   template: {
     minutesBefore: number
-    channel: 'EMAIL' | 'SMS' | 'BOTH'
+    channel: ReminderChannel
+    isPostWebinar?: boolean
+    watchTargetType?: WatchTargetType
+    watchTargetSeconds?: number | null
   }
 }
 
@@ -64,6 +73,20 @@ interface Webinar {
   id: string
   title: string
   slug?: string
+}
+
+interface ReminderFormState {
+  minutesBefore: number
+  channel: ReminderChannel
+  emailSubject: string
+  emailBody: string
+  smsBody: string
+  isActive: boolean
+  applyClickFunnelsTag: boolean
+  clickFunnelsTag: string
+  isPostWebinar: boolean
+  watchTargetType: WatchTargetType
+  watchTargetMinutes: number
 }
 
 export default function WebinarRemindersPage() {
@@ -83,15 +106,18 @@ export default function WebinarRemindersPage() {
   const [logError, setLogError] = useState('')
 
   // Form state
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<ReminderFormState>({
     minutesBefore: 1440, // 24 hours
-    channel: 'EMAIL' as 'EMAIL' | 'SMS' | 'BOTH',
+    channel: 'EMAIL',
     emailSubject: '',
     emailBody: '',
     smsBody: '',
     isActive: true,
     applyClickFunnelsTag: false,
-    clickFunnelsTag: ''
+    clickFunnelsTag: '',
+    isPostWebinar: false,
+    watchTargetType: 'ANY',
+    watchTargetMinutes: 0
   })
 
   useEffect(() => {
@@ -159,14 +185,30 @@ export default function WebinarRemindersPage() {
     setError('')
 
     try {
+      if (
+        formData.watchTargetType !== 'ANY' &&
+        formData.watchTargetMinutes <= 0
+      ) {
+        throw new Error('Set a watch target greater than 0 minutes')
+      }
+
       const url = editingId
         ? `/api/webinars/${params.id}/reminders/${editingId}`
         : `/api/webinars/${params.id}/reminders`
 
+      const { watchTargetMinutes, ...rest } = formData
+      const payload = {
+        ...rest,
+        watchTargetSeconds:
+          rest.watchTargetType === 'ANY'
+            ? null
+            : Math.round(Math.max(1, watchTargetMinutes) * 60)
+      }
+
       const response = await fetch(url, {
         method: editingId ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       })
 
       if (!response.ok) {
@@ -192,7 +234,13 @@ export default function WebinarRemindersPage() {
       smsBody: reminder.smsBody || '',
       isActive: reminder.isActive,
       applyClickFunnelsTag: reminder.applyClickFunnelsTag || false,
-      clickFunnelsTag: reminder.clickFunnelsTag || ''
+      clickFunnelsTag: reminder.clickFunnelsTag || '',
+      isPostWebinar: Boolean(reminder.isPostWebinar),
+      watchTargetType: reminder.watchTargetType || 'ANY',
+      watchTargetMinutes:
+        reminder.watchTargetSeconds && reminder.watchTargetSeconds > 0
+          ? Math.max(1, Math.round((reminder.watchTargetSeconds || 0) / 60))
+          : 0
     })
     setEditingId(reminder.id)
     setShowForm(true)
@@ -239,13 +287,17 @@ export default function WebinarRemindersPage() {
       smsBody: '',
       isActive: true,
       applyClickFunnelsTag: false,
-      clickFunnelsTag: ''
+      clickFunnelsTag: '',
+      isPostWebinar: false,
+      watchTargetType: 'ANY',
+      watchTargetMinutes: 0
     })
     setEditingId(null)
     setShowForm(false)
   }
 
   const formatMinutes = (minutes: number) => {
+    if (minutes === 0) return '0 minutes'
     if (minutes < 60) return `${minutes} minute${minutes !== 1 ? 's' : ''}`
     if (minutes < 1440) {
       const hours = Math.floor(minutes / 60)
@@ -255,24 +307,78 @@ export default function WebinarRemindersPage() {
     return `${days} day${days !== 1 ? 's' : ''}`
   }
 
-  const getPresetOptions = () => [
-    { label: '1 minute before', value: 1 },
-    { label: '2 minutes before', value: 2 },
-    { label: '3 minutes before', value: 3 },
-    { label: '5 minutes before', value: 5 },
-    { label: '10 minutes before', value: 10 },
-    { label: '15 minutes before', value: 15 },
-    { label: '30 minutes before', value: 30 },
-    { label: '1 hour before', value: 60 },
-    { label: '2 hours before', value: 120 },
-    { label: '6 hours before', value: 360 },
-    { label: '12 hours before', value: 720 },
-    { label: '24 hours before', value: 1440 },
-    { label: '2 days before', value: 2880 },
-    { label: '3 days before', value: 4320 },
-    { label: '1 week before', value: 10080 },
-    { label: 'Custom', value: -1 }
-  ]
+  const getPresetOptions = () => {
+    if (formData.isPostWebinar) {
+      return [
+        { label: 'Right after the webinar', value: 0 },
+        { label: '30 minutes after', value: 30 },
+        { label: '1 hour after', value: 60 },
+        { label: '6 hours after', value: 360 },
+        { label: '24 hours after', value: 1440 },
+        { label: '3 days after', value: 4320 },
+        { label: '1 week after', value: 10080 },
+        { label: 'Custom', value: -1 }
+      ]
+    }
+
+    return [
+      { label: '1 minute before', value: 1 },
+      { label: '2 minutes before', value: 2 },
+      { label: '3 minutes before', value: 3 },
+      { label: '5 minutes before', value: 5 },
+      { label: '10 minutes before', value: 10 },
+      { label: '15 minutes before', value: 15 },
+      { label: '30 minutes before', value: 30 },
+      { label: '1 hour before', value: 60 },
+      { label: '2 hours before', value: 120 },
+      { label: '6 hours before', value: 360 },
+      { label: '12 hours before', value: 720 },
+      { label: '24 hours before', value: 1440 },
+      { label: '2 days before', value: 2880 },
+      { label: '3 days before', value: 4320 },
+      { label: '1 week before', value: 10080 },
+      { label: 'Custom', value: -1 }
+    ]
+  }
+
+  const describeReminderTiming = (
+    minutes: number,
+    isPostWebinar?: boolean,
+    short = false
+  ) => {
+    if (isPostWebinar) {
+      if (minutes === 0) {
+        return short ? 'Right after end' : 'right after the webinar ends'
+      }
+      const base = formatMinutes(minutes)
+      return short ? `${base} after end` : `${base} after the webinar ends`
+    }
+
+    if (minutes === 0) {
+      return short ? 'At start' : 'at the scheduled start time'
+    }
+
+    const base = formatMinutes(minutes)
+    return short ? `${base} before` : `${base} before the webinar starts`
+  }
+
+  const describeWatchTarget = (
+    type?: WatchTargetType,
+    seconds?: number | null
+  ) => {
+    if (!type || type === 'ANY' || !seconds || seconds <= 0) {
+      return 'All registrants'
+    }
+
+    const minutes = Math.max(1, Math.round(seconds / 60))
+    const formatted = formatMinutes(minutes)
+
+    if (type === 'WATCHED_UP_TO') {
+      return `Attended up to ${formatted}`
+    }
+
+    return `Reached at least ${formatted}`
+  }
 
   const insertPlaceholder = (placeholder: string) => {
     const textarea = document.getElementById('emailBody') as HTMLTextAreaElement
@@ -471,10 +577,34 @@ export default function WebinarRemindersPage() {
             <CardBody>
               <form onSubmit={handleSubmit} className="space-y-6">
                 {/* Timing */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Send reminder
-                  </label>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Delivery timing
+                    </label>
+                    <div className="flex gap-2 flex-wrap">
+                      {[
+                        { value: false, label: 'Before webinar starts' },
+                        { value: true, label: 'After webinar ends' }
+                      ].map(option => (
+                        <button
+                          key={String(option.value)}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, isPostWebinar: option.value })}
+                          className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                            formData.isPostWebinar === option.value
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Choose whether this reminder goes out before the live session or as a post-webinar follow-up.
+                    </p>
+                  </div>
                   <div className="grid grid-cols-2 gap-4">
                     <select
                       value={formData.minutesBefore}
@@ -482,7 +612,7 @@ export default function WebinarRemindersPage() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     >
                       {getPresetOptions().map(option => (
-                        <option key={option.value} value={option.value}>
+                        <option key={`${option.label}-${option.value}`} value={option.value}>
                           {option.label}
                         </option>
                       ))}
@@ -490,15 +620,20 @@ export default function WebinarRemindersPage() {
                     {formData.minutesBefore === -1 && (
                       <input
                         type="number"
-                        min="1"
-                        placeholder="Minutes"
-                        onChange={(e) => setFormData({ ...formData, minutesBefore: parseInt(e.target.value) || 0 })}
+                        min={formData.isPostWebinar ? 0 : 1}
+                        placeholder={formData.isPostWebinar ? 'Minutes after end' : 'Minutes before start'}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            minutesBefore: parseInt(e.target.value) || 0
+                          })
+                        }
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
                     )}
                   </div>
-                  <p className="text-sm text-gray-500 mt-1">
-                    This reminder will be sent {formatMinutes(formData.minutesBefore)} before the webinar starts
+                  <p className="text-sm text-gray-500">
+                    This reminder will be sent {describeReminderTiming(formData.minutesBefore, formData.isPostWebinar)}
                   </p>
                 </div>
 
@@ -546,6 +681,65 @@ export default function WebinarRemindersPage() {
                       </button>
                     ))}
                   </div>
+                </div>
+
+                {/* Targeting */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Target attendees
+                  </label>
+                  <div className="flex gap-2 flex-wrap">
+                    {[
+                      { value: 'ANY', label: 'Everyone registered' },
+                      { value: 'WATCHED_UP_TO', label: 'Left before a point' },
+                      { value: 'WATCHED_AT_LEAST', label: 'Watched at least this far' }
+                    ].map(option => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() =>
+                          setFormData({
+                            ...formData,
+                            watchTargetType: option.value as WatchTargetType,
+                            watchTargetMinutes:
+                              option.value === 'ANY'
+                                ? 0
+                                : formData.watchTargetMinutes || 45
+                          })
+                        }
+                        className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${
+                          formData.watchTargetType === option.value
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    ))}
+                  </div>
+                  {formData.watchTargetType !== 'ANY' && (
+                    <div className="mt-3">
+                      <label className="block text-xs uppercase tracking-wide text-gray-500 mb-1">
+                        Watch point (minutes)
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        value={formData.watchTargetMinutes}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            watchTargetMinutes: Math.max(0, parseInt(e.target.value) || 0)
+                          })
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g. 45"
+                      />
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-500 mt-1">
+                    Perfect for SMS nudges — send follow-ups only to attendees who reached (or didn&rsquo;t reach) a key moment in the webinar.
+                  </p>
                 </div>
 
                 {/* Email Subject */}
@@ -805,7 +999,7 @@ export default function WebinarRemindersPage() {
                               : 'bg-gray-100 text-gray-600'
                           }`}>
                             <Clock className="h-4 w-4" />
-                            {formatMinutes(reminder.minutesBefore)} before
+                            {describeReminderTiming(reminder.minutesBefore, reminder.isPostWebinar, true)}
                           </div>
                           <div className="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-white text-gray-700 border border-gray-200">
                             <Send className="h-4 w-4" />
@@ -825,6 +1019,15 @@ export default function WebinarRemindersPage() {
                               CF Tag: {reminder.clickFunnelsTag}
                             </div>
                           )}
+                          {reminder.watchTargetType &&
+                            reminder.watchTargetType !== 'ANY' &&
+                            reminder.watchTargetSeconds &&
+                            reminder.watchTargetSeconds > 0 && (
+                              <div className="flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                                <Info className="h-4 w-4" />
+                                {describeWatchTarget(reminder.watchTargetType, reminder.watchTargetSeconds)}
+                              </div>
+                            )}
                         </div>
                         <h4 className="text-lg font-semibold text-gray-900 mb-2">
                           {reminder.emailSubject}
@@ -959,8 +1162,16 @@ export default function WebinarRemindersPage() {
                       <td className="px-4 py-3 align-top">
                         {formatDateTime(log.scheduledFor)}
                         <p className="text-xs text-gray-400">
-                          {log.template.minutesBefore} min before
+                          {describeReminderTiming(log.template.minutesBefore, log.template.isPostWebinar, true)}
                         </p>
+                        {log.template.watchTargetType &&
+                          log.template.watchTargetType !== 'ANY' &&
+                          log.template.watchTargetSeconds &&
+                          log.template.watchTargetSeconds > 0 && (
+                            <p className="text-xs text-gray-400">
+                              Target: {describeWatchTarget(log.template.watchTargetType, log.template.watchTargetSeconds)}
+                            </p>
+                          )}
                       </td>
                       <td className="px-4 py-3 align-top">
                         {formatDateTime(log.sentAt)}
