@@ -500,6 +500,7 @@ export async function processPendingReminders(): Promise<{
       let tagResult: { success: boolean; error?: string } = { success: true }
       if (
         channelSuccess &&
+        reminder.template &&
         reminder.template.applyClickFunnelsTag &&
         reminder.template.clickFunnelsTag
       ) {
@@ -628,7 +629,7 @@ export async function getWebinarReminderStats(webinarId: string) {
     _count: true
   })
 
-  return stats.reduce((acc, stat) => {
+  return stats.reduce((acc: Record<string, number>, stat: any) => {
     acc[stat.status] = stat._count
     return acc
   }, {} as Record<string, number>)
