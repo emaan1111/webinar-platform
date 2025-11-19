@@ -87,45 +87,75 @@ export async function deleteReminderTemplate(templateId: string) {
 
 /**
  * Apply ClickFunnels registration tag based on when user registered
- * Only ONE tag is applied based on the time before webinar
+ * SCHEDULES tags to be applied at the appropriate time by the cron job
  */
 export async function applyRegistrationTag(
   email: string,
-  webinarStartTime: Date
+  webinarStartTime: Date,
+  registrationId: string
 ): Promise<void> {
   try {
     const now = new Date()
     const minutesUntilStart = Math.floor((webinarStartTime.getTime() - now.getTime()) / (1000 * 60))
 
-    // Determine which tag to apply based on registration time
-    let tagToApply: string | null = null
+    console.log(`📋 Scheduling ClickFunnels registration tags for ${email} (${minutesUntilStart} minutes until start)`)
 
-    if (minutesUntilStart >= 1440) { // 24 hours or more
-      tagToApply = '24HRREMINDER'
-    } else if (minutesUntilStart >= 120) { // 2 hours or more
-      tagToApply = '2HRREMINDER'
-    } else if (minutesUntilStart >= 60) { // 1 hour or more
-      tagToApply = '1HRREMINDER'
-    } else if (minutesUntilStart >= 15) { // 15 minutes or more
-      tagToApply = '15MINREMINDER'
-    } else if (minutesUntilStart >= 0) { // Less than 15 minutes but not started
-      tagToApply = 'WESTARTED'
+    const { scheduleDelayedClickFunnelsTag } = await import('./clickfunnelsReminderTags')
+
+    // Schedule 24HR tag to be applied 24 hours before webinar
+    if (minutesUntilStart > 1440) { // More than 24 hours away
+      const apply24HrAt = new Date(webinarStartTime.getTime() - 24 * 60 * 60 * 1000) // 24 hours before
+      await scheduleDelayedClickFunnelsTag({
+        registrationId,
+        tagName: '24HRREMINDER',
+        scheduledFor: apply24HrAt
+      })
+      console.log(`⏰ Scheduled 24HRREMINDER tag for ${apply24HrAt.toISOString()}`)
     }
 
-    if (tagToApply) {
-      console.log(`🏷️  Applying registration tag "${tagToApply}" to ${email} (${minutesUntilStart} minutes until start)`)
-      
+    // Schedule 2HR tag to be applied 2 hours before webinar
+    if (minutesUntilStart > 120) { // More than 2 hours away
+      const apply2HrAt = new Date(webinarStartTime.getTime() - 2 * 60 * 60 * 1000) // 2 hours before
+      await scheduleDelayedClickFunnelsTag({
+        registrationId,
+        tagName: '2HRREMINDER',
+        scheduledFor: apply2HrAt
+      })
+      console.log(`⏰ Scheduled 2HRREMINDER tag for ${apply2HrAt.toISOString()}`)
+    }
+
+    // Schedule 1HR tag to be applied 1 hour before webinar  
+    if (minutesUntilStart > 60) { // More than 1 hour away
+      const apply1HrAt = new Date(webinarStartTime.getTime() - 1 * 60 * 60 * 1000) // 1 hour before
+      await scheduleDelayedClickFunnelsTag({
+        registrationId,
+        tagName: '1HRREMINDER',
+        scheduledFor: apply1HrAt
+      })
+      console.log(`⏰ Scheduled 1HRREMINDER tag for ${apply1HrAt.toISOString()}`)
+    }
+
+    // Schedule 15MIN tag to be applied 15 minutes before webinar
+    if (minutesUntilStart > 15) { // More than 15 minutes away
+      const apply15MinAt = new Date(webinarStartTime.getTime() - 15 * 60 * 1000) // 15 minutes before
+      await scheduleDelayedClickFunnelsTag({
+        registrationId,
+        tagName: '15MINREMINDER',
+        scheduledFor: apply15MinAt
+      })
+      console.log(`⏰ Scheduled 15MINREMINDER tag for ${apply15MinAt.toISOString()}`)
+    }
+
+    // If webinar already started or starting very soon, apply WESTARTED immediately
+    if (minutesUntilStart <= 15 && minutesUntilStart >= 0) {
       const { applyReminderTagToContact } = await import('./clickfunnels')
-      const success = await applyReminderTagToContact(email, tagToApply)
-      
-      if (success) {
-        console.log(`✅ Registration tag "${tagToApply}" applied successfully`)
-      } else {
-        console.log(`❌ Failed to apply registration tag "${tagToApply}"`)
-      }
+      await applyReminderTagToContact(email, 'WESTARTED')
+      console.log(`✅ Applied WESTARTED tag immediately (webinar starting soon)`)
     }
+
+    console.log(`✅ ClickFunnels tags scheduled successfully for ${email}`)
   } catch (error) {
-    console.error('❌ Failed to apply registration tag:', error)
+    console.error('❌ Failed to schedule registration tags:', error)
   }
 }
 
@@ -165,8 +195,8 @@ export async function scheduleRemindersForRegistration(
       templateCount: registration.webinar.reminderTemplates.length
     })
 
-    // Apply ClickFunnels registration tag immediately
-    await applyRegistrationTag(registration.email, webinarStartTime)
+    // Schedule ClickFunnels registration tags (queued for cron job to apply at appropriate times)
+    await applyRegistrationTag(registration.email, webinarStartTime, registration.id)
 
     // Create reminder records for each template
     const remindersToCreate: any[] = []
