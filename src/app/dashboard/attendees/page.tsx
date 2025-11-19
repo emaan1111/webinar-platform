@@ -27,7 +27,8 @@ import {
   TrendingUp,
   Calendar,
   Globe,
-  X
+  X,
+  Trash2
 } from 'lucide-react'
 
 interface Attendee {
@@ -103,6 +104,12 @@ export default function AttendeesPage() {
   const [registeredDateEnd, setRegisteredDateEnd] = useState('')
   const [joinedDateStart, setJoinedDateStart] = useState('')
   const [joinedDateEnd, setJoinedDateEnd] = useState('')
+
+  // Delete functionality
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [deleteMode, setDeleteMode] = useState<'single' | 'selected' | 'all'>('single')
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   // View management
   const [views, setViews] = useState<CustomView[]>([])
@@ -494,6 +501,49 @@ export default function AttendeesPage() {
     a.click()
   }
 
+  const handleDeleteClick = (mode: 'single' | 'selected' | 'all', attendeeId?: string) => {
+    setDeleteMode(mode)
+    setDeleteTargetId(attendeeId || null)
+    setShowDeleteModal(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    setIsDeleting(true)
+    try {
+      let idsToDelete: string[] = []
+      
+      if (deleteMode === 'single' && deleteTargetId) {
+        idsToDelete = [deleteTargetId]
+      } else if (deleteMode === 'selected') {
+        idsToDelete = selectedAttendees
+      } else if (deleteMode === 'all') {
+        idsToDelete = attendees.map(a => a.id)
+      }
+
+      const response = await fetch('/api/attendees', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: idsToDelete })
+      })
+
+      if (response.ok) {
+        // Remove deleted attendees from state
+        setAttendees(prev => prev.filter(a => !idsToDelete.includes(a.id)))
+        setSelectedAttendees([])
+        setShowDeleteModal(false)
+        setDeleteTargetId(null)
+      } else {
+        const error = await response.json()
+        alert(`Failed to delete: ${error.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Delete error:', error)
+      alert('Failed to delete attendees')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const renderCellValue = (attendee: Attendee, column: ColumnConfig) => {
     const value = (attendee as any)[column.key]
     
@@ -818,6 +868,26 @@ export default function AttendeesPage() {
                   </button>
                 )}
 
+                {selectedAttendees.length > 0 && (
+                  <button 
+                    onClick={() => handleDeleteClick('selected')}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete Selected ({selectedAttendees.length})
+                  </button>
+                )}
+
+                {attendees.length > 0 && (
+                  <button 
+                    onClick={() => handleDeleteClick('all')}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    Delete All
+                  </button>
+                )}
+
                 <button 
                   onClick={handleExportCSV}
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
@@ -932,9 +1002,18 @@ export default function AttendeesPage() {
                       </td>
                     ))}
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <button className="text-blue-600 hover:text-blue-900">
-                        <Eye className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center justify-end gap-2">
+                        <button 
+                          onClick={() => handleDeleteClick('single', attendee.id)}
+                          className="text-red-600 hover:text-red-900"
+                          title="Delete attendee"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <button className="text-blue-600 hover:text-blue-900" title="View details">
+                          <Eye className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -1013,6 +1092,53 @@ export default function AttendeesPage() {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-6 h-6 text-red-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">
+                  {deleteMode === 'single' && 'Delete Attendee'}
+                  {deleteMode === 'selected' && `Delete ${selectedAttendees.length} Attendees`}
+                  {deleteMode === 'all' && `Delete All ${attendees.length} Attendees`}
+                </h3>
+                <p className="text-sm text-gray-500">This action cannot be undone</p>
+              </div>
+            </div>
+            
+            <p className="text-gray-700 mb-6">
+              {deleteMode === 'single' && 'Are you sure you want to delete this attendee? All associated data will be permanently removed.'}
+              {deleteMode === 'selected' && `Are you sure you want to delete ${selectedAttendees.length} selected attendees? All associated data will be permanently removed.`}
+              {deleteMode === 'all' && `Are you sure you want to delete all ${attendees.length} attendees? This will permanently remove all attendee records and their associated data.`}
+            </p>
+            
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowDeleteModal(false)
+                  setDeleteTargetId(null)
+                }}
+                disabled={isDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                onClick={handleDeleteConfirm}
+                disabled={isDeleting}
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </DashboardLayout>
   )
 }

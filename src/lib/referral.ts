@@ -1,6 +1,12 @@
 /**
  * Referral System Utilities
- * Generate and validate referral codes
+ * Ge  const base = process.env.NEXT_PUBLIC_APP_URL ||
+               process.env.NEXTAUTH_URL ||
+               (typeof window !== 'undefined' ? window.location.origin : '') ||
+               (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+               'https://emaanpowerclasses.com';
+  return `${base}/w/${webinarSlug}?ref=${referralCode}`;
+}and validate referral codes
  */
 
 /**

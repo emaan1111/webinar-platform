@@ -84,6 +84,7 @@ export async function POST(
     const {
       enabled,
       activateAfterOffer,
+      assistantName,
       systemPrompt,
       temperature,
       maxTokens,
@@ -97,6 +98,7 @@ export async function POST(
       update: {
         enabled: enabled ?? true,
         activateAfterOffer: activateAfterOffer ?? true,
+        assistantName: assistantName ?? 'AI Assistant',
         systemPrompt,
         temperature: temperature ?? 0.7,
         maxTokens: maxTokens ?? 500,
@@ -107,6 +109,7 @@ export async function POST(
         webinarId: params.id,
         enabled: enabled ?? true,
         activateAfterOffer: activateAfterOffer ?? true,
+        assistantName: assistantName ?? 'AI Assistant',
         systemPrompt,
         temperature: temperature ?? 0.7,
         maxTokens: maxTokens ?? 500,

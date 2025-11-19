@@ -247,7 +247,7 @@ export async function POST(
       // Build countdown page link
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
                       process.env.NEXTAUTH_URL || 
-                      'https://webinar-platform-production.up.railway.app';
+                      'https://emaanpowerclasses.com';
       const countdownLink = webinar.slug 
         ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
         : null;

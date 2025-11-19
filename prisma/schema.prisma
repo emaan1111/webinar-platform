@@ -823,6 +823,7 @@ model AIChatConfig {
   
   enabled     Boolean  @default(true)
   activateAfterOffer Boolean @default(true) // Only respond after CTA/offer is shown
+  assistantName String  @default("AI Assistant") // Display name for the AI
   
   systemPrompt String? @db.Text // Custom instructions for AI
   temperature  Float   @default(0.7) // OpenAI temperature (0-1)

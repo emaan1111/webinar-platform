@@ -247,3 +247,50 @@ export async function PATCH(request: Request) {
     )
   }
 }
+
+// DELETE /api/attendees - Delete one or more attendees
+export async function DELETE(request: Request) {
+  try {
+    const session = await getServerSession(authOptions)
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const body = await request.json()
+    const { ids } = body
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'No attendee IDs provided' }, { status: 400 })
+    }
+
+    // Find user
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    }
+
+    // Delete registrations and their related data
+    // Prisma will cascade delete related records (sessions, sales, etc.)
+    const deleted = await prisma.registration.deleteMany({
+      where: {
+        id: { in: ids }
+      }
+    })
+
+    return NextResponse.json({ 
+      success: true, 
+      deleted: deleted.count,
+      message: `Successfully deleted ${deleted.count} attendee(s)`
+    })
+  } catch (error) {
+    console.error('Error deleting attendees:', error)
+    return NextResponse.json(
+      { error: 'Failed to delete attendees' },
+      { status: 500 }
+    )
+  }
+}

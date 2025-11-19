@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
+import MultiSelect from '@/components/ui/MultiSelect'
 import {
   Calendar,
   Download,
@@ -99,6 +100,11 @@ export default function ReportsPage() {
   const [newViewName, setNewViewName] = useState('')
   const [editingView, setEditingView] = useState<string | null>(null)
   const [draggedColumn, setDraggedColumn] = useState<string | null>(null)
+  
+  // Webinar filter
+  const [webinars, setWebinars] = useState<{id: string, title: string}[]>([])
+  const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
+  const [showWebinarFilter, setShowWebinarFilter] = useState(false)
   const pathname = usePathname()
 
   // Define all available columns
@@ -447,18 +453,36 @@ export default function ReportsPage() {
   }, [])
 
   useEffect(() => {
+    // Fetch webinars list
+    const fetchWebinars = async () => {
+      try {
+        const response = await fetch('/api/webinars')
+        if (response.ok) {
+          const data = await response.json()
+          setWebinars(data.map((w: any) => ({ id: w.id, title: w.title })))
+        }
+      } catch (error) {
+        console.error('Error fetching webinars:', error)
+      }
+    }
+    fetchWebinars()
+  }, [])
+
+  useEffect(() => {
     if (dateRange.from && dateRange.to) {
       fetchReports()
     }
-  }, [dateRange, engagementMinutes])
+  }, [dateRange, engagementMinutes, selectedWebinars])
 
   const fetchReports = async () => {
     setLoading(true)
     setFbWarning(null)
     try {
-      const response = await fetch(
-        `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}`
-      )
+      let url = `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}`
+      if (selectedWebinars.length > 0) {
+        url += `&webinarIds=${selectedWebinars.join(',')}`
+      }
+      const response = await fetch(url)
       
       if (response.ok) {
         const data = await response.json()
@@ -1035,6 +1059,40 @@ export default function ReportsPage() {
             </div>
           </CardBody>
         </Card>
+
+        {/* Webinar filter */}
+        {webinars.length > 0 && (
+          <Card>
+            <CardBody>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-5 h-5 text-gray-400" />
+                  <span className="text-sm font-medium text-gray-700">Filter by Webinar:</span>
+                </div>
+                <div className="flex-1 min-w-[300px]">
+                  <MultiSelect
+                    options={webinars.map(w => w.title)}
+                    selected={selectedWebinars.map(id => webinars.find(w => w.id === id)?.title || id)}
+                    onChange={(titles) => {
+                      const ids = titles.map(title => webinars.find(w => w.title === title)?.id).filter(Boolean) as string[]
+                      setSelectedWebinars(ids)
+                    }}
+                    placeholder="All Webinars"
+                  />
+                </div>
+                {selectedWebinars.length > 0 && (
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setSelectedWebinars([])}
+                  >
+                    Clear Filter
+                  </Button>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Summary Cards */}
         {totals && (

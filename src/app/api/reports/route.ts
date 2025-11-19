@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const from = searchParams.get('from');
     const to = searchParams.get('to');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
+    const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
 
     if (!from || !to) {
       return NextResponse.json(
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
     console.log('📊 Generating reports from', from, 'to', to);
     console.log('📅 Date range:', fromDate.toISOString(), 'to', toDate.toISOString());
     console.log('⏱️  Engagement threshold:', engagementMinutes, 'minutes');
+    if (webinarIds.length > 0) {
+      console.log('🎯 Filtering by webinar IDs:', webinarIds);
+    }
 
     // Fetch Facebook Ads data
     const accessToken = process.env.FB_ACCESS_TOKEN;
@@ -156,7 +160,8 @@ export async function GET(request: NextRequest) {
           registeredAt: {
             gte: currentDate,
             lt: nextDate
-          }
+          },
+          ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
         },
         include: {
           sessions: true,
@@ -171,7 +176,8 @@ export async function GET(request: NextRequest) {
             gte: currentDate,
             lt: nextDate
           },
-          pageType: 'registration'
+          pageType: 'registration',
+          ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
         },
         distinct: ['visitorId'] // Count unique visitors
       });

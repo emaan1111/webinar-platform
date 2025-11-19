@@ -17,7 +17,7 @@ export default function EmbedCodeGenerator({ webinarId, webinarSlug }: EmbedCode
     ? window.location.origin 
     : (process.env.NEXT_PUBLIC_APP_URL || 
        process.env.NEXTAUTH_URL || 
-       'https://webinar-platform-production.up.railway.app')
+       'https://emaanpowerclasses.com')
 
   const getEmbedCode = () => {
     if (formType === 'inline') {
