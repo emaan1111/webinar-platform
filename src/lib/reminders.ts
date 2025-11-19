@@ -172,6 +172,9 @@ export async function scheduleRemindersForRegistration(
     const remindersToCreate: any[] = []
 
     for (const template of registration.webinar.reminderTemplates) {
+      // Skip if no minutesBefore set
+      if (!template.minutesBefore) continue
+      
       // Calculate when this reminder should be sent
       const scheduledFor = new Date(webinarStartTime.getTime() - template.minutesBefore * 60 * 1000)
 
