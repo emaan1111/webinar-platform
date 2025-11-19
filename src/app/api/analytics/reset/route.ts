@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     await prisma.registration.updateMany({
       where: { webinarId },
       data: {
-        hasAttended: false,
+        attended: false,
         joinedAt: null,
         leftAt: null,
         watchTimeSeconds: 0,
