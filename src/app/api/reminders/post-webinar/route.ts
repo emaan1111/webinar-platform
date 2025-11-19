@@ -37,8 +37,7 @@ export async function POST(request: Request) {
       select: {
         id: true,
         title: true,
-        duration: true,
-        scheduledAt: true
+        duration: true
       }
     });
 
