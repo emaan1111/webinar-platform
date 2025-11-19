@@ -27,7 +27,8 @@ import {
   Heart,
   Clock,
   TrendingUp,
-  Loader2
+  Loader2,
+  RotateCcw
 } from 'lucide-react'
 
 interface WebinarOption {
@@ -95,6 +96,7 @@ export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   // Fetch webinars list
   useEffect(() => {
@@ -388,6 +390,64 @@ export default function AnalyticsPage() {
     a.click()
   }
 
+  const handleResetStats = async () => {
+    if (selectedWebinars.includes('all')) {
+      alert('Please select a specific webinar to reset stats. You cannot reset stats for all webinars at once.')
+      return
+    }
+
+    if (selectedWebinars.length > 1) {
+      alert('Please select only one webinar to reset stats.')
+      return
+    }
+
+    if (selectedWebinars.length === 0) {
+      alert('Please select a webinar to reset stats.')
+      return
+    }
+
+    const webinarId = selectedWebinars[0]
+    const webinar = webinars.find(w => w.id === webinarId)
+    
+    const confirmed = window.confirm(
+      `Are you sure you want to reset all analytics data for "${webinar?.title}"?\n\n` +
+      'This will delete:\n' +
+      '• All analytics events\n' +
+      '• Registration attendance data\n' +
+      '• Page view history\n\n' +
+      'This action cannot be undone!'
+    )
+
+    if (!confirmed) return
+
+    setResetting(true)
+    try {
+      const response = await fetch('/api/analytics/reset', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ webinarId }),
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to reset analytics')
+      }
+
+      alert('Analytics reset successfully!')
+      
+      // Reload analytics data
+      window.location.reload()
+    } catch (err) {
+      console.error('Reset error:', err)
+      alert(err instanceof Error ? err.message : 'Failed to reset analytics')
+    } finally {
+      setResetting(false)
+    }
+  }
+
   const getSelectedWebinarLabel = () => {
     if (selectedWebinars.includes('all')) {
       return `All Webinars (${webinars.length})`
@@ -525,6 +585,26 @@ export default function AnalyticsPage() {
               <Download className="w-4 h-4" />
               Export
             </Button>
+
+            <Button 
+              onClick={handleResetStats} 
+              className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700"
+              disabled={!analyticsData || resetting || selectedWebinars.includes('all') || selectedWebinars.length !== 1}
+              title={
+                selectedWebinars.includes('all') 
+                  ? 'Select a specific webinar to reset stats' 
+                  : selectedWebinars.length !== 1 
+                    ? 'Select exactly one webinar to reset stats'
+                    : 'Reset all analytics data for this webinar'
+              }
+            >
+              {resetting ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RotateCcw className="w-4 h-4" />
+              )}
+              Reset Stats
+            </Button>
           </div>
         </div>
 
@@ -541,7 +621,24 @@ export default function AnalyticsPage() {
         {analyticsData && (
           <>
             {/* Row 1: Registrations & Conversion */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <Card>
+                <CardBody>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-indigo-100 rounded-lg flex items-center justify-center">
+                      <Eye className="w-6 h-6 text-indigo-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-600">Unique Views</h3>
+                      <p className="text-2xl font-bold text-gray-900">{uniqueViews}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Registration page visitors
+                      </p>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+
               <Card>
                 <CardBody>
                   <div className="flex items-center gap-4">
@@ -552,7 +649,24 @@ export default function AnalyticsPage() {
                       <h3 className="text-sm font-medium text-gray-600">Registrations</h3>
                       <p className="text-2xl font-bold text-gray-900">{totalRegs}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {uniqueViews} unique views
+                        {conversionRate}% conversion rate
+                      </p>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+
+              <Card>
+                <CardBody>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-600">Attendees</h3>
+                      <p className="text-2xl font-bold text-gray-900">{analyticsData.overview.totalAttended}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {analyticsData.overview.attendanceRate.toFixed(1)}% attendance rate
                       </p>
                     </div>
                   </div>
@@ -566,27 +680,10 @@ export default function AnalyticsPage() {
                       <TrendingUp className="w-6 h-6 text-green-600" />
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-600">Conversion Rate</h3>
-                      <p className="text-2xl font-bold text-gray-900">{conversionRate}%</p>
+                      <h3 className="text-sm font-medium text-gray-600">Full Funnel</h3>
+                      <p className="text-2xl font-bold text-gray-900">{uniqueViews > 0 ? ((analyticsData.overview.totalAttended / uniqueViews) * 100).toFixed(1) : '0.0'}%</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        Views → Registrations
-                      </p>
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
-
-              <Card>
-                <CardBody>
-                  <div className="flex items-center gap-4">
-                    <div className="flex-shrink-0 w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                      <Eye className="w-6 h-6 text-purple-600" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-sm font-medium text-gray-600">Attendees</h3>
-                      <p className="text-2xl font-bold text-gray-900">{analyticsData.overview.totalAttended}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {analyticsData.overview.attendanceRate.toFixed(1)}% attendance rate
+                        Views → Attendees
                       </p>
                     </div>
                   </div>
