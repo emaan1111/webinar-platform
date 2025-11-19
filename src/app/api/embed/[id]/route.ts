@@ -818,22 +818,6 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       flex-shrink: 0;
     }
 
-    .webinar-embed-button {
-      width: 100%;
-      padding: 16px 32px;
-      background: \${THEME.buttonBg};
-      color: white;
-      border: none;
-      border-radius: 12px;
-      font-size: 16px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: all 0.3s;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
-    }
-
     .webinar-embed-button:hover {
       background: \${THEME.buttonHoverBg};
       transform: translateY(-2px);
@@ -881,6 +865,102 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       font-size: 14px;
       color: #1e40af;
     }
+
+    .webinar-embed-hint {
+      display: block;
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 6px;
+      font-style: italic;
+    }
+
+    .webinar-embed-checkbox-label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      font-size: 14px;
+      color: #374151;
+      cursor: pointer;
+    }
+
+    .webinar-embed-checkbox-label input[type="checkbox"] {
+      margin-top: 3px;
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+    }
+
+    .webinar-embed-checkbox-label a {
+      color: \${THEME.focusColor};
+      text-decoration: underline;
+    }
+
+    .webinar-embed-checkbox-label a:hover {
+      color: \${THEME.buttonBg};
+    }
+
+    .webinar-embed-button {
+      position: relative;
+      width: 100%;
+      padding: 16px 32px;
+      background: \${THEME.buttonBg};
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+    }
+
+    .webinar-embed-button-loader {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .webinar-embed-spinner {
+      width: 20px;
+      height: 20px;
+      animation: spin 1s linear infinite;
+    }
+
+    .webinar-embed-spinner-circle {
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 3;
+      stroke-dasharray: 40;
+      stroke-dashoffset: 10;
+      stroke-linecap: round;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .webinar-embed-trust-footer {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-top: 20px;
+      padding: 16px;
+      background: #f9fafb;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #6b7280;
+    }
+
+    .webinar-embed-trust-icon {
+      width: 16px;
+      height: 16px;
+      color: #10b981;
+      flex-shrink: 0;
+    }
   \`;
 
   const inlineStylesCSS = \`
@@ -912,7 +992,16 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       return \`Starts \${schedule.minutesFromReg} minutes after registration\`;
     }
     if (schedule.scheduleType === 'recurring') {
-      return \`Recurring: \${schedule.recurringPattern}\`;
+      const patterns = {
+        daily: 'Daily',
+        weekdays: 'Weekdays',
+        weekly: 'Weekly',
+        biweekly: 'Bi-weekly',
+        monthly: 'Monthly'
+      };
+      const interval = patterns[schedule.recurringInterval] || schedule.recurringInterval;
+      const time = schedule.recurringTime || '11:00';
+      return \`Recurring: \${interval} at \${time}\`;
     }
     if (schedule.scheduledAt) {
       const date = new Date(schedule.scheduledAt);
@@ -920,6 +1009,7 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
         weekday: 'short',
         month: 'short',
         day: 'numeric',
+        year: 'numeric',
         hour: 'numeric',
         minute: '2-digit',
         timeZoneName: 'short'
@@ -930,13 +1020,35 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   // Create registration form HTML
   function createFormHTML() {
-    const scheduleOptions = WEBINAR_DATA.schedules.map(s => 
-      \`<option value="\${s.id}">\${formatScheduleTime(s)}</option>\`
-    ).join('');
+    const scheduleOptions = WEBINAR_DATA.schedules.map(s => {
+      const displayText = formatScheduleTime(s);
+      return \`<option value="\${s.id}">\${displayText}</option>\`;
+    }).join('');
 
     const countryCodeOptions = countryCodes.map(cc =>
       \`<option value="\${cc.code}">\${cc.code} \${cc.country}</option>\`
     ).join('');
+
+    // Get unique timezones from schedules or use common ones
+    const timezones = [
+      { value: 'America/New_York', label: 'Eastern Time (ET)' },
+      { value: 'America/Chicago', label: 'Central Time (CT)' },
+      { value: 'America/Denver', label: 'Mountain Time (MT)' },
+      { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+      { value: 'Europe/London', label: 'London (GMT)' },
+      { value: 'Europe/Paris', label: 'Paris (CET)' },
+      { value: 'Asia/Dubai', label: 'Dubai (GST)' },
+      { value: 'Asia/Kolkata', label: 'India (IST)' },
+      { value: 'Asia/Singapore', label: 'Singapore (SGT)' },
+      { value: 'Australia/Sydney', label: 'Sydney (AEDT)' },
+    ];
+
+    const timezoneOptions = timezones.map(tz =>
+      \`<option value="\${tz.value}">\${tz.label}</option>\`
+    ).join('');
+
+    // Detect user's timezone
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
     return \`
       <div class="webinar-embed-trust-badge">
@@ -956,12 +1068,12 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       </div>
 
       <div class="webinar-embed-form-group">
-        <label class="webinar-embed-label">Phone Number *</label>
+        <label class="webinar-embed-label">Phone Number (optional)</label>
         <div class="webinar-embed-phone-group">
           <select class="webinar-embed-select webinar-embed-country-code" id="embed-country-code">
             \${countryCodeOptions}
           </select>
-          <input type="tel" class="webinar-embed-input" id="embed-phone" required placeholder="555 123 4567">
+          <input type="tel" class="webinar-embed-input" id="embed-phone" placeholder="555 123 4567">
         </div>
         <div class="webinar-embed-error" id="error-phone" style="display: none;"></div>
       </div>
@@ -969,15 +1081,45 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       <div class="webinar-embed-form-group">
         <label class="webinar-embed-label">Select Webinar Time *</label>
         <select class="webinar-embed-select" id="embed-schedule" required>
-          <option value="">Choose a time...</option>
+          <option value="">Choose your preferred time...</option>
           \${scheduleOptions}
         </select>
+        <small class="webinar-embed-hint">Times shown in \${Intl.DateTimeFormat().resolvedOptions().timeZone}</small>
         <div class="webinar-embed-error" id="error-schedule" style="display: none;"></div>
       </div>
 
+      <div class="webinar-embed-form-group">
+        <label class="webinar-embed-label">Your Timezone</label>
+        <select class="webinar-embed-select" id="embed-timezone">
+          \${timezoneOptions}
+        </select>
+        <small class="webinar-embed-hint">Change if times shown in dropdown are incorrect</small>
+      </div>
+
+      <div class="webinar-embed-form-group">
+        <label class="webinar-embed-checkbox-label">
+          <input type="checkbox" id="embed-terms" required>
+          <span>I agree to the <a href="/privacy" target="_blank">Privacy Policy</a> and <a href="/terms" target="_blank">Terms of Service</a></span>
+        </label>
+        <div class="webinar-embed-error" id="error-terms" style="display: none;"></div>
+      </div>
+
       <button type="submit" class="webinar-embed-button" id="embed-submit">
-        Reserve My Spot
+        <span class="webinar-embed-button-text">Complete Registration</span>
+        <span class="webinar-embed-button-loader" style="display: none;">
+          <svg class="webinar-embed-spinner" viewBox="0 0 24 24">
+            <circle class="webinar-embed-spinner-circle" cx="12" cy="12" r="10"></circle>
+          </svg>
+          Processing...
+        </span>
       </button>
+
+      <div class="webinar-embed-trust-footer">
+        <svg class="webinar-embed-trust-icon" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path>
+        </svg>
+        <span>Your information is 100% secure and will never be shared</span>
+      </div>
     \`;
   }
 
@@ -987,6 +1129,7 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     const email = document.getElementById('embed-email').value.trim();
     const phone = document.getElementById('embed-phone').value.trim();
     const schedule = document.getElementById('embed-schedule').value;
+    const terms = document.getElementById('embed-terms').checked;
 
     let isValid = true;
     const errors = {};
@@ -1004,13 +1147,19 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       isValid = false;
     }
 
-    if (!phone || phone.length < 8) {
-      errors.phone = 'Valid phone number is required';
+    // Phone is now optional, but validate format if provided
+    if (phone && phone.length < 8) {
+      errors.phone = 'Please enter a valid phone number';
       isValid = false;
     }
 
     if (!schedule) {
       errors.schedule = 'Please select a webinar time';
+      isValid = false;
+    }
+
+    if (!terms) {
+      errors.terms = 'You must agree to the terms and privacy policy';
       isValid = false;
     }
 
@@ -1026,14 +1175,53 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     return { isValid, data: isValid ? { name, email, phone, schedule } : null };
   }
 
+  // Track embed view
+  function trackEmbedView(embedType) {
+    try {
+      // Get or create visitor ID
+      let visitorId = localStorage.getItem('visitorId');
+      if (!visitorId) {
+        visitorId = crypto.randomUUID();
+        localStorage.setItem('visitorId', visitorId);
+      }
+
+      // Detect device type
+      const device = window.innerWidth <= 768 ? 'mobile' : (window.innerWidth <= 1024 ? 'tablet' : 'desktop');
+
+      // Track the embed view
+      fetch(\`\${API_BASE}/api/tracking/page\`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          webinarId: WEBINAR_DATA.id,
+          pageType: embedType, // 'embed-inline' or 'embed-popup'
+          pageId: null,
+          variantGroup: null,
+          action: 'enter',
+          visitorId: visitorId,
+          device: device,
+          browser: navigator.userAgent,
+          referrer: document.referrer || null,
+        }),
+      }).catch(err => console.error('Failed to track embed view:', err));
+    } catch (error) {
+      console.error('Failed to track embed view:', error);
+    }
+  }
+
   // Submit registration
   async function submitRegistration(data) {
     const submitBtn = document.getElementById('embed-submit');
+    const buttonText = submitBtn.querySelector('.webinar-embed-button-text');
+    const buttonLoader = submitBtn.querySelector('.webinar-embed-button-loader');
+    
     submitBtn.disabled = true;
-    submitBtn.textContent = 'Registering...';
+    buttonText.style.display = 'none';
+    buttonLoader.style.display = 'inline-flex';
 
     try {
       const countryCode = document.getElementById('embed-country-code').value;
+      const timezone = document.getElementById('embed-timezone').value;
       
       const response = await fetch(\`\${API_BASE}/api/webinars/\${WEBINAR_DATA.id}/register\`, {
         method: 'POST',
@@ -1043,8 +1231,9 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
         body: JSON.stringify({
           name: data.name,
           email: data.email,
-          phone: countryCode + data.phone,
+          phone: data.phone ? countryCode + data.phone : '',
           scheduleId: data.schedule,
+          timezone: timezone,
         })
       });
 
@@ -1061,7 +1250,8 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       console.error('Registration error:', error);
       alert('Registration failed. Please try again.');
       submitBtn.disabled = false;
-      submitBtn.textContent = 'Reserve My Spot';
+      buttonText.style.display = 'inline';
+      buttonLoader.style.display = 'none';
     }
   }
 
@@ -1090,6 +1280,9 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
   // Create popup modal
   function createPopupModal() {
+    // Track popup embed view when opened
+    trackEmbedView('embed-popup');
+
     const overlay = document.createElement('div');
     overlay.className = 'webinar-embed-overlay';
     
@@ -1293,6 +1486,9 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
       console.log('[Webinar Embed] Setting up inline form...');
       container.className = 'webinar-embed-inline';
       container.innerHTML = createInlineHTML(THEME_NAME);
+
+      // Track inline embed view
+      trackEmbedView('embed-inline');
 
       const form = document.getElementById('webinar-embed-form');
       console.log('[Webinar Embed] Form found:', !!form);

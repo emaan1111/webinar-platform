@@ -226,13 +226,21 @@ export async function GET(request: NextRequest) {
       where: pageVisitWhere,
     });
 
-    const registrationPageVisits = pageVisits.filter((p) => p.pageType === 'registration').length;
-    const countdownPageVisits = pageVisits.filter((p) => p.pageType === 'countdown').length;
-    const webinarPageVisits = pageVisits.filter((p) => p.pageType === 'webinar').length;
-    const thankYouPageVisits = pageVisits.filter((p) => p.pageType === 'thank_you').length;
+    const registrationPageVisits = pageVisits.filter((p: any) => p.pageType === 'registration').length;
+    const countdownPageVisits = pageVisits.filter((p: any) => p.pageType === 'countdown').length;
+    const webinarPageVisits = pageVisits.filter((p: any) => p.pageType === 'webinar').length;
+    const thankYouPageVisits = pageVisits.filter((p: any) => p.pageType === 'thank_you').length;
+
+    // Embed form views (inline and popup)
+    const embedInlineVisits = pageVisits.filter((p: any) => p.pageType === 'embed-inline');
+    const embedPopupVisits = pageVisits.filter((p: any) => p.pageType === 'embed-popup');
+    const totalEmbedViews = embedInlineVisits.length + embedPopupVisits.length;
+    const uniqueEmbedInlineVisitors = new Set(embedInlineVisits.map((v: any) => v.visitorId)).size;
+    const uniqueEmbedPopupVisitors = new Set(embedPopupVisits.map((v: any) => v.visitorId)).size;
+    const uniqueEmbedVisitors = new Set([...embedInlineVisits, ...embedPopupVisits].map((v: any) => v.visitorId)).size;
 
     // Registration page breakdown (per page) - for aggregate
-    const registrationVisits = pageVisits.filter((p) => p.pageType === 'registration');
+    const registrationVisits = pageVisits.filter((p: any) => p.pageType === 'registration');
     const registrationPageBreakdown: Record<string, { 
       views: number; 
       uniqueVisitors: number; 
@@ -338,6 +346,15 @@ export async function GET(request: NextRequest) {
           webinarPageVisits,
           thankYouPageVisits,
           registrationPages, // Breakdown by template/variant
+          // Embed form tracking
+          embedViews: {
+            total: totalEmbedViews,
+            inline: embedInlineVisits.length,
+            popup: embedPopupVisits.length,
+            uniqueVisitors: uniqueEmbedVisitors,
+            uniqueInlineVisitors: uniqueEmbedInlineVisitors,
+            uniquePopupVisitors: uniqueEmbedPopupVisitors,
+          },
         },
       },
     });

@@ -85,6 +85,14 @@ interface AnalyticsData {
       uniqueViews: number
       avgTimeOnPage: number
     }>
+    embedViews?: {
+      total: number
+      inline: number
+      popup: number
+      uniqueVisitors: number
+      uniqueInlineVisitors: number
+      uniquePopupVisitors: number
+    }
   }
 }
 
@@ -254,6 +262,26 @@ export default function AnalyticsPage() {
           aggregated.funnel.countdownPageVisits += data.funnel.countdownPageVisits
           aggregated.funnel.webinarPageVisits += data.funnel.webinarPageVisits
           aggregated.funnel.thankYouPageVisits += data.funnel.thankYouPageVisits
+          
+          // Aggregate embed views
+          if (data.funnel.embedViews) {
+            if (!aggregated.funnel.embedViews) {
+              aggregated.funnel.embedViews = {
+                total: 0,
+                inline: 0,
+                popup: 0,
+                uniqueVisitors: 0,
+                uniqueInlineVisitors: 0,
+                uniquePopupVisitors: 0,
+              }
+            }
+            aggregated.funnel.embedViews.total += data.funnel.embedViews.total
+            aggregated.funnel.embedViews.inline += data.funnel.embedViews.inline
+            aggregated.funnel.embedViews.popup += data.funnel.embedViews.popup
+            aggregated.funnel.embedViews.uniqueVisitors += data.funnel.embedViews.uniqueVisitors
+            aggregated.funnel.embedViews.uniqueInlineVisitors += data.funnel.embedViews.uniqueInlineVisitors
+            aggregated.funnel.embedViews.uniquePopupVisitors += data.funnel.embedViews.uniquePopupVisitors
+          }
           
           // Aggregate registration pages data
           if (data.funnel.registrationPages && data.funnel.registrationPages.length > 0) {
@@ -788,6 +816,66 @@ export default function AnalyticsPage() {
                         ))}
                       </tbody>
                     </table>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
+            {/* Embed Form Views */}
+            {analyticsData.funnel.embedViews && analyticsData.funnel.embedViews.total > 0 && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-bold text-gray-900">Embed Form Performance</h2>
+                  <p className="text-sm text-gray-500">Embedded registration form views & conversion</p>
+                </CardHeader>
+                <CardBody>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Eye className="w-5 h-5 text-blue-500" />
+                        <h3 className="text-sm font-medium text-gray-600">Total Embed Views</h3>
+                      </div>
+                      <p className="text-3xl font-bold text-gray-900">{analyticsData.funnel.embedViews.total}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {analyticsData.funnel.embedViews.uniqueVisitors} unique visitors
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Users className="w-5 h-5 text-purple-500" />
+                        <h3 className="text-sm font-medium text-gray-600">Inline Forms</h3>
+                      </div>
+                      <p className="text-3xl font-bold text-gray-900">{analyticsData.funnel.embedViews.inline}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {analyticsData.funnel.embedViews.uniqueInlineVisitors} unique
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <div className="flex items-center justify-center gap-2 mb-2">
+                        <Users className="w-5 h-5 text-indigo-500" />
+                        <h3 className="text-sm font-medium text-gray-600">Popup Forms</h3>
+                      </div>
+                      <p className="text-3xl font-bold text-gray-900">{analyticsData.funnel.embedViews.popup}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {analyticsData.funnel.embedViews.uniquePopupVisitors} unique
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-3">
+                      <TrendingUp className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <h4 className="text-sm font-semibold text-blue-900 mb-1">Embed Conversion Rate</h4>
+                        <p className="text-2xl font-bold text-blue-900">
+                          {analyticsData.funnel.embedViews.uniqueVisitors > 0 
+                            ? ((totalRegs / analyticsData.funnel.embedViews.uniqueVisitors) * 100).toFixed(1)
+                            : '0.0'}%
+                        </p>
+                        <p className="text-xs text-blue-700 mt-1">
+                          {totalRegs} registrations from {analyticsData.funnel.embedViews.uniqueVisitors} unique embed visitors
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 </CardBody>
               </Card>
