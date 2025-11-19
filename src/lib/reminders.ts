@@ -574,7 +574,7 @@ export async function processPendingReminders(): Promise<{
           reminderId: reminder.id,
           registrationId: reminder.registrationId,
           channels: reminder.channel,
-          tag: reminder.template.applyClickFunnelsTag
+          tag: reminder.template?.applyClickFunnelsTag
             ? reminder.template.clickFunnelsTag
             : 'N/A'
         })
