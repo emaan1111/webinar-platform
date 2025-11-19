@@ -33,18 +33,12 @@ export async function GET(request: NextRequest) {
             id: true,
             name: true,
             email: true,
-            createdAt: true,
+            scheduleId: true,
+            scheduledStartTime: true,
             webinar: {
               select: {
                 id: true,
                 title: true,
-              }
-            },
-            schedule: {
-              select: {
-                id: true,
-                scheduledAt: true,
-                scheduleType: true,
               }
             }
           }

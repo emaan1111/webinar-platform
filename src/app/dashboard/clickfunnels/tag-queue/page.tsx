@@ -31,15 +31,11 @@ interface ClickFunnelsTag {
     id: string
     name: string
     email: string
-    createdAt: string
+    scheduleId?: string
+    scheduledStartTime?: string
     webinar: {
       id: string
       title: string
-    }
-    schedule: {
-      id: string
-      scheduledAt?: string
-      scheduleType: string
     }
   }
 }
