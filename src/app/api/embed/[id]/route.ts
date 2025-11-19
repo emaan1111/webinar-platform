@@ -1,6 +1,22 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+// CORS headers for cross-origin embed requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Max-Age': '86400',
+}
+
+// OPTIONS handler for preflight requests
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  })
+}
+
 export async function GET(
   request: Request,
   { params }: { params: { id: string } }
@@ -28,7 +44,10 @@ export async function GET(
     })
 
     if (!webinar) {
-      return new NextResponse('Webinar not found', { status: 404 })
+      return new NextResponse('Webinar not found', { 
+        status: 404,
+        headers: corsHeaders
+      })
     }
 
     // Get the API base URL from the request
@@ -41,12 +60,15 @@ export async function GET(
       headers: {
         'Content-Type': 'application/javascript',
         'Cache-Control': 'public, max-age=300', // Cache for 5 minutes
-        'Access-Control-Allow-Origin': '*', // Allow embedding from any domain
+        ...corsHeaders
       }
     })
   } catch (error) {
     console.error('Embed script error:', error)
-    return new NextResponse('Error generating embed script', { status: 500 })
+    return new NextResponse('Error generating embed script', { 
+      status: 500,
+      headers: corsHeaders
+    })
   }
 }
 

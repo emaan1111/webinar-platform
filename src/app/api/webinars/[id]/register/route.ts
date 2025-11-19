@@ -15,6 +15,22 @@ const runInBackground = (label: string, task: () => Promise<unknown> | unknown) 
     })
 }
 
+// CORS headers for cross-origin embed requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Access-Control-Max-Age': '86400',
+}
+
+// OPTIONS /api/webinars/[id]/register - Handle preflight requests
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: corsHeaders,
+  })
+}
+
 // POST /api/webinars/[id]/register - Public registration endpoint
 export async function POST(
   request: Request,
@@ -42,14 +58,20 @@ export async function POST(
     if (!name || !email) {
       return NextResponse.json(
         { error: 'Name and email are required' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: corsHeaders
+        }
       )
     }
 
     if (!privacyConsent) {
       return NextResponse.json(
         { error: 'You must agree to the privacy policy' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: corsHeaders
+        }
       )
     }
 
@@ -70,7 +92,10 @@ export async function POST(
     if (!webinar) {
       return NextResponse.json(
         { error: 'Webinar not found' },
-        { status: 404 }
+        { 
+          status: 404,
+          headers: corsHeaders
+        }
       )
     }
 
@@ -150,7 +175,10 @@ export async function POST(
         },
         message: 'Registration successful! Check your email for confirmation.' 
       },
-      { status: 201 }
+      { 
+        status: 201,
+        headers: corsHeaders
+      }
     );
 
     // All integration work happens in background after response is sent
@@ -333,7 +361,10 @@ export async function POST(
         error: 'Registration failed',
         details: error.message 
       },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: corsHeaders
+      }
     )
   }
 }
