@@ -55,6 +55,23 @@ export default function ChatModerationPage() {
   
   // Bulk selection state
   const [selectedMessages, setSelectedMessages] = useState<Set<string>>(new Set())
+  
+  // Import progress state
+  const [importStatus, setImportStatus] = useState<{
+    isImporting: boolean
+    progress: string
+    total: number
+    imported: number
+    failed: number
+    errors: string[]
+  }>({
+    isImporting: false,
+    progress: '',
+    total: 0,
+    imported: 0,
+    failed: 0,
+    errors: []
+  })
 
   useEffect(() => {
     fetchMessages()
@@ -448,13 +465,37 @@ export default function ChatModerationPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Show loading state
-    setLoading(true)
+    // Reset import status
+    setImportStatus({
+      isImporting: true,
+      progress: 'Reading file...',
+      total: 0,
+      imported: 0,
+      failed: 0,
+      errors: []
+    })
 
     const reader = new FileReader()
     reader.onload = async (event) => {
       try {
         const content = event.target?.result as string
+        
+        // Check if webinar is selected
+        if (!webinarFilter || webinarFilter === 'all') {
+          setImportStatus({
+            isImporting: false,
+            progress: 'Failed: No webinar selected',
+            total: 0,
+            imported: 0,
+            failed: 0,
+            errors: ['Please select a webinar from the filter dropdown before importing']
+          })
+          return
+        }
+
+        setImportStatus(prev => ({ ...prev, progress: 'Parsing file...' }))
+        
+        let messagesToImport: any[] = []
         
         // Check if it's CSV or JSON
         if (file.name.endsWith('.csv')) {
@@ -463,13 +504,19 @@ export default function ChatModerationPage() {
           const headers = lines[0].split(',')
           
           if (!headers.includes('Message') || !headers.includes('Name')) {
-            alert('Invalid CSV format. Expected columns: Hour,Minute,Second,Name,Role,Message,Mode')
-            setLoading(false)
+            setImportStatus({
+              isImporting: false,
+              progress: 'Failed: Invalid CSV format',
+              total: 0,
+              imported: 0,
+              failed: 0,
+              errors: ['Invalid CSV format. Expected columns: Hour,Minute,Second,Name,Role,Message,Mode']
+            })
             return
           }
 
           // Convert CSV to chat messages
-          const csvMessages = lines.slice(1).map((line, index) => {
+          messagesToImport = lines.slice(1).map((line, index) => {
             const values = line.split(',')
             return {
               hour: values[0],
@@ -482,18 +529,23 @@ export default function ChatModerationPage() {
             }
           }).filter(msg => msg.message && msg.name)
 
-          if (csvMessages.length === 0) {
-            alert('No valid messages found in CSV file')
-            setLoading(false)
+          if (messagesToImport.length === 0) {
+            setImportStatus({
+              isImporting: false,
+              progress: 'Failed: No valid messages',
+              total: 0,
+              imported: 0,
+              failed: 0,
+              errors: ['No valid messages found in CSV file']
+            })
             return
           }
 
-          // Ask user which webinar to import to
-          if (!webinarFilter || webinarFilter === 'all') {
-            alert('Please select a webinar from the filter dropdown before importing')
-            setLoading(false)
-            return
-          }
+          setImportStatus(prev => ({ 
+            ...prev, 
+            progress: `Found ${messagesToImport.length} messages, importing...`,
+            total: messagesToImport.length
+          }))
 
           // Send to API
           const response = await fetch('/api/chat/import', {
@@ -501,34 +553,53 @@ export default function ChatModerationPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               webinarId: webinarFilter,
-              messages: csvMessages
+              messages: messagesToImport
             })
           })
 
           if (response.ok) {
             const data = await response.json()
-            alert(`Successfully imported ${data.imported || csvMessages.length} messages!`)
+            setImportStatus({
+              isImporting: false,
+              progress: 'Import completed successfully!',
+              total: messagesToImport.length,
+              imported: data.imported || messagesToImport.length,
+              failed: data.failed || 0,
+              errors: data.errors || []
+            })
             fetchMessages() // Refresh the list
           } else {
             const error = await response.json()
-            alert(`Import failed: ${error.error || 'Unknown error'}`)
+            setImportStatus({
+              isImporting: false,
+              progress: 'Import failed',
+              total: messagesToImport.length,
+              imported: 0,
+              failed: messagesToImport.length,
+              errors: [error.error || 'Unknown error', error.details || ''].filter(Boolean)
+            })
           }
         } else if (file.name.endsWith('.json')) {
           // Parse JSON format
-          const imported = JSON.parse(content)
+          messagesToImport = JSON.parse(content)
           
-          if (!Array.isArray(imported) || imported.length === 0) {
-            alert('Invalid JSON format. Expected an array of messages')
-            setLoading(false)
+          if (!Array.isArray(messagesToImport) || messagesToImport.length === 0) {
+            setImportStatus({
+              isImporting: false,
+              progress: 'Failed: Invalid JSON format',
+              total: 0,
+              imported: 0,
+              failed: 0,
+              errors: ['Invalid JSON format. Expected an array of messages']
+            })
             return
           }
 
-          // Ask user which webinar to import to
-          if (!webinarFilter || webinarFilter === 'all') {
-            alert('Please select a webinar from the filter dropdown before importing')
-            setLoading(false)
-            return
-          }
+          setImportStatus(prev => ({ 
+            ...prev, 
+            progress: `Found ${messagesToImport.length} messages, importing...`,
+            total: messagesToImport.length
+          }))
 
           // Send to API
           const response = await fetch('/api/chat/import', {
@@ -536,26 +607,53 @@ export default function ChatModerationPage() {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               webinarId: webinarFilter,
-              messages: imported
+              messages: messagesToImport
             })
           })
 
           if (response.ok) {
             const data = await response.json()
-            alert(`Successfully imported ${data.imported || imported.length} messages!`)
+            setImportStatus({
+              isImporting: false,
+              progress: 'Import completed successfully!',
+              total: messagesToImport.length,
+              imported: data.imported || messagesToImport.length,
+              failed: data.failed || 0,
+              errors: data.errors || []
+            })
             fetchMessages() // Refresh the list
           } else {
             const error = await response.json()
-            alert(`Import failed: ${error.error || 'Unknown error'}`)
+            setImportStatus({
+              isImporting: false,
+              progress: 'Import failed',
+              total: messagesToImport.length,
+              imported: 0,
+              failed: messagesToImport.length,
+              errors: [error.error || 'Unknown error', error.details || ''].filter(Boolean)
+            })
           }
         } else {
-          alert('Unsupported file format. Please use .csv or .json files')
+          setImportStatus({
+            isImporting: false,
+            progress: 'Failed: Unsupported file format',
+            total: 0,
+            imported: 0,
+            failed: 0,
+            errors: ['Unsupported file format. Please use .csv or .json files']
+          })
         }
       } catch (error) {
         console.error('Import error:', error)
-        alert('Error importing file. Please check the format and try again.')
+        setImportStatus({
+          isImporting: false,
+          progress: 'Import failed with error',
+          total: 0,
+          imported: 0,
+          failed: 0,
+          errors: [error instanceof Error ? error.message : 'Error importing file. Please check the format and try again.']
+        })
       } finally {
-        setLoading(false)
         // Reset file input
         e.target.value = ''
       }
@@ -622,6 +720,105 @@ export default function ChatModerationPage() {
             )}
           </div>
         </div>
+
+        {/* Import Status Panel */}
+        {(importStatus.isImporting || importStatus.progress) && (
+          <Card>
+            <CardBody>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold text-gray-900">Import Status</h3>
+                  {!importStatus.isImporting && (
+                    <button
+                      onClick={() => setImportStatus({
+                        isImporting: false,
+                        progress: '',
+                        total: 0,
+                        imported: 0,
+                        failed: 0,
+                        errors: []
+                      })}
+                      className="text-sm text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                
+                {/* Progress Message */}
+                <div className={`flex items-center gap-2 ${
+                  importStatus.isImporting ? 'text-blue-600' :
+                  importStatus.imported > 0 ? 'text-green-600' :
+                  importStatus.errors.length > 0 ? 'text-red-600' :
+                  'text-gray-600'
+                }`}>
+                  {importStatus.isImporting && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                  )}
+                  <span className="font-medium">{importStatus.progress}</span>
+                </div>
+
+                {/* Statistics */}
+                {importStatus.total > 0 && (
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-sm text-gray-500">Total</p>
+                      <p className="text-2xl font-bold text-gray-900">{importStatus.total}</p>
+                    </div>
+                    <div className="bg-green-50 rounded-lg p-3">
+                      <p className="text-sm text-green-600">Imported</p>
+                      <p className="text-2xl font-bold text-green-600">{importStatus.imported}</p>
+                    </div>
+                    <div className="bg-red-50 rounded-lg p-3">
+                      <p className="text-sm text-red-600">Failed</p>
+                      <p className="text-2xl font-bold text-red-600">{importStatus.failed}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Progress Bar */}
+                {importStatus.total > 0 && !importStatus.isImporting && (
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        importStatus.imported === importStatus.total ? 'bg-green-500' : 'bg-blue-500'
+                      }`}
+                      style={{ width: `${(importStatus.imported / importStatus.total) * 100}%` }}
+                    />
+                  </div>
+                )}
+
+                {/* Error Messages */}
+                {importStatus.errors.length > 0 && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <p className="text-sm font-medium text-red-800 mb-2">
+                      {importStatus.errors.length} error{importStatus.errors.length > 1 ? 's' : ''} occurred:
+                    </p>
+                    <ul className="list-disc list-inside space-y-1">
+                      {importStatus.errors.slice(0, 5).map((error, index) => (
+                        <li key={index} className="text-sm text-red-700">{error}</li>
+                      ))}
+                      {importStatus.errors.length > 5 && (
+                        <li className="text-sm text-red-600 font-medium">
+                          ...and {importStatus.errors.length - 5} more errors
+                        </li>
+                      )}
+                    </ul>
+                  </div>
+                )}
+
+                {/* Success Message */}
+                {!importStatus.isImporting && importStatus.imported > 0 && importStatus.failed === 0 && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                    <p className="text-sm text-green-800">
+                      ✓ Successfully imported {importStatus.imported} message{importStatus.imported > 1 ? 's' : ''}!
+                    </p>
+                  </div>
+                )}
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {/* Filters */}
         <Card>
@@ -831,7 +1028,11 @@ export default function ChatModerationPage() {
                         <span className="text-xs text-gray-500">
                           {new Date(message.timestamp || message.createdAt).toLocaleString()}
                         </span>
-                        {message.isApproved ? (
+                        {message.isScripted ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
+                            Scripted
+                          </span>
+                        ) : message.isApproved ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
                             Approved
                           </span>

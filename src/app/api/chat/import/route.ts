@@ -62,81 +62,92 @@ export async function POST(req: NextRequest) {
 
       // Create or find users and insert chat messages
       const createdMessages = []
+      const errors = []
+      let skipped = 0
       
-      for (const msg of messages) {
-        // Support both formats: 
-        // 1. {userName, userEmail, message, videoTimestamp}
-        // 2. {hour, minute, second, name, role, message, mode}
-        
-        let userName, userEmail, message, videoTimestamp
-        
-        if (msg.hour !== undefined && msg.name && msg.message) {
-          // CSV format from chat_log_141.csv
-          userName = msg.name
-          userEmail = `${msg.name.toLowerCase().replace(/\s+/g, '.')}@scripted.local`
-          message = msg.message
-          // Convert hour:minute:second to total seconds
-          const hour = parseInt(msg.hour) || 0
-          const minute = parseInt(msg.minute) || 0
-          const second = parseInt(msg.second) || 0
-          videoTimestamp = (hour * 3600) + (minute * 60) + second
-        } else {
-          // Standard format
-          userName = msg.userName
-          userEmail = msg.userEmail
-          message = msg.message
-          videoTimestamp = msg.videoTimestamp
-        }
+      for (let i = 0; i < messages.length; i++) {
+        try {
+          const msg = messages[i]
+          // Support both formats: 
+          // 1. {userName, userEmail, message, videoTimestamp}
+          // 2. {hour, minute, second, name, role, message, mode}
+          
+          let userName, userEmail, message, videoTimestamp
+          
+          if (msg.hour !== undefined && msg.name && msg.message) {
+            // CSV format from chat_log_141.csv
+            userName = msg.name
+            userEmail = `${msg.name.toLowerCase().replace(/\s+/g, '.')}@scripted.local`
+            message = msg.message
+            // Convert hour:minute:second to total seconds
+            const hour = parseInt(msg.hour) || 0
+            const minute = parseInt(msg.minute) || 0
+            const second = parseInt(msg.second) || 0
+            videoTimestamp = (hour * 3600) + (minute * 60) + second
+          } else {
+            // Standard format
+            userName = msg.userName
+            userEmail = msg.userEmail
+            message = msg.message
+            videoTimestamp = msg.videoTimestamp
+          }
 
-        if (!userName || !message || videoTimestamp === undefined) {
-          continue // Skip invalid entries
-        }
+          if (!userName || !message || videoTimestamp === undefined) {
+            skipped++
+            errors.push(`Row ${i + 1}: Missing required fields (userName, message, or timestamp)`)
+            continue // Skip invalid entries
+          }
 
-        // Find or create user
-        let user = await prisma.user.findUnique({
-          where: { email: userEmail }
-        })
-
-        if (!user) {
-          // Create a dummy user for scripted messages
-          user = await prisma.user.create({
-            data: {
-              email: userEmail,
-              name: userName,
-              password: '', // No password for dummy users
-              role: 'ATTENDEE'
-            }
+          // Find or create user
+          let user = await prisma.user.findUnique({
+            where: { email: userEmail }
           })
-        }
 
-        // Create scripted chat message
-        const chatMessage = await prisma.chatMessage.create({
-          data: {
-            webinarId,
-            userId: user.id,
-            message,
-            isScripted: true,
-            videoTimestamp: Math.floor(videoTimestamp),
-            isHidden: false
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true
+          if (!user) {
+            // Create a dummy user for scripted messages
+            user = await prisma.user.create({
+              data: {
+                email: userEmail,
+                name: userName,
+                password: '', // No password for dummy users
+                role: 'ATTENDEE'
+              }
+            })
+          }
+
+          // Create scripted chat message
+          const chatMessage = await prisma.chatMessage.create({
+            data: {
+              webinarId,
+              userId: user.id,
+              message,
+              isScripted: true,
+              videoTimestamp: Math.floor(videoTimestamp),
+              isHidden: false
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
               }
             }
-          }
-        })
+          })
 
-        createdMessages.push(chatMessage)
+          createdMessages.push(chatMessage)
+        } catch (error) {
+          errors.push(`Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
       }
 
       return NextResponse.json({
-        message: `Successfully imported ${createdMessages.length} chat messages`,
+        message: `Successfully imported ${createdMessages.length} out of ${messages.length} chat messages`,
         imported: createdMessages.length,
-        count: createdMessages.length,
+        failed: skipped + errors.length,
+        total: messages.length,
+        errors: errors.length > 0 ? errors : undefined,
         messages: createdMessages
       })
     }
@@ -182,58 +193,70 @@ export async function POST(req: NextRequest) {
       // Skip header row
       const dataLines = lines.slice(1)
       const createdMessages = []
+      const errors = []
+      let skipped = 0
 
-      for (const line of dataLines) {
-        const [userName, userEmail, message, timestampStr] = line.split(',').map(s => s.trim())
-        const videoTimestamp = parseInt(timestampStr, 10)
+      for (let i = 0; i < dataLines.length; i++) {
+        try {
+          const line = dataLines[i]
+          const [userName, userEmail, message, timestampStr] = line.split(',').map(s => s.trim())
+          const videoTimestamp = parseInt(timestampStr, 10)
 
-        if (!userName || !userEmail || !message || isNaN(videoTimestamp)) {
-          continue // Skip invalid entries
-        }
+          if (!userName || !userEmail || !message || isNaN(videoTimestamp)) {
+            skipped++
+            errors.push(`Row ${i + 2}: Missing or invalid fields`)
+            continue // Skip invalid entries
+          }
 
-        // Find or create user
-        let user = await prisma.user.findUnique({
-          where: { email: userEmail }
-        })
-
-        if (!user) {
-          user = await prisma.user.create({
-            data: {
-              email: userEmail,
-              name: userName,
-              password: '',
-              role: 'ATTENDEE'
-            }
+          // Find or create user
+          let user = await prisma.user.findUnique({
+            where: { email: userEmail }
           })
-        }
 
-        // Create scripted chat message
-        const chatMessage = await prisma.chatMessage.create({
-          data: {
-            webinarId,
-            userId: user.id,
-            message,
-            isScripted: true,
-            videoTimestamp,
-            isHidden: false
-          },
-          include: {
-            user: {
-              select: {
-                id: true,
-                name: true,
-                email: true
+          if (!user) {
+            user = await prisma.user.create({
+              data: {
+                email: userEmail,
+                name: userName,
+                password: '',
+                role: 'ATTENDEE'
+              }
+            })
+          }
+
+          // Create scripted chat message
+          const chatMessage = await prisma.chatMessage.create({
+            data: {
+              webinarId,
+              userId: user.id,
+              message,
+              isScripted: true,
+              videoTimestamp,
+              isHidden: false
+            },
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  name: true,
+                  email: true
+                }
               }
             }
-          }
-        })
+          })
 
-        createdMessages.push(chatMessage)
+          createdMessages.push(chatMessage)
+        } catch (error) {
+          errors.push(`Row ${i + 2}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        }
       }
 
       return NextResponse.json({
-        message: `Successfully imported ${createdMessages.length} chat messages`,
-        count: createdMessages.length,
+        message: `Successfully imported ${createdMessages.length} out of ${dataLines.length} chat messages`,
+        imported: createdMessages.length,
+        failed: skipped + errors.length,
+        total: dataLines.length,
+        errors: errors.length > 0 ? errors : undefined,
         messages: createdMessages
       })
     }
@@ -246,7 +269,13 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error('Chat import error:', error)
     return NextResponse.json(
-      { error: 'Failed to import chat messages' },
+      { 
+        error: 'Failed to import chat messages',
+        details: error instanceof Error ? error.message : 'Unknown error',
+        imported: 0,
+        failed: 0,
+        total: 0
+      },
       { status: 500 }
     )
   }
