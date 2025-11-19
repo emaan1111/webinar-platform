@@ -544,7 +544,54 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
     
     if (schedule.scheduleType === 'recurring') {
+      // If recurringPattern is missing or empty, check if there's a scheduledAt fallback
+      if (!schedule.recurringPattern || schedule.recurringPattern.trim() === '') {
+        if (schedule.scheduledAt) {
+          // Use scheduledAt as fallback
+          const date = parseScheduleTime(schedule)
+          if (date) {
+            const dateStr = date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric',
+              timeZone: tz
+            })
+            const timeStr = date.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZone: tz
+            })
+            return `${dateStr}, ${timeStr} • ${tzFriendly}`
+          }
+        }
+        // If no valid data, return a clear message
+        return 'Schedule to be determined'
+      }
+      
       const pattern = JSON.parse(schedule.recurringPattern || '{}')
+      
+      // Validate pattern has required fields
+      if (!pattern.interval || !pattern.time) {
+        if (schedule.scheduledAt) {
+          // Use scheduledAt as fallback
+          const date = parseScheduleTime(schedule)
+          if (date) {
+            const dateStr = date.toLocaleDateString('en-US', {
+              weekday: 'long',
+              month: 'short',
+              day: 'numeric',
+              timeZone: tz
+            })
+            const timeStr = date.toLocaleTimeString('en-US', {
+              hour: 'numeric',
+              minute: '2-digit',
+              timeZone: tz
+            })
+            return `${dateStr}, ${timeStr} • ${tzFriendly}`
+          }
+        }
+        return 'Schedule to be determined'
+      }
       
       // Calculate next occurrence based on pattern
       const now = new Date()
