@@ -140,8 +140,9 @@ export async function POST(request: NextRequest) {
           message: aiResponse,
           videoTimestamp: currentVideoTime || null,
           isScripted: false,
+          isAI: true,  // Mark as AI-generated
           isHidden: false,
-          isApproved: false,  // Changed: Requires post-webinar moderation approval
+          isApproved: false,  // Requires post-webinar moderation approval
           registrationId: registrationId || null,
         },
       });

@@ -21,6 +21,7 @@ interface ChatMessage {
   isHidden: boolean
   isApproved: boolean  // Always boolean in DB (default: false)
   isScripted: boolean
+  isAI: boolean
   videoTimestamp: number | null
   createdAt: string
   user: {
@@ -39,7 +40,7 @@ interface ChatMessage {
   isModerated?: boolean
 }
 
-type StatusFilter = 'all' | 'pending' | 'approved' | 'visible' | 'hidden' | 'scripted'
+type StatusFilter = 'all' | 'pending' | 'approved' | 'visible' | 'hidden' | 'scripted' | 'ai'
 
 export default function ChatModerationPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -127,9 +128,10 @@ export default function ChatModerationPage() {
     fetchMessages()
   }, [webinarFilter, searchQuery])
 
-  const pendingMessages = messages.filter(msg => !msg.isScripted && msg.isApproved !== true)
-  const approvedMessages = messages.filter(msg => !msg.isScripted && msg.isApproved === true)
+  const pendingMessages = messages.filter(msg => !msg.isScripted && !msg.isAI && msg.isApproved !== true)
+  const approvedMessages = messages.filter(msg => !msg.isScripted && !msg.isAI && msg.isApproved === true)
   const scriptedMessages = messages.filter(msg => msg.isScripted)
+  const aiMessages = messages.filter(msg => msg.isAI)
   const visibleMessages = messages.filter(msg => !msg.isHidden)
   const hiddenMessages = messages.filter(msg => msg.isHidden)
 
@@ -157,6 +159,7 @@ export default function ChatModerationPage() {
     { value: 'pending', label: 'Pending', count: pendingMessages.length },
     { value: 'approved', label: 'Approved', count: approvedMessages.length },
     { value: 'scripted', label: 'Imported', count: scriptedMessages.length },
+    { value: 'ai', label: 'AI Answers', count: aiMessages.length },
     { value: 'visible', label: 'Visible', count: visibleMessages.length },
     { value: 'hidden', label: 'Hidden', count: hiddenMessages.length }
   ]
@@ -175,9 +178,10 @@ export default function ChatModerationPage() {
         statusFilter === 'all' ||
         (statusFilter === 'visible' && !msg.isHidden) ||
         (statusFilter === 'hidden' && msg.isHidden) ||
-        (statusFilter === 'pending' && !msg.isScripted && msg.isApproved !== true) ||
-        (statusFilter === 'approved' && !msg.isScripted && msg.isApproved === true) ||
-        (statusFilter === 'scripted' && msg.isScripted)
+        (statusFilter === 'pending' && !msg.isScripted && !msg.isAI && msg.isApproved !== true) ||
+        (statusFilter === 'approved' && !msg.isScripted && !msg.isAI && msg.isApproved === true) ||
+        (statusFilter === 'scripted' && msg.isScripted) ||
+        (statusFilter === 'ai' && msg.isAI)
 
       // Debug for pending filter
       if (statusFilter === 'pending' && !matchesStatus) {
@@ -1031,6 +1035,10 @@ export default function ChatModerationPage() {
                         {message.isScripted ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">
                             Imported
+                          </span>
+                        ) : message.isAI ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            AI Answer
                           </span>
                         ) : message.isApproved ? (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">

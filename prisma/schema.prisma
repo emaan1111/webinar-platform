@@ -245,6 +245,7 @@ model ChatMessage {
   userName       String?       // Store name from registration or user
   message        String
   isScripted     Boolean       @default(false) // True for pre-written scripted messages
+  isAI           Boolean       @default(false) // True for AI-generated responses
   videoTimestamp Int?          // Timestamp in seconds when message should appear (for scripted messages)
   isHidden       Boolean       @default(false)
   isApproved     Boolean       @default(false) // Admin approval for user messages
