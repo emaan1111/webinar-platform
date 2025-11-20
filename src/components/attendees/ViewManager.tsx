@@ -44,6 +44,7 @@ export const defaultColumns: ColumnConfig[] = [
   // Engagement
   { key: 'engagementScore', label: 'Engagement Score', enabled: false, category: 'engagement' },
   { key: 'totalWatchTime', label: 'Total Watch Time', enabled: false, category: 'engagement' },
+  { key: 'lastWatchedPosition', label: 'Last Watched Position', enabled: false, category: 'engagement' },
   { key: 'totalEngagements', label: 'Total Engagements', enabled: false, category: 'engagement' },
   { key: 'sessionCount', label: 'Session Count', enabled: false, category: 'engagement' },
   { key: 'joinedAt', label: 'Joined At', enabled: false, category: 'engagement' },

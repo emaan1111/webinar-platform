@@ -200,6 +200,8 @@ export async function GET(request: Request) {
         replayDevice: reg.replayDevice || null,
         totalWatchTime: effectiveTotalWatchTime,
         totalWatchTimeFormatted: formatWatchTime(effectiveTotalWatchTime),
+        lastWatchedPosition: reg.lastWatchedPosition || 0,
+        lastWatchedPositionFormatted: formatWatchTime(reg.lastWatchedPosition || 0),
         lastSessionDevice,
         lastSessionBrowser,
         lastSessionOS,

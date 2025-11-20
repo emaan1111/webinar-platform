@@ -59,6 +59,8 @@ interface Attendee {
   replayDevice?: string | null
   totalWatchTime?: number
   totalWatchTimeFormatted?: string
+  lastWatchedPosition?: number
+  lastWatchedPositionFormatted?: string
   lastSessionDevice?: string | null
   lastSessionBrowser?: string | null
   lastSessionOS?: string | null
@@ -706,7 +708,10 @@ export default function AttendeesPage() {
       
       case 'totalWatchTime':
       case 'replayWatchTime':
-        const formattedKey = column.key === 'totalWatchTime' ? 'totalWatchTimeFormatted' : 'replayWatchTimeFormatted'
+      case 'lastWatchedPosition':
+        let formattedKey = 'totalWatchTimeFormatted'
+        if (column.key === 'replayWatchTime') formattedKey = 'replayWatchTimeFormatted'
+        if (column.key === 'lastWatchedPosition') formattedKey = 'lastWatchedPositionFormatted'
         return (
           <div className="flex items-center gap-1 text-sm text-gray-700">
             <Clock className="w-4 h-4" />
