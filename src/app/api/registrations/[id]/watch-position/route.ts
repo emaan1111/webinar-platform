@@ -21,13 +21,17 @@ export async function POST(
     }
 
     // Update the registration's lastWatchedPosition
-    // Only set watchedReplay if it's actually a replay
-    const updateData: any = {
-      lastWatchedPosition: Math.floor(position),
-    };
+    // IMPORTANT: Only update lastWatchedPosition for LIVE viewing
+    // Replay watching should update replayWatchTime instead
+    const updateData: any = {};
     
     if (isReplay) {
+      // For replay, update replayWatchTime (not lastWatchedPosition)
       updateData.watchedReplay = true;
+      updateData.replayWatchTime = Math.floor(position);
+    } else {
+      // For live viewing, update lastWatchedPosition
+      updateData.lastWatchedPosition = Math.floor(position);
     }
     
     const updated = await prisma.registration.update({
@@ -35,7 +39,7 @@ export async function POST(
       data: updateData,
     });
 
-    console.log(`✅ [API] Successfully updated position to ${Math.floor(position)} for registration ${id}`);
+    console.log(`✅ [API] Successfully updated ${isReplay ? 'replayWatchTime' : 'lastWatchedPosition'} to ${Math.floor(position)} for registration ${id}`);
 
     return NextResponse.json({ success: true, position: Math.floor(position) });
   } catch (error) {
