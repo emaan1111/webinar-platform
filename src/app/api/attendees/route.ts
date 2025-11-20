@@ -267,7 +267,18 @@ export async function GET(request: Request) {
         lastPurchaseCurrency: lastSale?.currency || purchaseCurrency,
         lastPurchaseProduct: lastSale?.productName || null,
         totalPurchaseAmount,
-        purchaseCurrency
+        purchaseCurrency,
+        // Sessions data for expandable rows
+        sessions: reg.sessions.map((session: any) => ({
+          id: session.id,
+          joinedAt: session.joinedAt,
+          leftAt: session.leftAt,
+          videoPosition: session.videoPosition || 0,
+          device: session.device || 'unknown',
+          browser: session.browser || null,
+          isActive: session.isActive,
+          lastSeenAt: session.lastSeenAt
+        }))
       }
     })
 

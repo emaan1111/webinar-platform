@@ -32,6 +32,17 @@ import {
   Trash2
 } from 'lucide-react'
 
+interface AttendeeSession {
+  id: string
+  joinedAt: string
+  leftAt: string | null
+  videoPosition: number
+  device: string
+  browser: string | null
+  isActive: boolean
+  lastSeenAt: string | null
+}
+
 interface Attendee {
   id: string
   name: string
@@ -75,6 +86,8 @@ interface Attendee {
   lastPurchaseProduct?: string | null
   totalPurchaseAmount?: number
   purchaseCurrency?: string | null
+  // Sessions array
+  sessions?: AttendeeSession[]
 }
 
 const VIEWS_STORAGE_KEY = 'attendee_views'
@@ -135,6 +148,9 @@ export default function AttendeesPage() {
   const [deleteMode, setDeleteMode] = useState<'single' | 'selected' | 'all'>('single')
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+  
+  // Expandable sessions rows
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
 
   // View management
   const [views, setViews] = useState<CustomView[]>([])
@@ -352,6 +368,18 @@ export default function AttendeesPage() {
       setSelectedAttendees([...selectedAttendees, id])
     }
   }
+  
+  const toggleRowExpand = (id: string) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(id)) {
+        newSet.delete(id)
+      } else {
+        newSet.add(id)
+      }
+      return newSet
+    })
+  }
 
   const handleSort = (columnKey: string) => {
     setSortConfig(current => {
@@ -532,6 +560,19 @@ export default function AttendeesPage() {
     }
     
     return date.toLocaleString('en-US', options)
+  }
+  
+  const formatSessionTime = (seconds: number) => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    if (hours > 0) {
+      return `${hours}h ${minutes}m ${secs}s`
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${secs}s`
+    }
+    return `${secs}s`
   }
 
   const handleExportCSV = () => {
@@ -1235,42 +1276,106 @@ export default function AttendeesPage() {
               </thead>
               <tbody className="bg-white">
                 {paginatedAttendees.map((attendee, index) => (
-                  <tr 
-                    key={attendee.id} 
-                    className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
-                  >
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedAttendees.includes(attendee.id)}
-                        onChange={() => handleSelectAttendee(attendee.id)}
-                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
-                      />
-                    </td>
-                    {enabledColumns.map(column => (
-                      <td key={column.key} className="px-6 py-4 whitespace-nowrap">
-                        {renderCellValue(attendee, column)}
+                  <React.Fragment key={attendee.id}>
+                    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedAttendees.includes(attendee.id)}
+                            onChange={() => handleSelectAttendee(attendee.id)}
+                            className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                          />
+                          {attendee.sessions && attendee.sessions.length > 1 && (
+                            <button
+                              onClick={() => toggleRowExpand(attendee.id)}
+                              className="text-gray-400 hover:text-gray-600 transition-colors"
+                              title={`${attendee.sessions.length} sessions - click to ${expandedRows.has(attendee.id) ? 'collapse' : 'expand'}`}
+                            >
+                              {expandedRows.has(attendee.id) ? (
+                                <ChevronUp className="w-4 h-4" />
+                              ) : (
+                                <ChevronDown className="w-4 h-4" />
+                              )}
+                            </button>
+                          )}
+                        </div>
                       </td>
-                    ))}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => handleDeleteClick('single', attendee.id)}
-                          className="text-red-600 hover:text-red-900"
-                          title="Delete attendee"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                        <button 
-                          onClick={() => router.push(`/dashboard/attendees/${attendee.id}`)}
-                          className="text-blue-600 hover:text-blue-900" 
-                          title="View detailed profile"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                      {enabledColumns.map(column => (
+                        <td key={column.key} className="px-6 py-4 whitespace-nowrap">
+                          {renderCellValue(attendee, column)}
+                        </td>
+                      ))}
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => handleDeleteClick('single', attendee.id)}
+                            className="text-red-600 hover:text-red-900"
+                            title="Delete attendee"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => router.push(`/dashboard/attendees/${attendee.id}`)}
+                            className="text-blue-600 hover:text-blue-900" 
+                            title="View detailed profile"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    
+                    {/* Expandable Sessions Row */}
+                    {expandedRows.has(attendee.id) && attendee.sessions && attendee.sessions.length > 0 && (
+                      <tr className="bg-blue-50">
+                        <td colSpan={enabledColumns.length + 2} className="px-6 py-4">
+                          <div className="space-y-2">
+                            <div className="text-sm font-semibold text-gray-900 mb-3">
+                              {attendee.sessions.length} Session{attendee.sessions.length > 1 ? 's' : ''} Details
+                            </div>
+                            <div className="grid grid-cols-1 gap-2">
+                              {attendee.sessions.map((session, idx) => (
+                                <div key={session.id} className="bg-white rounded-lg border border-gray-200 p-3">
+                                  <div className="grid grid-cols-6 gap-4 text-sm">
+                                    <div>
+                                      <span className="font-medium text-gray-500">Session {idx + 1}</span>
+                                      {session.isActive && (
+                                        <span className="ml-2 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                          <div className="w-2 h-2 bg-green-600 rounded-full animate-pulse" />
+                                          Active
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div>
+                                      <span className="block text-xs text-gray-500">Joined</span>
+                                      <span className="text-gray-900">{formatDateTime(session.joinedAt, 'time')}</span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-xs text-gray-500">Left</span>
+                                      <span className="text-gray-900">{session.leftAt ? formatDateTime(session.leftAt, 'time') : '—'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-xs text-gray-500">Watch Time</span>
+                                      <span className="text-gray-900">{formatSessionTime(session.videoPosition || 0)}</span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-xs text-gray-500">Device</span>
+                                      <span className="text-gray-900 capitalize">{session.device || 'Unknown'}</span>
+                                    </div>
+                                    <div>
+                                      <span className="block text-xs text-gray-500">Browser</span>
+                                      <span className="text-gray-900">{session.browser || 'Unknown'}</span>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

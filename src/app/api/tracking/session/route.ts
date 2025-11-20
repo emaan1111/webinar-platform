@@ -113,26 +113,21 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Check if there are any other active sessions for this registration
-      const otherActiveSessions = await prisma.attendeeSession.findFirst({
-        where: {
-          registrationId,
-          isActive: true,
-          id: { not: session.id }
-        },
-      });
-
-      // Only update registration leftAt if this is the last active session
-      const registration = await prisma.registration.update({
+      // Don't update registration leftAt here - it will be set by cron job after broadcast ends
+      // This ensures leftAt represents when the broadcast ended, not when user left
+      const registration = await prisma.registration.findUnique({
         where: { id: registrationId },
-        data: {
-          // Only set leftAt if no other active sessions exist
-          ...((!otherActiveSessions) && { leftAt: now }),
-        },
         include: {
           webinar: true,
         }
       });
+
+      if (!registration) {
+        return NextResponse.json(
+          { error: 'Registration not found' },
+          { status: 404 }
+        );
+      }
 
       // Check if this is a replay session by looking at page visits
       const replayPageVisit = await prisma.pageVisit.findFirst({
