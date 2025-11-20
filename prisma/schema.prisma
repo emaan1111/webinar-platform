@@ -330,6 +330,7 @@ model Registration {
   chatMessages ChatMessage[]     // Chat messages sent by this registered attendee
   reactions    Reaction[]        // Reactions sent by this registered attendee
   sales        WebinarSale[]
+  offerAnalytics OfferAnalytics[] // Offer analytics for this registration
   
   // Reminder System
   reminders    WebinarReminderSent[] // Reminders sent to this registration
@@ -533,6 +534,9 @@ model OfferAnalytics {
   
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  // Relations
+  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@index([webinarId])
   @@index([registrationId])
