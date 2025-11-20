@@ -450,44 +450,47 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
   totalErrors: number
 }> {
   try {
-    console.log('📊 Checking for ended webinars that need attendance tagging...')
+    console.log('📊 Checking for ended sessions that need attendance tagging...')
 
-    // Find webinars that:
-    // 1. Are in ENDED status OR have been LIVE for more than their duration
+    // Find registrations that:
+    // 1. Have a scheduled start time (evergreen model)
     // 2. Haven't had attendance tags applied yet
-    // 3. Have a duration set
-    const webinars = await prisma.webinar.findMany({
+    // 3. Session has ended (scheduledStartTime + duration has passed)
+    const registrations = await prisma.registration.findMany({
       where: {
-        duration: {
-          not: null as any
-        },
         attendanceTagsApplied: false,
-        OR: [
-          {
-            // Explicitly marked as ENDED
-            status: 'ENDED'
-          },
-          {
-            // Or has been LIVE and likely ended (last updated more than duration ago)
-            status: 'LIVE',
-            updatedAt: {
-              lte: new Date(Date.now() - 2 * 60 * 60 * 1000) // 2 hours ago
-            }
+        scheduledStartTime: {
+          not: null
+        },
+        webinar: {
+          duration: {
+            not: null
           }
-        ]
+        }
       },
       select: {
         id: true,
-        title: true,
-        status: true,
-        duration: true,
-        updatedAt: true
+        name: true,
+        email: true,
+        phone: true,
+        attended: true,
+        lastWatchedPosition: true,
+        scheduledStartTime: true,
+        clickfunnelsContactId: true,
+        webinar: {
+          select: {
+            id: true,
+            title: true,
+            duration: true,
+            mostlyAttendedThreshold: true
+          }
+        }
       },
-      take: 10 // Process max 10 webinars per cron run to avoid timeouts
+      take: 100 // Process in batches
     })
 
-    if (webinars.length === 0) {
-      console.log('✅ No webinars need attendance tagging at this time')
+    if (registrations.length === 0) {
+      console.log('✅ No sessions need attendance tagging at this time')
       return {
         success: true,
         webinarsProcessed: 0,
@@ -496,39 +499,76 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
       }
     }
 
-    console.log(`📋 Found ${webinars.length} webinars that need attendance tagging`)
+    // Filter to only registrations where session has ended
+    const now = new Date()
+    const endedSessions = registrations.filter((reg: any) => {
+      if (!reg.scheduledStartTime || !reg.webinar.duration) return false
+      const sessionEnd = new Date(reg.scheduledStartTime.getTime() + (reg.webinar.duration * 60 * 1000))
+      return sessionEnd <= now
+    })
+
+    if (endedSessions.length === 0) {
+      console.log('✅ No sessions have ended yet (all still in progress)')
+      return {
+        success: true,
+        webinarsProcessed: 0,
+        totalTagged: 0,
+        totalErrors: 0
+      }
+    }
+
+    console.log(`📋 Found ${endedSessions.length} ended sessions that need attendance tagging`)
 
     let totalTagged = 0
     let totalErrors = 0
+    const webinarsProcessed = new Set<string>()
 
-    for (const webinar of webinars) {
-      console.log(`\n🎯 Processing: ${webinar.title} (${webinar.status})`)
+    for (const registration of endedSessions) {
+      console.log(`\n🎯 Processing: ${registration.name} (${registration.email}) - ${registration.webinar.title}`)
       
       try {
-        const result = await applyAttendanceTagsForWebinar(webinar.id)
+        // Determine which tag to apply
+        const tagResult = await getAttendanceTag(registration.id)
         
-        totalTagged += result.tagged
-        totalErrors += result.errors
+        console.log(`   📌 Tag: ${tagResult.tagName}, Reason: ${tagResult.reason}`)
 
-        console.log(`   ✅ Tagged ${result.tagged} attendees, ${result.errors} errors`)
+        // Apply the tag if we have a contact ID and tag ID
+        if (registration.clickfunnelsContactId && tagResult.tagId) {
+          await tagClickFunnelsContact(registration.clickfunnelsContactId, [tagResult.tagId])
+          console.log(`   ✅ Applied ${tagResult.tagName}`)
+          totalTagged++
+        } else if (!registration.clickfunnelsContactId) {
+          console.log(`   ⚠️ No ClickFunnels contact ID`)
+        }
+
+        // Mark as processed
+        await prisma.registration.update({
+          where: { id: registration.id },
+          data: {
+            attendanceTagsApplied: true,
+            attendanceTagsAppliedAt: new Date()
+          }
+        })
+
+        webinarsProcessed.add(registration.webinar.id)
       } catch (error) {
-        console.error(`   ❌ Failed to process webinar ${webinar.id}:`, error)
+        console.error(`   ❌ Failed to process registration ${registration.id}:`, error)
         totalErrors++
       }
 
-      // Add delay between webinars to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
 
     console.log('\n✅ Completed automatic attendance tagging', {
-      webinarsProcessed: webinars.length,
+      webinarsProcessed: webinarsProcessed.size,
       totalTagged,
       totalErrors
     })
 
     return {
       success: true,
-      webinarsProcessed: webinars.length,
+      webinarsProcessed: webinarsProcessed.size,
       totalTagged,
       totalErrors
     }
