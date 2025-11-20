@@ -464,7 +464,7 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
         },
         webinar: {
           duration: {
-            not: null
+            not: null as any
           }
         }
       },
@@ -476,7 +476,6 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
         attended: true,
         lastWatchedPosition: true,
         scheduledStartTime: true,
-        clickfunnelsContactId: true,
         webinar: {
           select: {
             id: true,
@@ -532,13 +531,13 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
         
         console.log(`   📌 Tag: ${tagResult.tagName}, Reason: ${tagResult.reason}`)
 
-        // Apply the tag if we have a contact ID and tag ID
-        if (registration.clickfunnelsContactId && tagResult.tagId) {
-          await tagClickFunnelsContact(registration.clickfunnelsContactId, [tagResult.tagId])
+        // Apply the tag if we have an email and tag ID
+        if (registration.email && tagResult.tagId) {
+          await tagClickFunnelsContact(registration.email, [tagResult.tagId])
           console.log(`   ✅ Applied ${tagResult.tagName}`)
           totalTagged++
-        } else if (!registration.clickfunnelsContactId) {
-          console.log(`   ⚠️ No ClickFunnels contact ID`)
+        } else if (!registration.email) {
+          console.log(`   ⚠️ No email address`)
         }
 
         // Mark as processed
