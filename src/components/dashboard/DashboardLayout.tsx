@@ -22,7 +22,8 @@ import {
   FileBarChart,
   ShoppingCart,
   Heart,
-  Tag
+  Tag,
+  UserPlus
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -37,6 +38,7 @@ const navigation = [
   { name: 'Images', href: '/dashboard/images', icon: Image },
   { name: 'Attendees', href: '/dashboard/attendees', icon: Users },
   { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
+  { name: 'Referrals', href: '/dashboard/referrals', icon: UserPlus },
   { name: 'Reports', href: '/dashboard/reports', icon: FileBarChart },
   { name: 'Sales', href: '/dashboard/sales', icon: ShoppingCart },
   { name: 'Facebook Ads', href: '/dashboard/ads', icon: DollarSign },
