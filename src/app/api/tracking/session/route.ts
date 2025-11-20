@@ -113,21 +113,15 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Don't update registration leftAt here - it will be set by cron job after broadcast ends
-      // This ensures leftAt represents when the broadcast ended, not when user left
-      const registration = await prisma.registration.findUnique({
+      // Don't update registration leftAt here - users can rejoin during broadcast
+      // leftAt will be set by cron job after broadcast ends to capture final last-seen time
+      const registration = await prisma.registration.update({
         where: { id: registrationId },
+        data: {},
         include: {
           webinar: true,
         }
       });
-
-      if (!registration) {
-        return NextResponse.json(
-          { error: 'Registration not found' },
-          { status: 404 }
-        );
-      }
 
       // Check if this is a replay session by looking at page visits
       const replayPageVisit = await prisma.pageVisit.findFirst({
