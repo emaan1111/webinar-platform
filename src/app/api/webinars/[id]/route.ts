@@ -151,7 +151,12 @@ export async function PATCH(
         
         // Convert string numbers to integers for numeric fields
         if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent' || field === 'mostlyAttendedThreshold' || field === 'postSessionSMSMinutesAfter' || field === 'postSessionSMSMinWatchedMinutes' || field === 'postSessionSMSMinWatchedPercentage') {
-          value = value ? parseInt(value) : null
+          // For postSessionSMSMinutesAfter, default to 0 instead of null (schema doesn't allow null)
+          if (field === 'postSessionSMSMinutesAfter') {
+            value = value ? parseInt(value) : 0
+          } else {
+            value = value ? parseInt(value) : null
+          }
         }
         
         // Convert string booleans to boolean
