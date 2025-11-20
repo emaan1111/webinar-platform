@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
         leftAt: null,
         watchedReplay: true,
         webinar: {
-          status: 'completed'
+          status: 'ENDED'
         }
       },
       include: {
