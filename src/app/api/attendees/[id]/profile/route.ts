@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth/next'
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
 export async function GET(
@@ -123,7 +123,7 @@ export async function GET(
     }
 
     // Calculate total watch time
-    const totalWatchTime = registration.sessions.reduce((sum, session) => {
+    const totalWatchTime = registration.sessions.reduce((sum: number, session: any) => {
       return sum + (session.watchDuration || 0)
     }, 0)
     const effectiveTotalWatchTime = totalWatchTime > 0 ? totalWatchTime : (registration.lastWatchedPosition || 0)
@@ -155,32 +155,32 @@ export async function GET(
       engagementScore,
 
       // Engagement details
-      chatMessages: registration.chatMessages.map(msg => ({
+      chatMessages: registration.chatMessages.map((msg: any) => ({
         id: msg.id,
         message: msg.message,
         timestamp: msg.createdAt.toISOString(),
         isApproved: msg.isApproved
       })),
 
-      reactions: registration.reactions.map(reaction => ({
+      reactions: registration.reactions.map((reaction: any) => ({
         id: reaction.id,
         type: reaction.type,
         timestamp: reaction.createdAt.toISOString()
       })),
 
-      ctaClicks: registration.sales.map(sale => ({
+      ctaClicks: registration.sales.map((sale: any) => ({
         id: sale.id,
         offerTitle: sale.offer.title,
         timestamp: sale.createdAt.toISOString()
       })),
 
-      pageVisits: registration.pageVisits.map(visit => ({
+      pageVisits: registration.pageVisits.map((visit: any) => ({
         id: visit.id,
         timestamp: visit.visitedAt.toISOString(),
         duration: visit.duration || 0
       })),
 
-      watchSessions: registration.sessions.map(session => {
+      watchSessions: registration.sessions.map((session: any) => {
         const duration = session.watchDuration || 0
         return {
           id: session.id,
@@ -190,7 +190,7 @@ export async function GET(
         }
       }),
 
-      referrals: referredRegistrations.map(ref => ({
+      referrals: referredRegistrations.map((ref: any) => ({
         id: ref.id,
         name: ref.name,
         email: ref.email,
