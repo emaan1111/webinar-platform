@@ -145,6 +145,7 @@ export async function GET(request: Request) {
       const lastSessionDevice = lastSession?.device || null
       const lastSessionBrowser = lastSession?.browser || null
       const lastSessionOS = lastSession?.os || null
+      const lastSeenAt = lastSession?.lastSeenAt || null
 
       // Calculate engagement score
       let engagementScore = 0
@@ -230,6 +231,7 @@ export async function GET(request: Request) {
         attended: reg.attended,
         joinedAt: reg.joinedAt,
         leftAt: reg.leftAt,
+        lastSeenAt: lastSeenAt,
         engagementScore,
         gdprConsent: reg.gdprConsent,
         privacyConsent: reg.privacyConsent,

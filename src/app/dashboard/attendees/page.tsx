@@ -58,6 +58,7 @@ interface Attendee {
   attended: boolean
   joinedAt: string | null
   leftAt: string | null
+  lastSeenAt: string | null
   engagementScore: number
   gdprConsent: boolean
   privacyConsent: boolean
@@ -585,7 +586,7 @@ export default function AttendeesPage() {
         const value = (a as any)[col.key]
         
         // Format special values
-        if (col.key === 'registeredAt' || col.key === 'scheduledAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastPurchaseAt') {
+        if (col.key === 'registeredAt' || col.key === 'scheduledAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastSeenAt' || col.key === 'lastPurchaseAt') {
           return value ? formatDateTime(value) : 'N/A'
         }
         if (col.key === 'lastPurchaseAmount') {
@@ -744,6 +745,7 @@ export default function AttendeesPage() {
       case 'scheduledAt':
       case 'joinedAt':
       case 'leftAt':
+      case 'lastSeenAt':
       case 'lastPurchaseAt':
         if (!value) return <div className="text-sm text-gray-400">N/A</div>
         return (

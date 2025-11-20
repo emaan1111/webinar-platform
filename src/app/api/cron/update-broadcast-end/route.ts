@@ -41,19 +41,18 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             title: true,
-            duration: true
+            duration: true,
+            status: true
           }
         },
         sessions: {
-          where: {
-            leftAt: { not: null }
-          },
           orderBy: {
-            leftAt: 'desc'
+            lastSeenAt: 'desc'
           },
           take: 1,
           select: {
-            leftAt: true
+            leftAt: true,
+            lastSeenAt: true
           }
         }
       }
@@ -77,26 +76,80 @@ export async function GET(request: NextRequest) {
 
       // Only update if broadcast has ended
       if (now >= broadcastEndTime) {
-        // Get the last session's leftAt time (their actual last-seen time)
-        const lastSessionLeftAt = registration.sessions[0]?.leftAt;
+        const lastSession = registration.sessions[0];
         
-        if (lastSessionLeftAt) {
+        // Use leftAt if available, otherwise fall back to lastSeenAt
+        // This handles cases where user is still active when broadcast ends
+        const finalLeftAt = lastSession?.leftAt || lastSession?.lastSeenAt;
+        
+        if (finalLeftAt) {
           await prisma.registration.update({
             where: { id: registration.id },
-            data: { leftAt: lastSessionLeftAt }
+            data: { leftAt: finalLeftAt }
           });
           updatedCount++;
-          console.log(`  ✓ Updated registration ${registration.id} with last-seen: ${lastSessionLeftAt.toISOString()}`);
+          const source = lastSession?.leftAt ? 'leftAt' : 'lastSeenAt';
+          console.log(`  ✓ Updated registration ${registration.id} with ${source}: ${finalLeftAt.toISOString()}`);
         }
       }
     }
 
-    console.log(`✅ Finalized ${updatedCount} registration last-seen times`);
+    // Handle replay sessions separately - set leftAt immediately since no broadcast end time
+    const replayRegistrations = await prisma.registration.findMany({
+      where: {
+        attended: true,
+        leftAt: null,
+        watchedReplay: true,
+        webinar: {
+          status: 'completed'
+        }
+      },
+      include: {
+        sessions: {
+          orderBy: {
+            lastSeenAt: 'desc'
+          },
+          take: 1,
+          select: {
+            leftAt: true,
+            lastSeenAt: true
+          }
+        }
+      }
+    });
+
+    console.log(`📺 Found ${replayRegistrations.length} replay registrations to finalize`);
+
+    let replayUpdatedCount = 0;
+
+    for (const registration of replayRegistrations) {
+      const lastSession = registration.sessions[0];
+      const finalLeftAt = lastSession?.leftAt || lastSession?.lastSeenAt;
+      
+      if (finalLeftAt) {
+        // For replays, only finalize if session ended more than 10 minutes ago
+        // This gives them time to resume watching
+        const tenMinutesAgo = new Date(now.getTime() - 10 * 60 * 1000);
+        
+        if (finalLeftAt < tenMinutesAgo) {
+          await prisma.registration.update({
+            where: { id: registration.id },
+            data: { leftAt: finalLeftAt }
+          });
+          replayUpdatedCount++;
+          console.log(`  ✓ Finalized replay registration ${registration.id}`);
+        }
+      }
+    }
+
+    console.log(`✅ Finalized ${updatedCount} live and ${replayUpdatedCount} replay registration last-seen times`);
 
     return NextResponse.json({
       success: true,
-      message: `Finalized ${updatedCount} registration timestamps with accurate last-seen time`,
+      message: `Finalized ${updatedCount + replayUpdatedCount} registration timestamps with accurate last-seen time`,
       updated: updatedCount,
+      replayUpdated: replayUpdatedCount,
+      total: updatedCount + replayUpdatedCount,
       timestamp: now.toISOString()
     });
 

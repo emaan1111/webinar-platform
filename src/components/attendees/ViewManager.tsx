@@ -50,6 +50,7 @@ export const defaultColumns: ColumnConfig[] = [
   { key: 'sessionCount', label: 'Session Count', enabled: false, category: 'engagement' },
   { key: 'joinedAt', label: 'Joined At', enabled: false, category: 'engagement' },
   { key: 'leftAt', label: 'Left At', enabled: false, category: 'engagement' },
+  { key: 'lastSeenAt', label: 'Last Seen At', enabled: false, category: 'engagement' },
   { key: 'viewedOffer', label: 'Saw Offer', enabled: false, category: 'engagement' },
   { key: 'clickedOffer', label: 'Clicked Offer', enabled: false, category: 'engagement' },
   { key: 'watchedMostlyMuted', label: 'Watched Muted/Unmuted', enabled: false, category: 'engagement' },
