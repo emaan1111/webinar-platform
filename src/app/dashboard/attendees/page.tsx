@@ -146,11 +146,33 @@ export default function AttendeesPage() {
     if (savedViews) {
       try {
         const parsed = JSON.parse(savedViews)
-        setViews(parsed)
+        
+        // Migrate views: add any new columns from defaultColumns that don't exist in saved views
+        let hasNewColumns = false
+        const migratedViews = parsed.map((view: CustomView) => {
+          const existingColumnKeys = new Set(view.columns.map(col => col.key))
+          const newColumns = defaultColumns.filter(col => !existingColumnKeys.has(col.key))
+          
+          if (newColumns.length > 0) {
+            hasNewColumns = true
+          }
+          
+          return {
+            ...view,
+            columns: [...view.columns, ...newColumns]
+          }
+        })
+        
+        setViews(migratedViews)
         
         // Set first view as active
-        if (parsed.length > 0) {
-          setActiveView(parsed[0])
+        if (migratedViews.length > 0) {
+          setActiveView(migratedViews[0])
+        }
+        
+        // Save migrated views back to localStorage
+        if (hasNewColumns) {
+          localStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(migratedViews))
         }
       } catch (error) {
         console.error('Failed to parse saved views:', error)
