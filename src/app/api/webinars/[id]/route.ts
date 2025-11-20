@@ -122,6 +122,11 @@ export async function PATCH(
       'replayDurationDays',
       'replayExpiresAt',
       'mostlyAttendedThreshold',
+      'autoSendPostSessionSMS',
+      'postSessionSMSMinutesAfter',
+      'postSessionSMSMinWatchedMinutes',
+      'postSessionSMSMinWatchedPercentage',
+      'postSessionSMSBody',
       'enableABTesting',
       'trafficSplitPercent',
       'testRegistrationPage',
@@ -145,8 +150,13 @@ export async function PATCH(
         let value = bodyData[field]
         
         // Convert string numbers to integers for numeric fields
-        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent' || field === 'mostlyAttendedThreshold') {
+        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent' || field === 'mostlyAttendedThreshold' || field === 'postSessionSMSMinutesAfter' || field === 'postSessionSMSMinWatchedMinutes' || field === 'postSessionSMSMinWatchedPercentage') {
           value = value ? parseInt(value) : null
+        }
+        
+        // Convert string booleans to boolean
+        if (field === 'autoSendPostSessionSMS') {
+          value = value === 'true' || value === true
         }
         
         webinarData[field] = value

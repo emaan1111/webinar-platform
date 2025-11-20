@@ -143,6 +143,13 @@ model Webinar {
   // Attendance Tagging Configuration
   mostlyAttendedThreshold Int? // Timestamp in seconds - users who watch past this get MOSTLY_ATTENDED tag
 
+  // Post-Session SMS Automation
+  autoSendPostSessionSMS Boolean @default(false) // Enable automatic post-session SMS
+  postSessionSMSMinutesAfter Int @default(0) // Minutes after session ends (0 = immediately)
+  postSessionSMSMinWatchedMinutes Int? // Minimum minutes watched to qualify (null = no minimum)
+  postSessionSMSMinWatchedPercentage Int? // Minimum percentage watched (null = no minimum)
+  postSessionSMSBody String? @db.Text // SMS template with {name}, {webinar_title} placeholders
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -321,6 +328,10 @@ model Registration {
   // Attendance Tagging
   attendanceTagsApplied Boolean @default(false) // Whether attendance tags have been applied
   attendanceTagsAppliedAt DateTime? // When attendance tags were applied
+
+  // Post-Session SMS Tracking
+  postSessionSmsSent Boolean @default(false) // Whether post-session SMS has been sent
+  postSessionSmsSentAt DateTime? // When post-session SMS was sent
 
   // Referral System
   referralCode    String?  @unique // Unique code for this person to share (e.g., "ABC123")
