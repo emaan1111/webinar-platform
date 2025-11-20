@@ -758,7 +758,7 @@ export default function WebinarLiveClient({
 
   // Handle tab visibility to pause/resume elapsed time
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       const isVisible = !document.hidden;
       setIsTabVisible(isVisible);
 
@@ -776,12 +776,31 @@ export default function WebinarLiveClient({
           console.log('👁️ Tab hidden but replay mode - keeping video playing');
         }
       } else {
-        // Tab visible again - resume from paused time
+        // Tab visible again - in LIVE mode, sync video to current session time (not where they left off)
         console.log('▶️ Tab visible - resuming');
         if (vimeoPlayerRef.current && broadcastStarted && !isReplayMode) {
-          vimeoPlayerRef.current.play().catch(() => {
-            // Ignore play errors
-          });
+          try {
+            // Get current elapsed session time
+            const currentSessionTime = elapsedSeconds;
+            
+            // Get current video time
+            const currentVideoTime = await vimeoPlayerRef.current.getCurrentTime();
+            
+            console.log(`🔄 Session time: ${currentSessionTime}s, Video time: ${currentVideoTime}s`);
+            
+            // If video is behind the session, sync it forward
+            const timeDiff = currentSessionTime - currentVideoTime;
+            if (timeDiff > 3) {
+              console.log(`⏩ Syncing video forward by ${timeDiff}s to catch up with live session`);
+              await vimeoPlayerRef.current.setCurrentTime(currentSessionTime);
+            }
+            
+            // Resume playback
+            await vimeoPlayerRef.current.play();
+            console.log('▶️ Resumed video playback');
+          } catch (err) {
+            console.error('❌ Error syncing/resuming video:', err);
+          }
         }
       }
     };
