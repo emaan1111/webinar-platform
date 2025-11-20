@@ -75,11 +75,36 @@ export async function GET(request: Request) {
       }
     })
 
+    // Filter out test users (identified by patterns in name/email)
+    const isTestUser = (name: string, email: string) => {
+      const nameLower = (name || '').toLowerCase()
+      const emailLower = (email || '').toLowerCase()
+      return (
+        emailLower.includes('test') ||
+        emailLower.includes('demo') ||
+        emailLower.includes('fake') ||
+        emailLower.includes('scripted') ||
+        emailLower.includes('example') ||
+        emailLower.includes('sample') ||
+        nameLower.includes('test') ||
+        nameLower.includes('demo') ||
+        nameLower.includes('fake') ||
+        nameLower.includes('scripted') ||
+        nameLower.includes('sample')
+      )
+    }
+
+    // Filter out test users
+    let filteredRegistrations = registrations.filter((reg: any) => {
+      const name = reg.name || reg.user?.name || ''
+      const email = reg.email || reg.user?.email || ''
+      return !isTestUser(name, email)
+    })
+
     // Filter by search if provided
-    let filteredRegistrations = registrations
     if (search) {
       const searchLower = search.toLowerCase()
-      filteredRegistrations = registrations.filter((reg: any) => 
+      filteredRegistrations = filteredRegistrations.filter((reg: any) => 
         reg.name?.toLowerCase().includes(searchLower) ||
         reg.email?.toLowerCase().includes(searchLower) ||
         reg.phone?.toLowerCase().includes(searchLower) ||

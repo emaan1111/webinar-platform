@@ -63,11 +63,13 @@ export default function ReactionsManagementPage() {
       const response = await fetch('/api/reactions')
       if (response.ok) {
         const data = await response.json()
-        setReactions(data.reactions || [])
+        // API returns array directly, not wrapped in {reactions: [...]}
+        const reactionsArray = Array.isArray(data) ? data : (data.reactions || [])
+        setReactions(reactionsArray)
         
         // Extract unique webinars
         const uniqueWebinars = Array.from(
-          new Map(data.reactions.map((r: Reaction) => [r.webinar.id, r.webinar])).values()
+          new Map(reactionsArray.map((r: Reaction) => [r.webinar.id, r.webinar])).values()
         )
         setWebinars(uniqueWebinars as Array<{ id: string; title: string }>)
       } else {
