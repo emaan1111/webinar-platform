@@ -650,10 +650,11 @@ export default function WebinarLiveClient({
       console.log('📊 WebinarTracker initialized');
     }
     
-    // Auto-start replay mode ONLY if user is accessing replay mode directly
-    // Do NOT auto-start if webinar just ended (showReplayPrompt will handle that)
-    if (isReplayMode && !showReplayPrompt && !webinarEnded) {
-      console.log('🎬 Auto-starting replay mode...');
+    // REMOVED: Auto-start for mobile - force users to tap "Start" button
+    // This ensures video starts UNMUTED (not muted for autoplay)
+    // Only auto-start on desktop for better UX
+    if (isReplayMode && !showReplayPrompt && !webinarEnded && !isMobile) {
+      console.log('🎬 Auto-starting replay mode (desktop only)...');
       setBroadcastStarted(true);
       setVideoLoading(true);
       
@@ -669,7 +670,7 @@ export default function WebinarLiveClient({
         trackerRef.current.endSession();
       }
     };
-  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, viewer?.id, webinar.id]);
+  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, viewer?.id, webinar.id, isMobile]);
 
   // Load seen offers from localStorage on mount
   useEffect(() => {
@@ -778,21 +779,27 @@ export default function WebinarLiveClient({
       setIsTabVisible(isVisible);
 
       if (!isVisible) {
-        // Tab hidden - store current elapsed time
+        // Tab hidden - store current elapsed time and pause video
         pausedTimeRef.current = elapsedSeconds;
         
-        // Only pause if NOT in replay mode (let replays keep playing)
-        if (vimeoPlayerRef.current && !isReplayMode) {
+        if (vimeoPlayerRef.current) {
           vimeoPlayerRef.current.pause().catch(() => {
             // Ignore pause errors
           });
           console.log('⏸️ Tab hidden - paused at', elapsedSeconds, 'seconds');
-        } else {
-          console.log('👁️ Tab hidden but replay mode - keeping video playing');
         }
       } else {
-        // Tab visible again - in LIVE mode, sync video to current session time (not where they left off)
-        console.log('▶️ Tab visible - resuming');
+        // Tab visible again
+        console.log('👁️ Tab visible');
+        
+        // NEW: On mobile, do NOT auto-resume - let user tap play button
+        // This prevents "can't hear" confusion after tab switching
+        if (isMobile) {
+          console.log('📱 Mobile: Video paused - user must manually resume');
+          return; // Don't auto-resume on mobile
+        }
+        
+        // Desktop: Auto-resume with sync
         if (vimeoPlayerRef.current && broadcastStarted && !isReplayMode) {
           try {
             // Get current elapsed session time
@@ -812,9 +819,17 @@ export default function WebinarLiveClient({
             
             // Resume playback
             await vimeoPlayerRef.current.play();
-            console.log('▶️ Resumed video playback');
+            console.log('▶️ Resumed video playback (desktop)');
           } catch (err) {
             console.error('❌ Error syncing/resuming video:', err);
+          }
+        } else if (vimeoPlayerRef.current && isReplayMode) {
+          // Replay mode: just resume from where paused
+          try {
+            await vimeoPlayerRef.current.play();
+            console.log('▶️ Resumed replay playback');
+          } catch (err) {
+            console.error('❌ Error resuming replay:', err);
           }
         }
       }
@@ -824,7 +839,7 @@ export default function WebinarLiveClient({
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [elapsedSeconds, broadcastStarted, isReplayMode]);
+  }, [elapsedSeconds, broadcastStarted, isReplayMode, isMobile]);
 
   useEffect(() => {
     const update = () => {
@@ -1647,9 +1662,9 @@ export default function WebinarLiveClient({
         
         console.log(`📱 Applying mobile-optimized settings for ${isMobileDevice ? 'mobile' : 'desktop'} device`);
         
-        // MOBILE OPTIMIZATION: Always start muted on mobile, try unmuted on desktop
-        // This is the most reliable approach for mobile autoplay restrictions
-        const startMuted = isMobileDevice;
+        // NEW: Start UNMUTED since users manually tap "Start" button
+        // No need to mute for autoplay since we removed autoplay on mobile
+        const startMuted = false; // Always start unmuted for better UX
         
         player.ready()
           .then(async () => {
