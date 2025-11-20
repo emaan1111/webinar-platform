@@ -52,7 +52,8 @@ export async function GET(request: Request) {
           select: {
             id: true,
             title: true,
-            duration: true
+            duration: true,
+            status: true
           }
         },
         sessions: {
@@ -191,6 +192,28 @@ export async function GET(request: Request) {
         return `${minutes}:${secs.toString().padStart(2, '0')}`
       }
 
+      // Calculate webinar status
+      const calculateWebinarStatus = () => {
+        const now = new Date()
+        const scheduledStart = reg.scheduledStartTime ? new Date(reg.scheduledStartTime) : null
+        const webinarDuration = reg.webinar.duration || 0
+        
+        if (!scheduledStart) {
+          return 'Unknown'
+        }
+        
+        const scheduledEnd = new Date(scheduledStart.getTime() + webinarDuration * 60 * 1000)
+        
+        if (now < scheduledStart) {
+          return 'Upcoming'
+        } else if (now >= scheduledStart && now <= scheduledEnd) {
+          return 'Currently Happening'
+        } else {
+          // Past webinar
+          return reg.attended ? 'Attended' : 'No Show'
+        }
+      }
+
       return {
         id: reg.id,
         name: reg.name || reg.user?.name || 'Unknown',
@@ -202,6 +225,7 @@ export async function GET(request: Request) {
         webinarTitle: reg.webinar.title,
         registeredAt: reg.registeredAt,
         scheduledAt: reg.scheduledStartTime,
+        webinarStatus: calculateWebinarStatus(),
         attended: reg.attended,
         joinedAt: reg.joinedAt,
         leftAt: reg.leftAt,

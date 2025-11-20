@@ -43,6 +43,7 @@ interface Attendee {
   webinarTitle: string
   registeredAt: string
   scheduledAt: string | null
+  webinarStatus: string
   attended: boolean
   joinedAt: string | null
   leftAt: string | null
@@ -557,6 +558,9 @@ export default function AttendeesPage() {
             col.key === 'hasPurchased') {
           return value ? 'Yes' : 'No'
         }
+        if (col.key === 'webinarStatus') {
+          return value || 'Unknown'
+        }
         
         return value?.toString() || 'N/A'
       })
@@ -720,6 +724,40 @@ export default function AttendeesPage() {
             No
           </span>
         )
+
+      case 'webinarStatus':
+        const status = attendee.webinarStatus
+        if (status === 'Upcoming') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              <Calendar className="w-3 h-3" />
+              Upcoming
+            </span>
+          )
+        } else if (status === 'Currently Happening') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+              <div className="w-2 h-2 bg-emerald-600 rounded-full animate-pulse" />
+              Live Now
+            </span>
+          )
+        } else if (status === 'No Show') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              <XCircle className="w-3 h-3" />
+              No Show
+            </span>
+          )
+        } else if (status === 'Attended') {
+          return (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              <CheckCircle className="w-3 h-3" />
+              Attended
+            </span>
+          )
+        } else {
+          return <div className="text-sm text-gray-400">Unknown</div>
+        }
 
       case 'hasPurchased':
         return attendee.hasPurchased ? (

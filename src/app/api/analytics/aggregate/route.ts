@@ -69,6 +69,11 @@ export async function GET(request: NextRequest) {
     const registrations = await prisma.registration.findMany({
       where: whereClause,
       include: {
+        webinar: {
+          select: {
+            duration: true
+          }
+        },
         sessions: {
           include: {
             engagements: true,
@@ -85,14 +90,29 @@ export async function GET(request: NextRequest) {
 
     // Calculate metrics
     const totalRegistrations = registrations.length;
-    const totalAttended = registrations.filter((r) => r.attended).length;
-    const attendanceRate = totalRegistrations > 0 
-      ? (totalAttended / totalRegistrations) * 100 
+    
+    // For attendance metrics, only count registrations for past webinars
+    const pastRegistrations = registrations.filter((r: any) => {
+      if (!r.scheduledStartTime || !r.webinar?.duration) {
+        return false; // Can't determine if past
+      }
+      
+      const now = new Date();
+      const scheduledStart = new Date(r.scheduledStartTime);
+      const scheduledEnd = new Date(scheduledStart.getTime() + r.webinar.duration * 60 * 1000);
+      
+      return now > scheduledEnd; // Only include webinars that have ended
+    });
+    
+    const totalPastRegistrations = pastRegistrations.length;
+    const totalAttended = pastRegistrations.filter((r: any) => r.attended).length;
+    const attendanceRate = totalPastRegistrations > 0 
+      ? (totalAttended / totalPastRegistrations) * 100 
       : 0;
 
-    const noShows = registrations.filter((r) => !r.attended).length;
-    const noShowRate = totalRegistrations > 0
-      ? (noShows / totalRegistrations) * 100
+    const noShows = pastRegistrations.filter((r: any) => !r.attended).length;
+    const noShowRate = totalPastRegistrations > 0
+      ? (noShows / totalPastRegistrations) * 100
       : 0;
 
     // Calculate average watch time

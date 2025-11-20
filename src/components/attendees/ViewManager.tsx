@@ -35,6 +35,7 @@ export const defaultColumns: ColumnConfig[] = [
   { key: 'webinarTitle', label: 'Webinar', enabled: true, category: 'basic' },
   { key: 'registeredAt', label: 'Registered', enabled: true, category: 'basic' },
   { key: 'scheduledAt', label: 'Scheduled At', enabled: false, category: 'basic' },
+  { key: 'webinarStatus', label: 'Webinar Status', enabled: true, category: 'basic' },
   { key: 'attended', label: 'Attended', enabled: true, category: 'basic' },
   
   // Location
