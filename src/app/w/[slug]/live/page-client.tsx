@@ -389,6 +389,7 @@ export default function WebinarLiveClient({
   const [isFullscreen, setIsFullscreen] = useState(false); // Track fullscreen state
   const [videoError, setVideoError] = useState(false); // Track if video failed to load
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile compatibility
+  const [showUnmuteHint, setShowUnmuteHint] = useState(false); // Show prominent unmute hint
   const [replayTimeRemaining, setReplayTimeRemaining] = useState<string | null>(null); // Countdown display
   const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set()); // Track offers user has seen
   const [webinarEnded, setWebinarEnded] = useState(false); // Track if live webinar has ended
@@ -1459,6 +1460,11 @@ export default function WebinarLiveClient({
       await vimeoPlayerRef.current.setVolume(newMutedState ? 0 : 1);
       setIsMuted(newMutedState);
       
+      // Hide unmute hint when user unmutes
+      if (!newMutedState) {
+        setShowUnmuteHint(false);
+      }
+      
       // Track mute state change
       if (trackerRef.current) {
         trackerRef.current.setMuteState(newMutedState);
@@ -2116,6 +2122,40 @@ export default function WebinarLiveClient({
                           <i className="fas fa-play" style={{ marginRight: '10px' }} />
                           Start Replay
                         </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Unmute Hint - shows when video starts muted */}
+                  {showUnmuteHint && isMuted && broadcastStarted && (
+                    <div 
+                      className={styles.unmuteHint}
+                      onClick={() => {
+                        toggleMute();
+                        setShowUnmuteHint(false);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        background: 'rgba(0, 0, 0, 0.9)',
+                        color: 'white',
+                        padding: '24px 32px',
+                        borderRadius: '16px',
+                        cursor: 'pointer',
+                        zIndex: 1000,
+                        textAlign: 'center',
+                        animation: 'pulse 2s infinite',
+                        boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+                      }}
+                    >
+                      <i className="fas fa-volume-mute" style={{ fontSize: '48px', marginBottom: '12px', display: 'block' }} />
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', marginBottom: '8px' }}>
+                        Tap to Unmute
+                      </div>
+                      <div style={{ fontSize: '14px', opacity: 0.8 }}>
+                        Video is playing without sound
                       </div>
                     </div>
                   )}

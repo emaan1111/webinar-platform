@@ -724,10 +724,35 @@ export default function AttendeesPage() {
       case 'gdprConsent':
       case 'privacyConsent':
       case 'marketingConsent':
+      case 'viewedOffer':
+      case 'clickedOffer':
         return value ? (
           <CheckCircle className="w-4 h-4 text-green-600" />
         ) : (
           <XCircle className="w-4 h-4 text-gray-300" />
+        )
+      
+      case 'watchedMostlyMuted':
+        return value ? (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+            <i className="fas fa-volume-mute" style={{ fontSize: '10px' }} />
+            Muted
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+            <i className="fas fa-volume-up" style={{ fontSize: '10px' }} />
+            Unmuted
+          </span>
+        )
+      
+      case 'totalMutedTime':
+      case 'totalUnmutedTime':
+        let mutedFormattedKey = column.key === 'totalMutedTime' ? 'totalMutedTimeFormatted' : 'totalUnmutedTimeFormatted'
+        return (
+          <div className="flex items-center gap-1 text-sm text-gray-700">
+            <Clock className="w-4 h-4" />
+            {(attendee as any)[mutedFormattedKey] || '0:00'}
+          </div>
         )
       
       case 'totalEngagements':

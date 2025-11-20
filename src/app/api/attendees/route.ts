@@ -68,6 +68,11 @@ export async function GET(request: Request) {
           orderBy: {
             purchasedAt: 'desc'
           }
+        },
+        offerAnalytics: {
+          orderBy: {
+            viewedOfferAt: 'desc'
+          }
         }
       },
       orderBy: {
@@ -161,6 +166,19 @@ export async function GET(request: Request) {
       const totalEngagements = reg.sessions.reduce((sum: number, session: any) => {
         return sum + (session.engagements?.length || 0)
       }, 0)
+      
+      // Calculate muted/unmuted data from sessions
+      const totalMutedTime = reg.sessions.reduce((sum: number, session: any) => {
+        return sum + (session.mutedDuration || 0)
+      }, 0)
+      const totalUnmutedTime = reg.sessions.reduce((sum: number, session: any) => {
+        return sum + (session.unmutedDuration || 0)
+      }, 0)
+      const watchedMostlyMuted = totalMutedTime > totalUnmutedTime
+      
+      // Check if user viewed or clicked any offers
+      const viewedOffer = (reg.offerAnalytics || []).some((o: any) => o.viewedOffer)
+      const clickedOffer = (reg.offerAnalytics || []).some((o: any) => o.clickedOffer)
 
       // Format watch time
       const formatWatchTime = (seconds: number) => {
@@ -207,6 +225,16 @@ export async function GET(request: Request) {
         lastSessionOS,
         totalEngagements,
         sessionCount: reg.sessions.length,
+        // Offer analytics
+        viewedOffer,
+        clickedOffer,
+        // Muted/Unmuted tracking
+        totalMutedTime,
+        totalUnmutedTime,
+        totalMutedTimeFormatted: formatWatchTime(totalMutedTime),
+        totalUnmutedTimeFormatted: formatWatchTime(totalUnmutedTime),
+        watchedMostlyMuted,
+        // Purchase data
         hasPurchased: sales.length > 0,
         purchaseCount: sales.length,
         lastPurchaseAt: lastSale?.purchasedAt || null,
