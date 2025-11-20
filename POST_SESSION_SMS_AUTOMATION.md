@@ -153,9 +153,15 @@ model Registration {
 
 ## API Endpoints
 
-### 1. Cron Endpoint (Automated Processing)
+### Unified Cron Endpoint (All Automations)
 
-**URL:** `POST /api/cron/process-post-session-sms`
+**URL:** `POST /api/cron/process-reminders`
+
+**What It Processes:**
+1. ✅ Pre-webinar reminders (SMS/email)
+2. ✅ ClickFunnels reminder tags (24hr, 2hr, 1hr, 15min, started)
+3. ✅ Post-webinar attendance tagging
+4. ✅ **Post-session SMS automation** (NEW!)
 
 **Authentication:** Bearer token (CRON_SECRET)
 
@@ -168,27 +174,64 @@ Authorization: Bearer your-cron-secret-token
 ```json
 {
   "success": true,
-  "message": "Processed 47 sessions, sent 35 SMS, 2 failed",
-  "checked": 47,
-  "sent": 35,
-  "failed": 2,
-  "errors": [
-    "user@example.com: Invalid phone number"
-  ]
+  "reminderStats": {
+    "processed": 15,
+    "sent": 12,
+    "failed": 3
+  },
+  "clickFunnelsTagStats": {
+    "processed": 8,
+    "tagged": 6,
+    "failed": 2
+  },
+  "attendanceTagStats": {
+    "checked": 23,
+    "tagged": 18,
+    "failed": 5
+  },
+  "postSessionSmsStats": {
+    "checked": 47,
+    "sent": 35,
+    "failed": 2,
+    "errors": ["user@example.com: Invalid phone number"]
+  },
+  "timestamp": "2025-11-20T15:30:00.000Z"
 }
 ```
 
 **Execution Logic:**
-1. Query registrations WHERE `postSessionSmsSent = false` AND `scheduledStartTime IS NOT NULL`
-2. Filter to webinars WHERE `autoSendPostSessionSMS = true`
-3. Calculate send time: `scheduledStartTime + (duration * 60 * 1000) + (minutesAfter * 60 * 1000)`
-4. Check if `sendTime <= now`
-5. Validate watch criteria (if configured)
-6. Send SMS and mark as sent
-7. Process up to 100 registrations per run
-8. Rate limit: 100ms delay between sends
+- All four processes run in **parallel** using `Promise.all()`
+- Each process is independent and won't block others
+- Post-session SMS processing:
+  1. Query registrations WHERE `postSessionSmsSent = false` AND `scheduledStartTime IS NOT NULL`
+  2. Filter to webinars WHERE `autoSendPostSessionSMS = true`
+  3. Calculate send time: `scheduledStartTime + (duration * 60 * 1000) + (minutesAfter * 60 * 1000)`
+  4. Check if `sendTime <= now`
+  5. Validate watch criteria (if configured)
+  6. Send SMS and mark as sent
+  7. Process up to 100 registrations per run
+  8. Rate limit: 100ms delay between sends
 
-### 2. Manual Trigger (Admin Only)
+**Current Schedule:** Every 5-10 minutes (already configured in Railway)
+
+### Manual Trigger (Admin Only)
+
+**Function:** `sendPostSessionSMSForWebinar(webinarId)`
+
+**Location:** `src/lib/postSessionSmsAutomation.ts`
+
+**Usage:**
+```typescript
+import { sendPostSessionSMSForWebinar } from '@/lib/postSessionSmsAutomation'
+
+const result = await sendPostSessionSMSForWebinar('webinar-id-here')
+console.log(`Sent: ${result.sent}, Failed: ${result.failed}`)
+```
+
+Useful for:
+- Testing SMS before enabling automation
+- Resending to failed recipients
+- One-off campaigns
 
 **Function:** `sendPostSessionSMSForWebinar(webinarId)`
 
@@ -307,12 +350,49 @@ function checkWatchCriteria(
 
 ## Railway Cron Setup
 
-### Create Cron Job in Railway Dashboard
+### ✅ Already Configured!
+
+**Good news:** You don't need to create a new cron job! The post-session SMS automation has been added to your existing cron job that already runs every 5-10 minutes.
+
+**Your existing cron job now processes:**
+1. Pre-webinar reminders (SMS/email notifications)
+2. ClickFunnels reminder tags (24hr, 2hr, 1hr, 15min, started)
+3. Post-webinar attendance tagging (ATTENDED, MOSTLY_ATTENDED, etc.)
+4. **Post-session SMS automation** (NEW! ✨)
+
+All four automations run in parallel, so adding post-session SMS doesn't slow down your existing processes.
+
+### Verify It's Working
+
+**Check Railway Logs:**
+```bash
+railway logs -f
+```
+
+**Look for:**
+```
+🔔 Cron job: Processing reminders + ClickFunnels tags + attendance tagging + post-session SMS...
+```
+
+**Response should include:**
+```json
+{
+  "postSessionSmsStats": {
+    "checked": 47,
+    "sent": 35,
+    "failed": 2
+  }
+}
+```
+
+### If You Need to Create a New Cron Job (Not Required)
+
+Only do this if you want a separate cron job specifically for post-session SMS:
 
 1. **Navigate to:** Railway Project → Cron Jobs
 2. **Click:** "New Cron Job"
 3. **Configuration:**
-   - **Name:** Post-Session SMS Automation
+   - **Name:** Post-Session SMS Only
    - **Schedule:** `*/15 * * * *` (every 15 minutes)
    - **Command/URL:** `POST https://emaanpowerclasses.com/api/cron/process-post-session-sms`
    - **Headers:** 
@@ -322,15 +402,7 @@ function checkWatchCriteria(
      ```
    - **Method:** POST
 
-4. **Test:** Click "Run Now" to test manually
-5. **Monitor:** Check logs tab for execution results
-
-### Environment Variable
-
-Ensure `CRON_SECRET` is set in Railway environment variables:
-```
-CRON_SECRET=your-secure-random-token-here
-```
+**Note:** This endpoint no longer exists since we merged everything into `/api/cron/process-reminders`.
 
 ## Monitoring & Analytics
 
@@ -581,14 +653,18 @@ curl -X POST https://emaanpowerclasses.com/api/cron/process-post-session-sms \
 ## Files Modified/Created
 
 ### New Files
-- `src/lib/postSessionSmsAutomation.ts` - Core automation logic
-- `src/app/api/cron/process-post-session-sms/route.ts` - Cron HTTP endpoint
+- `src/lib/postSessionSmsAutomation.ts` - Core automation logic (294 lines)
 - `add-post-session-sms-automation.sql` - Database migration
+- `POST_SESSION_SMS_AUTOMATION.md` - This documentation
 
 ### Modified Files
 - `prisma/schema.prisma` - Added SMS fields to Webinar and Registration models
-- `src/app/api/webinars/[id]/route.ts` - Added SMS fields to API
-- `src/app/dashboard/webinars/[id]/edit/page.tsx` - Added SMS configuration UI
+- `src/app/api/webinars/[id]/route.ts` - Added SMS fields to API with numeric/boolean conversion
+- `src/app/dashboard/webinars/[id]/edit/page.tsx` - Added SMS configuration UI (complete form)
+- `src/app/api/cron/process-reminders/route.ts` - **Added post-session SMS to unified cron job**
+
+### Deleted Files
+- ~~`src/app/api/cron/process-post-session-sms/route.ts`~~ - No longer needed (merged into unified cron)
 
 ## Future Enhancements
 
