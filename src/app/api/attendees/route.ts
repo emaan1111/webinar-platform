@@ -71,7 +71,7 @@ export async function GET(request: Request) {
         },
         offerAnalytics: {
           orderBy: {
-            viewedOfferAt: 'desc'
+            sawOfferAt: 'desc'
           }
         }
       },
