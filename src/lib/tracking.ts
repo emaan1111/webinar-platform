@@ -10,6 +10,10 @@ export class WebinarTracker {
   private watchTime: number = 0;
   private currentPosition: number = 0;
   private isWatching: boolean = false;
+  private isMuted: boolean = true; // Track mute state
+  private mutedTime: number = 0;
+  private unmutedTime: number = 0;
+  private lastMuteStateChange: number = Date.now();
 
   constructor(registrationId: string, webinarId: string, scheduleId: string | null = null) {
     this.registrationId = registrationId;
@@ -65,6 +69,9 @@ export class WebinarTracker {
           action: 'update',
           videoPosition: this.currentPosition,
           watchTime: this.watchTime,
+          isMuted: this.isMuted,
+          mutedTime: this.mutedTime,
+          unmutedTime: this.unmutedTime,
         }),
       });
     } catch (error) {
@@ -78,6 +85,9 @@ export class WebinarTracker {
       clearInterval(this.updateInterval);
     }
 
+    // Update mute time before ending
+    this.updateMuteTime();
+
     if (this.sessionId) {
       try {
         await fetch('/api/tracking/session', {
@@ -89,6 +99,9 @@ export class WebinarTracker {
             action: 'leave',
             videoPosition: this.currentPosition,
             watchTime: this.watchTime,
+            isMuted: this.isMuted,
+            mutedTime: this.mutedTime,
+            unmutedTime: this.unmutedTime,
           }),
         });
         console.log('[Tracking] Session ended');
@@ -105,11 +118,41 @@ export class WebinarTracker {
     
     if (isPlaying && timeDiff > 0 && timeDiff < 5) {
       this.watchTime += timeDiff;
+      this.updateMuteTime(); // Update muted/unmuted duration
     }
     
     this.currentPosition = position;
     this.isWatching = isPlaying;
     this.lastUpdateTime = now;
+  }
+
+  // Update mute state and track duration
+  setMuteState(isMuted: boolean) {
+    // Before changing state, add time to the appropriate counter
+    this.updateMuteTime();
+    
+    // Update state
+    this.isMuted = isMuted;
+    this.lastMuteStateChange = Date.now();
+    
+    console.log(`[Tracking] Mute state changed to: ${isMuted ? 'MUTED' : 'UNMUTED'}`);
+    console.log(`[Tracking] Muted time: ${this.mutedTime}s, Unmuted time: ${this.unmutedTime}s`);
+  }
+
+  // Helper to update muted/unmuted duration
+  private updateMuteTime() {
+    const now = Date.now();
+    const timeDiff = (now - this.lastMuteStateChange) / 1000;
+    
+    if (this.isWatching && timeDiff > 0 && timeDiff < 15) { // Sanity check
+      if (this.isMuted) {
+        this.mutedTime += timeDiff;
+      } else {
+        this.unmutedTime += timeDiff;
+      }
+    }
+    
+    this.lastMuteStateChange = now;
   }
 
   // Track video events

@@ -15,6 +15,9 @@ export async function POST(request: NextRequest) {
       watchTime,
       userAgent,
       device,
+      isMuted,
+      mutedTime,
+      unmutedTime,
     } = body;
 
     if (!registrationId || !webinarId) {
@@ -71,13 +74,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'update' && session) {
-      // Update session with watch progress
+      // Update session with watch progress and mute state
       await prisma.attendeeSession.update({
         where: { id: session.id },
         data: {
           lastSeenAt: new Date(),
           videoPosition: videoPosition ?? session.videoPosition,
           totalWatchTime: watchTime ?? session.totalWatchTime,
+          watchDuration: watchTime ?? session.watchDuration, // Update both fields
+          lastMuteState: isMuted !== undefined ? isMuted : session.lastMuteState,
+          mutedDuration: mutedTime !== undefined ? mutedTime : session.mutedDuration,
+          unmutedDuration: unmutedTime !== undefined ? unmutedTime : session.unmutedDuration,
         },
       });
 
@@ -97,6 +104,10 @@ export async function POST(request: NextRequest) {
           isActive: false,
           videoPosition: videoPosition ?? session.videoPosition,
           totalWatchTime: watchTime ?? session.totalWatchTime,
+          watchDuration: watchTime ?? session.watchDuration, // Update both fields
+          lastMuteState: isMuted !== undefined ? isMuted : session.lastMuteState,
+          mutedDuration: mutedTime !== undefined ? mutedTime : session.mutedDuration,
+          unmutedDuration: unmutedTime !== undefined ? unmutedTime : session.unmutedDuration,
         },
       });
 

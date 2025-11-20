@@ -392,6 +392,13 @@ model AttendeeSession {
   totalWatchTime Int @default(0) // Total seconds watched
   videoPosition  Int @default(0) // Last known position in video (seconds)
   isWatching     Boolean @default(true)
+  watchDuration  Int @default(0) // Actual watch duration (for backward compatibility)
+  
+  // Audio State Tracking
+  watchedMuted      Boolean @default(true) // Started muted (most users do)
+  mutedDuration     Int @default(0) // Seconds watched while muted
+  unmutedDuration   Int @default(0) // Seconds watched while unmuted
+  lastMuteState     Boolean? // Last known mute state
   
   // Status
   isActive Boolean @default(true) // Currently in webinar

@@ -643,6 +643,12 @@ export default function WebinarLiveClient({
     setMounted(true);
     console.log('✅ Component mounted');
     
+    // Initialize tracker
+    if (viewer?.id && webinar.id) {
+      trackerRef.current = new WebinarTracker(viewer.id, webinar.id, null);
+      console.log('📊 WebinarTracker initialized');
+    }
+    
     // Auto-start replay mode ONLY if user is accessing replay mode directly
     // Do NOT auto-start if webinar just ended (showReplayPrompt will handle that)
     if (isReplayMode && !showReplayPrompt && !webinarEnded) {
@@ -654,7 +660,15 @@ export default function WebinarLiveClient({
       startTimeRef.current = timing.initialElapsedSeconds;
       console.log(`📍 Initial replay position: ${timing.initialElapsedSeconds}s`);
     }
-  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded]);
+    
+    // Cleanup on unmount
+    return () => {
+      if (trackerRef.current) {
+        console.log('🔚 Ending tracker session on unmount');
+        trackerRef.current.endSession();
+      }
+    };
+  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, viewer?.id, webinar.id]);
 
   // Load seen offers from localStorage on mount
   useEffect(() => {
@@ -1444,6 +1458,12 @@ export default function WebinarLiveClient({
       await vimeoPlayerRef.current.setMuted(newMutedState);
       await vimeoPlayerRef.current.setVolume(newMutedState ? 0 : 1);
       setIsMuted(newMutedState);
+      
+      // Track mute state change
+      if (trackerRef.current) {
+        trackerRef.current.setMuteState(newMutedState);
+      }
+      
       console.log(`🔊 Volume ${newMutedState ? 'MUTED' : 'UNMUTED'}`);
     } catch (err) {
       console.error('Error toggling mute:', err);
@@ -1695,13 +1715,18 @@ export default function WebinarLiveClient({
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
               
+              // Start session tracking
+              if (trackerRef.current) {
+                const device = isMobileDevice ? 'mobile' : 'desktop';
+                await trackerRef.current.startSession(device);
+                trackerRef.current.setMuteState(startMuted);
+                trackerRef.current.trackVideoEvent('play', startTime);
+                console.log(`� Session tracking started (${device}, ${startMuted ? 'muted' : 'unmuted'})`);
+              }
+              
               // Show unmute hint on mobile
               if (isMobileDevice && startMuted) {
                 console.log('💡 Mobile: Video started muted. User can unmute with button.');
-              }
-              
-              if (trackerRef.current) {
-                trackerRef.current.trackVideoEvent('play', startTime);
               }
             } catch (playErr) {
               console.error('❌ Play failed:', playErr);
@@ -1862,6 +1887,11 @@ export default function WebinarLiveClient({
           console.error('Error saving final watch position:', err);
         }
       }
+      
+      // End tracker session
+      if (trackerRef.current) {
+        await trackerRef.current.endSession();
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -1873,6 +1903,36 @@ export default function WebinarLiveClient({
       handleBeforeUnload();
     };
   }, [viewer?.id, broadcastStarted, playerReady]); // Removed isReplay - save for both live and replay
+
+  // Track actual watch time (separate from video position)
+  useEffect(() => {
+    if (!broadcastStarted || !playerReady || !trackerRef.current) return;
+    
+    let lastUpdateTime = Date.now();
+    
+    const trackingInterval = setInterval(async () => {
+      if (vimeoPlayerRef.current) {
+        try {
+          const currentTime = await vimeoPlayerRef.current.getCurrentTime();
+          const now = Date.now();
+          const isPlaying = true; // Assume playing since interval is running
+          
+          // Update tracker with current position and playing state
+          if (trackerRef.current) {
+            trackerRef.current.updateWatchTime(currentTime, isPlaying);
+          }
+          
+          lastUpdateTime = now;
+        } catch (err) {
+          console.error('Error tracking watch time:', err);
+        }
+      }
+    }, 5000); // Update every 5 seconds
+    
+    return () => {
+      clearInterval(trackingInterval);
+    };
+  }, [broadcastStarted, playerReady]);
 
   // Countdown timer for replay expiration
   useEffect(() => {
