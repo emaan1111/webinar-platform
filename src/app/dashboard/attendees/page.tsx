@@ -105,6 +105,17 @@ export default function AttendeesPage() {
   const [joinedDateStart, setJoinedDateStart] = useState('')
   const [joinedDateEnd, setJoinedDateEnd] = useState('')
 
+  // Timezone selector
+  const [selectedTimezone, setSelectedTimezone] = useState<string>(() => {
+    // Load from localStorage or use browser default
+    return localStorage.getItem('attendees_timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
+  })
+
+  // Save timezone preference
+  useEffect(() => {
+    localStorage.setItem('attendees_timezone', selectedTimezone)
+  }, [selectedTimezone])
+
   // Delete functionality
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [deleteMode, setDeleteMode] = useState<'single' | 'selected' | 'all'>('single')
@@ -463,6 +474,30 @@ export default function AttendeesPage() {
     setActiveView(newView)
   }
 
+  // Format date/time with selected timezone
+  const formatDateTime = (dateString: string | null, type: 'date' | 'time' | 'full' = 'full') => {
+    if (!dateString) return 'N/A'
+    
+    const date = new Date(dateString)
+    const options: Intl.DateTimeFormatOptions = {
+      timeZone: selectedTimezone
+    }
+    
+    if (type === 'date' || type === 'full') {
+      options.year = 'numeric'
+      options.month = 'short'
+      options.day = 'numeric'
+    }
+    
+    if (type === 'time' || type === 'full') {
+      options.hour = '2-digit'
+      options.minute = '2-digit'
+      options.second = '2-digit'
+    }
+    
+    return date.toLocaleString('en-US', options)
+  }
+
   const handleExportCSV = () => {
     const enabledColumns = activeView.columns.filter(c => c.enabled)
     const headers = enabledColumns.map(c => c.label)
@@ -474,7 +509,7 @@ export default function AttendeesPage() {
         
         // Format special values
         if (col.key === 'registeredAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastPurchaseAt') {
-          return value ? new Date(value).toLocaleString() : 'N/A'
+          return value ? formatDateTime(value) : 'N/A'
         }
         if (col.key === 'lastPurchaseAmount') {
           return value != null ? formatCurrencyValue(value, (a as any).lastPurchaseCurrency) : 'N/A'
@@ -582,8 +617,8 @@ export default function AttendeesPage() {
         if (!value) return <div className="text-sm text-gray-400">N/A</div>
         return (
           <div>
-            <div className="text-sm text-gray-900">{new Date(value).toLocaleDateString()}</div>
-            <div className="text-sm text-gray-500">{new Date(value).toLocaleTimeString()}</div>
+            <div className="text-sm text-gray-900">{formatDateTime(value, 'date')}</div>
+            <div className="text-sm text-gray-500">{formatDateTime(value, 'time')}</div>
           </div>
         )
       
@@ -763,7 +798,7 @@ export default function AttendeesPage() {
             </div>
 
             {/* Filters - Simplified Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               {/* Attendance Filter */}
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1.5">Attendance</label>
@@ -802,6 +837,32 @@ export default function AttendeesPage() {
                   onChange={setSelectedCountries}
                   label="Select countries"
                 />
+              </div>
+
+              {/* Timezone Selector */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1.5 flex items-center gap-1">
+                  <Globe className="w-3 h-3" />
+                  Timezone
+                </label>
+                <select
+                  value={selectedTimezone}
+                  onChange={(e) => setSelectedTimezone(e.target.value)}
+                  className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
+                >
+                  <option value="America/New_York">Eastern (ET)</option>
+                  <option value="America/Chicago">Central (CT)</option>
+                  <option value="America/Denver">Mountain (MT)</option>
+                  <option value="America/Los_Angeles">Pacific (PT)</option>
+                  <option value="Europe/London">London (GMT)</option>
+                  <option value="Europe/Paris">Paris (CET)</option>
+                  <option value="Asia/Dubai">Dubai (GST)</option>
+                  <option value="Asia/Kolkata">India (IST)</option>
+                  <option value="Asia/Singapore">Singapore (SGT)</option>
+                  <option value="Asia/Tokyo">Tokyo (JST)</option>
+                  <option value="Australia/Sydney">Sydney (AEDT)</option>
+                  <option value="UTC">UTC</option>
+                </select>
               </div>
 
               {/* Page Size */}
