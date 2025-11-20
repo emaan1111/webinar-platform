@@ -111,13 +111,18 @@ export default function AttendeesPage() {
 
   // Timezone selector
   const [selectedTimezone, setSelectedTimezone] = useState<string>(() => {
-    // Load from localStorage or use browser default
-    return localStorage.getItem('attendees_timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
+    // Only access localStorage on client side
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('attendees_timezone') || Intl.DateTimeFormat().resolvedOptions().timeZone
+    }
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
   })
 
   // Save timezone preference
   useEffect(() => {
-    localStorage.setItem('attendees_timezone', selectedTimezone)
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('attendees_timezone', selectedTimezone)
+    }
   }, [selectedTimezone])
 
   // Delete functionality
