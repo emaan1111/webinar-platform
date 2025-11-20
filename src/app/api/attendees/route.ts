@@ -180,6 +180,7 @@ export async function GET(request: Request) {
         webinarId: reg.webinar.id,
         webinarTitle: reg.webinar.title,
         registeredAt: reg.registeredAt,
+        scheduledAt: reg.scheduledStartTime,
         attended: reg.attended,
         joinedAt: reg.joinedAt,
         leftAt: reg.leftAt,

@@ -41,6 +41,7 @@ interface Attendee {
   webinarId: string
   webinarTitle: string
   registeredAt: string
+  scheduledAt: string | null
   attended: boolean
   joinedAt: string | null
   leftAt: string | null
@@ -508,7 +509,7 @@ export default function AttendeesPage() {
         const value = (a as any)[col.key]
         
         // Format special values
-        if (col.key === 'registeredAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastPurchaseAt') {
+        if (col.key === 'registeredAt' || col.key === 'scheduledAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastPurchaseAt') {
           return value ? formatDateTime(value) : 'N/A'
         }
         if (col.key === 'lastPurchaseAmount') {
@@ -611,6 +612,7 @@ export default function AttendeesPage() {
         return <div className="text-sm text-gray-500">{value || 'N/A'}</div>
       
       case 'registeredAt':
+      case 'scheduledAt':
       case 'joinedAt':
       case 'leftAt':
       case 'lastPurchaseAt':
