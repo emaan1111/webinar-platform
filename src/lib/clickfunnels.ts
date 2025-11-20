@@ -726,20 +726,56 @@ export function determineAttendanceTags(data: {
 /**
  * Apply reminder tag to a contact in ClickFunnels
  * Used for time-based reminder tags (24HRREMINDER, 2HRREMINDER, etc.)
+ * Handles both tag names (strings) and tag IDs (numeric strings)
  */
 export async function applyReminderTagToContact(
   email: string,
-  tagName: string
+  tagNameOrId: string
 ): Promise<boolean> {
   try {
-    console.log(`🏷️ Applying ClickFunnels reminder tag: ${tagName} to ${email}`)
+    console.log(`🏷️ Applying ClickFunnels reminder tag: ${tagNameOrId} to ${email}`)
     
-    const success = await tagClickFunnelsContact(email, [tagName])
+    // Check if tagNameOrId is actually a numeric ID stored as a string
+    const isNumericId = /^\d+$/.test(tagNameOrId)
+    
+    if (isNumericId) {
+      console.log(`⚠️ Detected numeric tag ID "${tagNameOrId}" - this should be a tag name, not an ID`)
+      console.log(`   Please update your reminder templates to use tag names instead of IDs`)
+      // For now, we'll try to apply it directly as a tag ID
+      const apiKey = process.env.CLICKFUNNELS_API_KEY
+      const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+      
+      if (!apiKey || !workspaceId) {
+        console.log('⚠️ ClickFunnels API not configured')
+        return false
+      }
+      
+      const contact = await findContactByEmailWithRetry(email, apiKey, workspaceId)
+      if (!contact) {
+        console.log('⚠️ Contact not found for tagging')
+        return false
+      }
+      
+      // Apply the numeric tag ID directly
+      const tagId = parseInt(tagNameOrId, 10)
+      const success = await applyTagsToContact(contact.id, [tagId])
+      
+      if (success) {
+        console.log(`✅ Reminder tag ID ${tagId} applied successfully`)
+      } else {
+        console.log(`⚠️ Failed to apply reminder tag ID ${tagId}`)
+      }
+      
+      return success
+    }
+    
+    // Normal flow: use tag name
+    const success = await tagClickFunnelsContact(email, [tagNameOrId])
     
     if (success) {
-      console.log(`✅ Reminder tag "${tagName}" applied successfully`)
+      console.log(`✅ Reminder tag "${tagNameOrId}" applied successfully`)
     } else {
-      console.log(`⚠️ Failed to apply reminder tag "${tagName}"`)
+      console.log(`⚠️ Failed to apply reminder tag "${tagNameOrId}"`)
     }
     
     return success
