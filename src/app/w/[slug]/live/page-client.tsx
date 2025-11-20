@@ -1553,19 +1553,19 @@ export default function WebinarLiveClient({
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     console.log(`📱 Mobile device detected: ${isMobileDevice}`);
     
-    // Longer timeout for mobile devices (20s vs 12s)
-    const timeoutDuration = isMobileDevice ? 20000 : 12000;
+    // INCREASED: Much longer timeout for mobile devices (45s vs 15s) - mobile networks can be slow
+    const timeoutDuration = isMobileDevice ? 45000 : 15000;
     const emergencyTimeout = setTimeout(() => {
       console.log(`⚠️ EMERGENCY: Force hiding loading overlay after ${timeoutDuration/1000}s`);
       setVideoLoading(false);
       setVideoError(true);
-      setBroadcastStarted(false); // Allow user to try again
+      // Don't reset broadcastStarted - keep the retry button visible
     }, timeoutDuration);
     
-    // Track retry attempts
+    // Track retry attempts with exponential backoff
     let iframeRetries = 0;
     let apiRetries = 0;
-    const maxRetries = isMobileDevice ? 30 : 20; // More retries on mobile
+    const maxRetries = isMobileDevice ? 40 : 25; // More retries on mobile
     
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
@@ -1576,11 +1576,11 @@ export default function WebinarLiveClient({
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
-          setBroadcastStarted(false);
+          // Don't reset broadcastStarted - keep retry button visible
           return;
         }
-        console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying in 400ms...`);
-        setTimeout(initPlayer, 400);
+        console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying in 500ms...`);
+        setTimeout(initPlayer, 500); // Increased delay for mobile
         return;
       }
       
@@ -1591,16 +1591,16 @@ export default function WebinarLiveClient({
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
-          setBroadcastStarted(false);
+          // Don't reset broadcastStarted - keep retry button visible
           return;
         }
         console.log(`⚠️ Vimeo Player API not loaded yet (attempt ${apiRetries}/${maxRetries}), waiting...`);
-        setTimeout(initPlayer, 300);
+        setTimeout(initPlayer, 400); // Increased delay
         return;
       }
       
-      // Longer delay for mobile to ensure iframe is ready (200ms vs 100ms)
-      const initDelay = isMobileDevice ? 200 : 100;
+      // MOBILE OPTIMIZATION: Longer delay for mobile to ensure iframe is fully ready
+      const initDelay = isMobileDevice ? 500 : 150;
       setTimeout(() => {
         try {
           console.log('🎬 Creating Vimeo Player instance...');
@@ -1655,17 +1655,9 @@ export default function WebinarLiveClient({
             player.on('pause', () => {
               console.log('⏸️ Video paused');
               
-              // In replay mode, auto-resume if video pauses unexpectedly
-              if (isReplay && broadcastStarted) {
-                console.log('🔄 Replay mode: Auto-resuming in 500ms...');
-                setTimeout(() => {
-                  if (vimeoPlayerRef.current) {
-                    vimeoPlayerRef.current.play().catch((err: Error) => {
-                      console.error('❌ Failed to auto-resume:', err);
-                    });
-                  }
-                }, 500);
-              }
+              // REMOVED: Aggressive auto-resume that causes crash loops on mobile
+              // Mobile devices often pause video due to memory/bandwidth issues
+              // Let the user manually resume if needed
             });
             
             player.on('play', () => {
@@ -1720,11 +1712,12 @@ export default function WebinarLiveClient({
           .catch(async (err: Error) => {
             console.error('❌ Player ready/play failed:', err);
             
-            // RECOVERY STRATEGY 1: Force muted play
-            console.log('🔄 RECOVERY 1: Trying force muted play...');
+            // SIMPLIFIED RECOVERY: Just try muted play once, then show error
+            console.log('🔄 RECOVERY: Trying force muted play...');
             try {
               await player.setMuted(true);
               await player.setVolume(0);
+              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for state to settle
               await player.play();
               console.log('✅ Recovery successful - video playing MUTED');
               setIsMuted(true);
@@ -1735,79 +1728,42 @@ export default function WebinarLiveClient({
                 trackerRef.current.trackVideoEvent('play', startTime);
               }
               return; // Success!
-            } catch (recovery1Err) {
-              console.error('❌ Recovery 1 failed:', recovery1Err);
+            } catch (recoveryErr) {
+              console.error('❌ Recovery failed:', recoveryErr);
             }
             
-            // RECOVERY STRATEGY 2: Wait longer and retry with basic play
-            console.log('🔄 RECOVERY 2: Waiting 2s and retrying...');
-            try {
-              await new Promise(resolve => setTimeout(resolve, 2000));
-              await player.setMuted(true);
-              await player.play();
-              console.log('✅ Recovery 2 successful - video playing after delay');
-              setIsMuted(true);
-              clearTimeout(emergencyTimeout);
-              setVideoLoading(false);
-              
-              if (trackerRef.current) {
-                trackerRef.current.trackVideoEvent('play', startTime);
-              }
-              return; // Success!
-            } catch (recovery2Err) {
-              console.error('❌ Recovery 2 failed:', recovery2Err);
-            }
-            
-            // RECOVERY STRATEGY 3: Reload iframe and retry
-            if (isMobileDevice) {
-              console.log('🔄 RECOVERY 3: Mobile detected - reloading iframe...');
-              try {
-                const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
-                if (iframe) {
-                  const currentSrc = iframe.src;
-                  iframe.src = '';
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                  iframe.src = currentSrc.replace('autoplay=0', 'autoplay=1').replace('muted=0', 'muted=1');
-                  
-                  // Wait for reload
-                  await new Promise(resolve => setTimeout(resolve, 3000));
-                  
-                  const newPlayer = new window.Vimeo!.Player(iframe);
-                  vimeoPlayerRef.current = newPlayer;
-                  await newPlayer.ready();
-                  await newPlayer.setCurrentTime(startTime);
-                  await newPlayer.play();
-                  
-                  console.log('✅ Recovery 3 successful - video playing after iframe reload');
-                  setIsMuted(true);
-                  clearTimeout(emergencyTimeout);
-                  setVideoLoading(false);
-                  
-                  if (trackerRef.current) {
-                    trackerRef.current.trackVideoEvent('play', startTime);
-                  }
-                  return; // Success!
-                }
-              } catch (recovery3Err) {
-                console.error('❌ Recovery 3 failed:', recovery3Err);
-              }
-            }
-            
-            // All recovery attempts failed
-            console.error('❌ All recovery attempts failed');
+            // All recovery attempts failed - show retry button
+            console.error('❌ All recovery attempts failed - showing retry button');
             clearTimeout(emergencyTimeout);
             setVideoLoading(false);
             setVideoError(true);
-            setBroadcastStarted(false);
+            // Don't reset broadcastStarted - this keeps the retry button visible
+            
+            // Clean up failed player instance
+            if (vimeoPlayerRef.current) {
+              try {
+                vimeoPlayerRef.current.off('ended');
+                vimeoPlayerRef.current.off('pause');
+                vimeoPlayerRef.current.off('play');
+              } catch (cleanupErr) {
+                console.error('❌ Failed to clean up player:', cleanupErr);
+              }
+              vimeoPlayerRef.current = null;
+            }
           });
       } catch (error) {
         console.error('❌ Error creating Vimeo player:', error);
         clearTimeout(emergencyTimeout);
         setVideoLoading(false);
         setVideoError(true);
-        setBroadcastStarted(false);
+        // Don't reset broadcastStarted - keep retry button visible
+        
+        // Clean up on error
+        if (vimeoPlayerRef.current) {
+          vimeoPlayerRef.current = null;
+        }
       }
-      }, 100); // Small delay for iframe initialization
+      }, initDelay); // Use mobile-optimized delay
     };
     
     // Load Vimeo Player API if not already loaded
@@ -2020,6 +1976,13 @@ export default function WebinarLiveClient({
                         
                         // Clear previous player instance if any
                         if (vimeoPlayerRef.current) {
+                          try {
+                            vimeoPlayerRef.current.off('ended');
+                            vimeoPlayerRef.current.off('pause');
+                            vimeoPlayerRef.current.off('play');
+                          } catch (err) {
+                            console.error('Error cleaning up player:', err);
+                          }
                           vimeoPlayerRef.current = null;
                         }
                         
@@ -2033,24 +1996,29 @@ export default function WebinarLiveClient({
                     >
                       <div className={styles.broadcastOverlayContent}>
                         <div className={styles.broadcastIcon}>
-                          <i className="fas fa-play-circle" />
+                          <i className={videoError ? "fas fa-rotate-right" : "fas fa-play-circle"} />
                         </div>
                         <h2 className={styles.broadcastTitle}>
                           {videoError 
-                            ? 'Retry Video' 
+                            ? 'Tap to Retry Video' 
                             : isReplayMode 
-                              ? 'Click to Start' 
-                              : 'Click to Start Broadcast'
+                              ? 'Tap to Start Replay' 
+                              : 'Tap to Start Broadcast'
                           }
                         </h2>
                         <p className={styles.broadcastSubtitle}>
                           {videoError 
-                            ? 'Video failed to load. Click to try again or refresh the page.'
+                            ? 'Video failed to load. This can happen due to slow connection. Tap to try again or refresh the page.'
                             : elapsedSeconds > 0 
                               ? `Live webinar in progress - Starting at ${formatTimeLabel(elapsedSeconds)}`
                               : 'The webinar is ready to begin'
                           }
                         </p>
+                        {videoError && isMobile && (
+                          <p className={styles.broadcastHint} style={{ marginTop: '10px', fontSize: '12px', opacity: 0.8 }}>
+                            💡 Tip: Try switching to Wi-Fi or closing other apps
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
@@ -2059,7 +2027,12 @@ export default function WebinarLiveClient({
                   {videoLoading && (
                     <div className={styles.videoLoadingOverlay}>
                       <div className={styles.spinner}></div>
-                      <p className={styles.loadingText}>Starting broadcast...</p>
+                      <p className={styles.loadingText}>Loading video...</p>
+                      {isMobile && (
+                        <p style={{ marginTop: '10px', fontSize: '12px', opacity: 0.7 }}>
+                          This may take a moment on mobile
+                        </p>
+                      )}
                     </div>
                   )}
                   
