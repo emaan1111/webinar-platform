@@ -121,6 +121,7 @@ export async function PATCH(
       'replayEnabled',
       'replayDurationDays',
       'replayExpiresAt',
+      'mostlyAttendedThreshold',
       'enableABTesting',
       'trafficSplitPercent',
       'testRegistrationPage',
@@ -144,7 +145,7 @@ export async function PATCH(
         let value = bodyData[field]
         
         // Convert string numbers to integers for numeric fields
-        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent') {
+        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent' || field === 'mostlyAttendedThreshold') {
           value = value ? parseInt(value) : null
         }
         

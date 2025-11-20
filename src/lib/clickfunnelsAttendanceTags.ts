@@ -1,14 +1,16 @@
 /**
  * ClickFunnels Attendance Tagging System
  * 
- * This module applies attendance tags to ClickFunnels contacts based on their
- * actual webinar attendance behavior when their session ends.
+ * This module applies attendance tags to ClickFunnels contacts after their 
+ * personal webinar session ends (for evergreen webinars).
  * 
  * Tags Applied:
  * - ATTENDED: Attended at all (even 1%)
  * - MOSTLY_ATTENDED: Watched past the configured threshold timestamp
  * - PARTLY_ATTENDED: Attended but didn't reach MOSTLY_ATTENDED threshold
  * - MISSED: Registered but never attended
+ * 
+ * Timing: Tags are applied AFTER the user's session ends (scheduledStartTime + webinar.duration)
  */
 
 import { prisma } from './prisma'
@@ -92,7 +94,8 @@ async function getAttendanceTag(
 }
 
 /**
- * Apply attendance tag for a single registration when their session ends
+ * Apply attendance tag for a single registration after their session ends
+ * Only applies if not already applied
  */
 export async function applyAttendanceTagOnSessionEnd(
   options: AttendanceTagOptions
@@ -100,19 +103,29 @@ export async function applyAttendanceTagOnSessionEnd(
   try {
     const { registrationId } = options
 
-    // Get registration with email
+    // Get registration with email and check if already tagged
     const registration = await prisma.registration.findUnique({
       where: { id: registrationId },
       select: {
         id: true,
         email: true,
         name: true,
-        webinarId: true
+        webinarId: true,
+        attendanceTagsApplied: true
       }
     })
 
     if (!registration) {
       return { success: false, error: 'Registration not found' }
+    }
+
+    // Skip if already tagged
+    if (registration.attendanceTagsApplied) {
+      return { 
+        success: false, 
+        error: 'Attendance tags already applied',
+        reason: 'Already tagged'
+      }
     }
 
     if (!registration.email) {
@@ -149,6 +162,15 @@ export async function applyAttendanceTagOnSessionEnd(
       }
     }
 
+    // Mark as tagged
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        attendanceTagsApplied: true,
+        attendanceTagsAppliedAt: new Date()
+      }
+    })
+
     console.log(`✅ Successfully applied ${tagInfo.tagName} tag to ${registration.email}`)
 
     return {
@@ -162,6 +184,121 @@ export async function applyAttendanceTagOnSessionEnd(
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error'
     }
+  }
+}
+
+/**
+ * Process attendance tagging for registrations whose sessions have ended
+ * This should be called by a cron job every few minutes
+ */
+export async function processEndedSessionsForAttendanceTagging(): Promise<{
+  success: boolean
+  processed: number
+  tagged: number
+  errors: number
+  results: Array<{
+    registrationId: string
+    email: string
+    success: boolean
+    tag?: string
+    reason?: string
+    error?: string
+  }>
+}> {
+  try {
+    console.log('📊 Processing ended sessions for attendance tagging')
+
+    // Find registrations where:
+    // 1. Session has ended (scheduledStartTime + webinar.duration < now)
+    // 2. Attendance tags haven't been applied yet
+    // 3. User registered (has scheduledStartTime)
+    
+    const now = new Date()
+    
+    const registrations = await prisma.registration.findMany({
+      where: {
+        attendanceTagsApplied: false,
+        scheduledStartTime: {
+          not: null
+        }
+      },
+      select: {
+        id: true,
+        email: true,
+        scheduledStartTime: true,
+        webinar: {
+          select: {
+            duration: true // in minutes
+          }
+        }
+      },
+      take: 100 // Process 100 at a time
+    })
+
+    console.log(`📋 Found ${registrations.length} registrations to check`)
+
+    const results = []
+    let processed = 0
+    let tagged = 0
+    let errors = 0
+
+    // Filter to only those whose session has ended
+    for (const registration of registrations) {
+      if (!registration.scheduledStartTime || !registration.webinar.duration) {
+        continue
+      }
+
+      // Calculate session end time
+      const sessionEndTime = new Date(
+        registration.scheduledStartTime.getTime() + 
+        (registration.webinar.duration * 60 * 1000) // Convert minutes to milliseconds
+      )
+
+      // Skip if session hasn't ended yet
+      if (sessionEndTime > now) {
+        continue
+      }
+
+      processed++
+
+      // Apply attendance tags
+      const result = await applyAttendanceTagOnSessionEnd({
+        registrationId: registration.id
+      })
+
+      results.push({
+        registrationId: registration.id,
+        email: registration.email,
+        ...result
+      })
+
+      if (result.success) {
+        tagged++
+      } else {
+        errors++
+      }
+
+      // Add small delay to avoid rate limiting
+      await new Promise(resolve => setTimeout(resolve, 100))
+    }
+
+    console.log(`✅ Completed attendance tagging for ended sessions`, {
+      checked: registrations.length,
+      processed,
+      tagged,
+      errors
+    })
+
+    return {
+      success: true,
+      processed,
+      tagged,
+      errors,
+      results
+    }
+  } catch (error) {
+    console.error('❌ Failed to process ended sessions:', error)
+    throw error
   }
 }
 

@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { applyAttendanceTagsForWebinar } from '@/lib/clickfunnelsAttendanceTags'
+import { processEndedSessionsForAttendanceTagging } from '@/lib/clickfunnelsAttendanceTags'
 
 /**
  * POST /api/cron/process-attendance-tags
  * 
  * Cron job that automatically applies attendance tags to ClickFunnels contacts
- * after webinars end.
+ * after each user's personal webinar session ends (for evergreen webinars).
  * 
- * Runs every hour to check for:
- * - Webinars that recently ended (status: COMPLETED)
- * - Webinars that are still marked as LIVE but the scheduled time has passed
- * - Applies attendance tags based on actual watch time
+ * Runs every 15 minutes to check for:
+ * - Registrations whose session has ended (scheduledStartTime + duration < now)
+ * - Haven't had attendance tags applied yet
+ * - Applies tags based on actual watch time vs threshold
  * 
  * Protected by CRON_SECRET environment variable
  */
@@ -37,123 +36,19 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    console.log('\n🔄 Starting attendance tagging cron job...')
+    console.log('\n🔄 Starting attendance tagging cron job for ended sessions...')
 
-    const now = new Date()
-    const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
-
-    // Find webinars that:
-    // 1. Are COMPLETED and haven't had tags applied yet
-    // 2. Or are LIVE but scheduled time is more than 3 hours ago (likely ended but not marked complete)
-    const webinarsToProcess = await prisma.webinar.findMany({
-      where: {
-        OR: [
-          {
-            // Completed webinars
-            status: 'COMPLETED',
-            attendanceTagsApplied: false
-          },
-          {
-            // Live webinars that likely ended (scheduled time was 3+ hours ago)
-            status: 'LIVE',
-            attendanceTagsApplied: false,
-            scheduledStartTime: {
-              lte: new Date(now.getTime() - 3 * 60 * 60 * 1000)
-            }
-          }
-        ],
-        duration: {
-          not: null
-        }
-      },
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        scheduledStartTime: true,
-        duration: true,
-        _count: {
-          select: {
-            registrations: true
-          }
-        }
-      }
-    })
-
-    if (webinarsToProcess.length === 0) {
-      console.log('✅ No webinars need attendance tagging')
-      return NextResponse.json({
-        success: true,
-        message: 'No webinars to process',
-        processed: 0
-      })
-    }
-
-    console.log(`📊 Found ${webinarsToProcess.length} webinar(s) to process`)
-
-    let totalTagged = 0
-    let totalErrors = 0
-    const results = []
-
-    for (const webinar of webinarsToProcess) {
-      console.log(`\n🎯 Processing: ${webinar.title}`)
-      console.log(`   Status: ${webinar.status}`)
-      console.log(`   Registrations: ${webinar._count.registrations}`)
-
-      try {
-        // Apply attendance tags for this webinar
-        const result = await applyAttendanceTagsForWebinar(webinar.id)
-
-        totalTagged += result.tagged
-        totalErrors += result.errors
-
-        // Mark this webinar as having tags applied
-        await prisma.webinar.update({
-          where: { id: webinar.id },
-          data: { 
-            attendanceTagsApplied: true,
-            attendanceTagsAppliedAt: new Date()
-          }
-        })
-
-        results.push({
-          webinarId: webinar.id,
-          webinarTitle: webinar.title,
-          success: true,
-          tagged: result.tagged,
-          errors: result.errors
-        })
-
-        console.log(`✅ Successfully processed ${webinar.title}`)
-        console.log(`   Tagged: ${result.tagged}, Errors: ${result.errors}`)
-
-      } catch (error) {
-        console.error(`❌ Error processing ${webinar.title}:`, error)
-        
-        results.push({
-          webinarId: webinar.id,
-          webinarTitle: webinar.title,
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        })
-      }
-
-      // Add delay between webinars to avoid rate limiting
-      await new Promise(resolve => setTimeout(resolve, 1000))
-    }
+    // Process registrations whose sessions have ended
+    const result = await processEndedSessionsForAttendanceTagging()
 
     console.log('\n✅ Attendance tagging cron job completed')
-    console.log(`   Webinars processed: ${webinarsToProcess.length}`)
-    console.log(`   Total tagged: ${totalTagged}`)
-    console.log(`   Total errors: ${totalErrors}`)
+    console.log(`   Sessions checked: ${result.processed}`)
+    console.log(`   Tags applied: ${result.tagged}`)
+    console.log(`   Errors: ${result.errors}`)
 
     return NextResponse.json({
-      success: true,
-      message: `Processed ${webinarsToProcess.length} webinar(s)`,
-      webinarsProcessed: webinarsToProcess.length,
-      totalTagged,
-      totalErrors,
-      results
+      message: `Processed ${result.processed} ended session(s)`,
+      ...result
     })
 
   } catch (error) {

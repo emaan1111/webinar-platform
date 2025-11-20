@@ -66,6 +66,8 @@ export default function EditWebinarPage() {
     replayEnabled: true,
     replayDurationDays: 7,
     replayExpiresAt: null as string | null,
+    // Attendance Tagging
+    mostlyAttendedThreshold: null as number | null,
     // A/B Testing fields
     enableABTesting: false,
     trafficSplitPercent: 50,
@@ -176,6 +178,8 @@ export default function EditWebinarPage() {
         replayEnabled: webinar.replayEnabled !== undefined ? webinar.replayEnabled : true,
         replayDurationDays: webinar.replayDurationDays || 7,
         replayExpiresAt: webinar.replayExpiresAt || null,
+        // Attendance Tagging
+        mostlyAttendedThreshold: webinar.mostlyAttendedThreshold || null,
         // A/B Testing fields
         enableABTesting: webinar.enableABTesting || false,
         trafficSplitPercent: webinar.trafficSplitPercent || 50,
@@ -1476,6 +1480,137 @@ export default function EditWebinarPage() {
                     </div>
                   </div>
                 )}
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Attendance Tagging Settings */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-xl font-semibold">🏷️ ClickFunnels Attendance Tagging</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Configure automatic attendance tag application when users leave the webinar
+              </p>
+            </CardHeader>
+            <CardBody>
+              <div className="space-y-4">
+                {/* Explanation */}
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <h3 className="text-sm font-semibold text-blue-900 mb-2">How Attendance Tagging Works:</h3>
+                  <ul className="text-xs text-blue-800 space-y-1.5 list-disc list-inside">
+                    <li><strong>ATTENDED</strong> - Applied to anyone who attended (even 1%)</li>
+                    <li><strong>MOSTLY_ATTENDED</strong> - Applied when user watches past your configured threshold</li>
+                    <li><strong>PARTLY_ATTENDED</strong> - Applied when user attended but didn't reach threshold</li>
+                    <li><strong>MISSED</strong> - Applied to registrants who never attended</li>
+                  </ul>
+                  <p className="text-xs text-blue-700 mt-3 p-2 bg-blue-100 rounded">
+                    💡 <strong>Tags are applied automatically</strong> when each user leaves the webinar, not when the webinar ends.
+                  </p>
+                </div>
+
+                {/* Threshold Setting */}
+                <div>
+                  <label htmlFor="mostlyAttendedThreshold" className="block text-sm font-medium text-gray-700 mb-2">
+                    "Mostly Attended" Threshold (Optional)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      id="mostlyAttendedThreshold"
+                      name="mostlyAttendedThreshold"
+                      value={formData.mostlyAttendedThreshold || ''}
+                      onChange={handleInputChange}
+                      min={1}
+                      max={3600}
+                      step={60}
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder="1800"
+                    />
+                    <span className="text-sm text-gray-600">seconds</span>
+                    {formData.mostlyAttendedThreshold && (
+                      <span className="text-sm font-medium text-blue-600">
+                        ≈ {Math.floor(formData.mostlyAttendedThreshold / 60)} minutes
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-2 text-xs text-gray-600">
+                    Set the video timestamp (in seconds) where users who watch past it get the <strong>MOSTLY_ATTENDED</strong> tag.
+                    Users who don't reach this get <strong>PARTLY_ATTENDED</strong>.
+                    Leave empty to only use <strong>ATTENDED</strong> tag for anyone who attended.
+                  </p>
+                </div>
+
+                {/* Example */}
+                <div className="p-4 border-2 border-gray-200 rounded-lg bg-gray-50">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">📊 Example Scenario:</h4>
+                  <div className="text-xs text-gray-700 space-y-2">
+                    <p><strong>Webinar Duration:</strong> 60 minutes</p>
+                    <p><strong>Threshold Set:</strong> {formData.mostlyAttendedThreshold ? `${Math.floor(formData.mostlyAttendedThreshold / 60)} minutes (${formData.mostlyAttendedThreshold} seconds)` : 'Not set'}</p>
+                    <div className="mt-3 space-y-1.5">
+                      {formData.mostlyAttendedThreshold ? (
+                        <>
+                          <p>• <strong>Alice</strong> watches 45 minutes → <span className="text-green-600 font-semibold">MOSTLY_ATTENDED</span> ✅</p>
+                          <p>• <strong>Bob</strong> watches 25 minutes → <span className="text-yellow-600 font-semibold">PARTLY_ATTENDED</span> ⚠️</p>
+                          <p>• <strong>Charlie</strong> watches 5 minutes → <span className="text-yellow-600 font-semibold">PARTLY_ATTENDED</span> ⚠️</p>
+                          <p>• <strong>Diana</strong> never joins → <span className="text-red-600 font-semibold">MISSED</span> ❌</p>
+                        </>
+                      ) : (
+                        <>
+                          <p>• <strong>Anyone who attends</strong> → <span className="text-green-600 font-semibold">ATTENDED</span> ✅</p>
+                          <p>• <strong>Never joined</strong> → <span className="text-red-600 font-semibold">MISSED</span> ❌</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Quick Presets */}
+                <div>
+                  <p className="text-sm font-medium text-gray-700 mb-2">Quick Presets:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, mostlyAttendedThreshold: 1800 })}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      30 min
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, mostlyAttendedThreshold: 2700 })}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      45 min
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, mostlyAttendedThreshold: 3600 })}
+                      className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      60 min
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, mostlyAttendedThreshold: null })}
+                      className="px-3 py-1.5 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {/* Important Note */}
+                <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-xs text-yellow-800">
+                    <strong>⚠️ Important:</strong> Tags are applied when a user's <strong>session ends</strong> (when they leave the webinar), 
+                    not when the webinar itself ends. This means:
+                  </p>
+                  <ul className="text-xs text-yellow-700 mt-2 space-y-1 list-disc list-inside ml-2">
+                    <li>User joins at 6:05 PM and leaves at 6:45 PM → Tags applied at 6:45 PM</li>
+                    <li>User joins at 6:10 PM and leaves at 7:05 PM → Tags applied at 7:05 PM</li>
+                    <li>Webinar ends at 7:00 PM but tags were already applied as each user left</li>
+                  </ul>
+                </div>
               </div>
             </CardBody>
           </Card>
