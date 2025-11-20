@@ -15,7 +15,36 @@ export async function GET(
     }
 
     const { id } = params
+    const { searchParams } = new URL(request.url)
+    
+    // Get filter and pagination params
+    const page = parseInt(searchParams.get('page') || '1')
+    const limit = parseInt(searchParams.get('limit') || '50')
+    const typeFilter = searchParams.get('type') // 'pre_webinar' | 'post_webinar' | null
+    const statusFilter = searchParams.get('status') // 'PENDING' | 'SENT' | etc. | null
+    
+    const skip = (page - 1) * limit
 
+    // Build where clause
+    const whereClause: any = {
+      registration: {
+        webinarId: id
+      }
+    }
+    
+    // Add type filter
+    if (typeFilter && (typeFilter === 'pre_webinar' || typeFilter === 'post_webinar')) {
+      whereClause.template = {
+        type: typeFilter
+      }
+    }
+    
+    // Add status filter
+    if (statusFilter) {
+      whereClause.status = statusFilter
+    }
+
+    // Get stats (unfiltered counts)
     const summary = await prisma.webinarReminderSent.groupBy({
       by: ['status'],
       where: {
@@ -26,12 +55,14 @@ export async function GET(
       _count: true
     })
 
+    // Get total count with filters applied
+    const total = await prisma.webinarReminderSent.count({
+      where: whereClause
+    })
+
+    // Get paginated reminders with filters
     const reminders = await prisma.webinarReminderSent.findMany({
-      where: {
-        registration: {
-          webinarId: id
-        }
-      },
+      where: whereClause,
       include: {
         registration: {
           select: {
@@ -45,22 +76,35 @@ export async function GET(
         template: {
           select: {
             minutesBefore: true,
-            channel: true
+            minutesAfter: true,
+            channel: true,
+            type: true,
+            emailSubject: true,
+            emailBody: true,
+            smsBody: true
           }
         }
       },
       orderBy: {
         scheduledFor: 'desc'
       },
-      take: 50
+      skip,
+      take: limit
     })
 
-    const stats = summary.reduce((acc, item) => {
+    const stats = summary.reduce((acc: Record<string, number>, item: any) => {
       acc[item.status] = item._count
       return acc
     }, {} as Record<string, number>)
 
-    return NextResponse.json({ stats, reminders })
+    return NextResponse.json({ 
+      stats, 
+      reminders, 
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    })
   } catch (error: any) {
     console.error('Error fetching reminder logs:', error)
     return NextResponse.json(

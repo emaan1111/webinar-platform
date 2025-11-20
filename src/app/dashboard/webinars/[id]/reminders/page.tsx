@@ -61,7 +61,12 @@ interface ReminderLog {
   }
   template: {
     minutesBefore: number
+    minutesAfter?: number | null
     channel: 'EMAIL' | 'SMS' | 'BOTH'
+    type?: 'pre_webinar' | 'post_webinar' | null
+    emailSubject?: string | null
+    emailBody?: string | null
+    smsBody?: string | null
   }
 }
 
@@ -87,6 +92,13 @@ export default function WebinarRemindersPage() {
   const [loadingLogs, setLoadingLogs] = useState(false)
   const [logError, setLogError] = useState('')
   const [reminderType, setReminderType] = useState<'pre_webinar' | 'post_webinar'>('pre_webinar')
+  
+  // Queue filters and pagination
+  const [queueTypeFilter, setQueueTypeFilter] = useState<'all' | 'pre_webinar' | 'post_webinar'>('all')
+  const [queueStatusFilter, setQueueStatusFilter] = useState<'all' | 'PENDING' | 'SENT' | 'FAILED' | 'SKIPPED' | 'CANCELLED'>('all')
+  const [queuePage, setQueuePage] = useState(1)
+  const [queueTotal, setQueueTotal] = useState(0)
+  const queuePageSize = 50
 
   // Form state
   const [formData, setFormData] = useState({
@@ -111,6 +123,13 @@ export default function WebinarRemindersPage() {
       fetchReminders()
     }
   }, [params.id])
+  
+  // Refetch logs when filters or page changes
+  useEffect(() => {
+    if (params.id && !loading) {
+      fetchReminderLogs()
+    }
+  }, [queueTypeFilter, queueStatusFilter, queuePage])
 
   const fetchWebinar = async () => {
     try {
@@ -129,7 +148,21 @@ export default function WebinarRemindersPage() {
     setLogError('')
 
     try {
-      const response = await fetch(`/api/webinars/${params.id}/reminders/logs`)
+      // Build query params
+      const queryParams = new URLSearchParams({
+        page: queuePage.toString(),
+        limit: queuePageSize.toString(),
+      })
+      
+      if (queueTypeFilter !== 'all') {
+        queryParams.append('type', queueTypeFilter)
+      }
+      
+      if (queueStatusFilter !== 'all') {
+        queryParams.append('status', queueStatusFilter)
+      }
+      
+      const response = await fetch(`/api/webinars/${params.id}/reminders/logs?${queryParams}`)
 
       if (!response.ok) {
         const payload = await response.json().catch(() => null)
@@ -139,6 +172,7 @@ export default function WebinarRemindersPage() {
       const data = await response.json()
       setReminderLogs(data.reminders || [])
       setLogStats(data.stats || {})
+      setQueueTotal(data.total || 0)
     } catch (err: any) {
       setLogError(err.message || 'Unable to load reminder queue')
       console.error('Fetch reminder logs error:', err)
@@ -1186,8 +1220,9 @@ export default function WebinarRemindersPage() {
             </div>
             <div className="flex items-center gap-2">
               <div className="flex items-center gap-1 text-sm text-gray-500">
-                <span className="font-semibold">{reminderLogs.length || 0}</span>
-                records
+                <span className="font-semibold">{queueTotal || 0}</span>
+                total • <span className="font-semibold">{reminderLogs.length || 0}</span>
+                showing
               </div>
               <Button
                 variant="ghost"
@@ -1213,6 +1248,57 @@ export default function WebinarRemindersPage() {
               {logError}
             </div>
           )}
+          
+          {/* Filters */}
+          <div className="flex flex-wrap items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Type:</label>
+              <select
+                value={queueTypeFilter}
+                onChange={(e) => {
+                  setQueueTypeFilter(e.target.value as typeof queueTypeFilter)
+                  setQueuePage(1) // Reset to page 1
+                }}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Types</option>
+                <option value="pre_webinar">Pre-Webinar</option>
+                <option value="post_webinar">Post-Webinar</option>
+              </select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <label className="text-sm font-medium text-gray-700">Status:</label>
+              <select
+                value={queueStatusFilter}
+                onChange={(e) => {
+                  setQueueStatusFilter(e.target.value as typeof queueStatusFilter)
+                  setQueuePage(1) // Reset to page 1
+                }}
+                className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="all">All Status</option>
+                <option value="PENDING">Pending</option>
+                <option value="SENT">Sent</option>
+                <option value="FAILED">Failed</option>
+                <option value="SKIPPED">Skipped</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+            
+            {(queueTypeFilter !== 'all' || queueStatusFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setQueueTypeFilter('all')
+                  setQueueStatusFilter('all')
+                  setQueuePage(1)
+                }}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
 
           <div className="grid gap-3 md:grid-cols-2">
             {(['PENDING', 'SENT', 'FAILED', 'SKIPPED', 'CANCELLED'] as ReminderLog['status'][]).map(
@@ -1236,59 +1322,96 @@ export default function WebinarRemindersPage() {
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="px-4 py-3">Recipient</th>
-                    <th className="px-4 py-3">Phone</th>
+                    <th className="px-4 py-3">Type</th>
+                    <th className="px-4 py-3">Timing</th>
+                    <th className="px-4 py-3">Message</th>
                     <th className="px-4 py-3">Scheduled</th>
                     <th className="px-4 py-3">Sent At</th>
                     <th className="px-4 py-3">Status</th>
                     <th className="px-4 py-3">Channel</th>
-                    <th className="px-4 py-3">Error</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reminderLogs.map((log) => (
-                    <tr
-                      key={log.id}
-                      className="border-t border-gray-100 hover:bg-gray-50"
-                    >
-                      <td className="px-4 py-3 align-top">
-                        <p className="font-semibold text-gray-900">
-                          {log.registration.name || log.registration.email}
-                        </p>
-                        <p className="text-xs text-gray-500">{log.registration.email}</p>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        {log.registration.phone ? (
-                          <span className="font-mono text-sm text-gray-900">{log.registration.phone}</span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        {formatDateTime(log.scheduledFor)}
-                        <p className="text-xs text-gray-400">
-                          {log.template.minutesBefore} min before
-                        </p>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        {formatDateTime(log.sentAt)}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusStyles[log.status]}`}>
-                          {statusLabels[log.status]}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        {log.channel === 'BOTH' ? 'Email + SMS' : log.channel === 'SMS' ? 'SMS' : 'Email'}
-                      </td>
-                      <td className="px-4 py-3 align-top">
-                        <p className="text-xs text-gray-600">{log.errorMessage || '—'}</p>
-                      </td>
-                    </tr>
-                  ))}
+                  {reminderLogs.map((log) => {
+                    const reminderType = log.template.type || 'pre_webinar'
+                    const timing = reminderType === 'pre_webinar' 
+                      ? formatMinutes(log.template.minutesBefore)
+                      : log.template.minutesAfter === 0 
+                        ? 'Immediate' 
+                        : formatMinutes(log.template.minutesAfter || 0)
+                    
+                    // Get message preview
+                    let messagePreview = ''
+                    if (log.template.channel === 'EMAIL' || log.template.channel === 'BOTH') {
+                      messagePreview = log.template.emailSubject || ''
+                    } else if (log.template.smsBody) {
+                      messagePreview = log.template.smsBody.substring(0, 50) + (log.template.smsBody.length > 50 ? '...' : '')
+                    }
+                    
+                    return (
+                      <tr
+                        key={log.id}
+                        className="border-t border-gray-100 hover:bg-gray-50"
+                      >
+                        <td className="px-4 py-3 align-top">
+                          <p className="font-semibold text-gray-900">
+                            {log.registration.name || log.registration.email}
+                          </p>
+                          <p className="text-xs text-gray-500">{log.registration.email}</p>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
+                            reminderType === 'pre_webinar' 
+                              ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                              : 'bg-purple-100 text-purple-800 border border-purple-200'
+                          }`}>
+                            {reminderType === 'pre_webinar' ? (
+                              <>
+                                <Clock className="w-3 h-3" />
+                                Pre
+                              </>
+                            ) : (
+                              <>
+                                <MessageSquare className="w-3 h-3" />
+                                Post
+                              </>
+                            )}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <p className="text-sm font-medium text-gray-900">
+                            {timing}
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {reminderType === 'pre_webinar' ? 'before' : 'after'}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 align-top max-w-xs">
+                          <p className="text-xs text-gray-700 truncate" title={messagePreview}>
+                            {messagePreview || '—'}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {formatDateTime(log.scheduledFor)}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {formatDateTime(log.sentAt)}
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          <span className={`px-2 py-1 rounded-full text-xs font-semibold border ${statusStyles[log.status]}`}>
+                            {statusLabels[log.status]}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 align-top">
+                          {log.channel === 'BOTH' ? 'Email + SMS' : log.channel === 'SMS' ? 'SMS' : 'Email'}
+                        </td>
+                      </tr>
+                    )
+                  })}
                   {reminderLogs.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
-                        No reminder activity yet.
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                        {loadingLogs ? 'Loading...' : queueTypeFilter !== 'all' || queueStatusFilter !== 'all' ? 'No reminders match the selected filters.' : 'No reminder activity yet.'}
                       </td>
                     </tr>
                   )}
@@ -1296,6 +1419,58 @@ export default function WebinarRemindersPage() {
               </table>
             </div>
           </div>
+          
+          {/* Pagination */}
+          {queueTotal > queuePageSize && (
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border border-gray-200 rounded-lg">
+              <div className="text-sm text-gray-600">
+                Showing <span className="font-semibold">{((queuePage - 1) * queuePageSize) + 1}</span> to{' '}
+                <span className="font-semibold">{Math.min(queuePage * queuePageSize, queueTotal)}</span> of{' '}
+                <span className="font-semibold">{queueTotal}</span> reminders
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setQueuePage(p => Math.max(1, p - 1))}
+                  disabled={queuePage === 1 || loadingLogs}
+                >
+                  Previous
+                </Button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, Math.ceil(queueTotal / queuePageSize)) }, (_, i) => {
+                    const pageNum = queuePage <= 3 
+                      ? i + 1 
+                      : queuePage + i - 2
+                    
+                    if (pageNum > Math.ceil(queueTotal / queuePageSize)) return null
+                    
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setQueuePage(pageNum)}
+                        className={`px-3 py-1 text-sm rounded ${
+                          queuePage === pageNum
+                            ? 'bg-blue-600 text-white font-semibold'
+                            : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+                </div>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setQueuePage(p => Math.min(Math.ceil(queueTotal / queuePageSize), p + 1))}
+                  disabled={queuePage >= Math.ceil(queueTotal / queuePageSize) || loadingLogs}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </DashboardLayout>
