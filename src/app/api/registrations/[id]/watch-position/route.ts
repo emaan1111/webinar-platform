@@ -20,28 +20,64 @@ export async function POST(
       );
     }
 
-    // Update the registration's lastWatchedPosition
-    // IMPORTANT: Only update lastWatchedPosition for LIVE viewing
-    // Replay watching should update replayWatchTime instead
-    const updateData: any = {};
-    
-    if (isReplay) {
-      // For replay, update replayWatchTime (not lastWatchedPosition)
-      updateData.watchedReplay = true;
-      updateData.replayWatchTime = Math.floor(position);
-    } else {
-      // For live viewing, update lastWatchedPosition
-      updateData.lastWatchedPosition = Math.floor(position);
+    // First, get the current values
+    const registration = await prisma.registration.findUnique({
+      where: { id },
+      select: {
+        lastWatchedPosition: true,
+        replayWatchTime: true,
+      },
+    });
+
+    if (!registration) {
+      return NextResponse.json(
+        { error: 'Registration not found' },
+        { status: 404 }
+      );
     }
-    
+
+    // Update logic based on mode:
+    // - LIVE mode: Always update lastWatchedPosition (tracks live viewing progress)
+    // - REPLAY mode: Only update replayWatchTime if new position is GREATER (keep maximum)
+    const updateData: any = {};
+    const newPosition = Math.floor(position);
+
+    if (isReplay) {
+      // For replay: Only update if new position is greater than current replayWatchTime
+      const currentReplayTime = registration.replayWatchTime || 0;
+      if (newPosition > currentReplayTime) {
+        updateData.replayWatchTime = newPosition;
+        updateData.watchedReplay = true;
+        console.log(`💾 Replay: Updating replayWatchTime from ${currentReplayTime}s to ${newPosition}s (new maximum)`);
+      } else {
+        console.log(`⏭️ Replay: Keeping replayWatchTime at ${currentReplayTime}s (current watch ${newPosition}s is not greater)`);
+        return NextResponse.json({ 
+          success: true, 
+          position: newPosition,
+          kept: currentReplayTime,
+          message: 'No update - keeping maximum watch time'
+        });
+      }
+    } else {
+      // For live: Always update lastWatchedPosition (tracks current live viewing position)
+      updateData.lastWatchedPosition = newPosition;
+      console.log(`💾 Live: Updating lastWatchedPosition to ${newPosition}s`);
+    }
+
+    // Update the registration
     const updated = await prisma.registration.update({
       where: { id },
       data: updateData,
     });
 
-    console.log(`✅ [API] Successfully updated ${isReplay ? 'replayWatchTime' : 'lastWatchedPosition'} to ${Math.floor(position)} for registration ${id}`);
+    console.log(`✅ [API] Successfully updated ${isReplay ? 'replayWatchTime' : 'lastWatchedPosition'} to ${newPosition} for registration ${id}`);
 
-    return NextResponse.json({ success: true, position: Math.floor(position) });
+    return NextResponse.json({ 
+      success: true, 
+      position: newPosition,
+      mode: isReplay ? 'replay' : 'live',
+      updated: Object.keys(updateData)
+    });
   } catch (error) {
     console.error('❌ [API] Error saving watch position:', error);
     return NextResponse.json(
