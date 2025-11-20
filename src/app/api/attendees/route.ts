@@ -132,12 +132,13 @@ export async function GET(request: Request) {
         null
 
       // Calculate total watch time from all sessions
-      const totalWatchTime = reg.sessions.reduce((sum: number, session: any) => {
-        return sum + (session.watchDuration || 0)
+      // Use the maximum videoPosition (furthest point watched) across all sessions
+      const maxVideoPosition = reg.sessions.reduce((max: number, session: any) => {
+        return Math.max(max, session.videoPosition || 0)
       }, 0)
 
-      // Use lastWatchedPosition as primary watch time indicator if no sessions have watchDuration
-      const effectiveTotalWatchTime = totalWatchTime > 0 ? totalWatchTime : (reg.lastWatchedPosition || 0)
+      // Use videoPosition if available, otherwise fall back to lastWatchedPosition
+      const effectiveTotalWatchTime = maxVideoPosition > 0 ? maxVideoPosition : (reg.lastWatchedPosition || 0)
 
       // Get most recent session data
       const lastSession = reg.sessions[0]

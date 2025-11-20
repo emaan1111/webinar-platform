@@ -91,9 +91,46 @@ export async function GET(
             id: true,
             amount: true,
             createdAt: true,
-            productName: true
+            productName: true,
+            orderId: true,
+            currency: true,
+            purchasedAt: true
           },
           orderBy: { createdAt: 'asc' }
+        },
+        reminders: {
+          select: {
+            id: true,
+            type: true,
+            channel: true,
+            status: true,
+            sentAt: true,
+            scheduledFor: true,
+            message: true,
+            emailSentTo: true,
+            smsSentTo: true,
+            errorMessage: true,
+            template: {
+              select: {
+                emailSubject: true,
+                smsBody: true,
+                minutesBefore: true,
+                minutesAfter: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' }
+        },
+        clickFunnelsReminderTags: {
+          select: {
+            id: true,
+            tagName: true,
+            status: true,
+            scheduledFor: true,
+            appliedAt: true,
+            errorMessage: true
+          },
+          orderBy: { createdAt: 'desc' }
         }
       }
     })
@@ -148,10 +185,13 @@ export async function GET(
     }
 
     // Calculate total watch time
-    const totalWatchTime = registration.sessions.reduce((sum: number, session: any) => {
-      return sum + (session.totalWatchTime || 0)
+    // Use the maximum videoPosition from all sessions (furthest point watched)
+    const maxVideoPosition = registration.sessions.reduce((max: number, session: any) => {
+      return Math.max(max, session.videoPosition || 0)
     }, 0)
-    const effectiveTotalWatchTime = totalWatchTime > 0 ? totalWatchTime : (registration.lastWatchedPosition || 0)
+    
+    // Use videoPosition if available, otherwise fall back to lastWatchedPosition
+    const effectiveTotalWatchTime = maxVideoPosition > 0 ? maxVideoPosition : (registration.lastWatchedPosition || 0)
 
     // Calculate engagement score (0-100)
     let engagementScore = 0
@@ -178,6 +218,46 @@ export async function GET(
       leftAt: registration.leftAt?.toISOString() || null,
       totalWatchTime: effectiveTotalWatchTime,
       engagementScore,
+      hasPurchased: registration.hasPurchased,
+
+      // Purchases
+      purchases: registration.sales.map((sale: any) => ({
+        id: sale.id,
+        productName: sale.productName || 'Unknown Product',
+        amount: sale.amount,
+        currency: sale.currency || 'USD',
+        orderId: sale.orderId,
+        purchasedAt: sale.purchasedAt?.toISOString() || sale.createdAt.toISOString()
+      })),
+
+      // SMS/Email Reminders
+      reminders: registration.reminders.map((reminder: any) => ({
+        id: reminder.id,
+        type: reminder.type, // 'pre_webinar' or 'post_webinar'
+        channel: reminder.channel, // 'SMS' or 'EMAIL'
+        status: reminder.status, // 'PENDING', 'SENT', 'FAILED', etc.
+        sentAt: reminder.sentAt?.toISOString() || null,
+        scheduledFor: reminder.scheduledFor?.toISOString() || null,
+        message: reminder.message || reminder.template?.smsBody || null,
+        emailSubject: reminder.template?.emailSubject || null,
+        sentTo: reminder.channel === 'SMS' ? reminder.smsSentTo : reminder.emailSentTo,
+        errorMessage: reminder.errorMessage || null,
+        timing: reminder.template?.minutesBefore 
+          ? `${reminder.template.minutesBefore} min before`
+          : reminder.template?.minutesAfter
+          ? `${reminder.template.minutesAfter} min after`
+          : 'Immediate'
+      })),
+
+      // ClickFunnels Tags
+      clickFunnelsTags: registration.clickFunnelsReminderTags.map((tag: any) => ({
+        id: tag.id,
+        tagName: tag.tagName,
+        status: tag.status, // 'PENDING', 'SENT', 'FAILED', etc.
+        scheduledFor: tag.scheduledFor.toISOString(),
+        appliedAt: tag.appliedAt?.toISOString() || null,
+        errorMessage: tag.errorMessage || null
+      })),
 
       // Engagement details
       chatMessages: registration.chatMessages.map((msg: any) => ({

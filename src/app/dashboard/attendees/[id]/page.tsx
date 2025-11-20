@@ -20,7 +20,12 @@ import {
   CheckCircle,
   XCircle,
   PlayCircle,
-  Activity
+  Activity,
+  DollarSign,
+  Bell,
+  Tag,
+  Send,
+  AlertCircle
 } from 'lucide-react'
 
 interface AttendeeProfile {
@@ -38,6 +43,42 @@ interface AttendeeProfile {
   leftAt: string | null
   totalWatchTime: number
   engagementScore: number
+  hasPurchased: boolean
+  
+  // Purchases
+  purchases: Array<{
+    id: string
+    productName: string
+    amount: number
+    currency: string
+    orderId: string
+    purchasedAt: string
+  }>
+  
+  // SMS/Email Reminders
+  reminders: Array<{
+    id: string
+    type: string
+    channel: string
+    status: string
+    sentAt: string | null
+    scheduledFor: string | null
+    message: string | null
+    emailSubject: string | null
+    sentTo: string | null
+    errorMessage: string | null
+    timing: string
+  }>
+  
+  // ClickFunnels Tags
+  clickFunnelsTags: Array<{
+    id: string
+    tagName: string
+    status: string
+    scheduledFor: string
+    appliedAt: string | null
+    errorMessage: string | null
+  }>
   
   // Engagement details
   chatMessages: Array<{
@@ -521,6 +562,171 @@ export default function AttendeeProfilePage() {
                     <div className="mt-3 pt-3 border-t border-gray-200">
                       <p className="text-xs text-gray-500">User Agent</p>
                       <p className="text-xs text-gray-600 font-mono mt-1 break-all">{session.userAgent}</p>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Purchases Section */}
+        {profile.purchases && profile.purchases.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-green-600" />
+              Purchases ({profile.purchases.length})
+            </h2>
+            <div className="space-y-3">
+              {profile.purchases.map((purchase) => (
+                <div key={purchase.id} className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-gray-900">{purchase.productName}</p>
+                    <p className="text-xs text-gray-600 mt-1">Order ID: {purchase.orderId}</p>
+                    <p className="text-xs text-gray-500 mt-1">{formatDateTime(purchase.purchasedAt)}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-bold text-green-700">
+                      {purchase.currency} {purchase.amount.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SMS/Email Reminders Section */}
+        {profile.reminders && profile.reminders.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Bell className="w-5 h-5 text-blue-600" />
+              SMS & Email Reminders ({profile.reminders.length})
+            </h2>
+            <div className="space-y-3">
+              {profile.reminders.map((reminder) => (
+                <div key={reminder.id} className={`p-4 rounded-lg border ${
+                  reminder.status === 'SENT' ? 'bg-green-50 border-green-200' :
+                  reminder.status === 'FAILED' ? 'bg-red-50 border-red-200' :
+                  reminder.status === 'PENDING' ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Send className={`w-4 h-4 ${
+                        reminder.status === 'SENT' ? 'text-green-600' :
+                        reminder.status === 'FAILED' ? 'text-red-600' :
+                        reminder.status === 'PENDING' ? 'text-yellow-600' :
+                        'text-gray-600'
+                      }`} />
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                        reminder.channel === 'SMS' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {reminder.channel}
+                      </span>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                        reminder.type === 'pre_webinar' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                      }`}>
+                        {reminder.type === 'pre_webinar' ? 'Pre-Webinar' : 'Post-Webinar'}
+                      </span>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                        reminder.status === 'SENT' ? 'bg-green-100 text-green-700' :
+                        reminder.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                        reminder.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {reminder.status}
+                      </span>
+                    </div>
+                    <span className="text-xs text-gray-500">{reminder.timing}</span>
+                  </div>
+                  
+                  {reminder.emailSubject && (
+                    <p className="text-sm font-medium text-gray-900 mb-1">Subject: {reminder.emailSubject}</p>
+                  )}
+                  
+                  {reminder.message && (
+                    <p className="text-sm text-gray-700 mb-2">{reminder.message.substring(0, 150)}{reminder.message.length > 150 ? '...' : ''}</p>
+                  )}
+                  
+                  <div className="flex items-center justify-between text-xs text-gray-600 mt-2 pt-2 border-t border-gray-200">
+                    <div>
+                      {reminder.sentTo && <span>Sent to: {reminder.sentTo}</span>}
+                    </div>
+                    <div>
+                      {reminder.sentAt ? (
+                        <span>Sent: {formatDateTime(reminder.sentAt)}</span>
+                      ) : reminder.scheduledFor ? (
+                        <span>Scheduled: {formatDateTime(reminder.scheduledFor)}</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  
+                  {reminder.errorMessage && (
+                    <div className="mt-2 pt-2 border-t border-red-200">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                        <p className="text-xs text-red-700">{reminder.errorMessage}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ClickFunnels Tags Section */}
+        {profile.clickFunnelsTags && profile.clickFunnelsTags.length > 0 && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-purple-600" />
+              ClickFunnels Tags ({profile.clickFunnelsTags.length})
+            </h2>
+            <div className="space-y-3">
+              {profile.clickFunnelsTags.map((tag) => (
+                <div key={tag.id} className={`p-4 rounded-lg border ${
+                  tag.status === 'SENT' ? 'bg-green-50 border-green-200' :
+                  tag.status === 'FAILED' ? 'bg-red-50 border-red-200' :
+                  tag.status === 'PENDING' ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className={`w-4 h-4 ${
+                        tag.status === 'SENT' ? 'text-green-600' :
+                        tag.status === 'FAILED' ? 'text-red-600' :
+                        tag.status === 'PENDING' ? 'text-yellow-600' :
+                        'text-gray-600'
+                      }`} />
+                      <span className="text-sm font-semibold text-gray-900">{tag.tagName}</span>
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${
+                        tag.status === 'SENT' ? 'bg-green-100 text-green-700' :
+                        tag.status === 'FAILED' ? 'bg-red-100 text-red-700' :
+                        tag.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' :
+                        'bg-gray-100 text-gray-700'
+                      }`}>
+                        {tag.status}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center justify-between text-xs text-gray-600">
+                    <div>
+                      {tag.appliedAt ? (
+                        <span>Applied: {formatDateTime(tag.appliedAt)}</span>
+                      ) : (
+                        <span>Scheduled: {formatDateTime(tag.scheduledFor)}</span>
+                      )}
+                    </div>
+                  </div>
+                  
+                  {tag.errorMessage && (
+                    <div className="mt-2 pt-2 border-t border-red-200">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5" />
+                        <p className="text-xs text-red-700">{tag.errorMessage}</p>
+                      </div>
                     </div>
                   )}
                 </div>

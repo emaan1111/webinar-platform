@@ -214,10 +214,12 @@ export async function GET(request: NextRequest) {
         }
 
         // Calculate total watch time from sessions
-        const totalWatchTime = reg.sessions.reduce((sum: number, session: any) => {
-          return sum + (session.totalWatchTime || 0);
+        // Use videoPosition (furthest point watched) for accurate watch time
+        const maxVideoPosition = reg.sessions.reduce((max: number, session: any) => {
+          return Math.max(max, session.videoPosition || 0);
         }, 0);
-
+        
+        const totalWatchTime = maxVideoPosition > 0 ? maxVideoPosition : (reg.lastWatchedPosition || 0);
         const watchTimeMinutes = totalWatchTime / 60;
 
         // Check engagement (watched for X minutes)

@@ -38,9 +38,12 @@ export async function GET(
       : 0;
 
     // Calculate average watch time
-    const totalWatchTime = registrations.reduce((sum, reg) => {
-      const sessionTime = reg.sessions.reduce((s, session) => s + session.totalWatchTime, 0);
-      return sum + sessionTime;
+    // Use videoPosition (furthest point watched) for accurate watch time
+    const totalWatchTime = registrations.reduce((sum: number, reg: any) => {
+      const maxVideoPosition = reg.sessions.reduce((max: number, session: any) => 
+        Math.max(max, session.videoPosition || 0), 0
+      );
+      return sum + (maxVideoPosition > 0 ? maxVideoPosition : (reg.lastWatchedPosition || 0));
     }, 0);
     const avgWatchTime = totalAttended > 0 ? totalWatchTime / totalAttended : 0;
 

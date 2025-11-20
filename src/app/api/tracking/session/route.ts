@@ -48,10 +48,10 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Get existing registration to check firstJoinedAt
+      // Get existing registration to check firstJoinedAt and joinedAt
       const existingReg = await prisma.registration.findUnique({
         where: { id: registrationId },
-        select: { firstJoinedAt: true },
+        select: { firstJoinedAt: true, joinedAt: true },
       });
 
       // Update registration joined time
@@ -60,7 +60,8 @@ export async function POST(request: NextRequest) {
         where: { id: registrationId },
         data: {
           attended: true,
-          joinedAt: now,
+          // Only set joinedAt if this is the FIRST session (prevent overwriting with later sessions)
+          ...(existingReg && !existingReg.joinedAt && { joinedAt: now }),
           // Set firstJoinedAt only if it's not already set (for grace period tracking)
           ...(existingReg && !existingReg.firstJoinedAt && { firstJoinedAt: now }),
         },
@@ -97,10 +98,11 @@ export async function POST(request: NextRequest) {
 
     if (action === 'leave' && session) {
       // End session
+      const now = new Date();
       const updatedSession = await prisma.attendeeSession.update({
         where: { id: session.id },
         data: {
-          leftAt: new Date(),
+          leftAt: now,
           isActive: false,
           videoPosition: videoPosition ?? session.videoPosition,
           totalWatchTime: watchTime ?? session.totalWatchTime,
@@ -111,11 +113,21 @@ export async function POST(request: NextRequest) {
         },
       });
 
-      // Update registration left time
+      // Check if there are any other active sessions for this registration
+      const otherActiveSessions = await prisma.attendeeSession.findFirst({
+        where: {
+          registrationId,
+          isActive: true,
+          id: { not: session.id }
+        },
+      });
+
+      // Only update registration leftAt if this is the last active session
       const registration = await prisma.registration.update({
         where: { id: registrationId },
         data: {
-          leftAt: new Date(),
+          // Only set leftAt if no other active sessions exist
+          ...((!otherActiveSessions) && { leftAt: now }),
         },
         include: {
           webinar: true,
