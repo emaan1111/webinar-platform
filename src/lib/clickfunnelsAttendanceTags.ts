@@ -459,7 +459,7 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
     const webinars = await prisma.webinar.findMany({
       where: {
         duration: {
-          not: null
+          not: null as any
         },
         attendanceTagsApplied: false,
         OR: [
