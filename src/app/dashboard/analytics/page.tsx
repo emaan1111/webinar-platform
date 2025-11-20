@@ -28,7 +28,8 @@ import {
   Clock,
   TrendingUp,
   Loader2,
-  RotateCcw
+  RotateCcw,
+  CheckCircle
 } from 'lucide-react'
 
 interface WebinarOption {
@@ -40,6 +41,7 @@ interface WebinarOption {
 interface AnalyticsData {
   overview: {
     totalRegistrations: number
+    totalPastRegistrations: number
     totalAttended: number
     attendanceRate: number
     noShows: number
@@ -167,6 +169,7 @@ export default function AnalyticsPage() {
         const aggregated: AnalyticsData = {
           overview: {
             totalRegistrations: 0,
+            totalPastRegistrations: 0,
             totalAttended: 0,
             attendanceRate: 0,
             noShows: 0,
@@ -221,6 +224,7 @@ export default function AnalyticsPage() {
           
           // Sum overview metrics
           aggregated.overview.totalRegistrations += data.overview.totalRegistrations
+          aggregated.overview.totalPastRegistrations += data.overview.totalPastRegistrations
           aggregated.overview.totalAttended += data.overview.totalAttended
           aggregated.overview.noShows += data.overview.noShows
           
@@ -320,12 +324,12 @@ export default function AnalyticsPage() {
         }))
 
         // Calculate averages and rates
-        aggregated.overview.attendanceRate = aggregated.overview.totalRegistrations > 0
-          ? (aggregated.overview.totalAttended / aggregated.overview.totalRegistrations) * 100
+        aggregated.overview.attendanceRate = aggregated.overview.totalPastRegistrations > 0
+          ? (aggregated.overview.totalAttended / aggregated.overview.totalPastRegistrations) * 100
           : 0
         
-        aggregated.overview.noShowRate = aggregated.overview.totalRegistrations > 0
-          ? (aggregated.overview.noShows / aggregated.overview.totalRegistrations) * 100
+        aggregated.overview.noShowRate = aggregated.overview.totalPastRegistrations > 0
+          ? (aggregated.overview.noShows / aggregated.overview.totalPastRegistrations) * 100
           : 0
         
         aggregated.overview.avgWatchTime = aggregated.overview.totalAttended > 0
@@ -702,6 +706,25 @@ export default function AnalyticsPage() {
               </Card>
 
               <Card>
+                <CardBody>
+                  <div className="flex items-center gap-4">
+                    <div className="flex-shrink-0 w-12 h-12 bg-emerald-100 rounded-lg flex items-center justify-center">
+                      <CheckCircle className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-medium text-gray-600">Real Attendance %</h3>
+                      <p className="text-2xl font-bold text-gray-900">{analyticsData.overview.attendanceRate.toFixed(1)}%</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {analyticsData.overview.totalPastRegistrations} past webinars only
+                      </p>
+                    </div>
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
+
+            {/* Row 2: Funnel Analytics */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">              <Card>
                 <CardBody>
                   <div className="flex items-center gap-4">
                     <div className="flex-shrink-0 w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">

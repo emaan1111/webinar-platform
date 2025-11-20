@@ -164,6 +164,11 @@ export async function GET(request: NextRequest) {
           ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
         },
         include: {
+          webinar: {
+            select: {
+              duration: true
+            }
+          },
           sessions: true,
           sales: true
         }
@@ -288,6 +293,19 @@ export async function GET(request: NextRequest) {
       // Calculate percentage metrics
       const registrationRate = visitors > 0 ? (registrationCount / visitors) * 100 : 0;
       const attendanceRate = registrationCount > 0 ? (totalAttendees / registrationCount) * 100 : 0;
+      
+      // Calculate real attendance rate (only past webinars)
+      const now = new Date();
+      const pastRegistrations = registrations.filter((reg: any) => {
+        if (!reg.scheduledStartTime || !reg.webinar?.duration) return false;
+        const scheduledStart = new Date(reg.scheduledStartTime);
+        const scheduledEnd = new Date(scheduledStart.getTime() + reg.webinar.duration * 60 * 1000);
+        return now > scheduledEnd;
+      });
+      const pastRegistrationCount = pastRegistrations.length;
+      const pastAttendees = pastRegistrations.filter((reg: any) => reg.attended).length;
+      const realAttendanceRate = pastRegistrationCount > 0 ? (pastAttendees / pastRegistrationCount) * 100 : 0;
+      
       const liveAttendanceRate = registrationCount > 0 ? (liveAttendees / registrationCount) * 100 : 0;
       const replayAttendanceRate = registrationCount > 0 ? (replayAttendees / registrationCount) * 100 : 0;
       
@@ -320,6 +338,8 @@ export async function GET(request: NextRequest) {
         totalAttendees,
         liveAttendees,
         replayAttendees,
+        pastRegistrationCount,
+        pastAttendees,
         
         // Engagement
         engagedTotal,
@@ -334,6 +354,7 @@ export async function GET(request: NextRequest) {
         // Rates
         registrationRate,
         attendanceRate,
+        realAttendanceRate,
         liveAttendanceRate,
         replayAttendanceRate,
         

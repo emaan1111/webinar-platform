@@ -42,6 +42,8 @@ type ReportData = {
   totalAttendees: number
   liveAttendees: number
   replayAttendees: number
+  pastRegistrationCount: number
+  pastAttendees: number
   
   // Engagement
   engagedTotal: number
@@ -56,6 +58,7 @@ type ReportData = {
   // Rates
   registrationRate: number
   attendanceRate: number
+  realAttendanceRate: number
   liveAttendanceRate: number
   replayAttendanceRate: number
   
@@ -127,6 +130,7 @@ export default function ReportsPage() {
       { id: 'liveAttendees', label: 'Live Attendees', group: 'Attendance' },
       { id: 'replayAttendees', label: 'Replay Attendees', group: 'Attendance' },
       { id: 'attendanceRate', label: '% Attendance (Total)', group: 'Attendance' },
+      { id: 'realAttendanceRate', label: '% Real Attendance (Past Only)', group: 'Attendance' },
       { id: 'liveAttendanceRate', label: '% Live Attendance', group: 'Attendance' },
       { id: 'replayAttendanceRate', label: '% Replay Attendance', group: 'Attendance' },
     ],
@@ -378,6 +382,8 @@ export default function ReportsPage() {
         return <PercentageCell value={report.registrationRate} />
       case 'attendanceRate':
         return <PercentageCell value={report.attendanceRate} />
+      case 'realAttendanceRate':
+        return <PercentageCell value={report.realAttendanceRate} />
       case 'liveAttendanceRate':
         return <PercentageCell value={report.liveAttendanceRate} />
       case 'replayAttendanceRate':
@@ -543,6 +549,7 @@ export default function ReportsPage() {
       r.salesReplay,
       r.registrationRate.toFixed(2),
       r.attendanceRate.toFixed(2),
+      r.realAttendanceRate.toFixed(2),
       r.engagedPerVisitor.toFixed(2),
       r.engagedPerRegistered.toFixed(2),
       r.engagementRateLive.toFixed(2),
@@ -568,6 +575,8 @@ export default function ReportsPage() {
       totalAttendees: acc.totalAttendees + r.totalAttendees,
       liveAttendees: acc.liveAttendees + r.liveAttendees,
       replayAttendees: acc.replayAttendees + r.replayAttendees,
+      pastRegistrationCount: acc.pastRegistrationCount + r.pastRegistrationCount,
+      pastAttendees: acc.pastAttendees + r.pastAttendees,
       engagedTotal: acc.engagedTotal + r.engagedTotal,
       engagedLive: acc.engagedLive + r.engagedLive,
       engagedReplay: acc.engagedReplay + r.engagedReplay,
@@ -581,6 +590,8 @@ export default function ReportsPage() {
       totalAttendees: 0,
       liveAttendees: 0,
       replayAttendees: 0,
+      pastRegistrationCount: 0,
+      pastAttendees: 0,
       engagedTotal: 0,
       engagedLive: 0,
       engagedReplay: 0,
@@ -593,6 +604,7 @@ export default function ReportsPage() {
       ...totals,
       registrationRate: totals.visitors > 0 ? (totals.registrations / totals.visitors) * 100 : 0,
       attendanceRate: totals.registrations > 0 ? (totals.totalAttendees / totals.registrations) * 100 : 0,
+      realAttendanceRate: totals.pastRegistrationCount > 0 ? (totals.pastAttendees / totals.pastRegistrationCount) * 100 : 0,
       engagedPerVisitor: totals.visitors > 0 ? (totals.engagedTotal / totals.visitors) * 100 : 0,
       engagedPerRegistered: totals.registrations > 0 ? (totals.engagedTotal / totals.registrations) * 100 : 0,
       engagementRateLive: totals.liveAttendees > 0 ? (totals.engagedLive / totals.liveAttendees) * 100 : 0,
@@ -1249,6 +1261,7 @@ export default function ReportsPage() {
                         else if (columnId === 'salesReplay') totalValue = totals.salesReplay.toLocaleString()
                         else if (columnId === 'registrationRate') totalValue = <PercentageCell value={totals.registrationRate} />
                         else if (columnId === 'attendanceRate') totalValue = <PercentageCell value={totals.attendanceRate} />
+                        else if (columnId === 'realAttendanceRate') totalValue = <PercentageCell value={totals.realAttendanceRate} />
                         else if (columnId === 'engagedPerVisitor') totalValue = <PercentageCell value={totals.engagedPerVisitor} />
                         else if (columnId === 'engagedPerRegistered') totalValue = <PercentageCell value={totals.engagedPerRegistered} />
                         else if (columnId === 'engagementRateLive') totalValue = <PercentageCell value={totals.engagementRateLive} />

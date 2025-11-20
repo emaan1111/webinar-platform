@@ -324,6 +324,7 @@ export async function GET(request: NextRequest) {
       analytics: {
         overview: {
           totalRegistrations,
+          totalPastRegistrations,
           totalAttended,
           attendanceRate: Math.round(attendanceRate * 10) / 10,
           noShows,
