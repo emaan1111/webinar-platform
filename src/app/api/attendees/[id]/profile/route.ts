@@ -45,9 +45,37 @@ export async function GET(
             id: true,
             joinedAt: true,
             leftAt: true,
-            totalWatchTime: true
+            totalWatchTime: true,
+            watchDuration: true,
+            videoPosition: true,
+            device: true,
+            userAgent: true,
+            lastSeenAt: true,
+            watchedMuted: true,
+            mutedDuration: true,
+            unmutedDuration: true,
+            lastMuteState: true,
+            videoEvents: {
+              select: {
+                id: true,
+                event: true,
+                timestamp: true,
+                videoPosition: true,
+                createdAt: true
+              },
+              orderBy: { createdAt: 'asc' }
+            },
+            engagements: {
+              select: {
+                id: true,
+                type: true,
+                timestamp: true,
+                createdAt: true
+              },
+              orderBy: { createdAt: 'asc' }
+            }
           },
-          orderBy: { joinedAt: 'asc' }
+          orderBy: { joinedAt: 'desc' }
         },
         pageVisits: {
           select: {
@@ -177,12 +205,33 @@ export async function GET(
       })),
 
       watchSessions: registration.sessions.map((session: any) => {
-        const duration = session.totalWatchTime || 0
+        const duration = session.watchDuration || session.totalWatchTime || 0
         return {
           id: session.id,
           joinedAt: session.joinedAt.toISOString(),
           leftAt: session.leftAt?.toISOString() || null,
-          duration
+          lastSeenAt: session.lastSeenAt?.toISOString() || null,
+          duration,
+          videoPosition: session.videoPosition || 0,
+          device: session.device || 'unknown',
+          userAgent: session.userAgent || null,
+          watchedMuted: session.watchedMuted,
+          mutedDuration: session.mutedDuration || 0,
+          unmutedDuration: session.unmutedDuration || 0,
+          lastMuteState: session.lastMuteState,
+          videoEvents: session.videoEvents.map((event: any) => ({
+            id: event.id,
+            event: event.event,
+            timestamp: event.timestamp,
+            videoPosition: event.videoPosition || 0,
+            createdAt: event.createdAt.toISOString()
+          })),
+          engagements: session.engagements.map((eng: any) => ({
+            id: eng.id,
+            type: eng.type,
+            timestamp: eng.timestamp,
+            createdAt: eng.createdAt.toISOString()
+          }))
         }
       }),
 
