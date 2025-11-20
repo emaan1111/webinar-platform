@@ -1,0 +1,214 @@
+import { NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth/next'
+import { authOptions } from '@/app/api/auth/[...nextauth]/route'
+import { prisma } from '@/lib/prisma'
+
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const registration = await prisma.registration.findUnique({
+      where: { id: params.id },
+      include: {
+        webinar: {
+          select: {
+            id: true,
+            title: true,
+            hostId: true
+          }
+        },
+        chatMessages: {
+          select: {
+            id: true,
+            message: true,
+            createdAt: true,
+            isApproved: true
+          },
+          orderBy: { createdAt: 'asc' }
+        },
+        reactions: {
+          select: {
+            id: true,
+            type: true,
+            createdAt: true
+          },
+          orderBy: { createdAt: 'asc' }
+        },
+        sessions: {
+          select: {
+            id: true,
+            joinedAt: true,
+            leftAt: true,
+            watchDuration: true
+          },
+          orderBy: { joinedAt: 'asc' }
+        },
+        pageVisits: {
+          select: {
+            id: true,
+            visitedAt: true,
+            duration: true
+          },
+          orderBy: { visitedAt: 'asc' }
+        },
+        sales: {
+          select: {
+            id: true,
+            amount: true,
+            createdAt: true,
+            offer: {
+              select: {
+                title: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'asc' }
+        }
+      }
+    })
+
+    if (!registration) {
+      return NextResponse.json({ error: 'Attendee not found' }, { status: 404 })
+    }
+
+    // Verify user is admin
+    const user = await prisma.user.findUnique({
+      where: { email: session.user.email }
+    })
+
+    if (!user || user.role !== 'ADMIN') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
+    // Get referred registrations
+    const referredRegistrations = await prisma.registration.findMany({
+      where: {
+        referredBy: registration.referralCode || undefined
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        registeredAt: true,
+        attended: true,
+        webinar: {
+          select: {
+            title: true
+          }
+        }
+      },
+      orderBy: { registeredAt: 'desc' }
+    })
+
+    // Get referrer information
+    let referrerInfo = null
+    if (registration.referredBy) {
+      const referrer = await prisma.registration.findFirst({
+        where: {
+          referralCode: registration.referredBy
+        },
+        select: {
+          name: true,
+          email: true,
+          referralCode: true
+        }
+      })
+      referrerInfo = referrer
+    }
+
+    // Calculate total watch time
+    const totalWatchTime = registration.sessions.reduce((sum, session) => {
+      return sum + (session.watchDuration || 0)
+    }, 0)
+    const effectiveTotalWatchTime = totalWatchTime > 0 ? totalWatchTime : (registration.lastWatchedPosition || 0)
+
+    // Calculate engagement score (0-100)
+    let engagementScore = 0
+    if (registration.attended) engagementScore += 30
+    if (effectiveTotalWatchTime > 600) engagementScore += 20 // 10+ min watch
+    if (registration.chatMessages.length > 0) engagementScore += 15
+    if (registration.reactions.length > 0) engagementScore += 10
+    if (registration.sales.length > 0) engagementScore += 25
+    engagementScore = Math.min(100, engagementScore)
+
+    // Format profile data
+    const profile = {
+      id: registration.id,
+      name: registration.name,
+      email: registration.email,
+      phone: registration.phone,
+      timezone: registration.timezone,
+      country: registration.country,
+      webinarTitle: registration.webinar.title,
+      registeredAt: registration.registeredAt.toISOString(),
+      scheduledAt: registration.scheduledStartTime?.toISOString() || null,
+      attended: registration.attended,
+      joinedAt: registration.joinedAt?.toISOString() || null,
+      leftAt: registration.leftAt?.toISOString() || null,
+      totalWatchTime: effectiveTotalWatchTime,
+      engagementScore,
+
+      // Engagement details
+      chatMessages: registration.chatMessages.map(msg => ({
+        id: msg.id,
+        message: msg.message,
+        timestamp: msg.createdAt.toISOString(),
+        isApproved: msg.isApproved
+      })),
+
+      reactions: registration.reactions.map(reaction => ({
+        id: reaction.id,
+        type: reaction.type,
+        timestamp: reaction.createdAt.toISOString()
+      })),
+
+      ctaClicks: registration.sales.map(sale => ({
+        id: sale.id,
+        offerTitle: sale.offer.title,
+        timestamp: sale.createdAt.toISOString()
+      })),
+
+      pageVisits: registration.pageVisits.map(visit => ({
+        id: visit.id,
+        timestamp: visit.visitedAt.toISOString(),
+        duration: visit.duration || 0
+      })),
+
+      watchSessions: registration.sessions.map(session => {
+        const duration = session.watchDuration || 0
+        return {
+          id: session.id,
+          joinedAt: session.joinedAt.toISOString(),
+          leftAt: session.leftAt?.toISOString() || null,
+          duration
+        }
+      }),
+
+      referrals: referredRegistrations.map(ref => ({
+        id: ref.id,
+        name: ref.name,
+        email: ref.email,
+        registeredAt: ref.registeredAt.toISOString(),
+        attended: ref.attended
+      })),
+
+      referralCode: registration.referralCode,
+      referredBy: registration.referredBy,
+      referrerName: referrerInfo?.name || null
+    }
+
+    return NextResponse.json({ profile })
+  } catch (error) {
+    console.error('Error fetching attendee profile:', error)
+    return NextResponse.json(
+      { error: 'Failed to fetch attendee profile' },
+      { status: 500 }
+    )
+  }
+}

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardBody } from '@/components/ui/Card'
@@ -85,7 +86,9 @@ type FilterConfig = {
 }
 
 export default function AttendeesPage() {
+  const router = useRouter()
   const [attendees, setAttendees] = useState<Attendee[]>([])
+  const [webinars, setWebinars] = useState<{ id: string; title: string }[]>([])
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
   const [attendanceFilter, setAttendanceFilter] = useState('all')
@@ -1073,7 +1076,11 @@ export default function AttendeesPage() {
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
-                        <button className="text-blue-600 hover:text-blue-900" title="View details">
+                        <button 
+                          onClick={() => router.push(`/dashboard/attendees/${attendee.id}`)}
+                          className="text-blue-600 hover:text-blue-900" 
+                          title="View detailed profile"
+                        >
                           <Eye className="w-4 h-4" />
                         </button>
                       </div>
