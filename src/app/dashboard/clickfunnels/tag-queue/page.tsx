@@ -80,6 +80,9 @@ export default function ClickFunnelsTagQueuePage() {
   const [refreshing, setRefreshing] = useState(false)
   const [statusFilter, setStatusFilter] = useState('all')
   const [webinarFilter, setWebinarFilter] = useState('')
+  const [reminderTypeFilter, setReminderTypeFilter] = useState('all') // New: filter by reminder type
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(50)
   
   // Attendance tab state
   const [attendanceRegistrations, setAttendanceRegistrations] = useState<AttendanceTagRegistration[]>([])
@@ -90,6 +93,7 @@ export default function ClickFunnelsTagQueuePage() {
     willEndSoon: 0
   })
   const [attendanceFilter, setAttendanceFilter] = useState('all') // all, pending, tagged
+  const [attendancePage, setAttendancePage] = useState(1)
 
   useEffect(() => {
     if (status === 'unauthenticated') {
@@ -101,7 +105,7 @@ export default function ClickFunnelsTagQueuePage() {
         fetchAttendanceRegistrations()
       }
     }
-  }, [status, statusFilter, webinarFilter, activeTab, attendanceFilter])
+  }, [status, statusFilter, webinarFilter, activeTab, attendanceFilter, reminderTypeFilter])
 
   const fetchTags = async () => {
     try {
@@ -186,15 +190,23 @@ export default function ClickFunnelsTagQueuePage() {
       '2HRREMINDER': 'bg-indigo-100 text-indigo-800',
       '1HRREMINDER': 'bg-purple-100 text-purple-800',
       '15MINREMINDER': 'bg-pink-100 text-pink-800',
-      'WESTARTED': 'bg-green-100 text-green-800'
+      'WESTARTED': 'bg-green-100 text-green-800',
+      'POST5MIN': 'bg-orange-100 text-orange-800',
+      'POST10MIN': 'bg-red-100 text-red-800',
+      'POST30MIN': 'bg-teal-100 text-teal-800',
+      'POST1HR': 'bg-cyan-100 text-cyan-800'
     }
     
     const displayNames = {
-      '24HRREMINDER': '24 Hour',
-      '2HRREMINDER': '2 Hour',
-      '1HRREMINDER': '1 Hour',
-      '15MINREMINDER': '15 Min',
-      'WESTARTED': 'Started'
+      '24HRREMINDER': '24 Hr Before',
+      '2HRREMINDER': '2 Hr Before',
+      '1HRREMINDER': '1 Hr Before',
+      '15MINREMINDER': '15 Min Before',
+      'WESTARTED': 'We Started',
+      'POST5MIN': '5 Min After',
+      'POST10MIN': '10 Min After',
+      'POST30MIN': '30 Min After',
+      'POST1HR': '1 Hr After'
     }
     
     return (
@@ -202,6 +214,17 @@ export default function ClickFunnelsTagQueuePage() {
         {displayNames[tagName as keyof typeof displayNames] || tagName}
       </span>
     )
+  }
+
+  const getReminderType = (tagName: string) => {
+    if (['24HRREMINDER', '2HRREMINDER', '1HRREMINDER', '15MINREMINDER'].includes(tagName)) {
+      return 'pre'
+    } else if (tagName === 'WESTARTED') {
+      return 'start'
+    } else if (tagName.startsWith('POST')) {
+      return 'post'
+    }
+    return 'other'
   }
 
   const formatDate = (dateString: string) => {
@@ -372,12 +395,32 @@ export default function ClickFunnelsTagQueuePage() {
         <div className="bg-white rounded-xl shadow-sm p-6 mb-6 border border-gray-200">
           <div className="flex items-center gap-4">
             <Filter className="w-5 h-5 text-gray-400" />
-            <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Reminder Type</label>
+                <select
+                  value={reminderTypeFilter}
+                  onChange={(e) => {
+                    setReminderTypeFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Types</option>
+                  <option value="pre">Pre-Webinar (24hr, 2hr, 1hr, 15min)</option>
+                  <option value="start">We Started</option>
+                  <option value="post">Post-Webinar</option>
+                </select>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                 <select
                   value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
+                  onChange={(e) => {
+                    setStatusFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="all">All Statuses</option>
@@ -391,7 +434,10 @@ export default function ClickFunnelsTagQueuePage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">Webinar</label>
                 <select
                   value={webinarFilter}
-                  onChange={(e) => setWebinarFilter(e.target.value)}
+                  onChange={(e) => {
+                    setWebinarFilter(e.target.value)
+                    setCurrentPage(1)
+                  }}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="">All Webinars</option>
@@ -408,108 +454,158 @@ export default function ClickFunnelsTagQueuePage() {
 
         {/* Tags Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {tags.length === 0 ? (
-            <div className="text-center py-12">
-              <TagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No tags found</h3>
-              <p className="text-gray-600">
-                {statusFilter !== 'all' || webinarFilter 
-                  ? 'Try adjusting your filters' 
-                  : 'Tags will appear here when registrations are created'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Webinar
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Tag
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Scheduled For
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Applied At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {tags.map((tag) => (
-                    <tr 
-                      key={tag.id} 
-                      className={`hover:bg-gray-50 transition-colors ${
-                        isOverdue(tag.scheduledFor, tag.status) ? 'bg-red-50' : ''
-                      }`}
-                    >
-                      <td className="px-6 py-4">
-                        <div className="flex items-start gap-3">
-                          <User className="w-5 h-5 text-gray-400 mt-0.5" />
-                          <div>
-                            <p className="text-sm font-medium text-gray-900">{tag.registration.name}</p>
-                            <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
-                              <Mail className="w-3 h-3" />
-                              {tag.registration.email}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-900">{tag.registration.webinar.title}</p>
-                      </td>
-                      <td className="px-6 py-4">
-                        {getTagBadge(tag.tagName)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-start gap-2">
-                          <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                          <div>
-                            <p className="text-sm text-gray-900">{formatDate(tag.scheduledFor)}</p>
-                            {isOverdue(tag.scheduledFor, tag.status) ? (
-                              <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
-                                <span className="inline-block w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-                                Overdue - Will process in next cron run
-                              </p>
-                            ) : tag.status === 'PENDING' ? (
-                              <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                In {Math.ceil((new Date(tag.scheduledFor).getTime() - Date.now()) / (1000 * 60))} minutes
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          {getStatusIcon(tag.status)}
-                          {getStatusBadge(tag.status)}
-                        </div>
-                        {tag.errorMessage && (
-                          <p className="text-xs text-red-600 mt-2 max-w-xs">{tag.errorMessage}</p>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {tag.appliedAt ? (
-                          <p className="text-sm text-gray-900">{formatDate(tag.appliedAt)}</p>
-                        ) : (
-                          <span className="text-sm text-gray-400">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+          {(() => {
+            // Filter tags by reminder type
+            let filteredTags = tags
+            if (reminderTypeFilter !== 'all') {
+              filteredTags = tags.filter(tag => getReminderType(tag.tagName) === reminderTypeFilter)
+            }
+
+            // Pagination
+            const totalPages = Math.ceil(filteredTags.length / itemsPerPage)
+            const startIndex = (currentPage - 1) * itemsPerPage
+            const endIndex = startIndex + itemsPerPage
+            const paginatedTags = filteredTags.slice(startIndex, endIndex)
+
+            if (filteredTags.length === 0) {
+              return (
+                <div className="text-center py-12">
+                  <TagIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No tags found</h3>
+                  <p className="text-gray-600">
+                    {statusFilter !== 'all' || webinarFilter || reminderTypeFilter !== 'all'
+                      ? 'Try adjusting your filters' 
+                      : 'Tags will appear here when registrations are created'}
+                  </p>
+                </div>
+              )
+            }
+
+            return (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Contact
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Webinar
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Reminder Type
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Scheduled For
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Applied At
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {paginatedTags.map((tag) => (
+                        <tr 
+                          key={tag.id} 
+                          className={`hover:bg-gray-50 transition-colors ${
+                            isOverdue(tag.scheduledFor, tag.status) ? 'bg-red-50' : ''
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <div className="flex items-start gap-3">
+                              <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-sm font-medium text-gray-900">{tag.registration.name}</p>
+                                <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                                  <Mail className="w-3 h-3" />
+                                  {tag.registration.email}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <p className="text-sm text-gray-900">{tag.registration.webinar.title}</p>
+                          </td>
+                          <td className="px-6 py-4">
+                            {getTagBadge(tag.tagName)}
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-start gap-2">
+                              <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                              <div>
+                                <p className="text-sm text-gray-900">{formatDate(tag.scheduledFor)}</p>
+                                {isOverdue(tag.scheduledFor, tag.status) ? (
+                                  <p className="text-xs text-red-600 font-semibold mt-1 flex items-center gap-1">
+                                    <span className="inline-block w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
+                                    Overdue - Will process in next cron run
+                                  </p>
+                                ) : tag.status === 'PENDING' ? (
+                                  <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                    <Clock className="w-3 h-3" />
+                                    In {Math.ceil((new Date(tag.scheduledFor).getTime() - Date.now()) / (1000 * 60))} minutes
+                                  </p>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(tag.status)}
+                              {getStatusBadge(tag.status)}
+                            </div>
+                            {tag.errorMessage && (
+                              <p className="text-xs text-red-600 mt-2 max-w-xs">{tag.errorMessage}</p>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            {tag.appliedAt ? (
+                              <p className="text-sm text-gray-900">{formatDate(tag.appliedAt)}</p>
+                            ) : (
+                              <span className="text-sm text-gray-400">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <div className="text-sm text-gray-700">
+                      Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                      <span className="font-medium">{Math.min(endIndex, filteredTags.length)}</span> of{' '}
+                      <span className="font-medium">{filteredTags.length}</span> results
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Previous
+                      </button>
+                      <span className="px-3 py-1 text-sm text-gray-700">
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </>
+            )
+          })()}
         </div>
 
         {/* Info Box */}
@@ -567,6 +663,9 @@ function AttendanceTagsTab({
   setAttendanceFilter: (filter: string) => void
   setWebinarFilter: (filter: string) => void
 }) {
+  const [currentPage, setCurrentPage] = useState(1)
+  const [itemsPerPage] = useState(50)
+
   const getSessionEndTime = (scheduledStartTime: string, duration: number) => {
     const start = new Date(scheduledStartTime)
     return new Date(start.getTime() + duration * 60 * 1000)
@@ -721,124 +820,136 @@ function AttendanceTagsTab({
 
         {/* Registrations Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-          {registrations.length === 0 ? (
-            <div className="text-center py-12">
-              <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">No registrations found</h3>
-              <p className="text-gray-600">
-                {attendanceFilter !== 'all' || webinarFilter 
-                  ? 'Try adjusting your filters' 
-                  : 'Registrations will appear here when users sign up'}
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50 border-b border-gray-200">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Contact
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Webinar
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Session End Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Watch Time
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Expected Tag
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                      Tag Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {registrations.map((reg) => {
-                    const sessionEnded = hasSessionEnded(reg.scheduledStartTime, reg.webinar.duration)
-                    const sessionEndTime = getSessionEndTime(reg.scheduledStartTime, reg.webinar.duration)
-                    const expectedTag = getExpectedTag(reg)
-                    
-                    return (
-                      <tr 
-                        key={reg.id} 
-                        className={`hover:bg-gray-50 transition-colors ${
-                          sessionEnded && !reg.attendanceTagsApplied ? 'bg-yellow-50' : ''
-                        }`}
-                      >
-                        <td className="px-6 py-4">
-                          <div className="flex items-start gap-3">
-                            <User className="w-5 h-5 text-gray-400 mt-0.5" />
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{reg.name}</p>
-                              <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
-                                <Mail className="w-3 h-3" />
-                                {reg.email}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="text-sm text-gray-900">{reg.webinar.title}</p>
-                            <p className="text-xs text-gray-500 mt-1">
-                              Duration: {reg.webinar.duration} min
-                              {reg.webinar.mostlyAttendedThreshold && (
-                                <> • Threshold: {formatTime(reg.webinar.mostlyAttendedThreshold)}</>
-                              )}
-                            </p>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-start gap-2">
-                            <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
-                            <div>
-                              <p className="text-sm text-gray-900">{formatDate(sessionEndTime.toISOString())}</p>
-                              {!sessionEnded ? (
-                                <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
-                                  <Clock className="w-3 h-3" />
-                                  In {Math.ceil((sessionEndTime.getTime() - Date.now()) / (1000 * 60))} minutes
-                                </p>
-                              ) : reg.attendanceTagsApplied ? (
-                                <p className="text-xs text-green-600 mt-1">
-                                  ✓ Session ended
-                                </p>
-                              ) : (
-                                <p className="text-xs text-yellow-600 font-semibold mt-1 flex items-center gap-1">
-                                  <span className="inline-block w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></span>
-                                  Ended - Will tag in next cron run
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div>
-                            {reg.attended ? (
-                              <>
-                                <p className="text-sm font-medium text-gray-900">
-                                  {formatTime(reg.lastWatchedPosition)}
-                                </p>
+          {(() => {
+            // Pagination
+            const totalPages = Math.ceil(registrations.length / itemsPerPage)
+            const startIndex = (currentPage - 1) * itemsPerPage
+            const endIndex = startIndex + itemsPerPage
+            const paginatedRegistrations = registrations.slice(startIndex, endIndex)
+
+            if (registrations.length === 0) {
+              return (
+                <div className="text-center py-12">
+                  <User className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No registrations found</h3>
+                  <p className="text-gray-600">
+                    {attendanceFilter !== 'all' || webinarFilter 
+                      ? 'Try adjusting your filters' 
+                      : 'Registrations will appear here when users sign up'}
+                  </p>
+                </div>
+              )
+            }
+
+            return (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50 border-b border-gray-200">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Contact
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Webinar
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Session End Time
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Watch Time
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Expected Tag
+                        </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          Tag Status
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {paginatedRegistrations.map((reg) => {
+                        const sessionEnded = hasSessionEnded(reg.scheduledStartTime, reg.webinar.duration)
+                        const sessionEndTime = getSessionEndTime(reg.scheduledStartTime, reg.webinar.duration)
+                        const expectedTag = getExpectedTag(reg)
+                        
+                        return (
+                          <tr 
+                            key={reg.id} 
+                            className={`hover:bg-gray-50 transition-colors ${
+                              sessionEnded && !reg.attendanceTagsApplied ? 'bg-yellow-50' : ''
+                            }`}
+                          >
+                            <td className="px-6 py-4">
+                              <div className="flex items-start gap-3">
+                                <User className="w-5 h-5 text-gray-400 mt-0.5" />
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{reg.name}</p>
+                                  <p className="text-xs text-gray-600 flex items-center gap-1 mt-1">
+                                    <Mail className="w-3 h-3" />
+                                    {reg.email}
+                                  </p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div>
+                                <p className="text-sm text-gray-900">{reg.webinar.title}</p>
                                 <p className="text-xs text-gray-500 mt-1">
-                                  ({((reg.lastWatchedPosition / (reg.webinar.duration * 60)) * 100).toFixed(0)}% watched)
+                                  Duration: {reg.webinar.duration} min
+                                  {reg.webinar.mostlyAttendedThreshold && (
+                                    <> • Threshold: {formatTime(reg.webinar.mostlyAttendedThreshold)}</>
+                                  )}
                                 </p>
-                              </>
-                            ) : (
-                              <span className="text-sm text-red-600 font-medium">Never Attended</span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                            expectedTag === 'MISSED' ? 'bg-red-100 text-red-800' :
-                            expectedTag === 'MOSTLY_ATTENDED' ? 'bg-green-100 text-green-800' :
-                            expectedTag === 'PARTLY_ATTENDED' ? 'bg-yellow-100 text-yellow-800' :
-                            'bg-blue-100 text-blue-800'
-                          }`}>
-                            {expectedTag.replace('_', ' ')}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-start gap-2">
+                                <Calendar className="w-4 h-4 text-gray-400 mt-0.5" />
+                                <div>
+                                  <p className="text-sm text-gray-900">{formatDate(sessionEndTime.toISOString())}</p>
+                                  {!sessionEnded ? (
+                                    <p className="text-xs text-blue-600 mt-1 flex items-center gap-1">
+                                      <Clock className="w-3 h-3" />
+                                      In {Math.ceil((sessionEndTime.getTime() - Date.now()) / (1000 * 60))} minutes
+                                    </p>
+                                  ) : reg.attendanceTagsApplied ? (
+                                    <p className="text-xs text-green-600 mt-1">
+                                      ✓ Session ended
+                                    </p>
+                                  ) : (
+                                    <p className="text-xs text-yellow-600 font-semibold mt-1 flex items-center gap-1">
+                                      <span className="inline-block w-2 h-2 bg-yellow-600 rounded-full animate-pulse"></span>
+                                      Ended - Will tag in next cron run
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div>
+                                {reg.attended ? (
+                                  <>
+                                    <p className="text-sm font-medium text-gray-900">
+                                      {formatTime(reg.lastWatchedPosition)}
+                                    </p>
+                                    <p className="text-xs text-gray-500 mt-1">
+                                      ({((reg.lastWatchedPosition / (reg.webinar.duration * 60)) * 100).toFixed(0)}% watched)
+                                    </p>
+                                  </>
+                                ) : (
+                                  <span className="text-sm text-red-600 font-medium">Never Attended</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                expectedTag === 'MISSED' ? 'bg-red-100 text-red-800' :
+                                expectedTag === 'MOSTLY_ATTENDED' ? 'bg-green-100 text-green-800' :
+                                expectedTag === 'PARTLY_ATTENDED' ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-blue-100 text-blue-800'
+                              }`}>
+                                {expectedTag.replace('_', ' ')}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -869,7 +980,39 @@ function AttendanceTagsTab({
                 </tbody>
               </table>
             </div>
-          )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                <div className="text-sm text-gray-700">
+                  Showing <span className="font-medium">{startIndex + 1}</span> to{' '}
+                  <span className="font-medium">{Math.min(endIndex, registrations.length)}</span> of{' '}
+                  <span className="font-medium">{registrations.length}</span> results
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-1 text-sm text-gray-700">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+            )
+          })()}
         </div>
 
         {/* Info Box */}
