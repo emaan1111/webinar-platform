@@ -45,28 +45,24 @@ export async function GET(
             id: true,
             joinedAt: true,
             leftAt: true,
-            watchDuration: true
+            totalWatchTime: true
           },
           orderBy: { joinedAt: 'asc' }
         },
         pageVisits: {
           select: {
             id: true,
-            visitedAt: true,
-            duration: true
+            enteredAt: true,
+            timeSpent: true
           },
-          orderBy: { visitedAt: 'asc' }
+          orderBy: { enteredAt: 'asc' }
         },
         sales: {
           select: {
             id: true,
             amount: true,
             createdAt: true,
-            offer: {
-              select: {
-                title: true
-              }
-            }
+            productName: true
           },
           orderBy: { createdAt: 'asc' }
         }
@@ -124,7 +120,7 @@ export async function GET(
 
     // Calculate total watch time
     const totalWatchTime = registration.sessions.reduce((sum: number, session: any) => {
-      return sum + (session.watchDuration || 0)
+      return sum + (session.totalWatchTime || 0)
     }, 0)
     const effectiveTotalWatchTime = totalWatchTime > 0 ? totalWatchTime : (registration.lastWatchedPosition || 0)
 
@@ -170,18 +166,18 @@ export async function GET(
 
       ctaClicks: registration.sales.map((sale: any) => ({
         id: sale.id,
-        offerTitle: sale.offer.title,
+        offerTitle: sale.productName || 'Unknown',
         timestamp: sale.createdAt.toISOString()
       })),
 
       pageVisits: registration.pageVisits.map((visit: any) => ({
         id: visit.id,
-        timestamp: visit.visitedAt.toISOString(),
-        duration: visit.duration || 0
+        timestamp: visit.enteredAt.toISOString(),
+        duration: visit.timeSpent || 0
       })),
 
       watchSessions: registration.sessions.map((session: any) => {
-        const duration = session.watchDuration || 0
+        const duration = session.totalWatchTime || 0
         return {
           id: session.id,
           joinedAt: session.joinedAt.toISOString(),
