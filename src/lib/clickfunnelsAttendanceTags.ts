@@ -464,7 +464,7 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
         },
         webinar: {
           duration: {
-            not: null as any
+            gt: 0
           }
         }
       },
