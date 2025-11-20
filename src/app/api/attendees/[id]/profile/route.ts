@@ -58,9 +58,8 @@ export async function GET(
             videoEvents: {
               select: {
                 id: true,
-                event: true,
+                eventType: true,
                 timestamp: true,
-                videoPosition: true,
                 createdAt: true
               },
               orderBy: { createdAt: 'asc' }
@@ -68,7 +67,7 @@ export async function GET(
             engagements: {
               select: {
                 id: true,
-                type: true,
+                eventType: true,
                 timestamp: true,
                 createdAt: true
               },
@@ -221,14 +220,14 @@ export async function GET(
           lastMuteState: session.lastMuteState,
           videoEvents: session.videoEvents.map((event: any) => ({
             id: event.id,
-            event: event.event,
+            event: event.eventType,
             timestamp: event.timestamp,
-            videoPosition: event.videoPosition || 0,
+            videoPosition: event.timestamp || 0,
             createdAt: event.createdAt.toISOString()
           })),
           engagements: session.engagements.map((eng: any) => ({
             id: eng.id,
-            type: eng.type,
+            type: eng.eventType,
             timestamp: eng.timestamp,
             createdAt: eng.createdAt.toISOString()
           }))
