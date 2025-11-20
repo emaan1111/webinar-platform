@@ -1819,15 +1819,15 @@ export default function WebinarLiveClient({
     };
   }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); // Removed elapsedSeconds - we use the ref instead
 
-  // Save replay watch position periodically (only in replay mode)
+  // Save watch position periodically (for both live and replay modes)
   useEffect(() => {
     // Early return if basic conditions aren't met
-    if (!isReplay || !viewer?.id || !broadcastStarted || !playerReady) {
-      console.log('⏭️ Skipping position save setup:', { isReplay, hasViewer: !!viewer?.id, broadcastStarted, playerReady });
+    if (!viewer?.id || !broadcastStarted || !playerReady) {
+      console.log('⏭️ Skipping position save setup:', { hasViewer: !!viewer?.id, broadcastStarted, playerReady });
       return;
     }
 
-    console.log('💾 Starting periodic position save for replay mode');
+    console.log(`💾 Starting periodic position save for ${isReplay ? 'replay' : 'live'} mode`);
     console.log('💾 Viewer ID:', viewer.id);
     console.log('💾 Initial lastWatchedPosition:', viewer.lastWatchedPosition);
 
@@ -1845,7 +1845,7 @@ export default function WebinarLiveClient({
             const response = await fetch(`/api/registrations/${viewer.id}/watch-position`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ position: roundedTime }),
+              body: JSON.stringify({ position: roundedTime, isReplay }),
               keepalive: true,
             });
             
@@ -1878,7 +1878,7 @@ export default function WebinarLiveClient({
           
           // Use sendBeacon for reliable sending during page unload
           const blob = new Blob(
-            [JSON.stringify({ position: roundedTime })],
+            [JSON.stringify({ position: roundedTime, isReplay })],
             { type: 'application/json' }
           );
           navigator.sendBeacon(`/api/registrations/${viewer.id}/watch-position`, blob);
@@ -1897,7 +1897,7 @@ export default function WebinarLiveClient({
       // Final save on cleanup
       handleBeforeUnload();
     };
-  }, [isReplay, viewer?.id, broadcastStarted, playerReady]);
+  }, [viewer?.id, broadcastStarted, playerReady]); // Removed isReplay - save for both live and replay
 
   // Countdown timer for replay expiration
   useEffect(() => {

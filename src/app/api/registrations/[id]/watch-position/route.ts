@@ -8,9 +8,9 @@ export async function POST(
   try {
     const { id } = params;
     const body = await request.json();
-    const { position } = body;
+    const { position, isReplay } = body;
 
-    console.log(`📥 [API] Received save request for registration ${id}, position: ${position}`);
+    console.log(`📥 [API] Received save request for registration ${id}, position: ${position}, isReplay: ${isReplay}`);
 
     if (typeof position !== 'number' || position < 0) {
       console.log(`❌ [API] Invalid position value: ${position}`);
@@ -21,12 +21,18 @@ export async function POST(
     }
 
     // Update the registration's lastWatchedPosition
+    // Only set watchedReplay if it's actually a replay
+    const updateData: any = {
+      lastWatchedPosition: Math.floor(position),
+    };
+    
+    if (isReplay) {
+      updateData.watchedReplay = true;
+    }
+    
     const updated = await prisma.registration.update({
       where: { id },
-      data: {
-        lastWatchedPosition: Math.floor(position),
-        watchedReplay: true, // Mark that they've watched the replay
-      } as any, // Type assertion until TS server refreshes
+      data: updateData,
     });
 
     console.log(`✅ [API] Successfully updated position to ${Math.floor(position)} for registration ${id}`);
