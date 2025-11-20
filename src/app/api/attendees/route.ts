@@ -130,6 +130,9 @@ export async function GET(request: Request) {
         return sum + (session.watchDuration || 0)
       }, 0)
 
+      // Use lastWatchedPosition as primary watch time indicator if no sessions have watchDuration
+      const effectiveTotalWatchTime = totalWatchTime > 0 ? totalWatchTime : (reg.lastWatchedPosition || 0)
+
       // Get most recent session data
       const lastSession = reg.sessions[0]
       const lastSessionDevice = lastSession?.device || null
@@ -195,8 +198,8 @@ export async function GET(request: Request) {
         replayWatchTimeFormatted: formatWatchTime(reg.replayWatchTime || 0),
         replayClickedCTA: reg.replayClickedCTA || false,
         replayDevice: reg.replayDevice || null,
-        totalWatchTime,
-        totalWatchTimeFormatted: formatWatchTime(totalWatchTime),
+        totalWatchTime: effectiveTotalWatchTime,
+        totalWatchTimeFormatted: formatWatchTime(effectiveTotalWatchTime),
         lastSessionDevice,
         lastSessionBrowser,
         lastSessionOS,
