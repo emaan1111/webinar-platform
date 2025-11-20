@@ -140,6 +140,9 @@ model Webinar {
   whatsappShareMessage String? @db.Text // Custom WhatsApp share message
   facebookShareMessage String? @db.Text // Custom Facebook share message (if needed)
 
+  // Attendance Tagging Configuration
+  mostlyAttendedThreshold Int? // Timestamp in seconds - users who watch past this get MOSTLY_ATTENDED tag
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

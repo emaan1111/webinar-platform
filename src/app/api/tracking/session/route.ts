@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncAttendanceToClickFunnels } from '@/lib/clickfunnels';
+import { applyAttendanceTagOnSessionEnd } from '@/lib/clickfunnelsAttendanceTags';
 
 // POST /api/tracking/session - Create or update session
 export async function POST(request: NextRequest) {
@@ -176,6 +177,20 @@ export async function POST(request: NextRequest) {
         leftAt: updatedSession.leftAt || undefined,
       }).catch(err => {
         console.error('Failed to sync attendance to ClickFunnels:', err);
+      });
+
+      // Apply attendance tags based on watch behavior
+      // This runs asynchronously in the background
+      applyAttendanceTagOnSessionEnd({
+        registrationId
+      }).then(result => {
+        if (result.success) {
+          console.log(`✅ Applied ${result.tag} tag for ${registration.email}: ${result.reason}`);
+        } else {
+          console.error(`❌ Failed to apply attendance tag for ${registration.email}:`, result.error);
+        }
+      }).catch(err => {
+        console.error('Failed to apply attendance tag:', err);
       });
 
       return NextResponse.json({ 

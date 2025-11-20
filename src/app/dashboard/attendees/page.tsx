@@ -103,6 +103,8 @@ export default function AttendeesPage() {
   const [currentPage, setCurrentPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
   const [showFilters, setShowFilters] = useState(false)
+  const [applyingTags, setApplyingTags] = useState(false)
+  const [tagResult, setTagResult] = useState<{ success?: boolean; message?: string } | null>(null)
   
   // New filters
   const [selectedCountries, setSelectedCountries] = useState<string[]>([])
@@ -569,6 +571,56 @@ export default function AttendeesPage() {
     a.click()
   }
 
+  const handleApplyAttendanceTags = async () => {
+    if (applyingTags) return
+
+    const confirmed = confirm(
+      webinarFilter === 'all'
+        ? 'Apply attendance tags for ALL webinars? This will tag all attendees in ClickFunnels based on their attendance.'
+        : 'Apply attendance tags for this webinar? This will tag all attendees in ClickFunnels based on their attendance.'
+    )
+
+    if (!confirmed) return
+
+    setApplyingTags(true)
+    setTagResult(null)
+
+    try {
+      const response = await fetch('/api/clickfunnels/apply-attendance-tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          webinarId: webinarFilter !== 'all' ? webinarFilter : undefined,
+          all: webinarFilter === 'all'
+        })
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setTagResult({
+          success: true,
+          message: data.message || 'Attendance tags applied successfully!'
+        })
+      } else {
+        setTagResult({
+          success: false,
+          message: data.error || 'Failed to apply attendance tags'
+        })
+      }
+    } catch (error) {
+      console.error('Error applying attendance tags:', error)
+      setTagResult({
+        success: false,
+        message: 'An error occurred while applying tags'
+      })
+    } finally {
+      setApplyingTags(false)
+      // Clear result after 5 seconds
+      setTimeout(() => setTagResult(null), 5000)
+    }
+  }
+
   const handleDeleteClick = (mode: 'single' | 'selected' | 'all', attendeeId?: string) => {
     setDeleteMode(mode)
     setDeleteTargetId(attendeeId || null)
@@ -831,6 +883,26 @@ export default function AttendeesPage() {
           </div>
         </div>
 
+        {/* Tag Application Result Notification */}
+        {tagResult && (
+          <div
+            className={`rounded-lg border p-4 ${
+              tagResult.success
+                ? 'bg-green-50 border-green-200 text-green-800'
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {tagResult.success ? (
+                <CheckCircle className="w-5 h-5" />
+              ) : (
+                <XCircle className="w-5 h-5" />
+              )}
+              <p className="font-medium">{tagResult.message}</p>
+            </div>
+          </div>
+        )}
+
         {/* Filters and Actions - Cleaner Layout */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <div className="flex flex-col gap-6">
@@ -1017,6 +1089,24 @@ export default function AttendeesPage() {
                 >
                   <Download className="w-4 h-4" />
                   Export
+                </button>
+
+                <button 
+                  onClick={handleApplyAttendanceTags}
+                  disabled={applyingTags}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed rounded-lg transition-colors"
+                >
+                  {applyingTags ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      Applying Tags...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle className="w-4 h-4" />
+                      Apply CF Tags
+                    </>
+                  )}
                 </button>
 
                 <button 
