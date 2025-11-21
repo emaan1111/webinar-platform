@@ -555,8 +555,8 @@
     </footer>
 
     <script>
-        // Get webinar data from the page
-        const webinarData = {
+        // Global webinar data (accessible to onclick handlers)
+        var webinarData = {
             title: "{{webinar.title}}",
             registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
             broadcastUrl: "{{broadcast.url}}",
@@ -565,6 +565,47 @@
             scheduleDateISO: "{{schedule.dateISO}}", // Will be in format: 2023-07-15T16:00:00Z
             duration: {{webinar.duration}}
         };
+        
+        // Global share functions (accessible to onclick handlers)
+        function shareOnWhatsApp() {
+            const message = `I just registered for "${webinarData.title}". Join me! ${webinarData.registrationUrl}`;
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+            window.open(url, '_blank');
+        }
+        
+        function shareOnFacebook() {
+            const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webinarData.registrationUrl)}`;
+            window.open(url, '_blank');
+        }
+        
+        function shareOnTwitter() {
+            const text = `I just registered for "${webinarData.title}". Join me!`;
+            const url = `https://twitter.com/intent/tweet?url=${encodeURIComponent(webinarData.registrationUrl)}&text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+        
+        function shareByEmail() {
+            const subject = encodeURIComponent(`Join me for: ${webinarData.title}`);
+            const body = encodeURIComponent(`I thought you might be interested in this webinar: ${webinarData.title}\n\nRegister here: ${webinarData.registrationUrl}`);
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        }
+        
+        function copyLink() {
+            const linkInput = document.getElementById("shareLink");
+            linkInput.select();
+            document.execCommand("copy");
+            
+            // Show success message
+            const copyButton = document.querySelector(".copy-button");
+            const originalText = copyButton.innerText;
+            copyButton.innerText = "Copied!";
+            copyButton.style.backgroundColor = "#48bb78";
+            
+            setTimeout(() => {
+                copyButton.innerText = originalText;
+                copyButton.style.backgroundColor = "";
+            }, 2000);
+        }
         
         // Simple check: Only run countdown if we have valid date/time data
         const scheduleDateISO = "{{schedule.dateISO}}";
@@ -635,51 +676,6 @@
                 // Redirect to webinar broadcast page
                 window.location.href = webinarData.broadcastUrl;
             });
-        }
-        
-        // Share on WhatsApp
-        function shareOnWhatsApp() {
-            const message = `I just registered for "${webinarData.title}". Join me! ${webinarData.registrationUrl}`;
-            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
-            window.open(url, '_blank');
-        }
-        
-        // Share on Facebook
-        function shareOnFacebook() {
-            const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webinarData.registrationUrl)}`;
-            window.open(url, '_blank');
-        }
-        
-        // Share on Twitter
-        function shareOnTwitter() {
-            const text = `I just registered for "${webinarData.title}". Join me!`;
-            const url = `https://twitter.com/intent/tweet?url=${encodeURIComponent(webinarData.registrationUrl)}&text=${encodeURIComponent(text)}`;
-            window.open(url, '_blank');
-        }
-        
-        // Share by Email
-        function shareByEmail() {
-            const subject = encodeURIComponent(`Join me for: ${webinarData.title}`);
-            const body = encodeURIComponent(`I thought you might be interested in this webinar: ${webinarData.title}\n\nRegister here: ${webinarData.registrationUrl}`);
-            window.location.href = `mailto:?subject=${subject}&body=${body}`;
-        }
-        
-        // Copy Link function
-        function copyLink() {
-            const linkInput = document.getElementById("shareLink");
-            linkInput.select();
-            document.execCommand("copy");
-            
-            // Show success message
-            const copyButton = document.querySelector(".copy-button");
-            const originalText = copyButton.innerText;
-            copyButton.innerText = "Copied!";
-            copyButton.style.backgroundColor = "#48bb78";
-            
-            setTimeout(() => {
-                copyButton.innerText = originalText;
-                copyButton.style.backgroundColor = "";
-            }, 2000);
         }
         } // End of daysEl check
         } // End of scheduleDateISO check
