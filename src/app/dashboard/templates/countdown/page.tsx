@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { Card, CardBody, CardHeader } from '@/components/ui/Card'
+import VisualHTMLEditor from '@/components/dashboard/VisualHTMLEditor'
 
 interface CountdownTemplate {
   id: string
@@ -24,10 +25,86 @@ export default function CountdownTemplatesPage() {
   const [showPreview, setShowPreview] = useState(false)
   const [editingTemplate, setEditingTemplate] = useState<Partial<CountdownTemplate>>({})
   const [editorMode, setEditorMode] = useState<'code' | 'visual'>('code')
+  const [autoConverting, setAutoConverting] = useState(false)
 
   useEffect(() => {
     fetchTemplates()
   }, [])
+
+  const handleAutoConvert = () => {
+    if (!editingTemplate.htmlCode) return
+    
+    setAutoConverting(true)
+    
+    let html = editingTemplate.htmlCode
+    
+    // Common patterns to replace with variables
+    const replacements = [
+      // Titles and headings
+      { pattern: /<title>([^{<]+)<\/title>/gi, replacement: '<title>{{webinar.title}} - Starting Soon</title>' },
+      { pattern: /<h1[^>]*>([^{<]+)<\/h1>/gi, replacement: '<h1>{{webinar.title}}</h1>' },
+      
+      // Common webinar-related text patterns
+      { pattern: /webinar\s+title:?\s*["']?([^"'<{]+)["']?/gi, replacement: 'webinar title: {{webinar.title}}' },
+      { pattern: /title:?\s*["']?([^"'<{]+)["']?/gi, replacement: 'title: {{webinar.title}}' },
+      
+      // Date and time patterns
+      { pattern: /date:?\s*["']?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})["']?/gi, replacement: 'date: {{schedule.date}}' },
+      { pattern: /date:?\s*["']?([A-Za-z]+\s+\d{1,2},?\s+\d{4})["']?/gi, replacement: 'date: {{schedule.date}}' },
+      { pattern: /time:?\s*["']?(\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?(?:\s*-\s*\d{1,2}:\d{2}\s*(?:AM|PM|am|pm)?)?)["']?/gi, replacement: 'time: {{schedule.time}}' },
+      
+      // Duration patterns
+      { pattern: /duration:?\s*["']?(\d+)\s*(?:minutes?|mins?)["']?/gi, replacement: 'duration: {{webinar.duration}} minutes' },
+      
+      // Host/Speaker patterns
+      { pattern: /host:?\s*["']?([^"'<{]+)["']?/gi, replacement: 'host: {{host.name}}' },
+      { pattern: /speaker:?\s*["']?([^"'<{]+)["']?/gi, replacement: 'speaker: {{host.name}}' },
+      { pattern: /instructor:?\s*["']?([^"'<{]+)["']?/gi, replacement: 'instructor: {{host.name}}' },
+      
+      // Countdown/Broadcast links
+      { pattern: /href=["']https?:\/\/[^"']*zoom[^"']*["']/gi, replacement: 'href="{{broadcast.url}}"' },
+      { pattern: /href=["']https?:\/\/[^"']*meet[^"']*["']/gi, replacement: 'href="{{broadcast.url}}"' },
+      { pattern: /href=["']https?:\/\/[^"']*webinar[^"']*["']/gi, replacement: 'href="{{webinar.registrationUrl}}"' },
+      { pattern: /window\.location\.href\s*=\s*["']https?:\/\/[^"']*zoom[^"']*["']/gi, replacement: 'window.location.href = "{{broadcast.url}}"' },
+      
+      // Registration URL in scripts
+      { pattern: /https?:\/\/example\.com\/webinar/gi, replacement: '{{webinar.registrationUrl}}' },
+      { pattern: /registrationUrl:\s*window\.location\.origin\s*\+\s*["']\/w\/[^"']*["']/gi, replacement: 'registrationUrl: window.location.origin + "/w/{{webinar.slug}}"' },
+      
+      // ISO date patterns in JavaScript
+      { pattern: /new Date\(["'](\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z?)["']\)/g, replacement: 'new Date("{{schedule.dateISO}}")' },
+      { pattern: /countDownDate\s*=\s*new Date\([^)]+\)\.getTime\(\)/gi, replacement: 'countDownDate = new Date("{{schedule.dateISO}}").getTime()' },
+      
+      // Common placeholder names (normalize to new format)
+      { pattern: /{{webinarTitle}}/gi, replacement: '{{webinar.title}}' },
+      { pattern: /{{webinarDescription}}/gi, replacement: '{{webinar.description}}' },
+      { pattern: /{{webinarDuration}}/gi, replacement: '{{webinar.duration}}' },
+      { pattern: /{{hostName}}/gi, replacement: '{{host.name}}' },
+      { pattern: /{{hostEmail}}/gi, replacement: '{{host.email}}' },
+      { pattern: /{{startTime}}/gi, replacement: '{{schedule.dateISO}}' },
+      { pattern: /{{joinLink}}/gi, replacement: '{{broadcast.url}}' },
+      { pattern: /{{roomLink}}/gi, replacement: '{{broadcast.url}}' },
+      { pattern: /{{webinarUrl}}/gi, replacement: '{{webinar.registrationUrl}}' },
+      
+      // Broadcast/room URL in scripts
+      { pattern: /broadcastUrl:\s*["'][^"']*["']/gi, replacement: 'broadcastUrl: "{{broadcast.url}}"' },
+      { pattern: /title:\s*["'][^"'{]*["']/gi, replacement: 'title: "{{webinar.title}}"' },
+      { pattern: /scheduleDateISO:\s*["'][^"']*["']/gi, replacement: 'scheduleDateISO: "{{schedule.dateISO}}"' },
+      { pattern: /scheduleDate:\s*["'][^"']*["']/gi, replacement: 'scheduleDate: "{{schedule.date}}"' },
+      { pattern: /scheduleTime:\s*["'][^"']*["']/gi, replacement: 'scheduleTime: "{{schedule.time}}"' },
+    ]
+    
+    // Apply all replacements
+    replacements.forEach(({ pattern, replacement }) => {
+      html = html.replace(pattern, replacement)
+    })
+    
+    setEditingTemplate({ ...editingTemplate, htmlCode: html })
+    setAutoConverting(false)
+    
+    // Show success message
+    alert('🎉 Auto-conversion complete! Common text patterns have been replaced with template variables.')
+  }
 
   const fetchTemplates = async () => {
     try {
@@ -299,27 +376,45 @@ export default function CountdownTemplatesPage() {
                 <h2 className="text-2xl font-bold">
                   {editingTemplate.id ? 'Edit Template' : 'Create New Template'}
                 </h2>
-                <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                <div className="flex gap-3 items-center">
                   <button
-                    onClick={() => setEditorMode('code')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      editorMode === 'code'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
+                    onClick={handleAutoConvert}
+                    disabled={!editingTemplate.htmlCode || autoConverting}
+                    className="px-4 py-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-lg hover:from-purple-700 hover:to-blue-700 transition-all font-medium text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                    title="Automatically convert common text to template variables"
                   >
-                    💻 Code Editor
+                    {autoConverting ? (
+                      <>
+                        <span className="animate-spin">⚙️</span> Converting...
+                      </>
+                    ) : (
+                      <>
+                        ✨ Auto Convert
+                      </>
+                    )}
                   </button>
-                  <button
-                    onClick={() => setEditorMode('visual')}
-                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                      editorMode === 'visual'
-                        ? 'bg-white text-blue-700 shadow-sm'
-                        : 'text-gray-600 hover:text-gray-900'
-                    }`}
-                  >
-                    🎨 Visual Editor
-                  </button>
+                  <div className="flex gap-2 bg-gray-100 rounded-lg p-1">
+                    <button
+                      onClick={() => setEditorMode('code')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        editorMode === 'code'
+                          ? 'bg-white text-blue-700 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      💻 Code Editor
+                    </button>
+                    <button
+                      onClick={() => setEditorMode('visual')}
+                      className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                        editorMode === 'visual'
+                          ? 'bg-white text-blue-700 shadow-sm'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      🎨 Visual Editor
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -381,31 +476,12 @@ export default function CountdownTemplatesPage() {
                 ) : (
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Visual Editor - Live Preview
+                      Visual Editor - Click to Edit
                     </label>
-                    <div className="mb-3 p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm">
-                      <p className="font-medium text-amber-900 mb-1">📝 How to use Visual Editor:</p>
-                      <ul className="text-amber-800 space-y-1 ml-4 list-disc">
-                        <li>Right-click any element in the preview to <strong>inspect</strong> it (opens browser DevTools)</li>
-                        <li>Use DevTools to edit text, styles, delete elements, or add new ones</li>
-                        <li>When satisfied, copy the modified HTML from DevTools and paste into Code Editor</li>
-                        <li>Or use the preview to plan your changes, then edit the code directly</li>
-                      </ul>
-                    </div>
-                    <div className="border-2 border-gray-300 rounded-lg overflow-hidden bg-white" style={{ height: '600px' }}>
-                      <iframe
-                        srcDoc={editingTemplate.htmlCode || '<html><body><p style="padding: 20px; text-align: center; color: #666;">Your template preview will appear here. Switch to Code Editor to add HTML.</p></body></html>'}
-                        className="w-full h-full border-0"
-                        title="Visual Editor Preview"
-                        sandbox="allow-same-origin allow-scripts"
-                      />
-                    </div>
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm">
-                      <p className="text-blue-900">
-                        💡 <strong>Pro Tip:</strong> The visual editor shows a live preview. To make structural changes, 
-                        switch back to Code Editor. This preview helps you visualize your template as you edit the code.
-                      </p>
-                    </div>
+                    <VisualHTMLEditor
+                      html={editingTemplate.htmlCode || ''}
+                      onChange={(newHtml: string) => setEditingTemplate({ ...editingTemplate, htmlCode: newHtml })}
+                    />
                   </div>
                 )}
               </div>

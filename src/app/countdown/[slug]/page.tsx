@@ -300,18 +300,37 @@ function processCountdownTemplate(
   const safeTitle = escapeJsInHtml(webinar.title || '')
   const safeDescription = escapeJsInHtml(webinar.description || '')
   
+  // Support both old and new variable formats
   processed = processed.replace(/\{\{webinarTitle\}\}/g, safeTitle)
+  processed = processed.replace(/\{\{webinar\.title\}\}/g, safeTitle)
   processed = processed.replace(/\{\{webinarDescription\}\}/g, safeDescription)
+  processed = processed.replace(/\{\{webinar\.description\}\}/g, safeDescription)
   processed = processed.replace(
     /\{\{webinarDuration\}\}/g,
     String(webinar.duration || 60)
+  )
+  processed = processed.replace(
+    /\{\{webinar\.duration\}\}/g,
+    String(webinar.duration || 60)
+  )
+  processed = processed.replace(
+    /\{\{webinar\.slug\}\}/g,
+    webinar.slug || ''
   )
   processed = processed.replace(
     /\{\{hostName\}\}/g,
     webinar.host?.name || 'Host'
   )
   processed = processed.replace(
+    /\{\{host\.name\}\}/g,
+    webinar.host?.name || 'Host'
+  )
+  processed = processed.replace(
     /\{\{hostEmail\}\}/g,
+    webinar.host?.email || ''
+  )
+  processed = processed.replace(
+    /\{\{host\.email\}\}/g,
     webinar.host?.email || ''
   )
 
@@ -430,9 +449,14 @@ function processCountdownTemplate(
     friendlyTimezone = 'UTC'
   }
 
+  // Support both old and new variable formats for dates
   processed = processed.replace(/\{\{webinarDate\}\}/g, formattedDate)
+  processed = processed.replace(/\{\{schedule\.date\}\}/g, formattedDate)
   processed = processed.replace(/\{\{webinarTime\}\}/g, formattedTime)
+  processed = processed.replace(/\{\{schedule\.time\}\}/g, formattedTime)
   processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
+  processed = processed.replace(/\{\{schedule\.dateTime\}\}/g, formattedDateTime)
+  processed = processed.replace(/\{\{schedule\.dateISO\}\}/g, scheduleDateTime.toISOString())
   processed = processed.replace(
     /\{\{timeZone\}\}/g,
     friendlyTimezone
@@ -479,8 +503,12 @@ function processCountdownTemplate(
   const safeRegistrationLink = escapeJsInHtml(registrationLink)
   const safeReferralLink = escapeJsInHtml(fullReferralLink)
   
+  // Support both old and new variable formats for links
   processed = processed.replace(/\{\{joinLink\}\}/g, safeJoinLink)
+  processed = processed.replace(/\{\{broadcast\.url\}\}/g, safeJoinLink)
+  processed = processed.replace(/\{\{roomLink\}\}/g, safeJoinLink)
   processed = processed.replace(/\{\{registrationLink\}\}/g, safeRegistrationLink)
+  processed = processed.replace(/\{\{webinar\.registrationUrl\}\}/g, safeRegistrationLink)
   processed = processed.replace(/\{\{referralLink\}\}/g, safeReferralLink)
   
   // Countdown template specific variables (simpler than CountdownPage)

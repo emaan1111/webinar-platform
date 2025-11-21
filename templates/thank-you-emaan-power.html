@@ -1,0 +1,649 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thank You for Registering | {{webinar.title}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #9E7A7A; /* Sophisticated Dusty Rose */
+            --secondary-color: #7A9E9E; /* Soft, Calming Teal */
+            --accent-color: #D4AF37; /* Warm, Elegant Gold */
+            --background-color: #FBF8F3; /* Warm Cream */
+            --card-background: #FFFFFF;
+            --text-color: #4A4A4A;
+            --light-text-color: #6D6D6D;
+            --heading-font: 'Playfair Display', serif;
+            --body-font: 'Lato', sans-serif;
+            --cta-color: #C55A7A; /* Vibrant, Feminine Magenta */
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            color: var(--text-color);
+            line-height: 1.7;
+            background-color: var(--background-color);
+            font-family: var(--body-font);
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header Section */
+        .header {
+            background-color: var(--card-background);
+            padding: 15px 0;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+        }
+        
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--primary-color);
+            font-family: var(--heading-font);
+        }
+        
+        .header .limited-spots {
+            background-color: var(--cta-color);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 700;
+        }
+        
+        /* Hero Section - Mobile First */
+        .hero {
+            padding: 40px 0;
+            text-align: center;
+        }
+        
+        .success-icon {
+            font-size: 4rem;
+            color: var(--accent-color);
+            margin-bottom: 20px;
+        }
+        
+        .hero-text {
+            margin-bottom: 30px;
+        }
+        
+        .confirmation-badge {
+            display: inline-block;
+            background-color: var(--secondary-color);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 30px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+        
+        h1 {
+            font-size: 2.2rem;
+            margin-bottom: 15px;
+            color: var(--primary-color);
+            line-height: 1.2;
+            font-family: var(--heading-font);
+        }
+        
+        .subtitle {
+            font-size: 1.1rem;
+            margin-bottom: 25px;
+            color: var(--light-text-color);
+            font-weight: 400;
+        }
+        
+        .hero-image {
+            margin-bottom: 30px;
+        }
+        
+        .hero-image img {
+            max-width: 100%;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+        }
+        
+        /* Email Notification Box */
+        .email-notification {
+            background-color: var(--accent-color);
+            color: white;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 30px auto;
+            max-width: 600px;
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.2);
+            text-align: center;
+        }
+        
+        .email-notification i {
+            font-size: 2rem;
+            margin-bottom: 15px;
+            display: block;
+        }
+        
+        .email-notification h3 {
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            font-family: var(--heading-font);
+        }
+        
+        .email-notification p {
+            font-size: 1.1rem;
+            line-height: 1.6;
+        }
+        
+        /* Bonus Gift Section */
+        .bonus-section {
+            background-color: var(--card-background);
+            padding: 50px 0;
+            margin: 30px 0;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.04);
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 2.2rem;
+            margin-bottom: 40px;
+            color: var(--primary-color);
+            font-family: var(--heading-font);
+        }
+        
+        .bonus-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+        
+        .bonus-image {
+            max-width: 250px;
+            border-radius: 12px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+            border: 3px solid var(--accent-color);
+        }
+        
+        .bonus-text {
+            text-align: center;
+            max-width: 600px;
+        }
+        
+        .bonus-text h2 {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            margin-bottom: 15px;
+            font-family: var(--heading-font);
+        }
+        
+        /* Next Steps Section */
+        .next-steps {
+            padding: 50px 0;
+        }
+        
+        .steps-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+            margin-top: 40px;
+        }
+        
+        .step-card {
+            background-color: var(--card-background);
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.04);
+            transition: all 0.3s ease;
+        }
+        
+        .step-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.06);
+        }
+        
+        .step-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .step-number {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            background-color: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-right: 20px;
+            flex-shrink: 0;
+        }
+        
+        .step-title {
+            font-size: 1.5rem;
+            color: var(--primary-color);
+            font-family: var(--heading-font);
+        }
+        
+        .step-content {
+            padding-left: 70px;
+        }
+        
+        .step-description {
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+        }
+        
+        .webinar-details {
+            background-color: var(--background-color);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .detail-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .detail-item i {
+            color: var(--secondary-color);
+            margin-right: 15px;
+            font-size: 1.2rem;
+            width: 20px;
+        }
+        
+        .social-sharing {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .social-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+        
+        .social-btn:hover {
+            transform: translateY(-3px);
+        }
+        
+        .whatsapp-btn {
+            background-color: #25D366;
+        }
+        
+        .facebook-btn {
+            background-color: #1877F2;
+        }
+        
+        .reward-text {
+            font-style: italic;
+            color: var(--light-text-color);
+            margin-top: 15px;
+            font-size: 0.9rem;
+        }
+        
+        /* Buttons */
+        .cta-button {
+            display: inline-block;
+            background-color: var(--cta-color);
+            color: white;
+            padding: 15px 30px;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 5px 15px rgba(197, 90, 122, 0.3);
+        }
+        
+        .cta-button:hover {
+            background-color: #B4496C;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(197, 90, 122, 0.4);
+        }
+        
+        .secondary-button {
+            background-color: var(--secondary-color);
+            color: white;
+            box-shadow: 0 5px 15px rgba(122, 158, 158, 0.3);
+        }
+        
+        .secondary-button:hover {
+            background-color: #5a8a8a;
+            box-shadow: 0 8px 20px rgba(122, 158, 158, 0.4);
+        }
+        
+        /* Footer */
+        .footer {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 30px 0;
+            text-align: center;
+            margin-top: 50px;
+        }
+        
+        .footer a {
+            color: var(--accent-color);
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        
+        /* --- TABLET AND DESKTOP STYLES --- */
+        @media (min-width: 768px) {
+            .hero {
+                padding: 60px 0;
+            }
+            
+            h1 {
+                font-size: 3rem;
+            }
+            
+            .subtitle {
+                font-size: 1.3rem;
+            }
+            
+            .bonus-content {
+                flex-direction: row;
+                text-align: left;
+            }
+            
+            .bonus-image {
+                flex: 0 0 250px;
+            }
+            
+            .bonus-text {
+                text-align: left;
+                flex: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="container">
+            <div class="header-content">
+                <div class="logo">Emaan Power</div>
+                <div class="limited-spots">Registration Confirmed</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <div class="success-icon">
+                <i class="fas fa-check-circle"></i>
+            </div>
+            <div class="hero-text">
+                <div class="confirmation-badge">Registration Successful</div>
+                <h1>Thank You for Registering!</h1>
+                <p class="subtitle">You're one step closer to joining: {{webinar.title}}</p>
+            </div>
+            
+            <!-- Email Notification Box -->
+            <div class="email-notification">
+                <i class="fas fa-envelope"></i>
+                <h3>Check Your Email</h3>
+                <p>We've sent a confirmation email with all the webinar details. Please check your inbox (and spam folder) for the link to join the webinar.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bonus Gift Section (Optional - Remove if no bonus) -->
+    <section class="bonus-section">
+        <div class="container">
+            <h2 class="section-title">Your Exclusive Bonus Gift</h2>
+            <div class="bonus-content">
+                <div class="bonus-image">
+                    <img src="https://picsum.photos/seed/islamicstorybook/300/300.jpg" alt="Bonus gift" style="width: 100%;">
+                </div>
+                <div class="bonus-text">
+                    <h2>Inspiring Storybook for Mothers</h2>
+                    <p>As promised, you'll receive our inspiring storybook sharing stories of great mothers who raised great men. This $17 value is yours absolutely free when you attend the masterclass!</p>
+                    <p>The book will be sent to your email after the webinar, so make sure to attend to claim your gift.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Next Steps Section -->
+    <section class="next-steps">
+        <div class="container">
+            <h2 class="section-title">What To Do Next</h2>
+            
+            <div class="steps-container">
+                <!-- Step 1: Mark Calendar -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">1</div>
+                        <h3 class="step-title">Mark Your Calendar</h3>
+                    </div>
+                    <div class="step-content">
+                        <p class="step-description">Don't miss out on this transformative masterclass. Add it to your calendar now to ensure you don't forget.</p>
+                        
+                        <div class="webinar-details">
+                            <div class="detail-item">
+                                <i class="fas fa-calendar-alt"></i>
+                                <span>Date: {{schedule.date}}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-clock"></i>
+                                <span>Time: {{schedule.time}}</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-laptop"></i>
+                                <span>Platform: Online Webinar</span>
+                            </div>
+                            <div class="detail-item">
+                                <i class="fas fa-hourglass-half"></i>
+                                <span>Duration: {{webinar.duration}} minutes</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 15px; flex-wrap: wrap;">
+                            <button class="cta-button" onclick="addToGoogleCalendar()">
+                                <i class="fab fa-google"></i> Google Calendar
+                            </button>
+                            <button class="cta-button secondary-button" onclick="downloadICS()">
+                                <i class="fab fa-apple"></i> Apple Calendar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Step 2: Share and Earn Rewards -->
+                <div class="step-card">
+                    <div class="step-header">
+                        <div class="step-number">2</div>
+                        <h3 class="step-title">Share & Earn Rewards</h3>
+                    </div>
+                    <div class="step-content">
+                        <p class="step-description">Help other mothers benefit from this masterclass and earn rewards from Allah. The Prophet (peace be upon him) said: "Whoever guides someone to goodness will have a reward like the one who does it."</p>
+                        
+                        <div class="social-sharing">
+                            <a href="#" onclick="shareOnWhatsApp(); return false;" class="social-btn whatsapp-btn">
+                                <i class="fab fa-whatsapp"></i>
+                            </a>
+                            <a href="#" onclick="shareOnFacebook(); return false;" class="social-btn facebook-btn">
+                                <i class="fab fa-facebook-f"></i>
+                            </a>
+                        </div>
+                        
+                        <p class="reward-text">"Whoever calls others to guidance will have a reward like that of those who follow it, without that detracting from their reward in the slightest." - Muslim</p>
+                        
+                        <button class="cta-button secondary-button" onclick="copyLink()">
+                            <i class="fas fa-copy"></i> Copy Registration Link
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>© 2023 Emaan Power. All rights reserved.</p>
+            <p>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Get webinar data from the page
+        const webinarData = {
+            title: "{{webinar.title}}",
+            registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
+            scheduleDate: "{{schedule.date}}",
+            scheduleTime: "{{schedule.time}}",
+            scheduleDateISO: "{{schedule.dateISO}}", // Will be in format: 2023-07-15T16:00:00Z
+            duration: {{webinar.duration}}
+        };
+        
+        // Add to Google Calendar function
+        function addToGoogleCalendar() {
+            const title = webinarData.title;
+            const details = "You're registered for this webinar. Don't miss it!";
+            const location = "Online Webinar";
+            
+            // Parse the ISO date
+            const startDate = new Date(webinarData.scheduleDateISO);
+            const endDate = new Date(startDate.getTime() + (webinarData.duration * 60000)); // Add duration in milliseconds
+            
+            // Format dates for Google Calendar
+            const formatDate = (date) => {
+                return date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+            };
+            
+            const googleCalendarUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(location)}&dates=${formatDate(startDate)}/${formatDate(endDate)}`;
+            
+            // Open Google Calendar in a new tab
+            window.open(googleCalendarUrl, '_blank');
+        }
+        
+        // Download ICS file for Apple Calendar, Outlook, etc.
+        function downloadICS() {
+            const title = webinarData.title;
+            const details = "You're registered for this webinar. Don't miss it!";
+            const location = "Online Webinar";
+            
+            // Parse the ISO date
+            const startDate = new Date(webinarData.scheduleDateISO);
+            const endDate = new Date(startDate.getTime() + (webinarData.duration * 60000));
+            
+            // Format dates for ICS (iCalendar format)
+            const formatICSDate = (date) => {
+                return date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+            };
+            
+            // Create ICS file content
+            const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Emaan Power//Webinar Calendar//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+BEGIN:VEVENT
+DTSTART:${formatICSDate(startDate)}
+DTEND:${formatICSDate(endDate)}
+DTSTAMP:${formatICSDate(new Date())}
+UID:${Date.now()}@emaanpower.com
+SUMMARY:${title}
+DESCRIPTION:${details}
+LOCATION:${location}
+STATUS:CONFIRMED
+SEQUENCE:0
+BEGIN:VALARM
+TRIGGER:-PT30M
+ACTION:DISPLAY
+DESCRIPTION:Reminder: Webinar starts in 30 minutes
+END:VALARM
+END:VEVENT
+END:VCALENDAR`;
+            
+            // Create blob and download
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = window.URL.createObjectURL(blob);
+            link.download = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.ics`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+        
+        // Share on WhatsApp
+        function shareOnWhatsApp() {
+            const message = `I just registered for "${webinarData.title}". Join me! ${webinarData.registrationUrl}`;
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+            window.open(url, '_blank');
+        }
+        
+        // Share on Facebook
+        function shareOnFacebook() {
+            const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webinarData.registrationUrl)}`;
+            window.open(url, '_blank');
+        }
+        
+        // Copy Link function
+        function copyLink() {
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = webinarData.registrationUrl;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            
+            // Show success message
+            const button = event.target;
+            const originalText = button.innerHTML;
+            button.innerHTML = '<i class="fas fa-check"></i> Link Copied!';
+            button.style.backgroundColor = '#48bb78';
+            
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.style.backgroundColor = '';
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

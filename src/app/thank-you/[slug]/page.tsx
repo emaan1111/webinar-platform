@@ -90,19 +90,28 @@ function processTemplate(html: string, data: any) {
   }
   const timezone = registration?.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   
-  // Webinar information
+  // Webinar information - Support both old and new format
   processed = processed.replace(/\{\{webinarTitle\}\}/g, webinar.title || '')
+  processed = processed.replace(/\{\{webinar\.title\}\}/g, webinar.title || '')
   processed = processed.replace(/\{\{webinarDescription\}\}/g, webinar.description || '')
+  processed = processed.replace(/\{\{webinar\.description\}\}/g, webinar.description || '')
   processed = processed.replace(/\{\{webinarDuration\}\}/g, String(webinar.duration || 60))
+  processed = processed.replace(/\{\{webinar\.duration\}\}/g, String(webinar.duration || 60))
+  processed = processed.replace(/\{\{webinar\.slug\}\}/g, webinar.slug || '')
   
-  // Host information
+  // Host information - Support both old and new format
   processed = processed.replace(/\{\{hostName\}\}/g, webinar.host.name || 'Host')
+  processed = processed.replace(/\{\{host\.name\}\}/g, webinar.host.name || 'Host')
   processed = processed.replace(/\{\{hostEmail\}\}/g, webinar.host.email || '')
+  processed = processed.replace(/\{\{host\.email\}\}/g, webinar.host.email || '')
   
-  // Registration information
+  // Registration information - Support both old and new format
   processed = processed.replace(/\{\{attendeeName\}\}/g, registration?.name || 'Attendee')
+  processed = processed.replace(/\{\{attendee\.name\}\}/g, registration?.name || 'Attendee')
   processed = processed.replace(/\{\{attendeeEmail\}\}/g, registration?.email || '')
+  processed = processed.replace(/\{\{attendee\.email\}\}/g, registration?.email || '')
   processed = processed.replace(/\{\{registrationId\}\}/g, registration?.id || '')
+  processed = processed.replace(/\{\{registration\.id\}\}/g, registration?.id || '')
   
   // Referral System - NEW
   const referralCode = registration?.referralCode || ''
@@ -164,10 +173,16 @@ function processTemplate(html: string, data: any) {
   const formattedDate = scheduleDateTime.toLocaleDateString('en-US', dateOptions)
   const formattedTime = scheduleDateTime.toLocaleTimeString('en-US', timeOptions)
   const formattedDateTime = `${formattedDate} at ${formattedTime}`
+  const scheduleISO = scheduleDateTime.toISOString()
   
+  // Support both old and new format
   processed = processed.replace(/\{\{webinarDate\}\}/g, formattedDate)
+  processed = processed.replace(/\{\{schedule\.date\}\}/g, formattedDate)
   processed = processed.replace(/\{\{webinarTime\}\}/g, formattedTime)
+  processed = processed.replace(/\{\{schedule\.time\}\}/g, formattedTime)
   processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
+  processed = processed.replace(/\{\{schedule\.dateTime\}\}/g, formattedDateTime)
+  processed = processed.replace(/\{\{schedule\.dateISO\}\}/g, scheduleISO)
   processed = processed.replace(/\{\{timeZone\}\}/g, timezone.replace(/_/g, ' '))
   
   // Generate calendar links
@@ -216,10 +231,17 @@ function processTemplate(html: string, data: any) {
   const countdownLink = `/countdown/${webinar.slug}${countdownParams.size > 0 ? `?${countdownParams.toString()}` : ''}`
   const safeCountdownLink = escapeForJsString(countdownLink)
   const safeRoomLink = escapeForJsString(roomLink)
+  
+  // Generate full registration URL for sharing
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
+  const registrationUrl = `${baseUrl}/w/${webinar.slug}`
+  const safeRegistrationUrl = escapeForJsString(registrationUrl)
 
   processed = processed.replace(/\{\{joinLink\}\}/g, safeCountdownLink)
   processed = processed.replace(/\{\{countdownLink\}\}/g, safeCountdownLink)
   processed = processed.replace(/\{\{roomLink\}\}/g, safeRoomLink)
+  processed = processed.replace(/\{\{broadcast\.url\}\}/g, safeRoomLink)
+  processed = processed.replace(/\{\{webinar\.registrationUrl\}\}/g, safeRegistrationUrl)
   
   // ICS download link
   const icsLink = `/api/calendar/${webinar.slug}?r=${registration?.id || ''}&s=${schedule?.id || ''}`

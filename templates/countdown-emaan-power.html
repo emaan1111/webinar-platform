@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{webinar.title}} - Starting Soon</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #9E7A7A; /* Sophisticated Dusty Rose */
+            --secondary-color: #7A9E9E; /* Soft, Calming Teal */
+            --accent-color: #D4AF37; /* Warm, Elegant Gold */
+            --background-color: #FBF8F3; /* Warm Cream */
+            --card-background: #FFFFFF;
+            --text-color: #4A4A4A;
+            --light-text-color: #6D6D6D;
+            --heading-font: 'Playfair Display', serif;
+            --body-font: 'Lato', sans-serif;
+            --cta-color: #C55A7A; /* Vibrant, Feminine Magenta */
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            color: var(--text-color);
+            line-height: 1.7;
+            background-color: var(--background-color);
+            font-family: var(--body-font);
+            padding-top: 100px; /* Space for sticky countdown banner */
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Countdown Banner */
+        .countdown-banner {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 12px 0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        .countdown-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .countdown-title {
+            font-size: 1.1rem;
+            font-family: var(--heading-font);
+        }
+        
+        .countdown-timer {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .countdown-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 5px 8px;
+            border-radius: 6px;
+            min-width: 50px;
+        }
+        
+        .countdown-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+        
+        .countdown-label {
+            font-size: 0.6rem;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }
+        
+        .enter-button {
+            background-color: var(--accent-color);
+            color: var(--text-color);
+            border: none;
+            padding: 6px 12px;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.3);
+        }
+        
+        .enter-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
+        }
+        
+        .enter-button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        /* Hero Section */
+        .hero {
+            padding: 20px 0;
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            color: var(--primary-color);
+            line-height: 1.2;
+            font-family: var(--heading-font);
+        }
+        
+        .subtitle {
+            font-size: 1rem;
+            margin-bottom: 20px;
+            color: var(--light-text-color);
+            font-weight: 400;
+        }
+        
+        /* Webinar Time Section */
+        .webinar-time {
+            background-color: var(--card-background);
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+            margin-bottom: 20px;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            text-align: center;
+        }
+        
+        .webinar-time h2 {
+            font-size: 1.3rem;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+            font-family: var(--heading-font);
+        }
+        
+        .time-details {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .time-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .time-item i {
+            color: var(--secondary-color);
+            font-size: 1.2rem;
+        }
+        
+        /* Bonus Gift Section */
+        .bonus-section {
+            background-color: var(--card-background);
+            padding: 30px 0;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+        }
+        
+        .section-title {
+            text-align: center;
+            font-size: 1.8rem;
+            margin-bottom: 25px;
+            color: var(--primary-color);
+            font-family: var(--heading-font);
+        }
+        
+        .bonus-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .bonus-image {
+            max-width: 200px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border: 2px solid var(--accent-color);
+        }
+        
+        .bonus-text {
+            text-align: center;
+            max-width: 600px;
+            padding: 0 15px;
+        }
+        
+        .bonus-text h2 {
+            color: var(--primary-color);
+            font-size: 1.5rem;
+            margin-bottom: 10px;
+            font-family: var(--heading-font);
+        }
+        
+        /* Video Section */
+        .video-section {
+            background-color: var(--card-background);
+            padding: 30px 0;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+        }
+        
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            height: 0;
+            overflow: hidden;
+            max-width: 800px;
+            margin: 0 auto;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+        
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+        }
+        
+        .video-description {
+            max-width: 600px;
+            margin: 15px auto 0;
+            text-align: center;
+            padding: 0 15px;
+        }
+        
+        /* Share Section */
+        .share-section {
+            background-color: var(--card-background);
+            padding: 30px 0;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.04);
+        }
+        
+        .share-content {
+            max-width: 600px;
+            margin: 0 auto;
+            text-align: center;
+            padding: 0 15px;
+        }
+        
+        .share-description {
+            margin-bottom: 20px;
+            font-size: 1rem;
+        }
+        
+        .social-sharing {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .social-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.3rem;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .social-btn:hover {
+            transform: translateY(-3px);
+        }
+        
+        .whatsapp-btn {
+            background-color: #25D366;
+        }
+        
+        .facebook-btn {
+            background-color: #1877F2;
+        }
+        
+        .twitter-btn {
+            background-color: #1DA1F2;
+        }
+        
+        .email-btn {
+            background-color: #EA4335;
+        }
+        
+        .copy-link-container {
+            display: flex;
+            gap: 10px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .link-input {
+            flex: 1;
+            padding: 10px 15px;
+            border: 1px solid #ddd;
+            border-radius: 50px;
+            font-size: 0.9rem;
+        }
+        
+        .copy-button {
+            background-color: var(--secondary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .copy-button:hover {
+            background-color: #5a8a8a;
+        }
+        
+        .reward-text {
+            font-style: italic;
+            color: var(--light-text-color);
+            margin-top: 15px;
+            font-size: 0.8rem;
+        }
+        
+        /* Footer */
+        .footer {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 20px 0;
+            text-align: center;
+            margin-top: 30px;
+        }
+        
+        .footer a {
+            color: var(--accent-color);
+            text-decoration: none;
+            margin: 0 10px;
+        }
+        
+        /* --- TABLET AND DESKTOP STYLES --- */
+        @media (min-width: 768px) {
+            .hero {
+                padding: 30px 0;
+            }
+            
+            h1 {
+                font-size: 2.5rem;
+            }
+            
+            .subtitle {
+                font-size: 1.1rem;
+            }
+            
+            .bonus-content {
+                flex-direction: row;
+                text-align: left;
+            }
+            
+            .bonus-image {
+                flex: 0 0 200px;
+            }
+            
+            .bonus-text {
+                text-align: left;
+                flex: 1;
+            }
+        }
+        
+        /* Mobile adjustments */
+        @media (max-width: 767px) {
+            .countdown-container {
+                justify-content: center;
+                text-align: center;
+            }
+            
+            .countdown-title {
+                width: 100%;
+                text-align: center;
+                margin-bottom: 5px;
+            }
+            
+            .countdown-timer {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Countdown Banner -->
+    <section class="countdown-banner">
+        <div class="container">
+            <div class="countdown-container">
+                <h2 class="countdown-title">Webinar Starts In:</h2>
+                <div class="countdown-timer" id="countdown">
+                    <div class="countdown-item">
+                        <span class="countdown-value" id="days">00</span>
+                        <span class="countdown-label">Days</span>
+                    </div>
+                    <div class="countdown-item">
+                        <span class="countdown-value" id="hours">00</span>
+                        <span class="countdown-label">Hours</span>
+                    </div>
+                    <div class="countdown-item">
+                        <span class="countdown-value" id="minutes">00</span>
+                        <span class="countdown-label">Minutes</span>
+                    </div>
+                    <div class="countdown-item">
+                        <span class="countdown-value" id="seconds">00</span>
+                        <span class="countdown-label">Seconds</span>
+                    </div>
+                </div>
+                <button class="enter-button" id="enterButton" disabled>Enter Webinar Room</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="container">
+            <h1>{{webinar.title}}</h1>
+            <p class="subtitle">{{webinar.description}}</p>
+        </div>
+    </section>
+
+    <!-- Webinar Time Section -->
+    <section class="webinar-time">
+        <div class="container">
+            <h2>Webinar Details</h2>
+            <div class="time-details">
+                <div class="time-item">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>{{schedule.date}}</span>
+                </div>
+                <div class="time-item">
+                    <i class="fas fa-clock"></i>
+                    <span>{{schedule.time}}</span>
+                </div>
+                <div class="time-item">
+                    <i class="fas fa-laptop"></i>
+                    <span>Online Webinar</span>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Bonus Gift Section (Optional - Remove if no bonus) -->
+    <section class="bonus-section">
+        <div class="container">
+            <h2 class="section-title">Your Exclusive Bonus Gift</h2>
+            <div class="bonus-content">
+                <div class="bonus-image">
+                    <img src="https://picsum.photos/seed/islamicstorybook/300/300.jpg" alt="Bonus gift" style="width: 100%;">
+                </div>
+                <div class="bonus-text">
+                    <h2>Inspiring Storybook for Mothers</h2>
+                    <p>As promised, you'll receive our inspiring storybook sharing stories of great mothers who raised great men. This $17 value is yours absolutely free when you attend the masterclass!</p>
+                    <p>The book will be sent to your email after the webinar, so make sure to attend to claim your gift.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Video Section (Optional - Remove if no video) -->
+    <section class="video-section">
+        <div class="container">
+            <h2 class="section-title">Watch This Message From {{host.name}}</h2>
+            <div class="video-container">
+                <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+            <div class="video-description">
+                <p>{{host.name}} shares their journey and what inspired them to create this masterclass.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Share Section -->
+    <section class="share-section">
+        <div class="container">
+            <h2 class="section-title">Share With Others</h2>
+            <div class="share-content">
+                <p class="share-description">Help others benefit from this masterclass and earn rewards from Allah. The Prophet (peace be upon him) said: "Whoever guides someone to goodness will have a reward like the one who does it."</p>
+                
+                <div class="social-sharing">
+                    <a href="#" onclick="shareOnWhatsApp(); return false;" class="social-btn whatsapp-btn">
+                        <i class="fab fa-whatsapp"></i>
+                    </a>
+                    <a href="#" onclick="shareOnFacebook(); return false;" class="social-btn facebook-btn">
+                        <i class="fab fa-facebook-f"></i>
+                    </a>
+                    <a href="#" onclick="shareOnTwitter(); return false;" class="social-btn twitter-btn">
+                        <i class="fab fa-twitter"></i>
+                    </a>
+                    <a href="#" onclick="shareByEmail(); return false;" class="social-btn email-btn">
+                        <i class="fas fa-envelope"></i>
+                    </a>
+                </div>
+                
+                <div class="copy-link-container">
+                    <input type="text" class="link-input" id="shareLink" value="" readonly>
+                    <button class="copy-button" onclick="copyLink()">Copy Link</button>
+                </div>
+                
+                <p class="reward-text">"Whoever calls others to guidance will have a reward like that of those who follow it, without that detracting from their reward in the slightest." - Muslim</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <p>© 2023 {{host.name}}. All rights reserved.</p>
+            <p>
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Get webinar data from the page
+        const webinarData = {
+            title: "{{webinar.title}}",
+            registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
+            broadcastUrl: "{{broadcast.url}}",
+            scheduleDate: "{{schedule.date}}",
+            scheduleTime: "{{schedule.time}}",
+            scheduleDateISO: "{{schedule.dateISO}}", // Will be in format: 2023-07-15T16:00:00Z
+            duration: {{webinar.duration}}
+        };
+        
+        // Set the share link
+        document.getElementById('shareLink').value = webinarData.registrationUrl;
+        
+        // Set the date we're counting down to
+        const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
+        
+        // Update the countdown every 1 second
+        const countdownFunction = setInterval(function() {
+            // Get today's date and time
+            const now = new Date().getTime();
+            
+            // Find the distance between now and the countdown date
+            const distance = countDownDate - now;
+            
+            // Time calculations for days, hours, minutes and seconds
+            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+            
+            // Display the result in the elements with id
+            document.getElementById("days").innerText = days.toString().padStart(2, '0');
+            document.getElementById("hours").innerText = hours.toString().padStart(2, '0');
+            document.getElementById("minutes").innerText = minutes.toString().padStart(2, '0');
+            document.getElementById("seconds").innerText = seconds.toString().padStart(2, '0');
+            
+            // Enable the enter button when the webinar is about to start (15 minutes before)
+            const fifteenMinutes = 15 * 60 * 1000; // 15 minutes in milliseconds
+            const enterButton = document.getElementById("enterButton");
+            
+            if (distance < fifteenMinutes && distance > 0) {
+                enterButton.disabled = false;
+            } else if (distance < 0) {
+                clearInterval(countdownFunction);
+                document.getElementById("days").innerText = "00";
+                document.getElementById("hours").innerText = "00";
+                document.getElementById("minutes").innerText = "00";
+                document.getElementById("seconds").innerText = "00";
+                
+                enterButton.disabled = false;
+            }
+        }, 1000);
+        
+        // Enter webinar room function
+        document.getElementById("enterButton").addEventListener("click", function() {
+            // Redirect to webinar broadcast page
+            window.location.href = webinarData.broadcastUrl;
+        });
+        
+        // Share on WhatsApp
+        function shareOnWhatsApp() {
+            const message = `I just registered for "${webinarData.title}". Join me! ${webinarData.registrationUrl}`;
+            const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+            window.open(url, '_blank');
+        }
+        
+        // Share on Facebook
+        function shareOnFacebook() {
+            const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(webinarData.registrationUrl)}`;
+            window.open(url, '_blank');
+        }
+        
+        // Share on Twitter
+        function shareOnTwitter() {
+            const text = `I just registered for "${webinarData.title}". Join me!`;
+            const url = `https://twitter.com/intent/tweet?url=${encodeURIComponent(webinarData.registrationUrl)}&text=${encodeURIComponent(text)}`;
+            window.open(url, '_blank');
+        }
+        
+        // Share by Email
+        function shareByEmail() {
+            const subject = encodeURIComponent(`Join me for: ${webinarData.title}`);
+            const body = encodeURIComponent(`I thought you might be interested in this webinar: ${webinarData.title}\n\nRegister here: ${webinarData.registrationUrl}`);
+            window.location.href = `mailto:?subject=${subject}&body=${body}`;
+        }
+        
+        // Copy Link function
+        function copyLink() {
+            const linkInput = document.getElementById("shareLink");
+            linkInput.select();
+            document.execCommand("copy");
+            
+            // Show success message
+            const copyButton = document.querySelector(".copy-button");
+            const originalText = copyButton.innerText;
+            copyButton.innerText = "Copied!";
+            copyButton.style.backgroundColor = "#48bb78";
+            
+            setTimeout(() => {
+                copyButton.innerText = originalText;
+                copyButton.style.backgroundColor = "";
+            }, 2000);
+        }
+    </script>
+</body>
+</html>
