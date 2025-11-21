@@ -5,6 +5,7 @@ import { useRouter, useParams } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { convertHtmlToRegistrationTemplate } from '@/lib/externalHtmlProcessor';
 
 export default function EditTemplatePage() {
   const router = useRouter();
@@ -19,6 +20,7 @@ export default function EditTemplatePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     if (templateId) {
@@ -45,6 +47,26 @@ export default function EditTemplatePage() {
       alert('Failed to load template');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAutoConvert = () => {
+    if (!htmlCode.trim()) {
+      alert('Paste your HTML first, then click Auto-convert');
+      return;
+    }
+
+    setConverting(true);
+    try {
+      const converted = convertHtmlToRegistrationTemplate(htmlCode);
+      setHtmlCode(converted);
+      setShowPreview(true);
+      alert('✅ HTML converted. Buttons now open the webinar popup and old popups were removed.');
+    } catch (error) {
+      console.error('Auto-convert failed', error);
+      alert('Auto-convert failed. Please try again.');
+    } finally {
+      setConverting(false);
     }
   };
 
@@ -189,14 +211,25 @@ export default function EditTemplatePage() {
             <label className="text-sm font-medium text-gray-700">
               Complete HTML Code *
             </label>
-            <Button
-              type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              variant="secondary"
-              className="text-sm"
-            >
-              {showPreview ? 'Hide Preview' : 'Show Preview'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                onClick={handleAutoConvert}
+                variant="secondary"
+                className="text-sm"
+                disabled={isSystem || converting}
+              >
+                {converting ? 'Converting...' : '⚡ Auto-convert HTML'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                variant="secondary"
+                className="text-sm"
+              >
+                {showPreview ? 'Hide Preview' : 'Show Preview'}
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
+import { convertHtmlToRegistrationTemplate } from '@/lib/externalHtmlProcessor';
 
 function NewTemplatePageContent() {
   const router = useRouter();
@@ -23,6 +24,7 @@ function NewTemplatePageContent() {
   const [detectedButtons, setDetectedButtons] = useState<Array<{id: string, text: string, html: string}>>([]);
   const [selectedButtonIds, setSelectedButtonIds] = useState<Set<string>>(new Set());
   const [showButtonSelector, setShowButtonSelector] = useState(false);
+  const [converting, setConverting] = useState(false);
 
   useEffect(() => {
     if (duplicateId) {
@@ -146,6 +148,26 @@ function NewTemplatePageContent() {
     setShowButtonSelector(false);
     
     alert(`✅ ${selectedButtonIds.size} button(s) marked for registration!\n\n✨ Changes applied:\n• Added data-action="register"\n• Removed href (for links)\n• Removed onclick handlers\n\nThese buttons will now open the registration form.`);
+  };
+
+  const handleAutoConvert = () => {
+    if (!htmlCode.trim()) {
+      alert('Paste your HTML first, then click Auto-convert');
+      return;
+    }
+
+    setConverting(true);
+    try {
+      const converted = convertHtmlToRegistrationTemplate(htmlCode);
+      setHtmlCode(converted);
+      setShowPreview(true);
+      alert('✅ HTML converted. Buttons now open the webinar popup and old popups were removed.');
+    } catch (error) {
+      console.error('Auto-convert failed', error);
+      alert('Auto-convert failed. Please try again or select buttons manually.');
+    } finally {
+      setConverting(false);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -356,14 +378,25 @@ function NewTemplatePageContent() {
             <label className="text-sm font-medium text-gray-700">
               Complete HTML Code *
             </label>
-            <Button
-              type="button"
-              onClick={() => setShowPreview(!showPreview)}
-              variant="secondary"
-              className="text-sm"
-            >
-              {showPreview ? 'Hide Preview' : 'Show Preview'}
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                onClick={handleAutoConvert}
+                variant="secondary"
+                className="text-sm"
+                disabled={converting}
+              >
+                {converting ? 'Converting...' : '⚡ Auto-convert HTML'}
+              </Button>
+              <Button
+                type="button"
+                onClick={() => setShowPreview(!showPreview)}
+                variant="secondary"
+                className="text-sm"
+              >
+                {showPreview ? 'Hide Preview' : 'Show Preview'}
+              </Button>
+            </div>
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
