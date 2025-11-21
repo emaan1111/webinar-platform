@@ -2319,40 +2319,30 @@
   display: flex;
   justify-content: center;
   gap: 8px;
-  padding: 12px 16px;
+  padding: 8px 12px;
   background: linear-gradient(135deg, rgba(123, 104, 238, 0.05), rgba(244, 164, 193, 0.05));
-  border-radius: 12px;
-  margin-top: 12px;
+  border-radius: 10px;
+  margin-top: 10px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
 }
 
 .mobileReactionBtn {
   flex: 1;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
-  padding: 12px 8px;
-  border: 2px solid transparent;
-  border-radius: 12px;
+  padding: 10px;
+  border: 1.5px solid transparent;
+  border-radius: 10px;
   background: white;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 14px;
-  font-weight: 600;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 .mobileReactionBtn i {
-  font-size: 24px;
+  font-size: 20px;
   transition: transform 0.2s ease;
-}
-
-.mobileReactionBtn span {
-  font-size: 11px;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
 }
 
 .mobileReactionBtn:active {
@@ -2404,19 +2394,15 @@
 @media (max-width: 380px) {
   .mobileReactionBar {
     gap: 6px;
-    padding: 10px 12px;
+    padding: 6px 10px;
   }
   
   .mobileReactionBtn {
-    padding: 10px 6px;
+    padding: 8px;
   }
   
   .mobileReactionBtn i {
-    font-size: 20px;
-  }
-  
-  .mobileReactionBtn span {
-    font-size: 10px;
+    font-size: 18px;
   }
 }
 

@@ -2425,7 +2425,6 @@ export default function WebinarLiveClient({
                   aria-label="Send heart reaction"
                 >
                   <i className="fas fa-heart" />
-                  <span>Love</span>
                 </button>
 
                 <button
@@ -2435,7 +2434,6 @@ export default function WebinarLiveClient({
                   aria-label="Send clap reaction"
                 >
                   <i className="fas fa-hands-clapping" />
-                  <span>Clap</span>
                 </button>
 
                 <button
@@ -2445,7 +2443,6 @@ export default function WebinarLiveClient({
                   aria-label="Send thumbs up reaction"
                 >
                   <i className="fas fa-thumbs-up" />
-                  <span>Like</span>
                 </button>
 
                 {webinar.hasChat !== false && (
@@ -2456,7 +2453,6 @@ export default function WebinarLiveClient({
                     aria-label="Toggle chat sidebar"
                   >
                     <i className="fas fa-comments" />
-                    <span>Chat</span>
                   </button>
                 )}
               </div>
