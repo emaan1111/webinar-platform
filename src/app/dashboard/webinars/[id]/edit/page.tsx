@@ -54,6 +54,7 @@ export default function EditWebinarPage() {
     hasChat: true,
     hasReactions: true,
     showElapsedTime: true,
+    roundJITTo15Minutes: true,
     thumbnail: '',
     registrationPageId: '',
     thankYouTemplateId: '',
@@ -172,6 +173,7 @@ export default function EditWebinarPage() {
         hasChat: webinar.hasChat !== undefined ? webinar.hasChat : true,
         hasReactions: webinar.hasReactions !== undefined ? webinar.hasReactions : true,
         showElapsedTime: webinar.showElapsedTime !== undefined ? webinar.showElapsedTime : true,
+        roundJITTo15Minutes: webinar.roundJITTo15Minutes !== undefined ? webinar.roundJITTo15Minutes : true,
         thumbnail: webinar.thumbnail || '',
         registrationPageId: webinar.registrationPageId || '',
         thankYouTemplateId: webinar.thankYouTemplateId || '',
@@ -1407,6 +1409,22 @@ export default function EditWebinarPage() {
                     <div>
                       <p className="text-sm font-medium text-gray-900">Show Elapsed Time</p>
                       <p className="text-xs text-gray-600">Display the running time badge on the video</p>
+                    </div>
+                  </div>
+                </label>
+                <label className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    name="roundJITTo15Minutes"
+                    checked={formData.roundJITTo15Minutes}
+                    onChange={handleInputChange}
+                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                  <div className="flex items-center gap-3 flex-1">
+                    <Clock className="w-5 h-5 text-gray-600" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Round Just-in-Time to 15 Minutes</p>
+                      <p className="text-xs text-gray-600">Round JIT schedules to :00, :15, :30, :45 (e.g., 9:07 → 9:15)</p>
                     </div>
                   </div>
                 </label>

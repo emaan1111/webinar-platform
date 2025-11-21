@@ -111,6 +111,7 @@ model Webinar {
   thankYouTemplateId     String? // Reference to ThankYouTemplate table
   countdownTemplateId    String? // Reference to CountdownTemplate table (same system as Thank You)
   countdownPageId        String? // Reference to CountdownPage table (deprecated, use countdownTemplateId)
+  roundJITTo15Minutes    Boolean @default(true) // Round Just-In-Time schedules to nearest 15-minute interval
 
   // A/B Testing Configuration
   enableABTesting     Boolean @default(false) // Master toggle for A/B testing

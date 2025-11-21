@@ -41,19 +41,21 @@ export function roundToNearest15Minutes(date: Date): Date {
 
 /**
  * Returns the next Date when the given schedule occurs.
+ * @param roundTo15Min - Optional flag to round JIT schedules to nearest 15 minutes (default: true for backward compatibility)
  */
 export function calculateScheduleDateTime(
   schedule: ScheduleLike,
   registration?: RegistrationLike | null,
-  referenceDate: Date = new Date()
+  referenceDate: Date = new Date(),
+  roundTo15Min: boolean = true
 ): Date {
   if (schedule.scheduleType === 'justInTime' && schedule.minutesFromReg) {
     const regTime = registration?.registeredAt
       ? new Date(registration.registeredAt)
       : referenceDate
     const calculatedTime = new Date(regTime.getTime() + schedule.minutesFromReg * 60000)
-    // Round to nearest 15-minute interval
-    return roundToNearest15Minutes(calculatedTime)
+    // Round to nearest 15-minute interval only if enabled
+    return roundTo15Min ? roundToNearest15Minutes(calculatedTime) : calculatedTime
   }
 
   if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {

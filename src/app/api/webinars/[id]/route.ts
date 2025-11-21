@@ -118,6 +118,7 @@ export async function PATCH(
       'thankYouTemplateId',
       'countdownPageId',
       'showElapsedTime',
+      'roundJITTo15Minutes',
       'replayEnabled',
       'replayDurationDays',
       'replayExpiresAt',

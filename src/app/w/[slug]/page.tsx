@@ -41,6 +41,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
         offerBId: true,
         trafficSplitPercent: true,
         maxSchedulesToShow: true,
+        roundJITTo15Minutes: true,
         schedules: {
           select: {
             id: true,
