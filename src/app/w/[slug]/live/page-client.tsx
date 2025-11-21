@@ -557,6 +557,32 @@ export default function WebinarLiveClient({
 
   const spawnReaction = useCallback(
     (type: ReactionType, origin?: { x: number; y: number }, userName?: string) => {
+      // MOBILE OPTIMIZATION: Show reactions in chat sidebar instead of flying over video
+      // Desktop: Full flying animation over video (keeps excitement)
+      // Mobile: Simple emoji in chat (prevents video performance issues)
+      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobileDevice) {
+        // Mobile: Add reaction as chat message
+        const reactionEmoji = type === 'heart' ? '❤️' : type === 'clap' ? '👏' : '👍';
+        const firstName = userName ? userName.split(' ')[0] : 'Someone';
+        
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `reaction-${Date.now()}-${Math.random()}`,
+            userName: firstName,
+            message: reactionEmoji,
+            videoTimestamp: null,
+            isScripted: true,
+            createdAt: new Date().toISOString(),
+          }
+        ]);
+        console.log(`📱 Mobile: Showing ${reactionEmoji} in chat from ${firstName}`);
+        return;
+      }
+      
+      // Desktop: Create flying animation over video
       const floatingReaction = document.createElement('div');
       floatingReaction.className = styles.flyingReaction;
 
@@ -1083,9 +1109,10 @@ export default function WebinarLiveClient({
       if (triggeredReactionsRef.current.has(event.id)) {
         return false;
       }
-      // Only show reactions that should have appeared by now
-      // Reaction should appear AFTER its timestamp, not at it
-      const shouldShow = event.videoTimestamp < elapsedSeconds;
+      // OPTIMIZATION: Only show reactions that should appear NOW or in the FUTURE
+      // Don't show reactions from before the current timestamp (when user joins mid-stream)
+      // This prevents loading hundreds of past reactions on mobile
+      const shouldShow = event.videoTimestamp >= elapsedSeconds - 1 && event.videoTimestamp < elapsedSeconds;
       
       if (shouldShow) {
         console.log(`✅ Reaction due: ${event.type} at ${event.videoTimestamp}s (current: ${elapsedSeconds}s)`);
