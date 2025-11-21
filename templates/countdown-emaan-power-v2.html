@@ -20,6 +20,7 @@
             --heading-font: 'Playfair Display', serif;
             --body-font: 'Lato', sans-serif;
             --cta-color: #C55A7A; /* Vibrant, Feminine Magenta */
+            --countdown-bg: #B02E5C; /* Vibrant Pink-Red for prominence */
         }
         
         * {
@@ -33,7 +34,7 @@
             line-height: 1.7;
             background-color: var(--background-color);
             font-family: var(--body-font);
-            padding-top: 100px; /* Space for sticky countdown banner */
+            padding-top: 110px; /* Space for sticky countdown banner */
         }
         
         .container {
@@ -42,17 +43,30 @@
             padding: 0 20px;
         }
         
-        /* Countdown Banner */
+        /* Countdown Banner - More Prominent */
         .countdown-banner {
-            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            background: linear-gradient(135deg, var(--countdown-bg), #D73502);
             color: white;
-            padding: 12px 0;
+            padding: 18px 0;
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 20px rgba(176, 46, 92, 0.4);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% {
+                box-shadow: 0 4px 20px rgba(176, 46, 92, 0.4);
+            }
+            50% {
+                box-shadow: 0 4px 25px rgba(176, 46, 92, 0.6);
+            }
+            100% {
+                box-shadow: 0 4px 20px rgba(176, 46, 92, 0.4);
+            }
         }
         
         .countdown-container {
@@ -64,53 +78,58 @@
         }
         
         .countdown-title {
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             font-family: var(--heading-font);
+            font-weight: 700;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.2);
         }
         
         .countdown-timer {
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
         
         .countdown-item {
             display: flex;
             flex-direction: column;
             align-items: center;
-            background-color: rgba(255, 255, 255, 0.2);
-            padding: 5px 8px;
-            border-radius: 6px;
-            min-width: 50px;
+            background-color: rgba(255, 255, 255, 0.25);
+            padding: 8px 12px;
+            border-radius: 8px;
+            min-width: 60px;
+            box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+            backdrop-filter: blur(5px);
         }
         
         .countdown-value {
-            font-size: 1.3rem;
+            font-size: 1.5rem;
             font-weight: 700;
             line-height: 1;
         }
         
         .countdown-label {
-            font-size: 0.6rem;
+            font-size: 0.7rem;
             text-transform: uppercase;
-            margin-top: 2px;
+            margin-top: 3px;
+            letter-spacing: 1px;
         }
         
         .enter-button {
             background-color: var(--accent-color);
             color: var(--text-color);
             border: none;
-            padding: 6px 12px;
+            padding: 8px 16px;
             border-radius: 50px;
-            font-size: 0.8rem;
+            font-size: 0.9rem;
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.3);
+            box-shadow: 0 3px 10px rgba(212, 175, 55, 0.4);
         }
         
-        .enter-button:hover {
+        .enter-button:hover:not(:disabled) {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.4);
+            box-shadow: 0 5px 15px rgba(212, 175, 55, 0.5);
         }
         
         .enter-button:disabled {
@@ -180,8 +199,8 @@
             font-size: 1.2rem;
         }
         
-        /* Bonus Gift Section */
-        .bonus-section {
+        /* Content Section with Video and Book */
+        .content-section {
             background-color: var(--card-background);
             padding: 30px 0;
             margin: 20px 0;
@@ -197,11 +216,37 @@
             font-family: var(--heading-font);
         }
         
+        .content-container {
+            display: flex;
+            flex-direction: column;
+            gap: 30px;
+        }
+        
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            height: 0;
+            overflow: hidden;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            flex: 1;
+        }
+        
+        .video-container iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border-radius: 10px;
+        }
+        
         .bonus-content {
             display: flex;
             flex-direction: column;
             align-items: center;
             gap: 20px;
+            flex: 0 0 300px;
         }
         
         .bonus-image {
@@ -224,40 +269,10 @@
             font-family: var(--heading-font);
         }
         
-        /* Video Section */
-        .video-section {
-            background-color: var(--card-background);
-            padding: 30px 0;
-            margin: 20px 0;
-            border-radius: 10px;
-            box-shadow: 0 3px 10px rgba(0,0,0,0.04);
-        }
-        
-        .video-container {
-            position: relative;
-            padding-bottom: 56.25%; /* 16:9 aspect ratio */
-            height: 0;
-            overflow: hidden;
-            max-width: 800px;
-            margin: 0 auto;
-            border-radius: 10px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        
-        .video-container iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            border-radius: 10px;
-        }
-        
         .video-description {
-            max-width: 600px;
-            margin: 15px auto 0;
             text-align: center;
             padding: 0 15px;
+            margin-top: 15px;
         }
         
         /* Share Section */
@@ -388,18 +403,18 @@
                 font-size: 1.1rem;
             }
             
-            .bonus-content {
+            .content-container {
                 flex-direction: row;
-                text-align: left;
+                align-items: flex-start;
             }
             
-            .bonus-image {
-                flex: 0 0 200px;
+            .bonus-content {
+                align-items: flex-start;
+                text-align: left;
             }
             
             .bonus-text {
                 text-align: left;
-                flex: 1;
             }
         }
         
@@ -424,7 +439,7 @@
     </style>
 </head>
 <body>
-    <!-- Countdown Banner -->
+    <!-- Countdown Banner - More Prominent -->
     <section class="countdown-banner">
         <div class="container">
             <div class="countdown-container">
@@ -481,29 +496,24 @@
         </div>
     </section>
 
-    <!-- Bonus Gift Section (Optional - Remove if no bonus) -->
-    <section class="bonus-section">
+    <!-- Content Section with Video and Book -->
+    <section class="content-section">
         <div class="container">
-            <h2 class="section-title">Your Exclusive Bonus Gift</h2>
-            <div class="bonus-content">
-                <div class="bonus-image">
-                    <img src="https://picsum.photos/seed/islamicstorybook/300/300.jpg" alt="Bonus gift" style="width: 100%;">
+            <h2 class="section-title">Your Free Masterclass & Bonus Gift</h2>
+            <div class="content-container">
+                <div class="video-container">
+                    <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
-                <div class="bonus-text">
-                    <h2>Inspiring Storybook for Mothers</h2>
-                    <p>As promised, you'll receive our inspiring storybook sharing stories of great mothers who raised great men. This $17 value is yours absolutely free when you attend the masterclass!</p>
-                    <p>The book will be sent to your email after the webinar, so make sure to attend to claim your gift.</p>
+                <div class="bonus-content">
+                    <div class="bonus-image">
+                        <img src="https://picsum.photos/seed/islamicstorybook/300/300.jpg" alt="Bonus gift" style="width: 100%;">
+                    </div>
+                    <div class="bonus-text">
+                        <h2>Inspiring Storybook for Mothers</h2>
+                        <p>As promised, you'll receive our inspiring storybook sharing stories of great mothers who raised great men. This $17 value is yours absolutely free when you attend the masterclass!</p>
+                        <p>The book will be sent to your email after the webinar, so make sure to attend to claim your gift.</p>
+                    </div>
                 </div>
-            </div>
-        </div>
-    </section>
-
-    <!-- Video Section (Optional - Remove if no video) -->
-    <section class="video-section">
-        <div class="container">
-            <h2 class="section-title">Watch This Message From {{host.name}}</h2>
-            <div class="video-container">
-                <iframe src="https://www.youtube.com/embed/dQw4w9WgXcQ" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
             </div>
             <div class="video-description">
                 <p>{{host.name}} shares their journey and what inspired them to create this masterclass.</p>
@@ -562,7 +572,7 @@
             broadcastUrl: "{{broadcast.url}}",
             scheduleDate: "{{schedule.date}}",
             scheduleTime: "{{schedule.time}}",
-            scheduleDateISO: "{{schedule.dateISO}}", // Will be in format: 2023-07-15T16:00:00Z
+            scheduleDateISO: "{{schedule.dateISO}}", // ISO format: 2023-07-15T16:00:00Z
             duration: {{webinar.duration}}
         };
         
@@ -613,7 +623,7 @@
             }
         }, 1000);
         
-        // Enter webinar room function
+        // Enter webinar room function (manual click)
         document.getElementById("enterButton").addEventListener("click", function() {
             // Redirect to webinar broadcast page
             window.location.href = webinarData.broadcastUrl;

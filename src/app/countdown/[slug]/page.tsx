@@ -627,16 +627,24 @@ export default async function CountdownPage({ params, searchParams }: PageProps)
     notFound()
   }
 
-  // IMMEDIATE REDIRECT: If webinar has already started, redirect to room immediately
+  // IMMEDIATE REDIRECT: If webinar has started or is about to start (within 5 minutes), redirect to room immediately
   if (data.scheduleDateTime) {
     const now = new Date()
     const timeUntilStart = data.scheduleDateTime.getTime() - now.getTime()
+    const EARLY_ACCESS_MINUTES = 5 // Allow entry 5 minutes before start
+    const earlyAccessThreshold = EARLY_ACCESS_MINUTES * 60 * 1000 // Convert to milliseconds
     
-    if (timeUntilStart <= 0) {
-      console.log('🚀 [Countdown] Webinar already started, redirecting immediately:', {
+    // Redirect if webinar has started OR if it starts within 5 minutes
+    if (timeUntilStart <= earlyAccessThreshold) {
+      const minutesUntilStart = timeUntilStart / 1000 / 60
+      const isLate = timeUntilStart <= 0
+      
+      console.log('🚀 [Countdown] Webinar ready for entry, redirecting immediately:', {
         scheduledTime: data.scheduleDateTime.toISOString(),
         currentTime: now.toISOString(),
-        minutesLate: Math.abs(timeUntilStart / 1000 / 60).toFixed(2),
+        minutesUntilStart: minutesUntilStart.toFixed(2),
+        isLate,
+        earlyAccessMinutes: EARLY_ACCESS_MINUTES,
         isZoomSession: data.schedule?.isZoomSession,
         hasZoomLink: !!data.schedule?.zoomLink,
       })
