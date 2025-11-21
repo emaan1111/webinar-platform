@@ -486,11 +486,24 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
   }, [webinar?.schedules])
 
+  // Setup global modal functions and button listeners for custom templates
   useEffect(() => {
-    if (!webinar) return; // Guard against null webinar
+    if (!registrationPage || registered || !webinar) {
+      console.log('[Registration] Setup skipped:', { hasPage: !!registrationPage, registered, hasWebinar: !!webinar })
+      return;
+    }
+
+    console.log('[Registration] Setting up global modal functions...')
     
+    // Define handler functions
     const handleOpenModal = () => {
+      console.log('[Registration] openModal() called')
       setShowScheduleModal(true)
+    }
+    
+    const handleCloseModal = () => {
+      console.log('[Registration] closeModal() called')
+      setShowScheduleModal(false)
     }
     
     const handleSelectSchedule = (e: any) => {
@@ -503,41 +516,14 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
       }
     }
     
-    // Expose global function for inline onclick handlers in custom templates
+    // Expose global functions for inline onclick handlers in custom templates
     (window as any).openModal = handleOpenModal;
+    (window as any).closeModal = handleCloseModal;
     (window as any).openRegistrationModal = handleOpenModal;
     
+    // Setup event listeners
     window.addEventListener('openRegistrationModal', handleOpenModal)
     window.addEventListener('selectSchedule', handleSelectSchedule as EventListener)
-
-    return () => {
-      window.removeEventListener('openRegistrationModal', handleOpenModal)
-      window.removeEventListener('selectSchedule', handleSelectSchedule as EventListener)
-      // Clean up global functions
-      delete (window as any).openModal;
-      delete (window as any).openRegistrationModal;
-    }
-  }, [webinar, registrationPage])
-
-  // Setup global modal functions and button listeners
-  useEffect(() => {
-    if (!registrationPage || registered || !webinar) {
-      console.log('[Registration] Setup skipped:', { hasPage: !!registrationPage, registered, hasWebinar: !!webinar })
-      return;
-    }
-
-    console.log('[Registration] Setting up global modal functions...')
-    
-    // Define global openModal function for inline onclick handlers
-    (window as any).openModal = () => {
-      console.log('[Registration] openModal() called')
-      setShowScheduleModal(true)
-    };
-    
-    (window as any).closeModal = () => {
-      console.log('[Registration] closeModal() called')
-      setShowScheduleModal(false)
-    };
 
     // Also setup event listeners as fallback
     const timer = setTimeout(() => {
@@ -625,9 +611,12 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     
     return () => {
       clearTimeout(timer)
+      window.removeEventListener('openRegistrationModal', handleOpenModal)
+      window.removeEventListener('selectSchedule', handleSelectSchedule as EventListener)
       // Clean up global functions
       delete (window as any).openModal
       delete (window as any).closeModal
+      delete (window as any).openRegistrationModal
     }
   }, [registrationPage, registered, webinar])
 
