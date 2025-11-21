@@ -35,7 +35,18 @@ export async function GET(request: Request) {
     // Get messages
     const messages = await prisma.chatMessage.findMany({
       where: whereClause,
-      include: {
+      select: {
+        id: true,
+        userId: true,
+        registrationId: true,
+        userName: true, // Include userName field from ChatMessage table
+        message: true,
+        isHidden: true,
+        isApproved: true,
+        isScripted: true,
+        isAI: true,
+        videoTimestamp: true,
+        createdAt: true,
         user: {
           select: {
             id: true,
@@ -138,6 +149,14 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { webinarId, message, registrationId } = body
 
+    // Debug logging
+    console.log('💬 [API] Received chat message:', {
+      webinarId,
+      message: message?.substring(0, 50),
+      registrationId,
+      hasRegistrationId: !!registrationId
+    });
+
     // Validate required fields
     if (!webinarId || !message) {
       return NextResponse.json(
@@ -167,9 +186,17 @@ export async function POST(request: Request) {
     
     // Priority 2: Registered attendee (if no authenticated user)
     if (!userId && registrationId) {
+      console.log('💬 [API] Looking up registration:', registrationId);
+      
       const registration = await prisma.registration.findUnique({
         where: { id: registrationId }
       })
+
+      console.log('💬 [API] Found registration:', {
+        found: !!registration,
+        name: registration?.name,
+        email: registration?.email
+      });
 
       if (!registration) {
         return NextResponse.json(
@@ -189,6 +216,8 @@ export async function POST(request: Request) {
       regId = registration.id
       userName = registration.name
     }
+
+    console.log('💬 [API] Final userName:', userName);
 
     // If neither authenticated user nor valid registration, deny access
     if (!userId && !regId) {

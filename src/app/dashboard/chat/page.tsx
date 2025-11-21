@@ -17,6 +17,8 @@ import {
 interface ChatMessage {
   id: string
   userId: string
+  registrationId?: string | null
+  userName: string | null  // Added - userName field from ChatMessage table
   message: string
   isHidden: boolean
   isApproved: boolean  // Always boolean in DB (default: false)
@@ -34,7 +36,6 @@ interface ChatMessage {
     title: string
   }
   // Computed properties for easier access
-  userName?: string
   webinarTitle?: string
   timestamp?: string
   isModerated?: boolean
@@ -110,7 +111,8 @@ export default function ChatModerationPage() {
         // Map the API response to include computed properties
         const mappedMessages = data.messages.map((msg: ChatMessage) => ({
           ...msg,
-          userName: msg.user?.name || msg.user?.email || 'Anonymous',
+          // Use userName field from ChatMessage table first, then fallback to user relation, then 'Anonymous'
+          userName: msg.userName || msg.user?.name || msg.user?.email || 'Anonymous',
           webinarTitle: msg.webinar?.title || 'Unknown Webinar',
           timestamp: msg.createdAt,
           isModerated: false // Add moderation status if needed
