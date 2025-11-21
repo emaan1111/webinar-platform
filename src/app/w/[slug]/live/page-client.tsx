@@ -1581,6 +1581,7 @@ export default function WebinarLiveClient({
         console.error('❌ Failed to start replay:', err);
         setVideoLoading(false);
         setVideoError(true);
+        setBroadcastStarted(false);
       }
     }
   }, []);
@@ -1629,7 +1630,7 @@ export default function WebinarLiveClient({
       console.log(`⚠️ EMERGENCY: Force hiding loading overlay after ${timeoutDuration/1000}s`);
       setVideoLoading(false);
       setVideoError(true);
-      // Don't reset broadcastStarted - keep the retry button visible
+      setBroadcastStarted(false); // Surface retry overlay
     }, timeoutDuration);
     
     // MOBILE FIX: Fewer retries with longer delays - prevents timeout cascade
@@ -1647,7 +1648,7 @@ export default function WebinarLiveClient({
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
-          // Don't reset broadcastStarted - keep retry button visible
+          setBroadcastStarted(false);
           return;
         }
         console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying...`);
@@ -1662,7 +1663,7 @@ export default function WebinarLiveClient({
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
-          // Don't reset broadcastStarted - keep retry button visible
+          setBroadcastStarted(false);
           return;
         }
         console.log(`⚠️ Vimeo Player API not loaded yet (attempt ${apiRetries}/${maxRetries}), waiting...`);
@@ -1794,7 +1795,7 @@ export default function WebinarLiveClient({
             clearTimeout(emergencyTimeout);
             setVideoLoading(false);
             setVideoError(true);
-            // Don't reset broadcastStarted - this keeps the retry button visible
+            setBroadcastStarted(false);
             
             // Clean up failed player instance
             if (vimeoPlayerRef.current) {
@@ -1813,7 +1814,7 @@ export default function WebinarLiveClient({
         clearTimeout(emergencyTimeout);
         setVideoLoading(false);
         setVideoError(true);
-        // Don't reset broadcastStarted - keep retry button visible
+        setBroadcastStarted(false);
         
         // Clean up on error
         if (vimeoPlayerRef.current) {
@@ -2064,7 +2065,10 @@ export default function WebinarLiveClient({
                         // Track when broadcast actually started (for reaction grace period)
                         broadcastStartTimeRef.current = Date.now();
                         
-                        // Clear any previous error
+                        // Clear any previous error and refresh iframe if needed
+                        if (videoError) {
+                          setIframeKey((prev) => prev + 1);
+                        }
                         setVideoError(false);
                         
                         // Clear previous player instance if any
