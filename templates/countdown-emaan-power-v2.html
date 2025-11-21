@@ -565,68 +565,90 @@
     </footer>
 
     <script>
-        // Get webinar data from the page
-        const webinarData = {
-            title: "{{webinar.title}}",
-            registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
-            broadcastUrl: "{{broadcast.url}}",
-            scheduleDate: "{{schedule.date}}",
-            scheduleTime: "{{schedule.time}}",
-            scheduleDateISO: "{{schedule.dateISO}}", // ISO format: 2023-07-15T16:00:00Z
-            duration: {{webinar.duration}}
-        };
-        
-        // Set the share link
-        document.getElementById('shareLink').value = webinarData.registrationUrl;
-        
-        // Set the date we're counting down to
-        const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
-        
-        // Update the countdown every 1 second
-        const countdownFunction = setInterval(function() {
-            // Get today's date and time
-            const now = new Date().getTime();
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            // Get webinar data from the page
+            const webinarData = {
+                title: "{{webinar.title}}",
+                registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
+                broadcastUrl: "{{broadcast.url}}",
+                scheduleDate: "{{schedule.date}}",
+                scheduleTime: "{{schedule.time}}",
+                scheduleDateISO: "{{schedule.dateISO}}", // ISO format: 2023-07-15T16:00:00Z
+                duration: {{webinar.duration}}
+            };
             
-            // Find the distance between now and the countdown date
-            const distance = countDownDate - now;
-            
-            // Time calculations for days, hours, minutes and seconds
-            const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-            const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-            const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-            const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-            
-            // Display the result in the elements with id
-            document.getElementById("days").innerText = days.toString().padStart(2, '0');
-            document.getElementById("hours").innerText = hours.toString().padStart(2, '0');
-            document.getElementById("minutes").innerText = minutes.toString().padStart(2, '0');
-            document.getElementById("seconds").innerText = seconds.toString().padStart(2, '0');
-            
-            const enterButton = document.getElementById("enterButton");
-            
-            // When countdown reaches 0, automatically redirect to webinar room
-            if (distance <= 0) {
-                clearInterval(countdownFunction);
-                document.getElementById("days").innerText = "00";
-                document.getElementById("hours").innerText = "00";
-                document.getElementById("minutes").innerText = "00";
-                document.getElementById("seconds").innerText = "00";
-                
-                // Change button text and enable it
-                enterButton.disabled = false;
-                enterButton.innerText = "Webinar is Live! Redirecting...";
-                
-                // Auto redirect after 2 seconds
-                setTimeout(function() {
-                    window.location.href = webinarData.broadcastUrl;
-                }, 2000);
+            // Set the share link
+            const shareLinkInput = document.getElementById('shareLink');
+            if (shareLinkInput) {
+                shareLinkInput.value = webinarData.registrationUrl;
             }
-        }, 1000);
-        
-        // Enter webinar room function (manual click)
-        document.getElementById("enterButton").addEventListener("click", function() {
-            // Redirect to webinar broadcast page
-            window.location.href = webinarData.broadcastUrl;
+            
+            // Only run countdown if countdown elements exist
+            const daysEl = document.getElementById("days");
+            if (!daysEl) {
+                console.log("Countdown elements not found - skipping countdown script");
+                return;
+            }
+            
+            // Set the date we're counting down to
+            const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
+            
+            // Update the countdown every 1 second
+            const countdownFunction = setInterval(function() {
+                // Get today's date and time
+                const now = new Date().getTime();
+                
+                // Find the distance between now and the countdown date
+                const distance = countDownDate - now;
+                
+                // Time calculations for days, hours, minutes and seconds
+                const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+                
+                // Display the result in the elements with id
+                const daysEl = document.getElementById("days");
+                const hoursEl = document.getElementById("hours");
+                const minutesEl = document.getElementById("minutes");
+                const secondsEl = document.getElementById("seconds");
+                const enterButton = document.getElementById("enterButton");
+                
+                if (daysEl) daysEl.innerText = days.toString().padStart(2, '0');
+                if (hoursEl) hoursEl.innerText = hours.toString().padStart(2, '0');
+                if (minutesEl) minutesEl.innerText = minutes.toString().padStart(2, '0');
+                if (secondsEl) secondsEl.innerText = seconds.toString().padStart(2, '0');
+                
+                // When countdown reaches 0, automatically redirect to webinar room
+                if (distance <= 0) {
+                    clearInterval(countdownFunction);
+                    if (daysEl) daysEl.innerText = "00";
+                    if (hoursEl) hoursEl.innerText = "00";
+                    if (minutesEl) minutesEl.innerText = "00";
+                    if (secondsEl) secondsEl.innerText = "00";
+                    
+                    // Change button text and enable it
+                    if (enterButton) {
+                        enterButton.disabled = false;
+                        enterButton.innerText = "Webinar is Live! Redirecting...";
+                    }
+                    
+                    // Auto redirect after 2 seconds
+                    setTimeout(function() {
+                        window.location.href = webinarData.broadcastUrl;
+                    }, 2000);
+                }
+            }, 1000);
+            
+            // Enter webinar room function (manual click)
+            const enterButton = document.getElementById("enterButton");
+            if (enterButton) {
+                enterButton.addEventListener("click", function() {
+                    // Redirect to webinar broadcast page
+                    window.location.href = webinarData.broadcastUrl;
+                });
+            }
         });
         
         // Share on WhatsApp

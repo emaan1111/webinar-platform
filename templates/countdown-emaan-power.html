@@ -567,7 +567,17 @@
         };
         
         // Set the share link
-        document.getElementById('shareLink').value = webinarData.registrationUrl;
+        const shareLink = document.getElementById('shareLink');
+        if (shareLink) {
+            shareLink.value = webinarData.registrationUrl;
+        }
+        
+        // Only run countdown if countdown elements exist
+        const daysEl = document.getElementById("days");
+        if (!daysEl) {
+            console.log("Countdown elements not found - skipping countdown script");
+            return;
+        }
         
         // Set the date we're counting down to
         const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
@@ -613,11 +623,14 @@
             }
         }, 1000);
         
-        // Enter webinar room function
-        document.getElementById("enterButton").addEventListener("click", function() {
-            // Redirect to webinar broadcast page
-            window.location.href = webinarData.broadcastUrl;
-        });
+        // Enter webinar room function (manual click)
+        const enterButton = document.getElementById("enterButton");
+        if (enterButton) {
+            enterButton.addEventListener("click", function() {
+                // Redirect to webinar broadcast page
+                window.location.href = webinarData.broadcastUrl;
+            });
+        }
         
         // Share on WhatsApp
         function shareOnWhatsApp() {
