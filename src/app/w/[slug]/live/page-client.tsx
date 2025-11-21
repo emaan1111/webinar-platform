@@ -1017,6 +1017,31 @@ export default function WebinarLiveClient({
     }
   }, [elapsedSeconds, totalDuration, broadcastStarted]);
 
+  // Periodic mute state sync for mobile (prevent browser auto-mute)
+  useEffect(() => {
+    if (!isMobile || !vimeoPlayerRef.current || !broadcastStarted) return;
+    
+    const syncInterval = setInterval(async () => {
+      if (!vimeoPlayerRef.current) return;
+      
+      try {
+        const actualMuted = await vimeoPlayerRef.current.getMuted();
+        
+        // If mismatch detected, restore our desired state
+        if (actualMuted !== isMuted) {
+          console.log(`🔄 Mute state mismatch detected: actual=${actualMuted}, desired=${isMuted}`);
+          await vimeoPlayerRef.current.setMuted(isMuted);
+          await vimeoPlayerRef.current.setVolume(isMuted ? 0 : 1);
+          console.log(`✅ Mute state synced to: ${isMuted}`);
+        }
+      } catch (err) {
+        // Silently fail - player might not be ready
+      }
+    }, 2000); // Check every 2 seconds
+    
+    return () => clearInterval(syncInterval);
+  }, [isMuted, isMobile, broadcastStarted]);
+
   useEffect(() => {
     if (webinar.hasChat === false) {
       return;
@@ -1247,6 +1272,36 @@ export default function WebinarLiveClient({
 
     return () => window.clearTimeout(timer);
   }, [activeOffer?.id]);
+
+  // Fix: Restore unmute state when offer appears (mobile bug)
+  // On mobile, when DOM changes (offer appearing), browser may re-mute video
+  useEffect(() => {
+    if (!vimeoPlayerRef.current || !isMobile) return;
+    
+    // When offer content changes (appears/disappears)
+    if (offerContent) {
+      console.log('📢 Offer appeared on mobile - checking mute state...');
+      
+      // Give DOM time to settle, then check if video got muted
+      setTimeout(async () => {
+        if (!vimeoPlayerRef.current) return;
+        
+        try {
+          const actualMuted = await vimeoPlayerRef.current.getMuted();
+          
+          // If video got muted but our state says it should be unmuted
+          if (actualMuted && !isMuted) {
+            console.log('🔧 Video was muted by browser when offer appeared - restoring unmute state');
+            await vimeoPlayerRef.current.setMuted(false);
+            await vimeoPlayerRef.current.setVolume(1);
+            console.log('✅ Unmute state restored');
+          }
+        } catch (err) {
+          console.error('❌ Error checking/restoring mute state:', err);
+        }
+      }, 500); // Wait 500ms for DOM changes to complete
+    }
+  }, [offerContent, isMuted, isMobile]);
 
   // Mark component as mounted - DON'T auto-start from sessionStorage
   // Always show the "Start Broadcast" overlay on fresh page load

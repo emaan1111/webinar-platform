@@ -524,14 +524,23 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
 
     // Longer delay to ensure DOM is fully rendered with dangerouslySetInnerHTML
     const timer = setTimeout(() => {
-      // Find buttons marked with data-action="register"
-      const registerButtons = document.querySelectorAll('[data-action="register"]')
+      // Gather all possible CTA triggers
+      const buttonsByAction = Array.from(document.querySelectorAll('[data-action="register"]'))
+      const buttonsByTrigger = Array.from(document.querySelectorAll('[data-webinar-trigger]'))
+      const buttonsByClass = Array.from(document.querySelectorAll('.cta-button, .register-button, .btn-register, .signup-button'))
+      const buttonsByHref = Array.from(document.querySelectorAll('a[href="#register"], a[href="#registration"], a[href="#signup"]'))
+      const textCandidates = Array.from(document.querySelectorAll('button, a[href], [role="button"]')).filter((el) => {
+        const text = (el.textContent || '').toLowerCase().trim()
+        return text.includes('register') || text.includes('sign up') || text.includes('reserve') || text.includes('save my spot') || text.includes('join now')
+      })
 
-      if (registerButtons.length === 0) {
+      const allButtons = Array.from(new Set([...buttonsByAction, ...buttonsByTrigger, ...buttonsByClass, ...buttonsByHref, ...textCandidates]))
+
+      if (allButtons.length === 0) {
         return
       }
 
-      registerButtons.forEach((button, index) => {
+      allButtons.forEach((button) => {
         const clickHandler = (e: Event) => {
           e.preventDefault()
           e.stopPropagation()
@@ -539,7 +548,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
           setShowScheduleModal(true)
         }
         
-        // Try MULTIPLE event listeners to ensure one works
+        // Try multiple event listeners to ensure one works
         button.addEventListener('click', clickHandler, true) // Capture phase
         button.addEventListener('click', clickHandler, false) // Bubble phase
         
