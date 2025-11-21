@@ -254,11 +254,15 @@ async function logVideoError(
   registrationId: string | undefined,
   errorType: string,
   errorMessage: string,
-  errorStack?: string
+  errorStack?: string,
+  viewerInfo?: { name?: string; email?: string } // NEW: Optional viewer info
 ) {
   try {
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
     const deviceInfo = {
-      isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+      isMobile,
+      isDesktop: !isMobile, // NEW: Explicitly track desktop
       userAgent: navigator.userAgent,
       screenWidth: window.screen.width,
       screenHeight: window.screen.height,
@@ -268,19 +272,32 @@ async function logVideoError(
       language: navigator.language,
     };
 
+    // NEW: Include viewer information in the error log
+    const errorData = {
+      webinarId,
+      registrationId,
+      errorType,
+      errorMessage,
+      errorStack,
+      userAgent: navigator.userAgent,
+      deviceInfo: JSON.stringify(deviceInfo),
+      timestamp: new Date().toISOString(),
+      // NEW: Add viewer name and email
+      viewerName: viewerInfo?.name || null,
+      viewerEmail: viewerInfo?.email || null,
+    };
+
+    console.log('🚨 Logging video error:', {
+      errorType,
+      device: isMobile ? 'Mobile' : 'Desktop',
+      viewer: viewerInfo?.name || 'Unknown',
+      message: errorMessage,
+    });
+
     await fetch('/api/video-errors', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        webinarId,
-        registrationId,
-        errorType,
-        errorMessage,
-        errorStack,
-        userAgent: navigator.userAgent,
-        deviceInfo: JSON.stringify(deviceInfo),
-        timestamp: new Date().toISOString(),
-      }),
+      body: JSON.stringify(errorData),
     });
   } catch (err) {
     console.error('Failed to log video error:', err);
@@ -434,6 +451,7 @@ export default function WebinarLiveClient({
   const [webinarEnded, setWebinarEnded] = useState(false); // Track if live webinar has ended
   const [showReplayPrompt, setShowReplayPrompt] = useState(false); // Show replay start prompt
   const [iframeKey, setIframeKey] = useState(0); // Force iframe recreation on retry
+  const [showPausedOverlay, setShowPausedOverlay] = useState(false); // Show play button when video paused after tab switch
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -852,6 +870,10 @@ export default function WebinarLiveClient({
         // This prevents "can't hear" confusion after tab switching
         if (isMobile) {
           console.log('📱 Mobile: Video paused - user must manually resume');
+          // Show the play overlay so user can tap to resume
+          if (vimeoPlayerRef.current && broadcastStarted) {
+            setShowPausedOverlay(true);
+          }
           return; // Don't auto-resume on mobile
         }
         
@@ -1700,7 +1722,10 @@ export default function WebinarLiveClient({
     const emergencyTimeout = setTimeout(() => {
       const errorMsg = `Emergency timeout after ${timeoutDuration/1000}s - video failed to load`;
       console.log(`⚠️ ${errorMsg}`);
-      logVideoError(webinar.id, viewer?.id, 'timeout', errorMsg);
+      logVideoError(webinar.id, viewer?.id, 'timeout', errorMsg, undefined, {
+        name: viewer?.name,
+        email: viewer?.email,
+      });
       setVideoLoading(false);
       setVideoError(true);
       setBroadcastStarted(false); // Surface retry overlay
@@ -1719,7 +1744,10 @@ export default function WebinarLiveClient({
         if (iframeRetries >= maxRetries) {
           const errorMsg = `Vimeo iframe not found after ${maxRetries} retries`;
           console.error('❌', errorMsg);
-          logVideoError(webinar.id, viewer?.id, 'iframe_not_found', errorMsg);
+          logVideoError(webinar.id, viewer?.id, 'iframe_not_found', errorMsg, undefined, {
+            name: viewer?.name,
+            email: viewer?.email,
+          });
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
@@ -1736,7 +1764,10 @@ export default function WebinarLiveClient({
         if (apiRetries >= maxRetries) {
           const errorMsg = `Vimeo Player API not loaded after ${maxRetries} retries`;
           console.error('❌', errorMsg);
-          logVideoError(webinar.id, viewer?.id, 'api_not_loaded', errorMsg);
+          logVideoError(webinar.id, viewer?.id, 'api_not_loaded', errorMsg, undefined, {
+            name: viewer?.name,
+            email: viewer?.email,
+          });
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
@@ -1861,7 +1892,11 @@ export default function WebinarLiveClient({
                 viewer?.id, 
                 'play_failed', 
                 errorMsg,
-                playErr instanceof Error ? playErr.stack : undefined
+                playErr instanceof Error ? playErr.stack : undefined,
+                {
+                  name: viewer?.name,
+                  email: viewer?.email,
+                }
               );
               throw playErr; // Pass to catch block
             }
@@ -1874,7 +1909,11 @@ export default function WebinarLiveClient({
               viewer?.id, 
               'player_init_failed', 
               errorMsg,
-              err.stack
+              err.stack,
+              {
+                name: viewer?.name,
+                email: viewer?.email,
+              }
             );
             
             // MOBILE FIX: Simplified recovery - just show error, let user retry
@@ -1898,7 +1937,19 @@ export default function WebinarLiveClient({
             }
           });
       } catch (error) {
-        console.error('❌ Error creating Vimeo player:', error);
+        const errorMsg = `Error creating Vimeo player: ${error instanceof Error ? error.message : String(error)}`;
+        console.error('❌', errorMsg);
+        logVideoError(
+          webinar.id,
+          viewer?.id,
+          'player_creation_failed',
+          errorMsg,
+          error instanceof Error ? error.stack : undefined,
+          {
+            name: viewer?.name,
+            email: viewer?.email,
+          }
+        );
         clearTimeout(emergencyTimeout);
         setVideoLoading(false);
         setVideoError(true);
@@ -1922,8 +1973,20 @@ export default function WebinarLiveClient({
         console.log('✅ Vimeo API script loaded, initializing player in 300ms...');
         setTimeout(initPlayer, 300);
       };
-      script.onerror = () => {
-        console.error('❌ Failed to load Vimeo API script');
+      script.onerror = (event) => {
+        const errorMsg = 'Failed to load Vimeo API script - network or CORS issue';
+        console.error('❌', errorMsg, event);
+        logVideoError(
+          webinar.id,
+          viewer?.id,
+          'script_load_failed',
+          errorMsg,
+          undefined,
+          {
+            name: viewer?.name,
+            email: viewer?.email,
+          }
+        );
         clearTimeout(emergencyTimeout);
         setVideoLoading(false);
         setVideoError(true);
@@ -2219,6 +2282,42 @@ export default function WebinarLiveClient({
                           This may take a moment on mobile
                         </p>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* Paused Overlay - Shows when video paused after tab switch on mobile */}
+                  {showPausedOverlay && broadcastStarted && isMobile && (
+                    <div 
+                      className={styles.broadcastOverlay}
+                      suppressHydrationWarning
+                      onClick={async () => {
+                        console.log('▶️ User clicked to resume video after tab switch');
+                        setShowPausedOverlay(false);
+                        
+                        if (vimeoPlayerRef.current) {
+                          try {
+                            // Resume playback
+                            await vimeoPlayerRef.current.play();
+                            console.log('✅ Video resumed successfully');
+                          } catch (err) {
+                            console.error('❌ Error resuming video:', err);
+                            // If resume fails, show error state
+                            setVideoError(true);
+                          }
+                        }
+                      }}
+                    >
+                      <div className={styles.broadcastOverlayContent}>
+                        <div className={styles.broadcastIcon}>
+                          <i className="fas fa-play-circle" />
+                        </div>
+                        <h2 className={styles.broadcastTitle}>
+                          Tap to Resume
+                        </h2>
+                        <p className={styles.broadcastSubtitle}>
+                          Video was paused when you switched tabs. Tap to continue watching.
+                        </p>
+                      </div>
                     </div>
                   )}
                   

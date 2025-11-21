@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Thank You for Registering | {{webinar.title}}</title>
+    <title>You are IN! | {{webinar.title}}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Lato:wght@400;700&display=swap" rel="stylesheet">
@@ -415,7 +415,7 @@
             </div>
             <div class="hero-text">
                 <div class="confirmation-badge">Registration Successful</div>
-                <h1>Thank You for Registering!</h1>
+                <h1>Congratulations, You are IN!</h1>
                 <p class="subtitle">You're one step closer to joining: {{webinar.title}}</p>
             </div>
             
@@ -426,14 +426,11 @@
                 <p>We've sent a confirmation email with all the webinar details. Please check your inbox (and spam folder) for the link to join the webinar.</p>
             </div>
             
-            <!-- Countdown Page Button -->
+            <!-- Join Webinar Button -->
             <div style="margin-top: 30px;">
-                <a href="/countdown/{{webinar.slug}}?r={{registration.id}}&s={{schedule.id}}" class="cta-button" style="display: inline-block; text-decoration: none; padding: 15px 40px; font-size: 1.1rem;">
-                    <i class="fas fa-clock"></i> View Countdown Page
+                <a href="/w/{{webinar.slug}}/countdown" class="cta-button" style="font-size: 1.2rem; padding: 18px 40px;">
+                    <i class="fas fa-video"></i> LINK TO JOIN WEBINAR
                 </a>
-                <p style="margin-top: 10px; font-size: 0.9rem; color: var(--light-text-color);">
-                    See the live countdown to your webinar start time
-                </p>
             </div>
         </div>
     </section>
@@ -441,15 +438,15 @@
     <!-- Bonus Gift Section (Optional - Remove if no bonus) -->
     <section class="bonus-section">
         <div class="container">
-            <h2 class="section-title">Your Exclusive Bonus Gift</h2>
             <div class="bonus-content">
                 <div class="bonus-image">
-                    <img src="https://picsum.photos/seed/islamicstorybook/300/300.jpg" alt="Bonus gift" style="width: 100%;">
+                    <img src="https://emaanpowerclasses.com/api/images/serve/1763751283798-nnhrz22miqhl5ntf09rtzf.png" alt="Bonus gift" style="width: 100%; display: block;" onerror="this.style.display='none';">
                 </div>
                 <div class="bonus-text">
-                    <h2>Inspiring Storybook for Mothers</h2>
-                    <p>As promised, you'll receive our inspiring storybook sharing stories of great mothers who raised great men. This $17 value is yours absolutely free when you attend the masterclass!</p>
-                    <p>The book will be sent to your email after the webinar, so make sure to attend to claim your gift.</p>
+            <h3 class="section-title">Your Exclusive Bonus Gift</h3>
+
+                    <p>As promised, you'll receive our inspiring book sharing stories of great mothers who raised great men. This $17 value is yours absolutely free when you attend the masterclass!</p>
+               
                 </div>
             </div>
         </div>
@@ -479,10 +476,7 @@
                                 <i class="fas fa-clock"></i>
                                 <span>Time: {{schedule.time}}</span>
                             </div>
-                            <div class="detail-item">
-                                <i class="fas fa-laptop"></i>
-                                <span>Platform: Online Webinar</span>
-                            </div>
+                         
                             <div class="detail-item">
                                 <i class="fas fa-hourglass-half"></i>
                                 <span>Duration: {{webinar.duration}} minutes</span>
@@ -504,10 +498,19 @@
                 <div class="step-card">
                     <div class="step-header">
                         <div class="step-number">2</div>
-                        <h3 class="step-title">Share & Earn Rewards</h3>
+                        <h3 class="step-title"> Share & Earn rewards from Allah swt
+
+ </h3>
                     </div>
                     <div class="step-content">
-                        <p class="step-description">Help other mothers benefit from this masterclass and earn rewards from Allah. The Prophet (peace be upon him) said: "Whoever guides someone to goodness will have a reward like the one who does it."</p>
+                        <p class="step-description">Be a light for others! Invite your friends to this free Masterclass so they can also raise strong, confident Muslims, and you can earn rewards from Allah just by sharing it :) 
+
+
+</p><h2>The Prophet ﷺ said:
+
+
+“Whoever guides someone to goodness will have a reward like the one who did it.” </h2>
+
                         
                         <div class="social-sharing">
                             <a href="#" onclick="shareOnWhatsApp(); return false;" class="social-btn whatsapp-btn">
@@ -518,7 +521,7 @@
                             </a>
                         </div>
                         
-                        <p class="reward-text">"Whoever calls others to guidance will have a reward like that of those who follow it, without that detracting from their reward in the slightest." - Muslim</p>
+                        <p class="reward-text"> </p>
                         
                         <button class="cta-button secondary-button" onclick="copyLink()">
                             <i class="fas fa-copy"></i> Copy Registration Link
@@ -623,7 +626,12 @@ END:VCALENDAR`;
         
         // Share on WhatsApp
         function shareOnWhatsApp() {
-            const message = `I just registered for "${webinarData.title}". Join me! ${webinarData.registrationUrl}`;
+            const message = `Assalam aleykum sister,
+I found this FREE class for moms that I am sure you'll love.
+
+It's about how to help our kids love Islam, without forcing them, even in a world that is pulling them away. It gave me so much hope and a new strategy to follow (something I never heard from anyone else before), so I thought of you.
+
+Here's the link to reserve a FREE spot  ${webinarData.registrationUrl}`;
             const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
             window.open(url, '_blank');
         }

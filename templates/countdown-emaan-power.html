@@ -405,20 +405,52 @@
         
         /* Mobile adjustments */
         @media (max-width: 767px) {
+            body {
+                padding-top: 120px; /* Reduce padding on mobile for taller countdown banner */
+            }
+            
+            .countdown-banner {
+                padding: 10px 0; /* Slightly reduce padding on countdown banner */
+            }
+            
             .countdown-container {
                 justify-content: center;
                 text-align: center;
+                gap: 10px; /* Reduce gap on mobile */
             }
             
             .countdown-title {
                 width: 100%;
                 text-align: center;
                 margin-bottom: 5px;
+                font-size: 1rem; /* Slightly smaller on mobile */
             }
             
             .countdown-timer {
                 flex-wrap: wrap;
                 justify-content: center;
+            }
+            
+            .countdown-item {
+                min-width: 45px; /* Slightly smaller on mobile */
+                padding: 4px 6px;
+            }
+            
+            .countdown-value {
+                font-size: 1.1rem; /* Slightly smaller on mobile */
+            }
+            
+            .countdown-label {
+                font-size: 0.55rem;
+            }
+            
+            h1 {
+                font-size: 1.6rem; /* Reduce headline size on mobile */
+                margin-top: 10px; /* Add margin to separate from countdown */
+            }
+            
+            .subtitle {
+                font-size: 0.9rem;
             }
         }
     </style>

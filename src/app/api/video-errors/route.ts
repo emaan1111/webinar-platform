@@ -32,15 +32,27 @@ export async function POST(request: NextRequest) {
       deviceInfo,
       videoUrl,
       timestamp,
+      viewerName, // NEW
+      viewerEmail, // NEW
     } = body;
 
-    // Log to console for immediate visibility
+    // Parse device info to check if desktop/mobile
+    let parsedDeviceInfo = null;
+    try {
+      parsedDeviceInfo = JSON.parse(deviceInfo);
+    } catch (e) {
+      // Ignore parse error
+    }
+
+    // Log to console for immediate visibility with enhanced info
     console.error('🚨 VIDEO ERROR REPORTED:', {
       webinarId,
       registrationId,
       errorType,
       errorMessage,
-      deviceInfo,
+      device: parsedDeviceInfo?.isMobile ? '📱 Mobile' : '🖥️  Desktop',
+      viewer: viewerName || 'Unknown',
+      email: viewerEmail || 'N/A',
       timestamp,
     });
 
@@ -55,6 +67,8 @@ export async function POST(request: NextRequest) {
         user_agent,
         device_info,
         video_url,
+        viewer_name,
+        viewer_email,
         created_at
       ) VALUES (
         ${webinarId},
@@ -65,6 +79,8 @@ export async function POST(request: NextRequest) {
         ${userAgent},
         ${deviceInfo},
         ${videoUrl || null},
+        ${viewerName || null},
+        ${viewerEmail || null},
         NOW()
       )
       ON CONFLICT DO NOTHING

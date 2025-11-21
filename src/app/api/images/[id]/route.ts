@@ -28,8 +28,12 @@ export async function DELETE(
       return NextResponse.json({ error: 'Image not found' }, { status: 404 })
     }
 
-    // Delete file from disk
-    const filePath = join(process.cwd(), 'public', 'uploads', image.filename)
+    // Delete file from disk - use same path logic as upload
+    const uploadDir = process.env.RAILWAY_ENVIRONMENT 
+      ? '/data/uploads' 
+      : join(process.cwd(), 'public', 'uploads')
+    
+    const filePath = join(uploadDir, image.filename)
     try {
       await unlink(filePath)
     } catch (error) {
