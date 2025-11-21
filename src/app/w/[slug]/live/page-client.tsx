@@ -2365,8 +2365,8 @@ export default function WebinarLiveClient({
                 </div>
               </div>
 
-              {/* Reaction buttons overlaid on video - only show after broadcast starts */}
-              {webinar.hasReactions !== false && broadcastStarted && (
+              {/* Reaction buttons overlaid on video - DESKTOP ONLY */}
+              {webinar.hasReactions !== false && broadcastStarted && !isMobile && (
                 <div className={styles.videoReactions}>
                   <button
                     type="button"
@@ -2446,6 +2446,53 @@ export default function WebinarLiveClient({
                 </div>
               )}
             </div>
+
+            {/* Mobile Reaction Buttons - Below Video */}
+            {webinar.hasReactions !== false && broadcastStarted && isMobile && (
+              <div className={styles.mobileReactionBar}>
+                <button
+                  type="button"
+                  className={`${styles.mobileReactionBtn} ${styles.reactionHeart}`}
+                  onClick={(event) => handleReaction('heart', event.currentTarget)}
+                  aria-label="Send heart reaction"
+                >
+                  <i className="fas fa-heart" />
+                  <span>Love</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`${styles.mobileReactionBtn} ${styles.reactionClap}`}
+                  onClick={(event) => handleReaction('clap', event.currentTarget)}
+                  aria-label="Send clap reaction"
+                >
+                  <i className="fas fa-hands-clapping" />
+                  <span>Clap</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`${styles.mobileReactionBtn} ${styles.reactionThumbsUp}`}
+                  onClick={(event) => handleReaction('thumbsUp', event.currentTarget)}
+                  aria-label="Send thumbs up reaction"
+                >
+                  <i className="fas fa-thumbs-up" />
+                  <span>Like</span>
+                </button>
+
+                {webinar.hasChat !== false && (
+                  <button
+                    type="button"
+                    className={`${styles.mobileReactionBtn} ${styles.reactionChat}`}
+                    onClick={toggleChat}
+                    aria-label="Toggle chat sidebar"
+                  >
+                    <i className="fas fa-comments" />
+                    <span>Chat</span>
+                  </button>
+                )}
+              </div>
+            )}
 
             {/* Offer CTA Button Below Video - show when offer is active */}
             {webinar.hasOffers !== false && offerContent && (

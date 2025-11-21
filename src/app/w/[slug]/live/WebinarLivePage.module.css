@@ -2313,3 +2313,109 @@
     font-size: 11px;
   }
 }
+
+/* Mobile Reaction Bar - Below Video */
+.mobileReactionBar {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background: linear-gradient(135deg, rgba(123, 104, 238, 0.05), rgba(244, 164, 193, 0.05));
+  border-radius: 12px;
+  margin-top: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.mobileReactionBtn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 12px 8px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 14px;
+  font-weight: 600;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.mobileReactionBtn i {
+  font-size: 24px;
+  transition: transform 0.2s ease;
+}
+
+.mobileReactionBtn span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.mobileReactionBtn:active {
+  transform: scale(0.95);
+}
+
+.mobileReactionBtn:active i {
+  transform: scale(1.2);
+}
+
+/* Reaction-specific colors for mobile */
+.mobileReactionBtn.reactionHeart {
+  color: var(--heart-color);
+  border-color: var(--heart-color);
+}
+
+.mobileReactionBtn.reactionHeart:active {
+  background: rgba(231, 87, 128, 0.1);
+}
+
+.mobileReactionBtn.reactionClap {
+  color: var(--clap-color);
+  border-color: var(--clap-color);
+}
+
+.mobileReactionBtn.reactionClap:active {
+  background: rgba(240, 199, 94, 0.1);
+}
+
+.mobileReactionBtn.reactionThumbsUp {
+  color: var(--thumbs-color);
+  border-color: var(--thumbs-color);
+}
+
+.mobileReactionBtn.reactionThumbsUp:active {
+  background: rgba(123, 104, 238, 0.1);
+}
+
+.mobileReactionBtn.reactionChat {
+  color: var(--chat-color);
+  border-color: var(--chat-color);
+}
+
+.mobileReactionBtn.reactionChat:active {
+  background: rgba(107, 142, 127, 0.1);
+}
+
+/* Responsive adjustments for very small screens */
+@media (max-width: 380px) {
+  .mobileReactionBar {
+    gap: 6px;
+    padding: 10px 12px;
+  }
+  
+  .mobileReactionBtn {
+    padding: 10px 6px;
+  }
+  
+  .mobileReactionBtn i {
+    font-size: 20px;
+  }
+  
+  .mobileReactionBtn span {
+    font-size: 10px;
+  }
+}
