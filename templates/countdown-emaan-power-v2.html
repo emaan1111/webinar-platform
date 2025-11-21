@@ -565,47 +565,44 @@
     </footer>
 
     <script>
-        // CRITICAL: Only run countdown script if we're actually on a countdown page
-        // Check for countdown banner element to confirm this is the right page
-        const countdownBanner = document.querySelector('.countdown-banner');
-        if (!countdownBanner) {
-            console.log('⚠️ Countdown script loaded on non-countdown page - skipping execution');
-            // Exit immediately if this script is on the wrong page
-            // This happens if registration page template mistakenly includes countdown HTML
-            return;
-        }
-        
         // Wait for DOM to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
             // Get webinar data from the page
             const webinarData = {
-                title: "{{webinar.title}}",
-                registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
-                broadcastUrl: "{{broadcast.url}}",
-                scheduleDate: "{{schedule.date}}",
-                scheduleTime: "{{schedule.time}}",
-                scheduleDateISO: "{{schedule.dateISO}}", // ISO format: 2023-07-15T16:00:00Z
-                duration: {{webinar.duration}}
-            };
-            
-            // Set the share link
-            const shareLinkInput = document.getElementById('shareLink');
-            if (shareLinkInput) {
-                shareLinkInput.value = webinarData.registrationUrl;
-            }
-            
-            // Only run countdown if countdown elements exist
-            const daysEl = document.getElementById("days");
-            if (!daysEl) {
-                console.log("Countdown elements not found - skipping countdown script");
-                return;
-            }
-            
-            // Set the date we're counting down to
-            const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
-            
-            // Update the countdown every 1 second
-            const countdownFunction = setInterval(function() {
+            title: "{{webinar.title}}",
+            registrationUrl: window.location.origin + "/w/{{webinar.slug}}",
+            broadcastUrl: "{{broadcast.url}}",
+            scheduleDate: "{{schedule.date}}",
+            scheduleTime: "{{schedule.time}}",
+            scheduleDateISO: "{{schedule.dateISO}}", // ISO format: 2023-07-15T16:00:00Z
+            duration: {{webinar.duration}}
+        };
+        
+        // Simple check: Only run countdown if we have valid date/time data
+        const scheduleDateISO = "{{schedule.dateISO}}";
+        if (!scheduleDateISO || scheduleDateISO.includes('{{') || scheduleDateISO.includes('}}')) {
+            console.log('⚠️ No valid schedule date - skipping countdown');
+            return;
+        }
+        
+        // Set the share link
+        const shareLinkInput = document.getElementById('shareLink');
+        if (shareLinkInput) {
+            shareLinkInput.value = webinarData.registrationUrl;
+        }
+        
+        // Only run countdown if countdown elements exist
+        const daysEl = document.getElementById("days");
+        if (!daysEl) {
+            console.log("Countdown elements not found - skipping countdown script");
+            return;
+        }
+        
+        // Set the date we're counting down to
+        const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
+        
+        // Update the countdown every 1 second
+        const countdownFunction = setInterval(function() {
                 // Get today's date and time
                 const now = new Date().getTime();
                 
@@ -705,6 +702,7 @@
                 copyButton.style.backgroundColor = "";
             }, 2000);
         }
+        }); // End of DOMContentLoaded
     </script>
 </body>
 </html>

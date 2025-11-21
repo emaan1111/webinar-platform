@@ -555,16 +555,6 @@
     </footer>
 
     <script>
-        // CRITICAL: Only run countdown script if we're actually on a countdown page
-        // Check for countdown banner element to confirm this is the right page
-        const countdownBanner = document.querySelector('.countdown-banner');
-        if (!countdownBanner) {
-            console.log('⚠️ Countdown script loaded on non-countdown page - skipping execution');
-            // Exit immediately if this script is on the wrong page
-            // This happens if registration page template mistakenly includes countdown HTML
-            return;
-        }
-        
         // Get webinar data from the page
         const webinarData = {
             title: "{{webinar.title}}",
@@ -576,6 +566,12 @@
             duration: {{webinar.duration}}
         };
         
+        // Simple check: Only run countdown if we have valid date/time data
+        const scheduleDateISO = "{{schedule.dateISO}}";
+        if (!scheduleDateISO || scheduleDateISO.includes('{{') || scheduleDateISO.includes('}}')) {
+            console.log('⚠️ No valid schedule date - skipping countdown');
+        } else {
+        
         // Set the share link
         const shareLink = document.getElementById('shareLink');
         if (shareLink) {
@@ -586,8 +582,7 @@
         const daysEl = document.getElementById("days");
         if (!daysEl) {
             console.log("Countdown elements not found - skipping countdown script");
-            return;
-        }
+        } else {
         
         // Set the date we're counting down to
         const countDownDate = new Date(webinarData.scheduleDateISO).getTime();
@@ -686,6 +681,8 @@
                 copyButton.style.backgroundColor = "";
             }, 2000);
         }
+        } // End of daysEl check
+        } // End of scheduleDateISO check
     </script>
 </body>
 </html>

@@ -627,24 +627,20 @@ export default async function CountdownPage({ params, searchParams }: PageProps)
     notFound()
   }
 
-  // IMMEDIATE REDIRECT: If webinar has started or is about to start (within 5 minutes), redirect to room immediately
+  // IMMEDIATE REDIRECT: Only redirect if webinar has ALREADY STARTED (no early access)
+  // The countdown page will handle the countdown and redirect via JavaScript at time=0
   if (data.scheduleDateTime) {
     const now = new Date()
     const timeUntilStart = data.scheduleDateTime.getTime() - now.getTime()
-    const EARLY_ACCESS_MINUTES = 5 // Allow entry 5 minutes before start
-    const earlyAccessThreshold = EARLY_ACCESS_MINUTES * 60 * 1000 // Convert to milliseconds
     
-    // Redirect if webinar has started OR if it starts within 5 minutes
-    if (timeUntilStart <= earlyAccessThreshold) {
-      const minutesUntilStart = timeUntilStart / 1000 / 60
-      const isLate = timeUntilStart <= 0
+    // Only redirect if webinar has already started (time is past schedule)
+    if (timeUntilStart <= 0) {
+      const minutesLate = Math.abs(timeUntilStart) / 1000 / 60
       
-      console.log('🚀 [Countdown] Webinar ready for entry, redirecting immediately:', {
+      console.log('🚀 [Countdown] Webinar has started, redirecting immediately:', {
         scheduledTime: data.scheduleDateTime.toISOString(),
         currentTime: now.toISOString(),
-        minutesUntilStart: minutesUntilStart.toFixed(2),
-        isLate,
-        earlyAccessMinutes: EARLY_ACCESS_MINUTES,
+        minutesLate: minutesLate.toFixed(2),
         isZoomSession: data.schedule?.isZoomSession,
         hasZoomLink: !!data.schedule?.zoomLink,
       })
@@ -666,6 +662,13 @@ export default async function CountdownPage({ params, searchParams }: PageProps)
       const joinLink = `/room/${data.webinar.slug}${joinLinkParams.toString() ? '?' + joinLinkParams.toString() : ''}`
       
       redirect(joinLink)
+    } else {
+      // Webinar hasn't started yet - show countdown page
+      console.log('⏱️ [Countdown] Showing countdown page:', {
+        scheduledTime: data.scheduleDateTime.toISOString(),
+        currentTime: now.toISOString(),
+        minutesUntilStart: (timeUntilStart / 1000 / 60).toFixed(2),
+      })
     }
   }
 
