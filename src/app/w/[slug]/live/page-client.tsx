@@ -1770,9 +1770,10 @@ export default function WebinarLiveClient({
         
         console.log(`📱 Applying mobile-optimized settings for ${isMobileDevice ? 'mobile' : 'desktop'} device`);
         
-        // MOBILE FIX: Always start muted for mobile to ensure autoplay works
-        // Mobile browsers block unmuted autoplay, so we must start muted
-        const startMuted = isMobileDevice ? true : false;
+        // CRITICAL FIX: ALWAYS start muted to comply with ALL browser autoplay policies
+        // All modern browsers (iOS Safari, Chrome, Firefox) require muted=true for programmatic play()
+        // This is NOT just a mobile issue - desktop browsers also enforce this
+        const startMuted = true;
         
         player.ready()
           .then(async () => {
@@ -1803,21 +1804,20 @@ export default function WebinarLiveClient({
               console.log('▶️ Video playing');
             });
             
-            // Set all properties at once without chaining
+            // CRITICAL: Set muted state FIRST, before ANY other operations
+            // This ensures the browser knows this is a muted autoplay attempt
             try {
-              await player.setMuted(startMuted);
-              console.log(`✅ Muted: ${startMuted}`);
+              console.log('🔇 Setting muted=true for autoplay compliance...');
+              await player.setMuted(true);
+              await player.setVolume(0);
+              console.log(`✅ Video muted successfully`);
             } catch (e) {
-              console.log('⚠️ Could not set mute, continuing...');
+              console.error('⚠️ CRITICAL: Could not set mute!', e);
+              // If we can't mute, we definitely can't play
+              throw new Error('Failed to mute video - autoplay will fail');
             }
             
-            try {
-              await player.setVolume(startMuted ? 0 : 1);
-              console.log(`✅ Volume: ${startMuted ? 0 : 1}`);
-            } catch (e) {
-              console.log('⚠️ Could not set volume, continuing...');
-            }
-            
+            // Set start time AFTER muting
             try {
               await player.setCurrentTime(startTime);
               console.log(`✅ Time set to: ${startTime}s`);
@@ -1826,11 +1826,12 @@ export default function WebinarLiveClient({
             }
             
             // Now try to play - this is the critical part
+            // The video is muted, so this should work even on mobile
             try {
-              console.log('🎮 Attempting to play video...');
+              console.log('🎮 Attempting to play video (muted)...');
               await player.play();
-              console.log('🎉 Video playing!');
-              setIsMuted(startMuted);
+              console.log('🎉 Video playing successfully!');
+              setIsMuted(true);
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
               
@@ -1838,19 +1839,23 @@ export default function WebinarLiveClient({
               if (trackerRef.current) {
                 const device = isMobileDevice ? 'mobile' : 'desktop';
                 await trackerRef.current.startSession(device);
-                trackerRef.current.setMuteState(startMuted);
+                trackerRef.current.setMuteState(true);
                 trackerRef.current.trackVideoEvent('play', startTime);
-                console.log(`� Session tracking started (${device}, ${startMuted ? 'muted' : 'unmuted'})`);
+                console.log(`📊 Session tracking started (${device}, muted)`);
               }
               
-              // Show unmute hint on mobile
-              if (isMobileDevice && startMuted) {
-                console.log('💡 Mobile: Video started muted. Showing unmute hint.');
-                setTimeout(() => setShowUnmuteHint(true), 2000);
-              }
+              // ALWAYS show unmute hint since video starts muted (for ALL devices)
+              console.log('💡 Video started muted for autoplay compliance. Showing unmute hint.');
+              setTimeout(() => setShowUnmuteHint(true), 2000);
             } catch (playErr) {
               const errorMsg = `Play failed: ${playErr instanceof Error ? playErr.message : String(playErr)}`;
               console.error('❌', errorMsg);
+              console.error('📱 Device info:', {
+                userAgent: navigator.userAgent,
+                isMobile: isMobileDevice,
+                screen: `${window.screen.width}x${window.screen.height}`,
+                window: `${window.innerWidth}x${window.innerHeight}`,
+              });
               logVideoError(
                 webinar.id, 
                 viewer?.id, 
@@ -2121,12 +2126,13 @@ export default function WebinarLiveClient({
                 <>
                   <iframe
                     key={iframeKey}
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&autopause=0&background=0&transparent=0&playsinline=1&preload=metadata`}
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}badge=0&autopause=0&player_id=0&autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&background=0&transparent=0&playsinline=1&dnt=1`}
                     className={styles.videoEmbed}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                     allowFullScreen
                     title={webinar.title}
                     style={{ pointerEvents: 'none' }}
+                    loading="lazy"
                     suppressHydrationWarning
                   />
                   
