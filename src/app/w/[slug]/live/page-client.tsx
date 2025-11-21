@@ -2137,18 +2137,9 @@ export default function WebinarLiveClient({
                   {broadcastStarted && !videoLoading && showUnmuteHint && (
                     <div 
                       className={styles.audioTroubleshootBanner}
-                      onClick={async () => {
-                        // Unmute the video
-                        if (vimeoPlayerRef.current) {
-                          try {
-                            await vimeoPlayerRef.current.setMuted(false);
-                            setIsMuted(false);
-                            setShowUnmuteHint(false);
-                            console.log('🔊 Audio unmuted via banner');
-                          } catch (err) {
-                            console.error('Error unmuting:', err);
-                          }
-                        }
+                      onClick={() => {
+                        toggleMute();
+                        setShowUnmuteHint(false);
                       }}
                     >
                       <div className={styles.audioTroubleshootContent}>
@@ -2163,7 +2154,15 @@ export default function WebinarLiveClient({
                             Tap here to unmute • Check your device volume • Try headphones
                           </p>
                         </div>
-                        <button className={styles.audioTroubleshootButton} type="button">
+                        <button 
+                          className={styles.audioTroubleshootButton} 
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleMute();
+                            setShowUnmuteHint(false);
+                          }}
+                        >
                           <i className="fas fa-volume-high" style={{ marginRight: '8px' }} />
                           Unmute Now
                         </button>

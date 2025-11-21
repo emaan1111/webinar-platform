@@ -25,7 +25,8 @@ import {
   Bell,
   Tag,
   Send,
-  AlertCircle
+  AlertCircle,
+  Plus
 } from 'lucide-react'
 
 interface AttendeeProfile {
@@ -153,6 +154,16 @@ export default function AttendeeProfilePage() {
   const [profile, setProfile] = useState<AttendeeProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [showPurchaseForm, setShowPurchaseForm] = useState(false)
+  const [purchaseAmount, setPurchaseAmount] = useState('')
+  const [purchaseCurrency, setPurchaseCurrency] = useState('USD')
+  const [purchaseDate, setPurchaseDate] = useState(
+    new Date().toISOString().slice(0, 16)
+  )
+  const [purchaseProductName, setPurchaseProductName] =
+    useState('Manual Purchase')
+  const [purchaseError, setPurchaseError] = useState('')
+  const [savingPurchase, setSavingPurchase] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -204,6 +215,81 @@ export default function AttendeeProfilePage() {
     })
   }
 
+  const handleAddPurchase = async () => {
+    if (!profile) return
+
+    const amountValue = parseFloat(purchaseAmount)
+    if (isNaN(amountValue) || amountValue <= 0) {
+      setPurchaseError('Enter a valid amount greater than zero.')
+      return
+    }
+
+    const dateValue = purchaseDate ? new Date(purchaseDate) : new Date()
+    if (isNaN(dateValue.getTime())) {
+      setPurchaseError('Enter a valid purchase date.')
+      return
+    }
+
+    setPurchaseError('')
+    setSavingPurchase(true)
+
+    try {
+      const response = await fetch(`/api/attendees/${profile.id}/purchase`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: amountValue,
+          currency: purchaseCurrency || 'USD',
+          productName: purchaseProductName || 'Manual Purchase',
+          purchasedAt: dateValue.toISOString()
+        })
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(
+          errorData.error ||
+            errorData.details ||
+            'Failed to record purchase'
+        )
+      }
+
+      const data = await response.json()
+      const newPurchase = data.purchase
+        ? {
+            id: data.purchase.id,
+            productName: data.purchase.productName || purchaseProductName,
+            amount: data.purchase.amount ?? amountValue,
+            currency: data.purchase.currency || purchaseCurrency,
+            orderId: data.purchase.orderId,
+            purchasedAt:
+              data.purchase.purchasedAt || dateValue.toISOString()
+          }
+        : null
+
+      if (newPurchase) {
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                hasPurchased: true,
+                purchases: [newPurchase, ...(prev.purchases || [])]
+              }
+            : prev
+        )
+      }
+
+      setShowPurchaseForm(false)
+      setPurchaseAmount('')
+    } catch (err) {
+      setPurchaseError(
+        err instanceof Error ? err.message : 'Failed to record purchase'
+      )
+    } finally {
+      setSavingPurchase(false)
+    }
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -249,7 +335,18 @@ export default function AttendeeProfilePage() {
               <p className="text-sm text-gray-500">{profile.webinarTitle}</p>
             </div>
           </div>
-          <div>
+          <div className="flex items-center gap-3">
+            {profile.hasPurchased ? (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-emerald-100 text-emerald-800">
+                <DollarSign className="w-4 h-4" />
+                Purchase Recorded
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-gray-100 text-gray-700">
+                <DollarSign className="w-4 h-4" />
+                No Purchase Yet
+              </span>
+            )}
             {profile.attended ? (
               <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium bg-green-100 text-green-800">
                 <CheckCircle className="w-4 h-4" />
@@ -261,7 +358,117 @@ export default function AttendeeProfilePage() {
                 No Show
               </span>
             )}
+            <Button
+              onClick={() => {
+                setPurchaseError('')
+                setPurchaseDate(new Date().toISOString().slice(0, 16))
+                setShowPurchaseForm(true)
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              Record Purchase
+            </Button>
           </div>
+        </div>
+
+        {/* Purchase Status & Manual Add */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-green-600" />
+                Purchase Status
+              </h2>
+              <p className="text-sm text-gray-600">
+                {profile.hasPurchased
+                  ? 'This attendee has at least one recorded purchase.'
+                  : 'No purchases recorded yet. Use the button to add one.'}
+              </p>
+            </div>
+            <Button
+              onClick={() => {
+                setPurchaseError('')
+                setPurchaseDate(new Date().toISOString().slice(0, 16))
+                setShowPurchaseForm((open) => !open)
+              }}
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              {showPurchaseForm ? 'Close Form' : 'Add Purchase'}
+            </Button>
+          </div>
+
+          {showPurchaseForm && (
+            <div className="mt-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Amount
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    value={purchaseAmount}
+                    onChange={(e) => setPurchaseAmount(e.target.value)}
+                    placeholder="e.g. 97.00"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Currency
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase"
+                    value={purchaseCurrency}
+                    onChange={(e) => setPurchaseCurrency(e.target.value.toUpperCase())}
+                    placeholder="USD"
+                    maxLength={3}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Product / Offer Name
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    value={purchaseProductName}
+                    onChange={(e) => setPurchaseProductName(e.target.value)}
+                    placeholder="Manual Purchase"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">
+                    Purchase Date
+                  </label>
+                  <input
+                    type="datetime-local"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    value={purchaseDate}
+                    onChange={(e) => setPurchaseDate(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {purchaseError && (
+                <p className="text-sm text-red-600">{purchaseError}</p>
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button onClick={handleAddPurchase} disabled={savingPurchase}>
+                  {savingPurchase ? 'Saving...' : 'Save Purchase'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowPurchaseForm(false)}
+                  disabled={savingPurchase}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Contact Info */}
@@ -580,12 +787,16 @@ export default function AttendeeProfilePage() {
         )}
 
         {/* Purchases Section */}
-        {profile.purchases && profile.purchases.length > 0 && (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <DollarSign className="w-5 h-5 text-green-600" />
-              Purchases ({profile.purchases.length})
-            </h2>
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-green-600" />
+            Purchases ({profile.purchases.length})
+          </h2>
+          {profile.purchases.length === 0 ? (
+            <p className="text-sm text-gray-600">
+              No purchases recorded yet for this attendee.
+            </p>
+          ) : (
             <div className="space-y-3">
               {profile.purchases.map((purchase) => (
                 <div key={purchase.id} className="flex items-center justify-between p-4 bg-green-50 rounded-lg border border-green-200">
@@ -602,8 +813,8 @@ export default function AttendeeProfilePage() {
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </div>
 
         {/* SMS/Email Reminders Section */}
         {profile.reminders && profile.reminders.length > 0 && (
