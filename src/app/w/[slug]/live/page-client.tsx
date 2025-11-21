@@ -394,6 +394,7 @@ export default function WebinarLiveClient({
   const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set()); // Track offers user has seen
   const [webinarEnded, setWebinarEnded] = useState(false); // Track if live webinar has ended
   const [showReplayPrompt, setShowReplayPrompt] = useState(false); // Show replay start prompt
+  const [iframeKey, setIframeKey] = useState(0); // Force iframe recreation on retry
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -1622,8 +1623,8 @@ export default function WebinarLiveClient({
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     console.log(`📱 Mobile device detected: ${isMobileDevice}`);
     
-    // INCREASED: Much longer timeout for mobile devices (45s vs 15s) - mobile networks can be slow
-    const timeoutDuration = isMobileDevice ? 45000 : 15000;
+    // MOBILE FIX: Longer timeout for mobile (60s vs 20s) and fewer, slower retries
+    const timeoutDuration = isMobileDevice ? 60000 : 20000;
     const emergencyTimeout = setTimeout(() => {
       console.log(`⚠️ EMERGENCY: Force hiding loading overlay after ${timeoutDuration/1000}s`);
       setVideoLoading(false);
@@ -1631,10 +1632,11 @@ export default function WebinarLiveClient({
       // Don't reset broadcastStarted - keep the retry button visible
     }, timeoutDuration);
     
-    // Track retry attempts with exponential backoff
+    // MOBILE FIX: Fewer retries with longer delays - prevents timeout cascade
     let iframeRetries = 0;
     let apiRetries = 0;
-    const maxRetries = isMobileDevice ? 40 : 25; // More retries on mobile
+    const maxRetries = isMobileDevice ? 15 : 10; // Reduced retries
+    const retryDelay = isMobileDevice ? 800 : 500; // Longer delays on mobile
     
     const initPlayer = () => {
       const iframe = document.querySelector('iframe[src*="vimeo.com"]') as HTMLIFrameElement;
@@ -1648,8 +1650,8 @@ export default function WebinarLiveClient({
           // Don't reset broadcastStarted - keep retry button visible
           return;
         }
-        console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying in 500ms...`);
-        setTimeout(initPlayer, 500); // Increased delay for mobile
+        console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying...`);
+        setTimeout(initPlayer, retryDelay);
         return;
       }
       
@@ -1664,12 +1666,12 @@ export default function WebinarLiveClient({
           return;
         }
         console.log(`⚠️ Vimeo Player API not loaded yet (attempt ${apiRetries}/${maxRetries}), waiting...`);
-        setTimeout(initPlayer, 400); // Increased delay
+        setTimeout(initPlayer, retryDelay);
         return;
       }
       
-      // MOBILE OPTIMIZATION: Longer delay for mobile to ensure iframe is fully ready
-      const initDelay = isMobileDevice ? 500 : 150;
+      // MOBILE FIX: Longer delay for iframe to be fully ready before initializing player
+      const initDelay = isMobileDevice ? 1000 : 300;
       setTimeout(() => {
         try {
           console.log('🎬 Creating Vimeo Player instance...');
@@ -1690,9 +1692,9 @@ export default function WebinarLiveClient({
         
         console.log(`📱 Applying mobile-optimized settings for ${isMobileDevice ? 'mobile' : 'desktop'} device`);
         
-        // NEW: Start UNMUTED since users manually tap "Start" button
-        // No need to mute for autoplay since we removed autoplay on mobile
-        const startMuted = false; // Always start unmuted for better UX
+        // MOBILE FIX: Always start muted for mobile to ensure autoplay works
+        // Mobile browsers block unmuted autoplay, so we must start muted
+        const startMuted = isMobileDevice ? true : false;
         
         player.ready()
           .then(async () => {
@@ -1775,39 +1777,20 @@ export default function WebinarLiveClient({
               
               // Show unmute hint on mobile
               if (isMobileDevice && startMuted) {
-                console.log('💡 Mobile: Video started muted. User can unmute with button.');
+                console.log('💡 Mobile: Video started muted. Showing unmute hint.');
+                setTimeout(() => setShowUnmuteHint(true), 2000);
               }
             } catch (playErr) {
               console.error('❌ Play failed:', playErr);
-              console.log('🔄 Attempting recovery strategy...');
-              throw playErr; // Pass to catch block for recovery
+              throw playErr; // Pass to catch block
             }
           })
           .catch(async (err: Error) => {
-            console.error('❌ Player ready/play failed:', err);
+            console.error('❌ Player initialization failed:', err);
             
-            // SIMPLIFIED RECOVERY: Just try muted play once, then show error
-            console.log('🔄 RECOVERY: Trying force muted play...');
-            try {
-              await player.setMuted(true);
-              await player.setVolume(0);
-              await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for state to settle
-              await player.play();
-              console.log('✅ Recovery successful - video playing MUTED');
-              setIsMuted(true);
-              clearTimeout(emergencyTimeout);
-              setVideoLoading(false);
-              
-              if (trackerRef.current) {
-                trackerRef.current.trackVideoEvent('play', startTime);
-              }
-              return; // Success!
-            } catch (recoveryErr) {
-              console.error('❌ Recovery failed:', recoveryErr);
-            }
-            
-            // All recovery attempts failed - show retry button
-            console.error('❌ All recovery attempts failed - showing retry button');
+            // MOBILE FIX: Simplified recovery - just show error, let user retry
+            // No complex recovery loops that can cause crashes
+            console.log('❌ Showing retry button - user can tap to try again');
             clearTimeout(emergencyTimeout);
             setVideoLoading(false);
             setVideoError(true);
@@ -2053,7 +2036,8 @@ export default function WebinarLiveClient({
               {embedUrl ? (
                 <>
                   <iframe
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&autopause=0&background=0&transparent=0&playsinline=1`}
+                    key={iframeKey}
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&autopause=0&background=0&transparent=0&playsinline=1&preload=metadata`}
                     className={styles.videoEmbed}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                     allowFullScreen
