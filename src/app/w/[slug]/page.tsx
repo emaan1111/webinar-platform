@@ -191,6 +191,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       duration: webinar.duration,
       schedules: filteredSchedules,
       maxSchedulesToShow: webinar.maxSchedulesToShow,
+      roundJITTo15Minutes: webinar.roundJITTo15Minutes,
       videoUrl,
       vimeoVideoId,
       offer: activeOffer,
