@@ -161,6 +161,7 @@ function removeExistingPopups(doc: Document): void {
 
 /**
  * Convert onclick handlers to data-webinar-trigger
+ * BUT preserve onclick="openModal()" as our system will provide that function
  */
 function convertOnClickHandlers(doc: Document): void {
   const elementsWithOnClick = doc.querySelectorAll('[onclick]');
@@ -168,19 +169,22 @@ function convertOnClickHandlers(doc: Document): void {
   elementsWithOnClick.forEach(el => {
     const onClickAttr = el.getAttribute('onclick') || '';
     
-    // Check if onclick matches registration patterns
+    // PRESERVE onclick="openModal()" - our system will provide this function
+    if (onClickAttr.includes('openModal')) {
+      console.log(`Preserving onclick="openModal()": ${el.tagName}#${el.id}.${el.className}`);
+      return; // Don't modify this button
+    }
+    
+    // Check if onclick matches OTHER registration patterns (not openModal)
     const matchesPattern = TRIGGER_PATTERNS.onClickPatterns.some(pattern => 
       pattern.test(onClickAttr)
     );
     
     if (matchesPattern) {
-      console.log(`Converting onclick to data-webinar-trigger: ${el.tagName}#${el.id}.${el.className}`);
+      console.log(`Converting onclick to openModal(): ${el.tagName}#${el.id}.${el.className}`);
       
-      // Add data attribute
-      el.setAttribute('data-webinar-trigger', 'true');
-      
-      // Remove onclick (we'll handle it with event listeners)
-      el.removeAttribute('onclick');
+      // Convert to onclick="openModal()" instead of data attribute
+      el.setAttribute('onclick', 'openModal()');
       
       // Prevent default if it's a link
       if (el.tagName.toLowerCase() === 'a') {
@@ -195,12 +199,19 @@ function convertOnClickHandlers(doc: Document): void {
 
 /**
  * Auto-detect trigger elements based on class, id, and text patterns
+ * Only add data-webinar-trigger to buttons that don't already have onclick="openModal()"
  */
 function autoDetectTriggers(doc: Document): void {
   // Find by class
   TRIGGER_PATTERNS.classPatterns.forEach(className => {
     const elements = doc.querySelectorAll(`.${className}`);
     elements.forEach(el => {
+      // Skip if already has onclick="openModal()"
+      const onclick = el.getAttribute('onclick');
+      if (onclick && onclick.includes('openModal')) {
+        return;
+      }
+      
       if (!el.hasAttribute('data-webinar-trigger')) {
         console.log(`Auto-detected trigger by class: ${className}`);
         el.setAttribute('data-webinar-trigger', 'true');
@@ -211,9 +222,17 @@ function autoDetectTriggers(doc: Document): void {
   // Find by ID
   TRIGGER_PATTERNS.idPatterns.forEach(id => {
     const el = doc.getElementById(id);
-    if (el && !el.hasAttribute('data-webinar-trigger')) {
-      console.log(`Auto-detected trigger by id: ${id}`);
-      el.setAttribute('data-webinar-trigger', 'true');
+    if (el) {
+      // Skip if already has onclick="openModal()"
+      const onclick = el.getAttribute('onclick');
+      if (onclick && onclick.includes('openModal')) {
+        return;
+      }
+      
+      if (!el.hasAttribute('data-webinar-trigger')) {
+        console.log(`Auto-detected trigger by id: ${id}`);
+        el.setAttribute('data-webinar-trigger', 'true');
+      }
     }
   });
   
@@ -226,15 +245,24 @@ function autoDetectTriggers(doc: Document): void {
       text.includes(pattern)
     );
     
-    if (matchesText && !el.hasAttribute('data-webinar-trigger')) {
-      console.log(`Auto-detected trigger by text: "${text}"`);
-      el.setAttribute('data-webinar-trigger', 'true');
+    if (matchesText) {
+      // Skip if already has onclick="openModal()"
+      const onclick = el.getAttribute('onclick');
+      if (onclick && onclick.includes('openModal')) {
+        return;
+      }
+      
+      if (!el.hasAttribute('data-webinar-trigger')) {
+        console.log(`Auto-detected trigger by text: "${text}"`);
+        el.setAttribute('data-webinar-trigger', 'true');
+      }
     }
   });
 }
 
 /**
  * Clean up popup-related scripts
+ * BUT preserve openModal/closeModal as our system will provide them
  */
 function cleanupScripts(doc: Document): void {
   const scripts = doc.querySelectorAll('script');
@@ -242,24 +270,43 @@ function cleanupScripts(doc: Document): void {
   scripts.forEach(script => {
     const scriptContent = script.textContent || '';
     
-    // Check if script contains popup-related functions
+    // DON'T remove scripts that define openModal or closeModal
+    // Our React component will provide these functions
+    if (scriptContent.includes('function openModal') || scriptContent.includes('function closeModal')) {
+      console.log('Preserving openModal/closeModal script - React will provide these');
+      // Remove the function definitions but keep other code
+      let cleanedContent = scriptContent;
+      
+      // Remove openModal and closeModal function definitions
+      cleanedContent = cleanedContent.replace(
+        /function\s+openModal\s*\([^)]*\)\s*\{[^}]*\}/gi,
+        '// openModal provided by React'
+      );
+      cleanedContent = cleanedContent.replace(
+        /function\s+closeModal\s*\([^)]*\)\s*\{[^}]*\}/gi,
+        '// closeModal provided by React'
+      );
+      
+      script.textContent = cleanedContent;
+      return;
+    }
+    
+    // Check if script contains OTHER popup-related functions (not openModal/closeModal)
     const containsPopupCode = TRIGGER_PATTERNS.removeScriptPatterns.some(pattern => 
       pattern.test(scriptContent)
     );
     
     if (containsPopupCode) {
-      console.log('Removing popup-related script');
+      console.log('Removing OLD popup-related script');
       
-      // Remove popup-related functions but keep other code
+      // Remove OLD popup functions but keep other code
       let cleanedContent = scriptContent;
       
-      TRIGGER_PATTERNS.removeScriptPatterns.forEach(pattern => {
-        // Remove entire function definitions
-        cleanedContent = cleanedContent.replace(
-          /function\s+(?:openPopup|closePopup|showPopup|hidePopup)\s*\([^)]*\)\s*\{[^}]*\}/gi,
-          ''
-        );
-      });
+      // Remove OLD functions like showPopup, hidePopup etc.
+      cleanedContent = cleanedContent.replace(
+        /function\s+(?:showPopup|hidePopup|showRegistration|hideRegistration)\s*\([^)]*\)\s*\{[^}]*\}/gi,
+        ''
+      );
       
       // If script is now empty or only whitespace, remove it
       if (cleanedContent.trim().length === 0) {
@@ -288,29 +335,45 @@ function processHtmlString(html: string, opts: ProcessorOptions): string {
       /<div[^>]*class\s*=\s*["'][^"']*popup-overlay[^"']*["'][^>]*>[\s\S]*?<\/div>/gi,
       ''
     );
-  }
-  
-  // Convert onclick handlers
-  if (opts.convertOnClickHandlers) {
     processed = processed.replace(
-      /onclick\s*=\s*["'](?:openPopup|showPopup)\s*\(\s*\)[^"']*["']/gi,
-      'data-webinar-trigger="true"'
+      /<div[^>]*id\s*=\s*["']webinarModal["'][^>]*>[\s\S]*?<\/div>/gi,
+      ''
     );
   }
   
-  // Add data-webinar-trigger to common CTA button classes
-  if (opts.autoDetectTriggers) {
+  // Convert onclick handlers to NOT remove them, but ensure they work
+  // We DON'T want to remove onclick="openModal()" because our system will provide openModal()
+  if (opts.convertOnClickHandlers) {
+    // Only convert onclick handlers that point to OLD popup functions we want to replace
+    // But preserve onclick="openModal()" as our system will handle it
     processed = processed.replace(
-      /<(button|a)([^>]*class\s*=\s*["'][^"']*cta-button[^"']*["'][^>]*)>/gi,
+      /onclick\s*=\s*["'](?:showPopup|showRegistration|openRegistration|showModal)\s*\(\s*\)[^"']*["']/gi,
+      'onclick="openModal()"'
+    );
+  }
+  
+  // Add data-webinar-trigger to common CTA button classes as FALLBACK
+  if (opts.autoDetectTriggers) {
+    // Only add if button doesn't already have onclick
+    processed = processed.replace(
+      /<(button|a)([^>]*class\s*=\s*["'][^"']*(?:cta-button|register-button|btn-register|signup-button)[^"']*["'][^>]*)(?![^>]*onclick)>/gi,
       '<$1$2 data-webinar-trigger="true">'
     );
   }
   
-  // Remove popup-related scripts
-  if (opts.removeExistingPopups) {
+  // DON'T remove openModal/closeModal functions - our system needs them
+  // Only remove CONFLICTING popup functions with different names
+  if (opts.removeExistingPopups && opts.preserveScripts) {
+    // Remove OLD popup functions but preserve openModal/closeModal
     processed = processed.replace(
-      /function\s+(?:openPopup|closePopup)\s*\([^)]*\)\s*\{[^}]*\}/gi,
+      /function\s+(?:showPopup|hidePopup|showRegistration|hideRegistration)\s*\([^)]*\)\s*\{[^}]*\}/gi,
       ''
+    );
+    
+    // Remove getElementById calls for OLD popup IDs
+    processed = processed.replace(
+      /getElementById\s*\(\s*["'](?:registrationPopup|popup-overlay)["']\s*\)/gi,
+      'getElementById("webinarModal")'
     );
   }
   

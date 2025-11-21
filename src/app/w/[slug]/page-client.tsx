@@ -519,12 +519,30 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     }
   }, [webinar, registrationPage])
 
-  // Setup button listeners for custom template (runs after DOM is rendered)
+  // Setup global modal functions and button listeners
   useEffect(() => {
-    if (!registrationPage || registered || !webinar) return; // Guard against null webinar
+    if (!registrationPage || registered || !webinar) {
+      console.log('[Registration] Setup skipped:', { hasPage: !!registrationPage, registered, hasWebinar: !!webinar })
+      return;
+    }
 
-    // Longer delay to ensure DOM is fully rendered with dangerouslySetInnerHTML
+    console.log('[Registration] Setting up global modal functions...')
+    
+    // Define global openModal function for inline onclick handlers
+    (window as any).openModal = () => {
+      console.log('[Registration] openModal() called')
+      setShowScheduleModal(true)
+    };
+    
+    (window as any).closeModal = () => {
+      console.log('[Registration] closeModal() called')
+      setShowScheduleModal(false)
+    };
+
+    // Also setup event listeners as fallback
     const timer = setTimeout(() => {
+      console.log('[Registration] Setting up button listeners...')
+      
       // Gather all possible CTA triggers
       const buttonsByAction = Array.from(document.querySelectorAll('[data-action="register"]'))
       const buttonsByTrigger = Array.from(document.querySelectorAll('[data-webinar-trigger]'))
@@ -532,20 +550,49 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
       const buttonsByHref = Array.from(document.querySelectorAll('a[href="#register"], a[href="#registration"], a[href="#signup"]'))
       const textCandidates = Array.from(document.querySelectorAll('button, a[href], [role="button"]')).filter((el) => {
         const text = (el.textContent || '').toLowerCase().trim()
-        return text.includes('register') || text.includes('sign up') || text.includes('reserve') || text.includes('save my spot') || text.includes('join now')
+        return text.includes('register') || text.includes('sign up') || text.includes('reserve') || text.includes('save my spot') || text.includes('join now') || text.includes('claim')
+      })
+
+      console.log('[Registration] Found buttons:', {
+        byAction: buttonsByAction.length,
+        byTrigger: buttonsByTrigger.length,
+        byClass: buttonsByClass.length,
+        byHref: buttonsByHref.length,
+        byText: textCandidates.length
       })
 
       const allButtons = Array.from(new Set([...buttonsByAction, ...buttonsByTrigger, ...buttonsByClass, ...buttonsByHref, ...textCandidates]))
 
+      console.log('[Registration] Total unique buttons:', allButtons.length)
+
       if (allButtons.length === 0) {
+        console.warn('[Registration] No buttons found via selectors, but openModal() is available globally')
         return
       }
 
-      allButtons.forEach((button) => {
+      allButtons.forEach((button, index) => {
+        // Skip buttons that already have onclick="openModal()"
+        const hasOnClick = button.getAttribute('onclick')
+        if (hasOnClick && hasOnClick.includes('openModal')) {
+          console.log(`[Registration] Button ${index + 1} already has onclick, skipping`)
+          return
+        }
+        
+        const buttonInfo = {
+          index,
+          tag: button.tagName,
+          id: (button as HTMLElement).id,
+          classes: (button as HTMLElement).className,
+          text: button.textContent?.trim().substring(0, 50)
+        }
+        console.log(`[Registration] Setting up button ${index + 1}:`, buttonInfo)
+        
         const clickHandler = (e: Event) => {
+          console.log(`[Registration] 🎯 BUTTON CLICKED:`, buttonInfo)
           e.preventDefault()
           e.stopPropagation()
           e.stopImmediatePropagation()
+          console.log('[Registration] Opening modal...')
           setShowScheduleModal(true)
         }
         
@@ -554,7 +601,9 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
         button.addEventListener('click', clickHandler, false) // Bubble phase
         
         // Also try with pointer events
-        button.addEventListener('pointerdown', () => {})
+        button.addEventListener('pointerdown', () => {
+          console.log(`[Registration] Pointer down on button ${index + 1}`)
+        })
       })
 
       // Also handle schedule items if present
@@ -574,7 +623,12 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
       })
     }, 500) // Increased delay to ensure template is rendered
     
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      // Clean up global functions
+      delete (window as any).openModal
+      delete (window as any).closeModal
+    }
   }, [registrationPage, registered, webinar])
 
   // Generate multiple upcoming time slots for recurring schedules
@@ -1052,8 +1106,9 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
     // Replace template variables with actual data
     let templateHtml = registrationPage.htmlCode
     
-    // Remove script tags that might interfere with our button handlers
-    templateHtml = templateHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    // DON'T remove script tags - they contain modal functions like openModal()
+    // Only remove external tracking scripts if needed
+    // templateHtml = templateHtml.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
     
     // Replace webinar variables
     templateHtml = templateHtml.replace(/\{\{webinar\.title\}\}/g, webinar.title)

@@ -7,7 +7,7 @@ async function main() {
   // Create multiple test users
   const users = [
     { email: 'admin@test.com', name: 'Admin User', password: 'password123', role: 'ADMIN' },
-    { email: 'ariba.farheen@gmail.com', name: 'Ariba Farheen', password: 'password123', role: 'ADMIN' },
+    { email: 'ariba.farheen@gmail.com', name: 'Ariba Farheen', password: '79827982', role: 'ADMIN' },
   ];
 
   for (const userData of users) {
