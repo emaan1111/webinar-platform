@@ -565,6 +565,16 @@
     </footer>
 
     <script>
+        // CRITICAL: Only run countdown script if we're actually on a countdown page
+        // Check for countdown banner element to confirm this is the right page
+        const countdownBanner = document.querySelector('.countdown-banner');
+        if (!countdownBanner) {
+            console.log('⚠️ Countdown script loaded on non-countdown page - skipping execution');
+            // Exit immediately if this script is on the wrong page
+            // This happens if registration page template mistakenly includes countdown HTML
+            return;
+        }
+        
         // Wait for DOM to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
             // Get webinar data from the page
