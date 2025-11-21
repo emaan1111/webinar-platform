@@ -248,6 +248,45 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+// Helper function to log video errors to database
+async function logVideoError(
+  webinarId: string,
+  registrationId: string | undefined,
+  errorType: string,
+  errorMessage: string,
+  errorStack?: string
+) {
+  try {
+    const deviceInfo = {
+      isMobile: /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+      userAgent: navigator.userAgent,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      windowWidth: window.innerWidth,
+      windowHeight: window.innerHeight,
+      platform: navigator.platform,
+      language: navigator.language,
+    };
+
+    await fetch('/api/video-errors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        webinarId,
+        registrationId,
+        errorType,
+        errorMessage,
+        errorStack,
+        userAgent: navigator.userAgent,
+        deviceInfo: JSON.stringify(deviceInfo),
+        timestamp: new Date().toISOString(),
+      }),
+    });
+  } catch (err) {
+    console.error('Failed to log video error:', err);
+  }
+}
+
 function deriveEmbedUrl(webinar: WebinarData) {
   if (webinar.vimeoVideoId) {
     return `https://player.vimeo.com/video/${webinar.vimeoVideoId}`;
@@ -1627,7 +1666,9 @@ export default function WebinarLiveClient({
     // MOBILE FIX: Longer timeout for mobile (60s vs 20s) and fewer, slower retries
     const timeoutDuration = isMobileDevice ? 60000 : 20000;
     const emergencyTimeout = setTimeout(() => {
-      console.log(`⚠️ EMERGENCY: Force hiding loading overlay after ${timeoutDuration/1000}s`);
+      const errorMsg = `Emergency timeout after ${timeoutDuration/1000}s - video failed to load`;
+      console.log(`⚠️ ${errorMsg}`);
+      logVideoError(webinar.id, viewer?.id, 'timeout', errorMsg);
       setVideoLoading(false);
       setVideoError(true);
       setBroadcastStarted(false); // Surface retry overlay
@@ -1644,7 +1685,9 @@ export default function WebinarLiveClient({
       if (!iframe) {
         iframeRetries++;
         if (iframeRetries >= maxRetries) {
-          console.error('❌ Vimeo iframe not found after max retries');
+          const errorMsg = `Vimeo iframe not found after ${maxRetries} retries`;
+          console.error('❌', errorMsg);
+          logVideoError(webinar.id, viewer?.id, 'iframe_not_found', errorMsg);
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
@@ -1659,7 +1702,9 @@ export default function WebinarLiveClient({
       if (!window.Vimeo) {
         apiRetries++;
         if (apiRetries >= maxRetries) {
-          console.error('❌ Vimeo Player API not loaded after max retries');
+          const errorMsg = `Vimeo Player API not loaded after ${maxRetries} retries`;
+          console.error('❌', errorMsg);
+          logVideoError(webinar.id, viewer?.id, 'api_not_loaded', errorMsg);
           clearTimeout(emergencyTimeout);
           setVideoLoading(false);
           setVideoError(true);
@@ -1782,12 +1827,28 @@ export default function WebinarLiveClient({
                 setTimeout(() => setShowUnmuteHint(true), 2000);
               }
             } catch (playErr) {
-              console.error('❌ Play failed:', playErr);
+              const errorMsg = `Play failed: ${playErr instanceof Error ? playErr.message : String(playErr)}`;
+              console.error('❌', errorMsg);
+              logVideoError(
+                webinar.id, 
+                viewer?.id, 
+                'play_failed', 
+                errorMsg,
+                playErr instanceof Error ? playErr.stack : undefined
+              );
               throw playErr; // Pass to catch block
             }
           })
           .catch(async (err: Error) => {
-            console.error('❌ Player initialization failed:', err);
+            const errorMsg = `Player initialization failed: ${err.message}`;
+            console.error('❌', errorMsg);
+            logVideoError(
+              webinar.id, 
+              viewer?.id, 
+              'player_init_failed', 
+              errorMsg,
+              err.stack
+            );
             
             // MOBILE FIX: Simplified recovery - just show error, let user retry
             // No complex recovery loops that can cause crashes
