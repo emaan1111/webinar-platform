@@ -523,43 +523,34 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
   useEffect(() => {
     if (!registrationPage || registered || !webinar) return; // Guard against null webinar
 
-    // Longer delay to ensure DOM is fully rendered with dangerouslySetInnerHTML
-    const timer = setTimeout(() => {
+    const attachedButtons = new Set<HTMLElement>()
+    const clickHandler = (e: Event) => {
+      e.preventDefault()
+      e.stopPropagation()
+      setShowScheduleModal(true)
+    }
+
+    const wireButtons = () => {
       // Gather all possible CTA triggers
       const buttonsByAction = Array.from(document.querySelectorAll('[data-action="register"]'))
       const buttonsByTrigger = Array.from(document.querySelectorAll('[data-webinar-trigger]'))
       const buttonsByClass = Array.from(document.querySelectorAll('.cta-button, .register-button, .btn-register, .signup-button'))
-      const buttonsByHref = Array.from(document.querySelectorAll('a[href="#register"], a[href="#registration"], a[href="#signup"]'))
+      const buttonsByHref = Array.from(document.querySelectorAll('a[href="#register"], a[href="#registration"], a[href="#signup"], a[href="#"]'))
       const textCandidates = Array.from(document.querySelectorAll('button, a[href], [role="button"]')).filter((el) => {
         const text = (el.textContent || '').toLowerCase().trim()
         return text.includes('register') || text.includes('sign up') || text.includes('reserve') || text.includes('save my spot') || text.includes('join now')
       })
 
       const allButtons = Array.from(new Set([...buttonsByAction, ...buttonsByTrigger, ...buttonsByClass, ...buttonsByHref, ...textCandidates]))
-
-      if (allButtons.length === 0) {
-        return
-      }
-
       allButtons.forEach((button) => {
-        const clickHandler = (e: Event) => {
-          e.preventDefault()
-          e.stopPropagation()
-          e.stopImmediatePropagation()
-          setShowScheduleModal(true)
-        }
-        
-        // Try multiple event listeners to ensure one works
+        if (attachedButtons.has(button as HTMLElement)) return
         button.addEventListener('click', clickHandler, true) // Capture phase
         button.addEventListener('click', clickHandler, false) // Bubble phase
-        
-        // Also try with pointer events
-        button.addEventListener('pointerdown', () => {})
+        attachedButtons.add(button as HTMLElement)
       })
 
       // Also handle schedule items if present
       const scheduleItems = document.querySelectorAll('[data-schedule-id], .schedule-item')
-      
       scheduleItems.forEach((item) => {
         item.addEventListener('click', function(this: HTMLElement) {
           const scheduleId = this.getAttribute('data-schedule-id')
@@ -572,9 +563,59 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
           }
         })
       })
-    }, 500) // Increased delay to ensure template is rendered
-    
-    return () => clearTimeout(timer)
+    }
+
+    // Initial wiring and delayed re-run for slow renders
+    wireButtons()
+    const timer = setTimeout(wireButtons, 600)
+
+    // Observe DOM mutations to catch late-inserted buttons
+    const observer = new MutationObserver(() => {
+      wireButtons()
+    })
+    observer.observe(document.body, { childList: true, subtree: true })
+
+    // Global delegation fallback in case direct listeners miss
+    const delegatedClick = (e: Event) => {
+      const target = e.target as HTMLElement | null
+      if (!target) return
+
+      const matchesTrigger = (el: HTMLElement | null): boolean => {
+        let node: HTMLElement | null = el
+        while (node) {
+          const text = (node.textContent || '').toLowerCase()
+          const hasData = node.getAttribute('data-action') === 'register' || node.hasAttribute('data-webinar-trigger')
+          const hasClass = node.classList?.contains('cta-button') || node.classList?.contains('register-button') || node.classList?.contains('btn-register') || node.classList?.contains('signup-button')
+          const href = (node.getAttribute('href') || '').toLowerCase()
+          const hasHref = href === '#register' || href === '#registration' || href === '#signup' || href === '#'
+          const hasText = text.includes('register') || text.includes('sign up') || text.includes('reserve') || text.includes('save my spot') || text.includes('join now')
+
+          if (hasData || hasClass || hasHref || hasText) return true
+          node = node.parentElement
+        }
+        return false
+      }
+
+      if (matchesTrigger(target)) {
+        e.preventDefault()
+        e.stopPropagation()
+        setShowScheduleModal(true)
+      }
+    }
+
+    document.addEventListener('click', delegatedClick, true)
+    document.addEventListener('click', delegatedClick, false)
+
+    return () => {
+      clearTimeout(timer)
+      observer.disconnect()
+      document.removeEventListener('click', delegatedClick, true)
+      document.removeEventListener('click', delegatedClick, false)
+      attachedButtons.forEach((button) => {
+        button.removeEventListener('click', clickHandler, true)
+        button.removeEventListener('click', clickHandler, false)
+      })
+    }
   }, [registrationPage, registered, webinar])
 
   // Generate multiple upcoming time slots for recurring schedules
@@ -732,7 +773,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
       const futureTime = new Date()
       futureTime.setMinutes(futureTime.getMinutes() + (schedule.minutesFromReg || 0))
       // Optionally round to nearest 15 min based on webinar setting
-      const shouldRound = webinar.roundJITTo15Minutes !== false // Default to true
+      const shouldRound = webinar?.roundJITTo15Minutes !== false // Default to true
       const finalTime = shouldRound ? roundToNearest15Minutes(futureTime) : futureTime
       
       const dateStr = finalTime.toLocaleDateString('en-US', {
