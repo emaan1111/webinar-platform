@@ -10,10 +10,15 @@ export async function GET(
   try {
     const { id } = await params
     
+    console.log('[Attendee Profile API] Fetching profile for ID:', id)
+    
     const session = await getServerSession(authOptions)
     if (!session?.user?.email) {
+      console.log('[Attendee Profile API] Unauthorized - no session')
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
+
+    console.log('[Attendee Profile API] Session user:', session.user.email)
 
     const registration = await prisma.registration.findUnique({
       where: { id },
@@ -135,7 +140,10 @@ export async function GET(
       }
     })
 
+    console.log('[Attendee Profile API] Registration found:', registration ? 'Yes' : 'No')
+
     if (!registration) {
+      console.log('[Attendee Profile API] Registration not found for ID:', id)
       return NextResponse.json({ error: 'Attendee not found' }, { status: 404 })
     }
 
@@ -144,7 +152,10 @@ export async function GET(
       where: { email: session.user.email }
     })
 
+    console.log('[Attendee Profile API] User role:', user?.role)
+
     if (!user || user.role !== 'ADMIN') {
+      console.log('[Attendee Profile API] Forbidden - user is not admin')
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -329,11 +340,17 @@ export async function GET(
       referrerName: referrerInfo?.name || null
     }
 
+    console.log('[Attendee Profile API] Profile data prepared successfully')
+
     return NextResponse.json({ profile })
   } catch (error) {
-    console.error('Error fetching attendee profile:', error)
+    console.error('[Attendee Profile API] Error fetching attendee profile:', error)
+    console.error('[Attendee Profile API] Error stack:', error instanceof Error ? error.stack : 'No stack')
     return NextResponse.json(
-      { error: 'Failed to fetch attendee profile' },
+      { 
+        error: 'Failed to fetch attendee profile',
+        details: error instanceof Error ? error.message : 'Unknown error'
+      },
       { status: 500 }
     )
   }

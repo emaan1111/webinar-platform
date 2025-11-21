@@ -162,13 +162,22 @@ export default function AttendeeProfilePage() {
 
   const fetchProfile = async (id: string) => {
     try {
+      console.log('[Attendee Profile Page] Fetching profile for ID:', id)
       const response = await fetch(`/api/attendees/${id}/profile`)
-      if (!response.ok) throw new Error('Failed to fetch profile')
+      console.log('[Attendee Profile Page] Response status:', response.status)
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        console.error('[Attendee Profile Page] Error response:', errorData)
+        throw new Error(errorData.error || errorData.details || 'Failed to fetch profile')
+      }
+      
       const data = await response.json()
+      console.log('[Attendee Profile Page] Profile loaded successfully')
       setProfile(data.profile)
     } catch (err) {
-      console.error('Error fetching profile:', err)
-      setError('Failed to load attendee profile')
+      console.error('[Attendee Profile Page] Error fetching profile:', err)
+      setError(err instanceof Error ? err.message : 'Failed to load attendee profile')
     } finally {
       setLoading(false)
     }
