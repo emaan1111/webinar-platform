@@ -302,9 +302,9 @@ function cleanupScripts(doc: Document): void {
       // Remove OLD popup functions but keep other code
       let cleanedContent = scriptContent;
       
-      // Remove OLD functions like showPopup, hidePopup etc.
+      // Remove OLD functions like openPopup, showPopup, hidePopup etc.
       cleanedContent = cleanedContent.replace(
-        /function\s+(?:showPopup|hidePopup|showRegistration|hideRegistration)\s*\([^)]*\)\s*\{[^}]*\}/gi,
+        /function\s+(?:openPopup|closePopup|showPopup|hidePopup|showRegistration|hideRegistration)\s*\([^)]*\)\s*\{[^}]*\}/gi,
         ''
       );
       
@@ -347,7 +347,7 @@ function processHtmlString(html: string, opts: ProcessorOptions): string {
     // Only convert onclick handlers that point to OLD popup functions we want to replace
     // But preserve onclick="openModal()" as our system will handle it
     processed = processed.replace(
-      /onclick\s*=\s*["'](?:showPopup|showRegistration|openRegistration|showModal)\s*\(\s*\)[^"']*["']/gi,
+      /onclick\s*=\s*["'](?:openPopup|showPopup|showRegistration|openRegistration|showModal)\s*\(\s*\)[^"']*["']/gi,
       'onclick="openModal()"'
     );
   }
@@ -366,7 +366,7 @@ function processHtmlString(html: string, opts: ProcessorOptions): string {
   if (opts.removeExistingPopups && opts.preserveScripts) {
     // Remove OLD popup functions but preserve openModal/closeModal
     processed = processed.replace(
-      /function\s+(?:showPopup|hidePopup|showRegistration|hideRegistration)\s*\([^)]*\)\s*\{[^}]*\}/gi,
+      /function\s+(?:openPopup|closePopup|showPopup|hidePopup|showRegistration|hideRegistration)\s*\([^)]*\)\s*\{[^}]*\}/gi,
       ''
     );
     
