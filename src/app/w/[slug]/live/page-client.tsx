@@ -557,31 +557,6 @@ export default function WebinarLiveClient({
 
   const spawnReaction = useCallback(
     (type: ReactionType, origin?: { x: number; y: number }, userName?: string) => {
-      // MOBILE OPTIMIZATION: Show reactions in chat sidebar instead of flying over video
-      // Desktop: Full flying animation over video (keeps excitement)
-      // Mobile: Simple emoji in chat (prevents video performance issues)
-      const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      if (isMobileDevice) {
-        // Mobile: Add reaction as chat message
-        const reactionEmoji = type === 'heart' ? '❤️' : type === 'clap' ? '👏' : '👍';
-        const firstName = userName ? userName.split(' ')[0] : 'Someone';
-        
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `reaction-${Date.now()}-${Math.random()}`,
-            userName: firstName,
-            message: reactionEmoji,
-            videoTimestamp: null,
-            isScripted: true,
-            createdAt: new Date().toISOString(),
-          }
-        ]);
-        console.log(`📱 Mobile: Showing ${reactionEmoji} in chat from ${firstName}`);
-        return;
-      }
-      
       // Desktop: Create flying animation over video
       const floatingReaction = document.createElement('div');
       floatingReaction.className = styles.flyingReaction;
@@ -1774,25 +1749,15 @@ export default function WebinarLiveClient({
             console.log('✅ Player ready');
             setPlayerReady(true); // Mark player as ready for save effect
             
-            // Add event listener for video end (to handle loop in replay mode)
+            // Add event listener for video end
             player.on('ended', () => {
               console.log('🎬 Video ended');
-              if (isReplay) {
-                // In replay mode, loop the video
-                console.log('🔄 Replay mode: Restarting video from beginning');
-                player.setCurrentTime(0).then(() => {
-                  player.play().catch((err: Error) => {
-                    console.error('❌ Failed to restart video:', err);
-                  });
-                });
-              } else {
-                // Live webinar just ended - show replay prompt screen
-                console.log('🎬 Live webinar ended - showing replay prompt');
-                setWebinarEnded(true);
-                setShowReplayPrompt(true);
-                setBroadcastStarted(false); // Stop the broadcast
-                player.pause(); // Pause the video
-              }
+              
+              // SIMPLIFIED: Just hide video and show reload button
+              // Page reload will load as replay if session has ended
+              console.log('🎬 Webinar ended - hiding video, showing reload button');
+              setWebinarEnded(true);
+              setBroadcastStarted(false);
             });
             
             // Add event listener for play/pause to debug unexpected stops
@@ -2221,25 +2186,28 @@ export default function WebinarLiveClient({
                     </div>
                   )}
                   
-                  {/* Replay Prompt Screen - shows when live webinar ends */}
-                  {showReplayPrompt && webinarEnded && (
-                    <div className={styles.replayPromptOverlay}>
-                      <div className={styles.replayPromptContent}>
-                        <div className={styles.replayPromptIcon}>
-                          <i className="fas fa-check-circle" style={{ color: '#10b981', fontSize: '64px' }} />
+                  {/* Video Ended - Simple Reload Button */}
+                  {webinarEnded && !broadcastStarted && (
+                    <div className={styles.videoEndedOverlay}>
+                      <div className={styles.videoEndedContent}>
+                        <div className={styles.videoEndedIcon}>
+                          <i className="fas fa-check-circle" style={{ color: '#10b981', fontSize: '48px' }} />
                         </div>
-                        <h2 className={styles.replayPromptTitle}>
-                          Webinar Has Ended
+                        <h2 className={styles.videoEndedTitle}>
+                          Webinar Ended
                         </h2>
-                        <p className={styles.replayPromptSubtitle}>
-                          Thank you for attending! The replay is now available.
+                        <p className={styles.videoEndedSubtitle}>
+                          Thank you for watching!
                         </p>
                         <button 
-                          className={styles.startReplayButton}
-                          onClick={handleStartReplay}
+                          className={styles.reloadButton}
+                          onClick={() => {
+                            console.log('🔄 Reloading page for replay...');
+                            window.location.reload();
+                          }}
                         >
-                          <i className="fas fa-play" style={{ marginRight: '10px' }} />
-                          Start Replay
+                          <i className="fas fa-rotate-right" style={{ marginRight: '10px' }} />
+                          Watch Replay
                         </button>
                       </div>
                     </div>
