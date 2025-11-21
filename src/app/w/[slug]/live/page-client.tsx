@@ -1307,6 +1307,14 @@ export default function WebinarLiveClient({
 
     const userName = viewer?.name || 'You';
     
+    // Debug logging
+    console.log('💬 [Chat] Sending message:', {
+      viewer: viewer,
+      viewerId: viewer?.id,
+      viewerName: viewer?.name,
+      userName: userName
+    });
+    
     // Show message to user immediately (optimistic UI)
     const tempId = `temp-${Date.now()}`;
     const userMessage: ChatMessage = {
@@ -1331,16 +1339,20 @@ export default function WebinarLiveClient({
 
     // Save message to database (will be approved for display)
     try {
+      const payload = {
+        webinarId: webinar.id,
+        message: text,
+        registrationId: viewer?.id, // Pass registrationId for registered attendees
+      };
+      
+      console.log('💬 [Chat] Sending to API:', payload);
+      
       const response = await fetch(`/api/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          webinarId: webinar.id,
-          message: text,
-          registrationId: viewer?.id, // Pass registrationId for registered attendees
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (response.ok) {
