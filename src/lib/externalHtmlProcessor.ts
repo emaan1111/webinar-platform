@@ -400,3 +400,146 @@ export function extractMetadata(html: string): {
     hasPopup,
   };
 }
+
+/**
+ * Lightweight drag-and-drop HTML editor for client-side use.
+ * - Makes text in the container editable (contenteditable)
+ * - Allows dragging any direct element to reorder
+ * - Alt+Click a <div> to delete it
+ */
+export function initializeDragDropHtmlEditor(container: HTMLElement): {
+  destroy: () => void;
+} {
+  if (typeof window === 'undefined' || !container) {
+    return { destroy: () => {} };
+  }
+
+  const EDITOR_STYLE_ID = 'html-editor-style';
+  const addedAttributes: Array<{ node: HTMLElement; key: string }> = [];
+  let dragged: HTMLElement | null = null;
+
+  // Add minimal visual affordances
+  if (!document.getElementById(EDITOR_STYLE_ID)) {
+    const style = document.createElement('style');
+    style.id = EDITOR_STYLE_ID;
+    style.textContent = `
+      [data-html-editor-editable]:hover { outline: 1px dashed #5b9bff; outline-offset: 2px; }
+      [data-html-editor-dragging] { opacity: 0.4; }
+      [data-html-editor-drop-target] { outline: 2px solid #5b9bff; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Make everything text-editable except obvious interactive controls
+  const allNodes = Array.from(container.querySelectorAll<HTMLElement>('*'));
+  allNodes.forEach((node) => {
+    const tag = node.tagName.toLowerCase();
+    if (['input', 'select', 'textarea', 'option', 'button', 'script', 'style'].includes(tag)) return;
+    if (node.isContentEditable) return;
+    node.setAttribute('contenteditable', 'true');
+    node.setAttribute('data-html-editor-editable', 'true');
+    addedAttributes.push({ node, key: 'contenteditable' });
+    addedAttributes.push({ node, key: 'data-html-editor-editable' });
+  });
+
+  // Enable drag-and-drop on elements to reorder them
+  allNodes.forEach((node) => {
+    node.draggable = true;
+    addedAttributes.push({ node, key: 'draggable' });
+  });
+
+  const handleDragStart = (ev: DragEvent) => {
+    const target = ev.target as HTMLElement | null;
+    if (!target) return;
+    dragged = target;
+    target.setAttribute('data-html-editor-dragging', 'true');
+    ev.dataTransfer?.setData('text/plain', 'dragging');
+    ev.dataTransfer?.setDragImage(target, 10, 10);
+  };
+
+  const handleDragOver = (ev: DragEvent) => {
+    if (!dragged) return;
+    ev.preventDefault();
+    const target = ev.target as HTMLElement | null;
+    if (!target || dragged.contains(target)) return;
+    target.setAttribute('data-html-editor-drop-target', 'true');
+  };
+
+  const handleDragLeave = (ev: DragEvent) => {
+    const target = ev.target as HTMLElement | null;
+    target?.removeAttribute('data-html-editor-drop-target');
+  };
+
+  const handleDrop = (ev: DragEvent) => {
+    if (!dragged) return;
+    ev.preventDefault();
+    const target = ev.target as HTMLElement | null;
+    if (!target || dragged === target || dragged.contains(target)) return;
+    target.removeAttribute('data-html-editor-drop-target');
+    const parent = target.parentElement;
+    if (parent) {
+      parent.insertBefore(dragged, target);
+    }
+  };
+
+  const handleDragEnd = (ev: DragEvent) => {
+    const target = ev.target as HTMLElement | null;
+    dragged = null;
+    target?.removeAttribute('data-html-editor-dragging');
+    container.querySelectorAll('[data-html-editor-drop-target]').forEach((el) => {
+      el.removeAttribute('data-html-editor-drop-target');
+    });
+  };
+
+  const handleAltClickDelete = (ev: MouseEvent) => {
+    const target = ev.target as HTMLElement | null;
+    if (!target || target.tagName.toLowerCase() !== 'div') return;
+    if (ev.altKey) {
+      ev.preventDefault();
+      const confirmed = confirm('Delete this section?');
+      if (confirmed) {
+        target.remove();
+      }
+    }
+  };
+
+  container.addEventListener('dragstart', handleDragStart);
+  container.addEventListener('dragover', handleDragOver);
+  container.addEventListener('dragleave', handleDragLeave);
+  container.addEventListener('drop', handleDrop);
+  container.addEventListener('dragend', handleDragEnd);
+  container.addEventListener('click', handleAltClickDelete);
+
+  const destroy = () => {
+    container.removeEventListener('dragstart', handleDragStart);
+    container.removeEventListener('dragover', handleDragOver);
+    container.removeEventListener('dragleave', handleDragLeave);
+    container.removeEventListener('drop', handleDrop);
+    container.removeEventListener('dragend', handleDragEnd);
+    container.removeEventListener('click', handleAltClickDelete);
+    addedAttributes.forEach(({ node, key }) => {
+      node.removeAttribute(key);
+    });
+    container.querySelectorAll('[data-html-editor-dragging]').forEach((el) =>
+      el.removeAttribute('data-html-editor-dragging')
+    );
+    container.querySelectorAll('[data-html-editor-drop-target]').forEach((el) =>
+      el.removeAttribute('data-html-editor-drop-target')
+    );
+  };
+
+  return { destroy };
+}
+
+/**
+ * Convert external HTML to registration template format
+ * This is a wrapper around processExternalHtml for backwards compatibility
+ */
+export function convertHtmlToRegistrationTemplate(html: string): string {
+  return processExternalHtml(html, {
+    removeExistingPopups: true,
+    convertOnClickHandlers: true,
+    autoDetectTriggers: true,
+    preserveScripts: true,
+  });
+}
