@@ -2133,54 +2133,6 @@ export default function WebinarLiveClient({
                     </div>
                   )}
                   
-                  {/* Audio Troubleshooting Banner - Prominent help for audio issues */}
-                  {broadcastStarted && !videoLoading && showUnmuteHint && (
-                    <div 
-                      className={styles.audioTroubleshootBanner}
-                      onClick={() => {
-                        toggleMute();
-                        setShowUnmuteHint(false);
-                      }}
-                    >
-                      <div className={styles.audioTroubleshootContent}>
-                        <div className={styles.audioTroubleshootIcon}>
-                          <i className="fas fa-volume-xmark" style={{ fontSize: '32px', color: '#ef4444' }} />
-                        </div>
-                        <div className={styles.audioTroubleshootText}>
-                          <h3 className={styles.audioTroubleshootTitle}>
-                            Can't Hear Audio? 🔇
-                          </h3>
-                          <p className={styles.audioTroubleshootSubtitle}>
-                            Tap here to unmute • Check your device volume • Try headphones
-                          </p>
-                        </div>
-                        <button 
-                          className={styles.audioTroubleshootButton} 
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleMute();
-                            setShowUnmuteHint(false);
-                          }}
-                        >
-                          <i className="fas fa-volume-high" style={{ marginRight: '8px' }} />
-                          Unmute Now
-                        </button>
-                      </div>
-                      <button
-                        type="button"
-                        className={styles.audioTroubleshootClose}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowUnmuteHint(false);
-                        }}
-                        aria-label="Close audio help"
-                      >
-                        <i className="fas fa-times" />
-                      </button>
-                    </div>
-                  )}
-                  
                   {/* Replay Prompt Screen - shows when live webinar ends */}
                   {showReplayPrompt && webinarEnded && (
                     <div className={styles.replayPromptOverlay}>
