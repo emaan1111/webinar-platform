@@ -689,6 +689,21 @@ export default function WebinarLiveClient({
     }
   }, [viewer?.id, webinar.id]);
 
+  // Show audio troubleshooting banner automatically after video starts (if muted)
+  useEffect(() => {
+    if (!broadcastStarted || !playerReady) return;
+    
+    // Wait 3 seconds after video starts, then show banner if still muted
+    const timer = setTimeout(() => {
+      if (isMuted) {
+        setShowUnmuteHint(true);
+        console.log('🔇 Showing audio troubleshooting banner (video is muted)');
+      }
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, [broadcastStarted, playerReady, isMuted]);
+
   // Auto-fullscreen on mobile landscape orientation
   useEffect(() => {
     if (!isMobile || !broadcastStarted) return;
@@ -2126,6 +2141,55 @@ export default function WebinarLiveClient({
                           This may take a moment on mobile
                         </p>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* Audio Troubleshooting Banner - Prominent help for audio issues */}
+                  {broadcastStarted && !videoLoading && showUnmuteHint && (
+                    <div 
+                      className={styles.audioTroubleshootBanner}
+                      onClick={async () => {
+                        // Unmute the video
+                        if (vimeoPlayerRef.current) {
+                          try {
+                            await vimeoPlayerRef.current.setMuted(false);
+                            setIsMuted(false);
+                            setShowUnmuteHint(false);
+                            console.log('🔊 Audio unmuted via banner');
+                          } catch (err) {
+                            console.error('Error unmuting:', err);
+                          }
+                        }
+                      }}
+                    >
+                      <div className={styles.audioTroubleshootContent}>
+                        <div className={styles.audioTroubleshootIcon}>
+                          <i className="fas fa-volume-xmark" style={{ fontSize: '32px', color: '#ef4444' }} />
+                        </div>
+                        <div className={styles.audioTroubleshootText}>
+                          <h3 className={styles.audioTroubleshootTitle}>
+                            Can't Hear Audio? 🔇
+                          </h3>
+                          <p className={styles.audioTroubleshootSubtitle}>
+                            Tap here to unmute • Check your device volume • Try headphones
+                          </p>
+                        </div>
+                        <button className={styles.audioTroubleshootButton} type="button">
+                          <i className="fas fa-volume-high" style={{ marginRight: '8px' }} />
+                          Unmute Now
+                        </button>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.audioTroubleshootClose}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowUnmuteHint(false);
+                        }}
+                        aria-label="Close audio help"
+                      >
+                        <i className="fas fa-times" />
+                      </button>
                     </div>
                   )}
                   
