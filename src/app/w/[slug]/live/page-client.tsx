@@ -1017,31 +1017,6 @@ export default function WebinarLiveClient({
     }
   }, [elapsedSeconds, totalDuration, broadcastStarted]);
 
-  // Periodic mute state sync for mobile (prevent browser auto-mute)
-  useEffect(() => {
-    if (!isMobile || !vimeoPlayerRef.current || !broadcastStarted) return;
-    
-    const syncInterval = setInterval(async () => {
-      if (!vimeoPlayerRef.current) return;
-      
-      try {
-        const actualMuted = await vimeoPlayerRef.current.getMuted();
-        
-        // If mismatch detected, restore our desired state
-        if (actualMuted !== isMuted) {
-          console.log(`🔄 Mute state mismatch detected: actual=${actualMuted}, desired=${isMuted}`);
-          await vimeoPlayerRef.current.setMuted(isMuted);
-          await vimeoPlayerRef.current.setVolume(isMuted ? 0 : 1);
-          console.log(`✅ Mute state synced to: ${isMuted}`);
-        }
-      } catch (err) {
-        // Silently fail - player might not be ready
-      }
-    }, 2000); // Check every 2 seconds
-    
-    return () => clearInterval(syncInterval);
-  }, [isMuted, isMobile, broadcastStarted]);
-
   useEffect(() => {
     if (webinar.hasChat === false) {
       return;
