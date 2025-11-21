@@ -147,12 +147,13 @@ export async function PATCH(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { webinarId, message, registrationId } = body
+    const { webinarId, message, videoTimestamp, registrationId } = body
 
     // Debug logging
     console.log('💬 [API] Received chat message:', {
       webinarId,
       message: message?.substring(0, 50),
+      videoTimestamp,
       registrationId,
       hasRegistrationId: !!registrationId
     });
@@ -235,6 +236,7 @@ export async function POST(request: Request) {
         registrationId: regId,
         userName,
         message,
+        videoTimestamp: videoTimestamp ? Math.floor(videoTimestamp) : null, // Save video timestamp
         isHidden: false, // Visible in current session
         isApproved: false // Needs approval to show in future sessions
       },

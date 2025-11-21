@@ -1357,6 +1357,7 @@ export default function WebinarLiveClient({
       const payload = {
         webinarId: webinar.id,
         message: text,
+        videoTimestamp: elapsedSeconds, // Include video timestamp
         registrationId: viewer?.id, // Pass registrationId for registered attendees
       };
       
