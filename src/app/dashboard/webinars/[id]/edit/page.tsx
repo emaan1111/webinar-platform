@@ -28,7 +28,8 @@ import {
   ThumbsUp,
   Plus,
   Trash2,
-  Loader2
+  Loader2,
+  Info
 } from 'lucide-react'
 
 export default function EditWebinarPage() {
@@ -1647,6 +1648,187 @@ export default function EditWebinarPage() {
                     <li>Webinar ends at 7:00 PM but tags were already applied as each user left</li>
                   </ul>
                 </div>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Post-Session SMS Automation */}
+          <Card>
+            <CardHeader>
+              <h2 className="text-xl font-semibold">📱 Post-Session SMS Automation</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Automatically send SMS messages to attendees after their individual webinar session ends
+              </p>
+            </CardHeader>
+            <CardBody>
+              <div className="space-y-4">
+                {/* Explanation */}
+                <div className="p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                  <h3 className="text-sm font-semibold text-purple-900 mb-2">How Post-Session SMS Works:</h3>
+                  <ul className="text-xs text-purple-800 space-y-1.5 list-disc list-inside">
+                    <li><strong>Individual timing</strong> - SMS sent based on each attendee's session (start time + duration + delay)</li>
+                    <li><strong>Watch criteria</strong> - Only sends to attendees who meet minimum watch requirements</li>
+                    <li><strong>Automatic</strong> - Runs via cron job every 15 minutes, no manual intervention needed</li>
+                    <li><strong>Personalized</strong> - Supports placeholders like {'{name}'} and {'{webinar_title}'}</li>
+                  </ul>
+                </div>
+
+                {/* Enable Toggle */}
+                <label className="flex items-start gap-3 p-3 rounded-lg hover:bg-gray-50 cursor-pointer border-2 border-gray-200">
+                  <input
+                    type="checkbox"
+                    name="autoSendPostSessionSMS"
+                    checked={formData.autoSendPostSessionSMS}
+                    onChange={handleInputChange}
+                    className="w-5 h-5 mt-0.5 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+                  />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-900">Enable Automatic Post-Session SMS</p>
+                    <p className="text-xs text-gray-600 mt-1">
+                      When enabled, SMS will be sent automatically after each attendee's session ends (based on their scheduled start time + webinar duration).
+                    </p>
+                  </div>
+                </label>
+
+                {/* SMS Configuration (only show if enabled) */}
+                {formData.autoSendPostSessionSMS && (
+                  <div className="ml-8 space-y-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
+                    {/* Delay After Session */}
+                    <div>
+                      <label htmlFor="postSessionSMSMinutesAfter" className="block text-sm font-medium text-gray-700 mb-2">
+                        Send SMS After Session Ends
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          id="postSessionSMSMinutesAfter"
+                          name="postSessionSMSMinutesAfter"
+                          value={formData.postSessionSMSMinutesAfter || 0}
+                          onChange={handleInputChange}
+                          min={0}
+                          max={1440}
+                          className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                        />
+                        <span className="text-sm text-gray-700">minutes after session ends</span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-600">
+                        Set to 0 to send immediately when session ends, or add a delay (e.g., 5 minutes after).
+                      </p>
+                    </div>
+
+                    {/* Watch Criteria - Minimum Minutes */}
+                    <div>
+                      <label htmlFor="postSessionSMSMinWatchedMinutes" className="block text-sm font-medium text-gray-700 mb-2">
+                        Minimum Minutes Watched (Optional)
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          id="postSessionSMSMinWatchedMinutes"
+                          name="postSessionSMSMinWatchedMinutes"
+                          value={formData.postSessionSMSMinWatchedMinutes || ''}
+                          onChange={handleInputChange}
+                          min={1}
+                          max={3600}
+                          className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="None"
+                        />
+                        <span className="text-sm text-gray-700">minutes</span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-600">
+                        Only send SMS to attendees who watched at least this many minutes. Leave empty for no minimum.
+                      </p>
+                    </div>
+
+                    {/* Watch Criteria - Minimum Percentage */}
+                    <div>
+                      <label htmlFor="postSessionSMSMinWatchedPercentage" className="block text-sm font-medium text-gray-700 mb-2">
+                        Minimum Percentage Watched (Optional)
+                      </label>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="number"
+                          id="postSessionSMSMinWatchedPercentage"
+                          name="postSessionSMSMinWatchedPercentage"
+                          value={formData.postSessionSMSMinWatchedPercentage || ''}
+                          onChange={handleInputChange}
+                          min={1}
+                          max={100}
+                          className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                          placeholder="None"
+                        />
+                        <span className="text-sm text-gray-700">%</span>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-600">
+                        Only send SMS to attendees who watched at least this percentage of the webinar. Leave empty for no minimum.
+                      </p>
+                    </div>
+
+                    {/* SMS Message Body */}
+                    <div>
+                      <label htmlFor="postSessionSMSBody" className="block text-sm font-medium text-gray-700 mb-2">
+                        SMS Message <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        id="postSessionSMSBody"
+                        name="postSessionSMSBody"
+                        value={formData.postSessionSMSBody}
+                        onChange={handleInputChange}
+                        rows={4}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent font-mono text-sm"
+                        placeholder="Hi {name}, thanks for attending {webinar_title}! Here's your special offer: https://example.com/offer"
+                      />
+                      <div className="mt-2 flex items-start gap-2">
+                        <Info className="w-4 h-4 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <div className="text-xs text-gray-600">
+                          <p className="font-medium text-purple-700 mb-1">Available placeholders:</p>
+                          <ul className="list-disc list-inside space-y-0.5 ml-2">
+                            <li><code className="bg-purple-100 px-1 rounded">{'{name}'}</code> - Attendee's name</li>
+                            <li><code className="bg-purple-100 px-1 rounded">{'{webinar_title}'}</code> - Webinar title</li>
+                          </ul>
+                        </div>
+                      </div>
+                      <p className="mt-2 text-xs text-gray-500">
+                        Character count: {formData.postSessionSMSBody.length} (SMS limit: 160 characters per message)
+                      </p>
+                    </div>
+
+                    {/* Example */}
+                    <div className="p-4 border-2 border-purple-300 rounded-lg bg-white">
+                      <h4 className="text-sm font-semibold text-gray-900 mb-2">📱 Example Scenario:</h4>
+                      <div className="text-xs text-gray-700 space-y-2">
+                        <p><strong>Webinar Duration:</strong> {formData.duration} minutes</p>
+                        <p><strong>Delay After Session:</strong> {formData.postSessionSMSMinutesAfter} minutes</p>
+                        <p><strong>Watch Requirements:</strong> {
+                          !formData.postSessionSMSMinWatchedMinutes && !formData.postSessionSMSMinWatchedPercentage
+                            ? 'None (anyone who attended qualifies)'
+                            : [
+                                formData.postSessionSMSMinWatchedMinutes && `At least ${formData.postSessionSMSMinWatchedMinutes} min`,
+                                formData.postSessionSMSMinWatchedPercentage && `At least ${formData.postSessionSMSMinWatchedPercentage}%`
+                              ].filter(Boolean).join(' AND ')
+                        }</p>
+                        <div className="mt-3 p-3 bg-purple-50 rounded border border-purple-200">
+                          <p className="font-medium text-purple-900 mb-1">Timeline Example:</p>
+                          <ul className="space-y-1">
+                            <li>• Alice registers for 3:00 PM session</li>
+                            <li>• Session starts at 3:00 PM, ends at {new Date(new Date().setHours(15, formData.duration, 0)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</li>
+                            <li>• SMS sent at {new Date(new Date().setHours(15, formData.duration + formData.postSessionSMSMinutesAfter, 0)).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })} (if Alice meets watch criteria)</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Warning if SMS enabled but no message */}
+                {formData.autoSendPostSessionSMS && !formData.postSessionSMSBody.trim() && (
+                  <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-800 flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5" />
+                      <strong>Warning:</strong> SMS message is required when automation is enabled. Please add your SMS message above.
+                    </p>
+                  </div>
+                )}
               </div>
             </CardBody>
           </Card>
