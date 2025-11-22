@@ -693,6 +693,84 @@ export default function WebinarLiveClient({
     };
   }, [webinar.id, viewer?.id, viewer?.name, viewer?.email, broadcastStarted]);
 
+  // Track session end and schedule post-webinar reminders
+  const watchTimeRef = useRef(0);
+  const lastPositionRef = useRef(0);
+  
+  useEffect(() => {
+    if (typeof window === 'undefined' || !viewer?.id) return;
+
+    // Track watch time
+    const intervalId = setInterval(() => {
+      // If video is playing, increment watch time
+      if (broadcastStarted) {
+        watchTimeRef.current += 10;
+      }
+    }, 10000);
+
+    const schedulePostReminders = async () => {
+      const watchedSeconds = watchTimeRef.current;
+      
+      if (watchedSeconds < 30) {
+        console.log('[Session End] Watch time too short, not scheduling reminders:', watchedSeconds);
+        return; // Don't schedule if watched less than 30 seconds
+      }
+
+      console.log('[Session End] Scheduling post-webinar reminders...', {
+        watchedSeconds,
+        registrationId: viewer.id
+      });
+
+      try {
+        const response = await fetch('/api/tracking/schedule-post-reminders', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            registrationId: viewer.id,
+            watchedSeconds,
+            videoPosition: lastPositionRef.current
+          }),
+        });
+        
+        if (response.ok) {
+          console.log('[Session End] Post-webinar reminders scheduled successfully');
+        }
+      } catch (error) {
+        console.error('[Session End] Failed to schedule post-webinar reminders:', error);
+      }
+    };
+
+    const handleBeforeUnload = () => {
+      // Use navigator.sendBeacon for more reliable delivery on page unload
+      if (watchTimeRef.current >= 30) {
+        const data = JSON.stringify({
+          registrationId: viewer.id,
+          watchedSeconds: watchTimeRef.current,
+          videoPosition: lastPositionRef.current
+        });
+        
+        navigator.sendBeacon('/api/tracking/schedule-post-reminders', data);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        schedulePostReminders();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(intervalId);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      // Schedule reminders on component unmount as well
+      schedulePostReminders();
+    };
+  }, [viewer?.id, webinar.id, broadcastStarted]);
+
   const spawnReaction = useCallback(
     (type: ReactionType, origin?: { x: number; y: number }, userName?: string) => {
       // Desktop: Create flying animation over video

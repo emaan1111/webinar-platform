@@ -105,6 +105,32 @@ export class WebinarTracker {
           }),
         });
         console.log('[Tracking] Session ended');
+
+        // Schedule post-webinar reminders if user watched enough
+        // Note: We don't have video duration here, so we'll pass watchedMinutes
+        // and let the API calculate percentage based on actual webinar duration
+        if (this.watchTime > 0) {
+          const watchedMinutes = this.watchTime / 60;
+          console.log('[Tracking] Scheduling post-webinar reminders...', {
+            watchedMinutes: Math.round(watchedMinutes),
+            watchedSeconds: Math.round(this.watchTime)
+          });
+
+          try {
+            await fetch('/api/tracking/schedule-post-reminders', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                registrationId: this.registrationId,
+                watchedSeconds: this.watchTime,
+                videoPosition: this.currentPosition
+              }),
+            });
+            console.log('[Tracking] Post-webinar reminders scheduled');
+          } catch (error) {
+            console.error('[Tracking] Failed to schedule post-webinar reminders:', error);
+          }
+        }
       } catch (error) {
         console.error('[Tracking] Failed to end session:', error);
       }

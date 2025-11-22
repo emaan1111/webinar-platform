@@ -237,6 +237,110 @@ export async function scheduleRemindersForRegistration(
 }
 
 /**
+ * Schedule post-webinar reminders for a registration after their viewing session ends
+ * This is called when the user finishes watching, leaves the webinar, or session times out
+ */
+export async function schedulePostWebinarRemindersForSession(
+  registrationId: string,
+  watchedMinutes: number,
+  watchedPercentage: number
+): Promise<void> {
+  try {
+    console.log('📅 Scheduling post-webinar reminders for session:', {
+      registrationId,
+      watchedMinutes: Math.round(watchedMinutes),
+      watchedPercentage: Math.round(watchedPercentage)
+    })
+
+    // Get registration details with post-webinar reminder templates
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        webinar: {
+          include: {
+            reminderTemplates: {
+              where: { 
+                isActive: true,
+                type: 'post_webinar'
+              }
+            }
+          }
+        }
+      }
+    })
+
+    if (!registration) {
+      console.log('⚠️ Registration not found')
+      return
+    }
+
+    if (registration.webinar.reminderTemplates.length === 0) {
+      console.log('ℹ️ No active post-webinar reminder templates found')
+      return
+    }
+
+    const now = new Date()
+    const remindersToCreate: any[] = []
+
+    for (const template of registration.webinar.reminderTemplates) {
+      // Check if user watched enough to qualify for this reminder
+      const meetsMinutesRequirement = !template.minWatchedMinutes || watchedMinutes >= template.minWatchedMinutes
+      const meetsPercentageRequirement = !template.minWatchedPercentage || watchedPercentage >= template.minWatchedPercentage
+
+      if (!meetsMinutesRequirement) {
+        console.log(`  ⏭️ Skipped: User watched ${Math.round(watchedMinutes)} min, need ${template.minWatchedMinutes} min`)
+        continue
+      }
+
+      if (!meetsPercentageRequirement) {
+        console.log(`  ⏭️ Skipped: User watched ${Math.round(watchedPercentage)}%, need ${template.minWatchedPercentage}%`)
+        continue
+      }
+
+      // Calculate when to send (X minutes after session end)
+      const minutesAfter = template.minutesAfter || 0
+      const scheduledFor = new Date(now.getTime() + minutesAfter * 60 * 1000)
+
+      // Check if this reminder was already scheduled (avoid duplicates)
+      const existingReminder = await prisma.webinarReminderSent.findFirst({
+        where: {
+          templateId: template.id,
+          registrationId: registration.id
+        }
+      })
+
+      if (existingReminder) {
+        console.log(`  ⏭️ Skipped: Reminder already scheduled for template ${template.id}`)
+        continue
+      }
+
+      remindersToCreate.push({
+        templateId: template.id,
+        registrationId: registration.id,
+        scheduledFor,
+        status: 'PENDING',
+        channel: template.channel
+      })
+
+      console.log(`  ⏰ Scheduled post-webinar reminder: ${minutesAfter} minutes after session end (${scheduledFor.toISOString()})`)
+    }
+
+    if (remindersToCreate.length > 0) {
+      await prisma.webinarReminderSent.createMany({
+        data: remindersToCreate
+      })
+
+      console.log(`✅ Scheduled ${remindersToCreate.length} post-webinar reminders`)
+    } else {
+      console.log('ℹ️ No post-webinar reminders to schedule (already scheduled or requirements not met)')
+    }
+  } catch (error) {
+    console.error('❌ Failed to schedule post-webinar reminders:', error)
+    // Don't throw - we don't want to break the session end flow
+  }
+}
+
+/**
  * Replace placeholders in email template
  */
 function replacePlaceholders(
