@@ -48,6 +48,11 @@ export async function POST(request: NextRequest) {
       where: { webinarId }
     })
 
+    // Delete all offer analytics (saw offer, clicked offer)
+    await prisma.offerAnalytics.deleteMany({
+      where: { webinarId }
+    })
+
     // Delete chat messages (optional - you might want to keep these)
     // await prisma.chatMessage.deleteMany({
     //   where: { webinarId }
