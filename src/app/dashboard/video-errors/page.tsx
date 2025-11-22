@@ -4,14 +4,17 @@ import { useEffect, useState } from 'react';
 
 interface VideoError {
   id: string;
-  webinar_id: string;
-  registration_id: string | null;
-  error_type: string;
-  error_message: string;
-  error_stack: string | null;
-  user_agent: string;
-  device_info: string;
-  created_at: string;
+  webinarId: string;
+  registrationId: string | null;
+  errorType: string;
+  errorMessage: string;
+  errorStack: string | null;
+  userAgent: string;
+  deviceInfo: string;
+  createdAt: string;
+  timestamp: string;
+  viewer_name: string | null;
+  viewer_email: string | null;
 }
 
 export default function VideoErrorsPage() {
@@ -39,10 +42,10 @@ export default function VideoErrorsPage() {
 
   const filteredErrors = errors.filter((error) => {
     if (filter === 'all') return true;
-    return error.error_type === filter;
+    return error.errorType === filter;
   });
 
-  const errorTypes = [...new Set(errors.map((e) => e.error_type))];
+  const errorTypes = [...new Set(errors.map((e) => e.errorType))];
 
   const getDeviceInfo = (deviceInfoStr: string) => {
     try {
@@ -97,7 +100,7 @@ export default function VideoErrorsPage() {
                 : 'bg-gray-200 text-gray-700'
             }`}
           >
-            {type} ({errors.filter((e) => e.error_type === type).length})
+            {type} ({errors.filter((e) => e.errorType === type).length})
           </button>
         ))}
       </div>
@@ -114,7 +117,7 @@ export default function VideoErrorsPage() {
             {
               errors.filter((e) => {
                 try {
-                  return JSON.parse(e.device_info).isMobile;
+                  return JSON.parse(e.deviceInfo).isMobile;
                 } catch {
                   return false;
                 }
@@ -128,7 +131,7 @@ export default function VideoErrorsPage() {
             {
               errors.filter((e) => {
                 try {
-                  return !JSON.parse(e.device_info).isMobile;
+                  return !JSON.parse(e.deviceInfo).isMobile;
                 } catch {
                   return false;
                 }
@@ -157,6 +160,9 @@ export default function VideoErrorsPage() {
                     Time
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                    Viewer
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                     Type
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">
@@ -169,15 +175,25 @@ export default function VideoErrorsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredErrors.map((error) => {
-                  const deviceInfo = getDeviceInfo(error.device_info);
+                  const deviceInfo = getDeviceInfo(error.deviceInfo);
                   return (
                     <tr key={error.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        {new Date(error.created_at).toLocaleString()}
+                        {new Date(error.createdAt).toLocaleString()}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {error.viewer_name ? (
+                          <div>
+                            <div className="font-medium text-gray-900">{error.viewer_name}</div>
+                            <div className="text-xs text-gray-500">{error.viewer_email}</div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">Anonymous</span>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                          {error.error_type}
+                          {error.errorType}
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm">
@@ -187,19 +203,19 @@ export default function VideoErrorsPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
-                        <div className="font-medium">{error.error_message}</div>
-                        {error.error_stack && (
+                        <div className="font-medium">{error.errorMessage}</div>
+                        {error.errorStack && (
                           <details className="mt-1">
                             <summary className="text-xs text-gray-500 cursor-pointer">
                               Stack trace
                             </summary>
                             <pre className="mt-2 text-xs bg-gray-50 p-2 rounded overflow-x-auto">
-                              {error.error_stack}
+                              {error.errorStack}
                             </pre>
                           </details>
                         )}
                         <div className="mt-1 text-xs text-gray-500 truncate">
-                          {error.user_agent}
+                          {error.userAgent}
                         </div>
                       </td>
                     </tr>
