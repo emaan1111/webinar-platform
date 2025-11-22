@@ -100,9 +100,16 @@ interface OfferContent {
   ctaUrl: string;
 }
 
+interface FAQ {
+  id: string;
+  question: string;
+  answer: string;
+}
+
 interface WebinarLiveClientProps {
   webinar: WebinarData;
   offers: LiveOffer[];
+  faqs: FAQ[];
   chatMessages: ChatMessage[];
   reactionEvents: ReactionEvent[];
   viewer: ViewerInfo | null;
@@ -112,26 +119,31 @@ interface WebinarLiveClientProps {
 
 const defaultFaqs = [
   {
+    id: 'default-1',
     question: 'What is included in the Motherhood Balance Program?',
     answer:
       "The program includes 8 weeks of comprehensive content covering Islamic parenting principles, self-care strategies, time management techniques, and access to our supportive community of Muslim mothers. You'll also receive downloadable resources and lifetime access to all materials.",
   },
   {
+    id: 'default-2',
     question: 'Is this program suitable for new mothers?',
     answer:
       'Yes, absolutely! The program is designed for mothers at all stages, including new mothers. We provide specific guidance for different phases of motherhood and help you establish healthy routines from the beginning.',
   },
   {
+    id: 'default-3',
     question: 'How much time do I need to commit each week?',
     answer:
       'We recommend 2-3 hours per week for the best results. The content is self-paced, so you can adjust according to your schedule. Many mothers complete the program while managing their regular responsibilities.',
   },
   {
+    id: 'default-4',
     question: 'Can I access the content on my mobile device?',
     answer:
       'Yes, the program is fully mobile-responsive. You can access all content, including videos, worksheets, and community discussions, from your smartphone or tablet.',
   },
   {
+    id: 'default-5',
     question: 'Is there a payment plan available?',
     answer:
       'Yes, we offer flexible payment plans to make the program accessible to all mothers. You can choose to pay in full for a discount or spread payments over 3 months.',
@@ -413,6 +425,7 @@ function buildOfferContent(offer: LiveOffer | null): OfferContent | null {
 export default function WebinarLiveClient({
   webinar,
   offers,
+  faqs,
   chatMessages,
   reactionEvents,
   viewer,
@@ -3060,11 +3073,11 @@ export default function WebinarLiveClient({
                   activeTab === 'faq' ? styles.chatTabContentActive : ''
                 }`}
               >
-                {defaultFaqs.map((faq, index) => {
+                {(faqs.length > 0 ? faqs : defaultFaqs).map((faq, index) => {
                   const isOpen = openFaqs.has(index);
                   return (
                     <div
-                      key={faq.question}
+                      key={faq.id || faq.question}
                       className={`${styles.faqItem} ${
                         isOpen ? styles.faqItemActive : ''
                       }`}

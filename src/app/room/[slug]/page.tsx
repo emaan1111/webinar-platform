@@ -179,6 +179,9 @@ export default async function WebinarRoomPage({
         where: { isActive: true },
         orderBy: { videoTimestamp: 'asc' },
       },
+      faqs: {
+        orderBy: { sortOrder: 'asc' },
+      },
       chatMessages: {
         where: {
           isHidden: false,
@@ -446,6 +449,15 @@ export default async function WebinarRoomPage({
     console.log(`🎉 [Room] Last reaction: ${reactions[reactions.length - 1].type} at ${reactions[reactions.length - 1].videoTimestamp}s`);
   }
 
+  // Load FAQs from database
+  const faqs = webinar.faqs.map((faq) => ({
+    id: faq.id,
+    question: faq.question,
+    answer: faq.answer,
+  }));
+
+  console.log(`❓ [Room] Loaded ${faqs.length} FAQs for webinar ${webinar.id}`);
+
   return (
     <WebinarLiveClient
       webinar={{
@@ -463,6 +475,7 @@ export default async function WebinarRoomPage({
         replayExpiresAt: calculatedReplayExpiresAt,
       }}
       offers={offers}
+      faqs={faqs}
       chatMessages={chatMessages}
       reactionEvents={reactions}
       viewer={
