@@ -1822,10 +1822,28 @@ export default function WebinarLiveClient({
     
     // Detect mobile early for better timeouts
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    console.log(`📱 Mobile device detected: ${isMobileDevice}`);
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    
+    console.log(`📱 Device detection:`, {
+      isMobile: isMobileDevice,
+      isSafari,
+      isSafariIOS,
+      userAgent: navigator.userAgent,
+    });
+    
+    // Safari iOS requires special handling - log immediately for debugging
+    if (isSafariIOS) {
+      console.log('🍎 Safari iOS detected - applying special error handling');
+      logVideoError(webinar.id, viewer?.id, 'safari_ios_init_attempt', 'Safari iOS video initialization started', undefined, {
+        name: viewer?.name,
+        email: viewer?.email,
+      });
+    }
     
     // MOBILE FIX: Longer timeout for mobile (60s vs 20s) and fewer, slower retries
-    const timeoutDuration = isMobileDevice ? 60000 : 20000;
+    // Safari iOS gets extra time due to strict autoplay policies
+    const timeoutDuration = isSafariIOS ? 90000 : (isMobileDevice ? 60000 : 20000);
     const emergencyTimeout = setTimeout(() => {
       const errorMsg = `Emergency timeout after ${timeoutDuration/1000}s - video failed to load`;
       console.log(`⚠️ ${errorMsg}`);
@@ -1916,7 +1934,40 @@ export default function WebinarLiveClient({
         player.ready()
           .then(async () => {
             console.log('✅ Player ready');
+            
+            // Safari iOS: Log successful player ready
+            if (isSafariIOS) {
+              console.log('🍎 Safari iOS: Player ready() resolved successfully');
+              logVideoError(webinar.id, viewer?.id, 'safari_ios_player_ready', 'Safari iOS: Player ready() resolved successfully', undefined, {
+                name: viewer?.name,
+                email: viewer?.email,
+              });
+            }
+            
             setPlayerReady(true); // Mark player as ready for save effect
+            
+            // Add loaded event listener to track video metadata loading
+            player.on('loaded', () => {
+              console.log('� Video metadata loaded');
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Video loaded event fired');
+              }
+            });
+            
+            // Add bufferstart/bufferend for Safari debugging
+            player.on('bufferstart', () => {
+              console.log('⏳ Video buffering started');
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Buffering started');
+              }
+            });
+            
+            player.on('bufferend', () => {
+              console.log('✅ Video buffering ended');
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Buffering ended');
+              }
+            });
             
             // Add event listener for video end
             player.on('ended', () => {
@@ -1946,29 +1997,86 @@ export default function WebinarLiveClient({
             // This ensures the browser knows this is a muted autoplay attempt
             try {
               console.log('🔇 Setting muted=true for autoplay compliance...');
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Attempting to mute video');
+              }
               await player.setMuted(true);
               await player.setVolume(0);
               console.log(`✅ Video muted successfully`);
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Video muted successfully');
+              }
             } catch (e) {
               console.error('⚠️ CRITICAL: Could not set mute!', e);
+              if (isSafariIOS) {
+                console.error('🍎 Safari iOS: Failed to mute video', e);
+                logVideoError(
+                  webinar.id,
+                  viewer?.id,
+                  'safari_ios_mute_failed',
+                  `Safari iOS failed to mute: ${e instanceof Error ? e.message : String(e)}`,
+                  e instanceof Error ? e.stack : undefined,
+                  {
+                    name: viewer?.name,
+                    email: viewer?.email,
+                  }
+                );
+              }
               // If we can't mute, we definitely can't play
               throw new Error('Failed to mute video - autoplay will fail');
             }
             
             // Set start time AFTER muting
             try {
+              if (isSafariIOS) {
+                console.log(`🍎 Safari iOS: Setting time to ${startTime}s`);
+              }
               await player.setCurrentTime(startTime);
               console.log(`✅ Time set to: ${startTime}s`);
+              if (isSafariIOS) {
+                console.log(`🍎 Safari iOS: Time set successfully to ${startTime}s`);
+              }
             } catch (e) {
-              console.log('⚠️ Could not set time, starting from beginning...');
+              console.log('⚠️ Could not set time, starting from beginning...', e);
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Could not set time', e);
+                logVideoError(
+                  webinar.id,
+                  viewer?.id,
+                  'safari_ios_seek_failed',
+                  `Safari iOS failed to seek: ${e instanceof Error ? e.message : String(e)}`,
+                  e instanceof Error ? e.stack : undefined,
+                  {
+                    name: viewer?.name,
+                    email: viewer?.email,
+                  }
+                );
+              }
             }
             
             // Now try to play - this is the critical part
             // The video is muted, so this should work even on mobile
             try {
               console.log('🎮 Attempting to play video (muted)...');
-              await player.play();
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Calling player.play()...');
+                logVideoError(webinar.id, viewer?.id, 'safari_ios_play_attempt', 'Safari iOS: About to call player.play()', undefined, {
+                  name: viewer?.name,
+                  email: viewer?.email,
+                });
+              }
+              
+              const playPromise = player.play();
+              await playPromise;
+              
               console.log('🎉 Video playing successfully!');
+              if (isSafariIOS) {
+                console.log('🍎 Safari iOS: Video playing successfully!');
+                logVideoError(webinar.id, viewer?.id, 'safari_ios_play_success', 'Safari iOS: Video play() succeeded', undefined, {
+                  name: viewer?.name,
+                  email: viewer?.email,
+                });
+              }
               setIsMuted(true);
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
@@ -1991,13 +2099,26 @@ export default function WebinarLiveClient({
               console.error('📱 Device info:', {
                 userAgent: navigator.userAgent,
                 isMobile: isMobileDevice,
+                isSafari,
+                isSafariIOS,
                 screen: `${window.screen.width}x${window.screen.height}`,
                 window: `${window.innerWidth}x${window.innerHeight}`,
+                documentHidden: document.hidden,
+                documentVisibility: document.visibilityState,
               });
+              
+              if (isSafariIOS) {
+                console.error('🍎 Safari iOS: Play failed with error:', playErr);
+                console.error('🍎 Safari iOS: Additional context:', {
+                  lowPowerMode: (navigator as any).getBattery ? 'checking...' : 'unknown',
+                  connection: (navigator as any).connection || 'unknown',
+                });
+              }
+              
               logVideoError(
                 webinar.id, 
                 viewer?.id, 
-                'play_failed', 
+                isSafariIOS ? 'safari_ios_play_failed' : 'play_failed',
                 errorMsg,
                 playErr instanceof Error ? playErr.stack : undefined,
                 {
@@ -2011,10 +2132,17 @@ export default function WebinarLiveClient({
           .catch(async (err: Error) => {
             const errorMsg = `Player initialization failed: ${err.message}`;
             console.error('❌', errorMsg);
+            console.error('❌ Full error:', err);
+            
+            if (isSafariIOS) {
+              console.error('🍎 Safari iOS: Player ready() promise rejected:', err);
+              console.error('🍎 Safari iOS: This typically means autoplay was blocked or iframe failed to load');
+            }
+            
             logVideoError(
               webinar.id, 
               viewer?.id, 
-              'player_init_failed', 
+              isSafariIOS ? 'safari_ios_init_failed' : 'player_init_failed',
               errorMsg,
               err.stack,
               {
