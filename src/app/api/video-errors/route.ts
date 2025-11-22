@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const errors = await prisma.$queryRaw`
       SELECT * FROM video_error_logs
-      ORDER BY created_at DESC
+      ORDER BY "createdAt" DESC
       LIMIT 500
     `;
 
@@ -57,20 +57,25 @@ export async function POST(request: NextRequest) {
     });
 
     // Save to database for analysis
+    // NOTE: Table uses camelCase column names (webinarId, registrationId, etc.)
+    // Generate a unique ID for this error log
+    const errorId = `verr_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    
     await prisma.$executeRaw`
       INSERT INTO video_error_logs (
-        webinar_id,
-        registration_id,
-        error_type,
-        error_message,
-        error_stack,
-        user_agent,
-        device_info,
-        video_url,
+        id,
+        "webinarId",
+        "registrationId",
+        "errorType",
+        "errorMessage",
+        "errorStack",
+        "userAgent",
+        "deviceInfo",
         viewer_name,
         viewer_email,
-        created_at
+        timestamp
       ) VALUES (
+        ${errorId},
         ${webinarId},
         ${registrationId || null},
         ${errorType},
@@ -78,7 +83,6 @@ export async function POST(request: NextRequest) {
         ${errorStack || null},
         ${userAgent},
         ${deviceInfo},
-        ${videoUrl || null},
         ${viewerName || null},
         ${viewerEmail || null},
         NOW()
