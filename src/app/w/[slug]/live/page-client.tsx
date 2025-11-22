@@ -573,6 +573,113 @@ export default function WebinarLiveClient({
     };
   }, []);
 
+  // Global error handler for uncaught errors on mobile/desktop
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleGlobalError = (event: ErrorEvent) => {
+      // Only log errors related to video/media/vimeo
+      const errorMessage = event.message?.toLowerCase() || '';
+      const isVideoRelated = 
+        errorMessage.includes('video') ||
+        errorMessage.includes('vimeo') ||
+        errorMessage.includes('player') ||
+        errorMessage.includes('media') ||
+        errorMessage.includes('iframe') ||
+        event.filename?.includes('vimeo') ||
+        event.filename?.includes('player');
+
+      if (isVideoRelated) {
+        console.error('🚨 Global error (video-related):', {
+          message: event.message,
+          filename: event.filename,
+          lineno: event.lineno,
+          colno: event.colno,
+        });
+
+        logVideoError(
+          webinar.id,
+          viewer?.id,
+          'uncaught_error',
+          `${event.message} (${event.filename}:${event.lineno}:${event.colno})`,
+          event.error?.stack,
+          {
+            name: viewer?.name,
+            email: viewer?.email,
+          }
+        );
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      // Log all unhandled promise rejections as they might be video loading issues
+      const reason = event.reason;
+      const errorMessage = reason?.message || String(reason);
+      
+      console.error('🚨 Unhandled promise rejection:', {
+        reason: errorMessage,
+        promise: event.promise,
+      });
+
+      logVideoError(
+        webinar.id,
+        viewer?.id,
+        'unhandled_rejection',
+        `Promise rejected: ${errorMessage}`,
+        reason?.stack,
+        {
+          name: viewer?.name,
+          email: viewer?.email,
+        }
+      );
+    };
+
+    // Add global error listeners
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [webinar.id, viewer?.id, viewer?.name, viewer?.email]);
+
+  // Monitor network connectivity issues
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleOnline = () => {
+      console.log('🌐 Network connection restored');
+    };
+
+    const handleOffline = () => {
+      console.error('🚨 Network connection lost');
+      
+      // Log network disconnection if video is playing
+      if (broadcastStarted) {
+        logVideoError(
+          webinar.id,
+          viewer?.id,
+          'network_offline',
+          'Network connection lost while video was playing',
+          undefined,
+          {
+            name: viewer?.name,
+            email: viewer?.email,
+          }
+        );
+      }
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [webinar.id, viewer?.id, viewer?.name, viewer?.email, broadcastStarted]);
+
   const spawnReaction = useCallback(
     (type: ReactionType, origin?: { x: number; y: number }, userName?: string) => {
       // Desktop: Create flying animation over video
@@ -2197,6 +2304,20 @@ export default function WebinarLiveClient({
                     style={{ pointerEvents: 'none' }}
                     loading="lazy"
                     suppressHydrationWarning
+                    onError={(e) => {
+                      console.error('🚨 Iframe failed to load:', e);
+                      logVideoError(
+                        webinar.id,
+                        viewer?.id,
+                        'iframe_load_error',
+                        'Vimeo iframe failed to load - possible network issue or blocked content',
+                        undefined,
+                        {
+                          name: viewer?.name,
+                          email: viewer?.email,
+                        }
+                      );
+                    }}
                   />
                   
                   {/* EverWebinar-style "Click to Start Broadcast" Overlay */}
