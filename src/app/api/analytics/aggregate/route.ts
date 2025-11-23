@@ -267,6 +267,7 @@ export async function GET(request: NextRequest) {
     const registrationPageBreakdown: Record<string, { 
       views: number; 
       uniqueVisitors: number; 
+      registrations: number;
       pageId: string | null;
       variantGroup: string | null;
     }> = {};
@@ -277,6 +278,7 @@ export async function GET(request: NextRequest) {
         registrationPageBreakdown[key] = {
           views: 0,
           uniqueVisitors: 0,
+          registrations: 0,
           pageId: visit.pageId,
           variantGroup: visit.variantGroup,
         };
@@ -292,6 +294,47 @@ export async function GET(request: NextRequest) {
       const uniqueVisitors = new Set(pageVisitsFiltered.map((v: any) => v.visitorId)).size;
       registrationPageBreakdown[key].uniqueVisitors = uniqueVisitors;
     }
+
+    // Count registrations per page
+    // Match registrations to pages via visitorId in page visits
+    const registrationWhere: any = { webinarId: { in: webinarIds } };
+    if (dateFilter) {
+      registrationWhere.registeredAt = {
+        gte: dateFilter,
+      };
+    }
+
+    const allRegistrations = await prisma.registration.findMany({
+      where: registrationWhere,
+      include: {
+        pageVisits: {
+          where: {
+            pageType: 'registration'
+          },
+          select: {
+            pageId: true,
+            visitorId: true,
+          }
+        }
+      }
+    });
+
+    // Count registrations per pageId based on their page visits
+    allRegistrations.forEach((reg: any) => {
+      // Find the registration page visit for this registration
+      const regPageVisit = reg.pageVisits.find((v: any) => v.pageType === 'registration' || true);
+      if (regPageVisit) {
+        const key = regPageVisit.pageId || 'default';
+        if (registrationPageBreakdown[key]) {
+          registrationPageBreakdown[key].registrations++;
+        }
+      } else {
+        // If no page visit found, attribute to default
+        if (registrationPageBreakdown['default']) {
+          registrationPageBreakdown['default'].registrations++;
+        }
+      }
+    });
 
     // Fetch page names from RegistrationPage table
     const pageIds = Object.values(registrationPageBreakdown)
@@ -314,6 +357,10 @@ export async function GET(request: NextRequest) {
       variantGroup: data.variantGroup,
       views: data.views,
       uniqueViews: data.uniqueVisitors,
+      registrations: data.registrations,
+      conversionRate: data.uniqueVisitors > 0 
+        ? Math.round((data.registrations / data.uniqueVisitors) * 1000) / 10 
+        : 0,
       avgTimeOnPage: Math.round(
         registrationVisits
           .filter((v: any) => (v.pageId || 'default') === key && v.timeSpent)

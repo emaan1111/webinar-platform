@@ -85,6 +85,8 @@ interface AnalyticsData {
       variantGroup: string | null
       views: number
       uniqueViews: number
+      registrations: number
+      conversionRate: number
       avgTimeOnPage: number
     }>
     embedViews?: {
@@ -215,6 +217,7 @@ export default function AnalyticsPage() {
           variantGroup: string | null
           views: number
           uniqueViews: number
+          registrations: number
           totalTimeOnPage: number
           count: number
         }>()
@@ -296,6 +299,7 @@ export default function AnalyticsPage() {
               if (existing) {
                 existing.views += page.views
                 existing.uniqueViews += page.uniqueViews
+                existing.registrations += page.registrations
                 existing.totalTimeOnPage += page.avgTimeOnPage * page.views
                 existing.count += page.views
               } else {
@@ -305,6 +309,7 @@ export default function AnalyticsPage() {
                   variantGroup: page.variantGroup,
                   views: page.views,
                   uniqueViews: page.uniqueViews,
+                  registrations: page.registrations,
                   totalTimeOnPage: page.avgTimeOnPage * page.views,
                   count: page.views
                 })
@@ -320,6 +325,10 @@ export default function AnalyticsPage() {
           variantGroup: page.variantGroup,
           views: page.views,
           uniqueViews: page.uniqueViews,
+          registrations: page.registrations,
+          conversionRate: page.uniqueViews > 0 
+            ? Math.round((page.registrations / page.uniqueViews) * 1000) / 10 
+            : 0,
           avgTimeOnPage: Math.round(page.count > 0 ? page.totalTimeOnPage / page.count : 0)
         }))
 
@@ -814,6 +823,8 @@ export default function AnalyticsPage() {
                           )}
                           <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Total Views</th>
                           <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Unique Views</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Registrations</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% Registered</th>
                           <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Avg Time (sec)</th>
                         </tr>
                       </thead>
@@ -834,6 +845,16 @@ export default function AnalyticsPage() {
                             )}
                             <td className="py-3 px-4 text-sm text-right text-gray-900 font-medium">{page.views}</td>
                             <td className="py-3 px-4 text-sm text-right text-gray-700">{page.uniqueViews}</td>
+                            <td className="py-3 px-4 text-sm text-right text-gray-900 font-medium">{page.registrations}</td>
+                            <td className="py-3 px-4 text-sm text-right">
+                              <span className={`font-semibold ${
+                                page.conversionRate >= 30 ? 'text-green-600' : 
+                                page.conversionRate >= 15 ? 'text-yellow-600' : 
+                                'text-red-600'
+                              }`}>
+                                {page.conversionRate}%
+                              </span>
+                            </td>
                             <td className="py-3 px-4 text-sm text-right text-gray-700">{page.avgTimeOnPage}s</td>
                           </tr>
                         ))}
