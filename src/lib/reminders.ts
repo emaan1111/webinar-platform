@@ -575,13 +575,17 @@ export async function processPendingReminders(): Promise<{
       stats.processed++
 
       // Check if webinar has already started or passed
+      // BUT: Only skip pre-webinar reminders if time has passed
+      // Post-webinar reminders should be sent AFTER the webinar
       if (!reminder.registration.scheduledStartTime) {
         stats.skipped++
         continue
       }
       
       const webinarStart = new Date(reminder.registration.scheduledStartTime)
-      if (webinarStart <= now) {
+      
+      // Only skip pre-webinar reminders if webinar has already started
+      if (reminder.template?.type === 'pre_webinar' && webinarStart <= now) {
         // Mark as skipped
         await prisma.webinarReminderSent.update({
           where: { id: reminder.id },
