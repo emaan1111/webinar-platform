@@ -457,6 +457,7 @@ export default function WebinarLiveClient({
   const trackerRef = useRef<WebinarTracker | null>(null); // Analytics tracker
   const [isFullscreen, setIsFullscreen] = useState(false); // Track fullscreen state
   const [videoError, setVideoError] = useState(false); // Track if video failed to load
+  const [needsUserGesture, setNeedsUserGesture] = useState(false); // Track if we need fresh user interaction to play
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile compatibility
   const [showUnmuteHint, setShowUnmuteHint] = useState(false); // Show prominent unmute hint
   const [replayTimeRemaining, setReplayTimeRemaining] = useState<string | null>(null); // Countdown display
@@ -2186,6 +2187,10 @@ export default function WebinarLiveClient({
               setTimeout(() => setShowUnmuteHint(true), 2000);
             } catch (playErr) {
               const errorMsg = `Play failed: ${playErr instanceof Error ? playErr.message : String(playErr)}`;
+              const isPermissionError = errorMsg.includes('not allowed') || 
+                                        errorMsg.includes('denied permission') ||
+                                        errorMsg.includes('user gesture');
+              
               console.error('❌', errorMsg);
               console.error('📱 Device info:', {
                 userAgent: navigator.userAgent,
@@ -2196,6 +2201,7 @@ export default function WebinarLiveClient({
                 window: `${window.innerWidth}x${window.innerHeight}`,
                 documentHidden: document.hidden,
                 documentVisibility: document.visibilityState,
+                isPermissionError,
               });
               
               if (isSafariIOS) {
@@ -2217,7 +2223,20 @@ export default function WebinarLiveClient({
                   email: viewer?.email,
                 }
               );
-              throw playErr; // Pass to catch block
+              
+              // If this is a permission/user gesture error, don't fail completely
+              // Instead, show a "Tap to Play" button that will have a fresh user gesture
+              if (isPermissionError) {
+                console.log('🎯 Permission error detected - will show "Tap to Play" button with fresh user gesture');
+                clearTimeout(emergencyTimeout);
+                setVideoLoading(false);
+                setNeedsUserGesture(true); // Show tap to play button
+                setVideoError(false); // Don't show generic error
+                // Keep player instance for manual play
+                return; // Don't throw, handle gracefully
+              }
+              
+              throw playErr; // Pass to catch block for other errors
             }
           })
           .catch(async (err: Error) => {
@@ -2328,6 +2347,75 @@ export default function WebinarLiveClient({
       clearTimeout(emergencyTimeout);
     };
   }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); // Removed elapsedSeconds - we use the ref instead
+
+  // Handler for manual play when user gesture is required
+  const handleManualPlay = async () => {
+    if (!vimeoPlayerRef.current) {
+      console.error('❌ No player instance available for manual play');
+      return;
+    }
+
+    console.log('🎯 Manual play triggered with fresh user gesture');
+    setNeedsUserGesture(false);
+    setVideoLoading(true);
+
+    try {
+      // The player is already muted and at the correct time
+      // Just need to call play() with this fresh user gesture
+      await vimeoPlayerRef.current.play();
+      
+      console.log('🎉 Manual play successful!');
+      setVideoLoading(false);
+      setIsMuted(true);
+      
+      // Start session tracking
+      if (trackerRef.current) {
+        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        const device = isMobileDevice ? 'mobile' : 'desktop';
+        await trackerRef.current.startSession(device);
+        trackerRef.current.setMuteState(true);
+        const startTime = startTimeRef.current;
+        trackerRef.current.trackVideoEvent('play', startTime);
+        console.log(`📊 Session tracking started (${device}, muted)`);
+      }
+      
+      // Show unmute hint
+      setTimeout(() => setShowUnmuteHint(true), 2000);
+      
+      logVideoError(
+        webinar.id,
+        viewer?.id,
+        'manual_play_success',
+        'User successfully played video with manual interaction after permission error',
+        undefined,
+        {
+          name: viewer?.name,
+          email: viewer?.email,
+        }
+      );
+    } catch (err) {
+      const errorMsg = `Manual play failed: ${err instanceof Error ? err.message : String(err)}`;
+      console.error('❌', errorMsg);
+      
+      logVideoError(
+        webinar.id,
+        viewer?.id,
+        'manual_play_failed',
+        errorMsg,
+        err instanceof Error ? err.stack : undefined,
+        {
+          name: viewer?.name,
+          email: viewer?.email,
+        }
+      );
+      
+      // If manual play also fails, show generic error
+      setVideoLoading(false);
+      setVideoError(true);
+      setNeedsUserGesture(false);
+      setBroadcastStarted(false);
+    }
+  };
 
   // Save watch position periodically (for both live and replay modes)
   useEffect(() => {
@@ -2622,6 +2710,30 @@ export default function WebinarLiveClient({
                           This may take a moment on mobile
                         </p>
                       )}
+                    </div>
+                  )}
+                  
+                  {/* User Gesture Required Overlay - Shows when autoplay permission denied */}
+                  {needsUserGesture && !videoLoading && (
+                    <div 
+                      className={styles.broadcastOverlay}
+                      suppressHydrationWarning
+                      onClick={handleManualPlay}
+                    >
+                      <div className={styles.broadcastOverlayContent}>
+                        <div className={styles.broadcastIcon}>
+                          <i className="fas fa-hand-pointer" />
+                        </div>
+                        <h2 className={styles.broadcastTitle}>
+                          Tap to Play Video
+                        </h2>
+                        <p className={styles.broadcastSubtitle}>
+                          Your browser requires a tap to start playback
+                        </p>
+                        <p className={styles.broadcastHint} style={{ marginTop: '10px', fontSize: '12px', opacity: 0.8 }}>
+                          💡 This is normal on mobile devices - just tap to continue
+                        </p>
+                      </div>
                     </div>
                   )}
                   
