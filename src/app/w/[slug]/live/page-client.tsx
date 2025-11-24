@@ -316,9 +316,16 @@ async function logVideoError(
   }
 }
 
-function deriveEmbedUrl(webinar: WebinarData) {
+function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false) {
+  // Detect mobile if not passed in
+  const isMobile = isMobileDevice || (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
+  
+  // Mobile optimization: Start with lower quality to reduce buffering
+  // Desktop: Start with higher quality
+  const qualityParam = isMobile ? '540p' : '720p';
+  
   if (webinar.vimeoVideoId) {
-    return `https://player.vimeo.com/video/${webinar.vimeoVideoId}`;
+    return `https://player.vimeo.com/video/${webinar.vimeoVideoId}?quality=${qualityParam}`;
   }
 
   if (webinar.videoUrl) {
@@ -333,7 +340,7 @@ function deriveEmbedUrl(webinar: WebinarData) {
 
     const vimeoUrlMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vimeoUrlMatch) {
-      return `https://player.vimeo.com/video/${vimeoUrlMatch[1]}`;
+      return `https://player.vimeo.com/video/${vimeoUrlMatch[1]}?quality=${qualityParam}`;
     }
 
     return url;
@@ -1895,7 +1902,8 @@ export default function WebinarLiveClient({
     [totalDuration, elapsedSeconds]
   );
 
-  const embedUrl = useMemo(() => deriveEmbedUrl(webinar), [webinar]);
+  // Generate embed URL with mobile-optimized quality
+  const embedUrl = useMemo(() => deriveEmbedUrl(webinar, isMobile), [webinar, isMobile]);
 
   // Initialize Vimeo Player ONCE when broadcast starts
   useEffect(() => {
@@ -1923,6 +1931,9 @@ export default function WebinarLiveClient({
       isSafariIOS,
       userAgent: navigator.userAgent,
     });
+    
+    // Log video quality optimization
+    console.log(`🎬 Video quality: ${isMobileDevice ? '540p (Mobile optimized)' : '720p (Desktop)'} - Reduces buffering on mobile connections`);
     
     // Safari iOS requires special handling - log immediately for debugging
     if (isSafariIOS) {
