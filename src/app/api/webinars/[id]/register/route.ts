@@ -163,6 +163,41 @@ export async function POST(
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
 
+    // Link this registration to the visitor's page visit for conversion tracking
+    // Match by: most recent page visit for this webinar without a registrationId
+    // This happens synchronously so analytics can track the conversion rate immediately
+    runInBackground('Link page visit to registration', async () => {
+      try {
+        // Find the most recent page visit for this webinar on a registration page without a registrationId
+        // Look within last 30 minutes to avoid linking old visits
+        const recentPageVisit = await prisma.pageVisit.findFirst({
+          where: {
+            webinarId: id,
+            pageType: 'registration',
+            registrationId: null,
+            enteredAt: {
+              gte: new Date(Date.now() - 30 * 60 * 1000) // Within last 30 minutes
+            }
+          },
+          orderBy: {
+            enteredAt: 'desc'
+          }
+        });
+
+        if (recentPageVisit) {
+          await prisma.pageVisit.update({
+            where: { id: recentPageVisit.id },
+            data: { registrationId: registration.id }
+          });
+          console.log(`✅ Linked registration ${registration.id} to page visit ${recentPageVisit.id}`);
+        } else {
+          console.log(`⚠️ No recent page visit found to link registration ${registration.id}`);
+        }
+      } catch (error) {
+        console.error('Failed to link registration to page visit:', error);
+      }
+    });
+
     // Return success immediately - all integrations happen in background
     const response = NextResponse.json(
       { 

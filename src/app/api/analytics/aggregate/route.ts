@@ -296,7 +296,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Count registrations per page
-    // Match registrations to pages via visitorId in page visits
+    // Use the registrationId in page_visits to link registrations to pages
     const registrationWhere: any = { webinarId: { in: webinarIds } };
     if (dateFilter) {
       registrationWhere.registeredAt = {
@@ -306,33 +306,30 @@ export async function GET(request: NextRequest) {
 
     const allRegistrations = await prisma.registration.findMany({
       where: registrationWhere,
-      include: {
-        pageVisits: {
-          where: {
-            pageType: 'registration'
-          },
-          select: {
-            pageId: true,
-            visitorId: true,
-          }
-        }
+      select: {
+        id: true,
       }
     });
 
-    // Count registrations per pageId based on their page visits
-    allRegistrations.forEach((reg: any) => {
-      // Find the registration page visit for this registration
-      const regPageVisit = reg.pageVisits.find((v: any) => v.pageType === 'registration' || true);
-      if (regPageVisit) {
-        const key = regPageVisit.pageId || 'default';
-        if (registrationPageBreakdown[key]) {
-          registrationPageBreakdown[key].registrations++;
-        }
-      } else {
-        // If no page visit found, attribute to default
-        if (registrationPageBreakdown['default']) {
-          registrationPageBreakdown['default'].registrations++;
-        }
+    const registrationIds = allRegistrations.map((r: any) => r.id);
+
+    // Find page visits that have a registrationId (these are visitors who completed registration)
+    const registrationPageVisitsWithReg = await prisma.pageVisit.findMany({
+      where: {
+        pageType: 'registration',
+        registrationId: { in: registrationIds },
+      },
+      select: {
+        registrationId: true,
+        pageId: true,
+      }
+    });
+
+    // Count registrations per pageId
+    registrationPageVisitsWithReg.forEach((visit: any) => {
+      const key = visit.pageId || 'default';
+      if (registrationPageBreakdown[key]) {
+        registrationPageBreakdown[key].registrations++;
       }
     });
 
