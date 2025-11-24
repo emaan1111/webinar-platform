@@ -2012,6 +2012,18 @@ export default function WebinarLiveClient({
       setTimeout(() => {
         try {
           console.log('🎬 Creating Vimeo Player instance...');
+          
+          // Detect if we're in a problematic browser environment (Facebook, Instagram, etc.)
+          const isInAppBrowser = /FBAN|FBAV|Instagram/.test(navigator.userAgent);
+          const isFacebookBrowser = /FBAN|FBAV/.test(navigator.userAgent);
+          
+          if (isInAppBrowser) {
+            console.log('📱 Detected in-app browser:', {
+              isFacebook: isFacebookBrowser,
+              userAgent: navigator.userAgent
+            });
+          }
+          
         const player = new window.Vimeo!.Player(iframe);
         vimeoPlayerRef.current = player;
         console.log('✅ Vimeo Player instance created');
@@ -2294,18 +2306,44 @@ export default function WebinarLiveClient({
           });
       } catch (error) {
         const errorMsg = `Error creating Vimeo player: ${error instanceof Error ? error.message : String(error)}`;
+        const errorStack = error instanceof Error ? error.stack : undefined;
+        
+        // Check if this is a webkit messageHandlers error (common in Facebook/Instagram in-app browsers)
+        const isWebKitError = errorMsg.includes('webkit.messageHandlers') || 
+                              errorMsg.includes('webkit') && errorMsg.includes('postMessage');
+        const isInAppBrowser = /FBAN|FBAV|Instagram/.test(navigator.userAgent);
+        
         console.error('❌', errorMsg);
-        logVideoError(
-          webinar.id,
-          viewer?.id,
-          'player_creation_failed',
-          errorMsg,
-          error instanceof Error ? error.stack : undefined,
-          {
-            name: viewer?.name,
-            email: viewer?.email,
-          }
-        );
+        
+        if (isWebKitError && isInAppBrowser) {
+          console.error('🌐 WebKit error detected in in-app browser (Facebook/Instagram)');
+          console.error('📱 This is a known issue with Vimeo player in certain in-app browsers');
+          console.error('💡 Recommendation: Open in Safari or Chrome for best experience');
+          
+          logVideoError(
+            webinar.id,
+            viewer?.id,
+            'webkit_in_app_browser_error',
+            `WebKit error in ${isInAppBrowser ? 'in-app browser' : 'browser'}: ${errorMsg}`,
+            errorStack,
+            {
+              name: viewer?.name,
+              email: viewer?.email,
+            }
+          );
+        } else {
+          logVideoError(
+            webinar.id,
+            viewer?.id,
+            'player_creation_failed',
+            errorMsg,
+            error instanceof Error ? error.stack : undefined,
+            {
+              name: viewer?.name,
+              email: viewer?.email,
+            }
+          );
+        }
         clearTimeout(emergencyTimeout);
         setVideoLoading(false);
         setVideoError(true);
