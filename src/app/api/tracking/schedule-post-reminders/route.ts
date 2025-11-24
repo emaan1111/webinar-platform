@@ -41,13 +41,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const watchedMinutes = watchedSeconds / 60
+    // Use the maximum of live watch time and replay watch time
+    // This ensures replay viewers qualify for SMS if they watched enough
+    const liveWatchTime = watchedSeconds || 0
+    const replayWatchTime = registration.replayWatchTime || 0
+    const maxWatchedSeconds = Math.max(liveWatchTime, replayWatchTime)
+    
+    const watchedMinutes = maxWatchedSeconds / 60
     const videoDuration = registration.webinar.videoDuration || 0
     const watchedPercentage = videoDuration > 0 
-      ? (watchedSeconds / videoDuration) * 100 
+      ? (maxWatchedSeconds / videoDuration) * 100 
       : 0
 
     console.log('📊 Watch stats:', {
+      liveWatchTime: Math.round(liveWatchTime / 60),
+      replayWatchTime: Math.round(replayWatchTime / 60),
       watchedMinutes: Math.round(watchedMinutes),
       watchedPercentage: Math.round(watchedPercentage),
       videoDuration

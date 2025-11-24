@@ -576,3 +576,102 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
     throw error
   }
 }
+
+/**
+ * Re-apply attendance tags when user watches replay after being marked MISSED
+ * This handles the case where someone misses the live webinar but watches the replay
+ */
+export async function reapplyAttendanceTagsAfterReplay(
+  registrationId: string
+): Promise<{ success: boolean; tags: string[]; error?: string }> {
+  try {
+    const registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        webinar: {
+          select: {
+            mostlyAttendedThreshold: true,
+            videoDuration: true,
+            title: true
+          }
+        }
+      }
+    })
+
+    if (!registration || !registration.email) {
+      return { success: false, tags: [], error: 'Registration not found or no email' }
+    }
+
+    // Only process if they watched replay
+    if (!registration.watchedReplay) {
+      return { success: false, tags: [], error: 'No replay watched' }
+    }
+
+    console.log(`🎬 Re-tagging ${registration.email} after watching replay`)
+
+    // Use replayWatchTime from registration
+    const replayWatchTime = registration.replayWatchTime || 0
+    const threshold = registration.webinar.mostlyAttendedThreshold
+
+    const tagsToApply: string[] = []
+
+    // If they were previously tagged as MISSED, we should remove that tag
+    // Note: ClickFunnels doesn't have a remove tag API, but we can skip re-applying it
+    
+    // ATTENDED - Always tag replay viewers as attended
+    const attendedTagId = process.env.CLICKFUNNELS_TAG_ATTENDED
+    if (attendedTagId) {
+      await tagClickFunnelsContact(registration.email, [attendedTagId])
+      tagsToApply.push('ATTENDED')
+      console.log(`✅ Applied ATTENDED tag to ${registration.email}`)
+    }
+
+    // REPLAY_ATTENDED - Special tag for replay viewers
+    const replayTagId = process.env.CLICKFUNNELS_TAG_REPLAY_ATTENDED
+    if (replayTagId) {
+      await tagClickFunnelsContact(registration.email, [replayTagId])
+      tagsToApply.push('REPLAY_ATTENDED')
+      console.log(`✅ Applied REPLAY_ATTENDED tag to ${registration.email}`)
+    }
+
+    // MOSTLY_ATTENDED or PARTLY_ATTENDED based on watch time
+    if (threshold && replayWatchTime >= threshold) {
+      // Watched past the threshold
+      const mostlyTagId = process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED
+      if (mostlyTagId) {
+        await tagClickFunnelsContact(registration.email, [mostlyTagId])
+        tagsToApply.push('MOSTLY_ATTENDED')
+        console.log(`✅ Applied MOSTLY_ATTENDED tag to ${registration.email} (watched ${replayWatchTime}s, threshold ${threshold}s)`)
+      }
+    } else if (replayWatchTime >= 2400) {
+      // Watched at least 40 minutes but didn't reach threshold
+      const partlyTagId = process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED
+      if (partlyTagId) {
+        await tagClickFunnelsContact(registration.email, [partlyTagId])
+        tagsToApply.push('PARTLY_ATTENDED')
+        console.log(`✅ Applied PARTLY_ATTENDED tag to ${registration.email} (watched ${replayWatchTime}s)`)
+      }
+    }
+
+    // Update database to mark tags as applied and set attended = true
+    await prisma.registration.update({
+      where: { id: registrationId },
+      data: {
+        attended: true, // Important: Mark as attended even though they missed live
+        attendanceTagsApplied: true,
+        attendanceTagsAppliedAt: new Date()
+      }
+    })
+
+    console.log(`✅ Successfully re-tagged ${registration.email} with:`, tagsToApply)
+
+    return { success: true, tags: tagsToApply }
+  } catch (error) {
+    console.error('❌ Error re-tagging after replay:', error)
+    return { 
+      success: false, 
+      tags: [], 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }
+  }
+}

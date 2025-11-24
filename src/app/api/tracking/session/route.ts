@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { syncAttendanceToClickFunnels } from '@/lib/clickfunnels';
+import { reapplyAttendanceTagsAfterReplay } from '@/lib/clickfunnelsAttendanceTags';
 
 // POST /api/tracking/session - Create or update session
 export async function POST(request: NextRequest) {
@@ -154,6 +155,15 @@ export async function POST(request: NextRequest) {
             replayDevice: updatedSession.device || undefined,
           },
         });
+
+        // Re-apply attendance tags if user was previously marked as MISSED
+        // This ensures replay viewers get properly tagged and can receive post-webinar SMS
+        if (!registration.attended) {
+          console.log(`🎬 User ${registration.email} watched replay after missing live - re-tagging...`);
+          reapplyAttendanceTagsAfterReplay(registrationId).catch(err => {
+            console.error('Failed to re-tag after replay:', err);
+          });
+        }
       }
 
       // Sync attendance to ClickFunnels asynchronously
