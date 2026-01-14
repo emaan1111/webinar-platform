@@ -2662,6 +2662,14 @@ export default function WebinarLiveClient({
     return () => clearInterval(interval);
   }, [isReplay, webinar.replayExpiresAt]);
 
+  const getSpeedLabel = (rate: number) => {
+    if (rate === 1) return 'Normal';
+    if (rate === 1.1) return 'Fast';
+    if (rate === 1.2) return 'Faster';
+    if (rate === 1.3) return 'Max';
+    return `${rate}x`;
+  };
+
   return (
     <div className={styles.root}>
       {/* Preconnect to Vimeo for faster loading */}
@@ -2994,10 +3002,10 @@ export default function WebinarLiveClient({
                         type="button"
                         className={styles.playbackSpeedButton}
                         onClick={togglePlaybackSpeed}
-                        aria-label={`Current playback speed: ${playbackRate}x`}
+                        aria-label={`Current playback speed: ${getSpeedLabel(playbackRate)}`}
                         title="Change playback speed"
                       >
-                        {playbackRate}x
+                        {getSpeedLabel(playbackRate)}
                       </button>
                       <button
                         type="button"

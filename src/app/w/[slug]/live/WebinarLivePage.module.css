@@ -453,9 +453,10 @@
   color: white;
   cursor: pointer;
   font-size: 0.85rem;
-  font-weight: 700;
+  font-weight: 600;
   border-radius: 6px;
-  width: 42px; /* Slightly wider for text */
+  min-width: 60px; /* Wider for text like "Normal", "Faster" */
+  padding: 0 10px;
   height: 36px;
   display: flex;
   align-items: center;
@@ -463,6 +464,7 @@
   transition: all 0.2s ease;
   backdrop-filter: blur(4px);
   margin-right: 2px;
+  text-transform: capitalize;
 }
 
 .playbackSpeedButton:hover {
