@@ -205,7 +205,7 @@ export class WebinarTracker {
   }
 
   // Track engagement events
-  async trackEngagement(eventType: 'chat' | 'reaction' | 'question' | 'poll' | 'offer_view' | 'offer_click', timestamp: number, eventData?: any) {
+  async trackEngagement(eventType: 'chat' | 'reaction' | 'question' | 'poll' | 'offer_view' | 'offer_click' | 'playback_speed', timestamp: number, eventData?: any) {
     if (!this.sessionId) return;
 
     try {

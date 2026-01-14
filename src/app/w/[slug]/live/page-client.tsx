@@ -475,7 +475,7 @@ export default function WebinarLiveClient({
   const [showReplayPrompt, setShowReplayPrompt] = useState(false); // Show replay start prompt
   const [iframeKey, setIframeKey] = useState(0); // Force iframe recreation on retry
   const [showPausedOverlay, setShowPausedOverlay] = useState(false); // Show play button when video paused after tab switch
-  const [playbackRate, setPlaybackRate] = useState(1); // Video playback speed
+  const [playbackRate, setPlaybackRate] = useState(0.9); // Default to Slower (0.9x)
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -1829,11 +1829,12 @@ export default function WebinarLiveClient({
       const currentRate = playbackRate;
       let nextRate = 1;
       
-      // Cycle: 1 -> 1.1 -> 1.2 -> 1.3 -> 1
-      if (currentRate < 1.1) nextRate = 1.1;
-      else if (currentRate < 1.2) nextRate = 1.2;
-      else if (currentRate < 1.3) nextRate = 1.3;
-      else nextRate = 1;
+      // Cycle: 0.9 -> 1 -> 1.1 -> 1.2 -> 1.3 -> 0.9
+      if (currentRate === 0.9) nextRate = 1;
+      else if (currentRate === 1) nextRate = 1.1;
+      else if (currentRate === 1.1) nextRate = 1.2;
+      else if (currentRate === 1.2) nextRate = 1.3;
+      else nextRate = 0.9;
 
       await vimeoPlayerRef.current.setPlaybackRate(nextRate);
       setPlaybackRate(nextRate);
@@ -1854,9 +1855,14 @@ export default function WebinarLiveClient({
     if (webinar.hasChat === false) {
       return;
     }
-    setIsChatOpen(true);
-    setActiveTab('chat');
-  }, [webinar.hasChat]);
+    
+    // On mobile, toggle minimization; on desktop, toggle open/close
+    if (isMobile) {
+      setIsChatMinimized((prev) => !prev);
+    } else {
+      setIsChatOpen((prev) => !prev);
+    }
+  }, [webinar.hasChat, isMobile]);
 
   const handleTabSwitch = useCallback((tab: 'chat' | 'faq') => {
     setActiveTab(tab);
@@ -1939,44 +1945,20 @@ export default function WebinarLiveClient({
   // Initialize Vimeo Player ONCE when broadcast starts
   useEffect(() => {
     if (!embedUrl || !webinar.vimeoVideoId || !mounted || !broadcastStarted) {
-      console.log('🚫 Skipping player init:', { embedUrl: !!embedUrl, vimeoVideoId: !!webinar.vimeoVideoId, mounted, broadcastStarted });
       return;
     }
     
     // Prevent re-initialization if player already exists
     if (vimeoPlayerRef.current) {
-      console.log('⏭️ Player already initialized, skipping...');
       return;
     }
-    
-    console.log('🎯 Starting player initialization process...');
     
     // Detect mobile early for better timeouts
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
     const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     
-    console.log(`📱 Device detection:`, {
-      isMobile: isMobileDevice,
-      isSafari,
-      isSafariIOS,
-      userAgent: navigator.userAgent,
-    });
-    
-    // Log video quality optimization
-    console.log(`🎬 Video quality: ${isMobileDevice ? '540p (Mobile optimized)' : '720p (Desktop)'} - Reduces buffering on mobile connections`);
-    
-    // Safari iOS requires special handling - log immediately for debugging
-    if (isSafariIOS) {
-      console.log('🍎 Safari iOS detected - applying special error handling');
-      logVideoError(webinar.id, viewer?.id, 'safari_ios_init_attempt', 'Safari iOS video initialization started', undefined, {
-        name: viewer?.name,
-        email: viewer?.email,
-      });
-    }
-    
     // MOBILE FIX: Longer timeout for mobile (60s vs 20s) and fewer, slower retries
-    // Safari iOS gets extra time due to strict autoplay policies
     const timeoutDuration = isSafariIOS ? 90000 : (isMobileDevice ? 60000 : 20000);
     const emergencyTimeout = setTimeout(() => {
       const errorMsg = `Emergency timeout after ${timeoutDuration/1000}s - video failed to load`;
@@ -2013,7 +1995,6 @@ export default function WebinarLiveClient({
           setBroadcastStarted(false);
           return;
         }
-        console.log(`⚠️ Vimeo iframe not found (attempt ${iframeRetries}/${maxRetries}), retrying...`);
         setTimeout(initPlayer, retryDelay);
         return;
       }
@@ -2033,7 +2014,6 @@ export default function WebinarLiveClient({
           setBroadcastStarted(false);
           return;
         }
-        console.log(`⚠️ Vimeo Player API not loaded yet (attempt ${apiRetries}/${maxRetries}), waiting...`);
         setTimeout(initPlayer, retryDelay);
         return;
       }
@@ -2042,114 +2022,31 @@ export default function WebinarLiveClient({
       const initDelay = isMobileDevice ? 1000 : 300;
       setTimeout(() => {
         try {
-          console.log('🎬 Creating Vimeo Player instance...');
-          
           // Detect if we're in a problematic browser environment (Facebook, Instagram, etc.)
           const isInAppBrowser = /FBAN|FBAV|Instagram/.test(navigator.userAgent);
-          const isFacebookBrowser = /FBAN|FBAV/.test(navigator.userAgent);
-          
-          if (isInAppBrowser) {
-            console.log('📱 Detected in-app browser:', {
-              isFacebook: isFacebookBrowser,
-              userAgent: navigator.userAgent
-            });
-          }
           
         const player = new window.Vimeo!.Player(iframe);
         vimeoPlayerRef.current = player;
-        console.log('✅ Vimeo Player instance created');
         
-        // Determine start time: 
-        // 1. If replay mode and has lastWatchedPosition, resume from there
-        // 2. Otherwise use the stored start time from when user clicked the button
         let startTime = startTimeRef.current;
         if (isReplay && viewer?.lastWatchedPosition && viewer.lastWatchedPosition > 0) {
           startTime = viewer.lastWatchedPosition;
-          console.log(`🔄 REPLAY RESUME: Starting from ${formatTimeLabel(startTime)} (${startTime}s) - where user left off`);
-        } else {
-          console.log(`📍 Using stored start time: ${formatTimeLabel(startTime)} (${startTime}s)`);
         }
-        
-        console.log(`📱 Applying mobile-optimized settings for ${isMobileDevice ? 'mobile' : 'desktop'} device`);
-        
-        // CRITICAL FIX: ALWAYS start muted to comply with ALL browser autoplay policies
-        // All modern browsers (iOS Safari, Chrome, Firefox) require muted=true for programmatic play()
-        // This is NOT just a mobile issue - desktop browsers also enforce this
-        const startMuted = true;
         
         player.ready()
           .then(async () => {
-            console.log('✅ Player ready');
+            setPlayerReady(true);
             
-            // Safari iOS: Log successful player ready
-            if (isSafariIOS) {
-              console.log('🍎 Safari iOS: Player ready() resolved successfully');
-              logVideoError(webinar.id, viewer?.id, 'safari_ios_player_ready', 'Safari iOS: Player ready() resolved successfully', undefined, {
-                name: viewer?.name,
-                email: viewer?.email,
-              });
-            }
-            
-            setPlayerReady(true); // Mark player as ready for save effect
-            
-            // Add loaded event listener to track video metadata loading
-            player.on('loaded', () => {
-              console.log('� Video metadata loaded');
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Video loaded event fired');
-              }
-            });
-            
-            // Add bufferstart/bufferend for Safari debugging
-            player.on('bufferstart', () => {
-              console.log('⏳ Video buffering started');
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Buffering started');
-              }
-            });
-            
-            player.on('bufferend', () => {
-              console.log('✅ Video buffering ended');
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Buffering ended');
-              }
-            });
-            
-            // Add event listener for video end
             player.on('ended', () => {
-              console.log('🎬 Video ended');
-              
-              // SIMPLIFIED: Just hide video and show reload button
-              // Page reload will load as replay if session has ended
-              console.log('🎬 Webinar ended - hiding video, showing reload button');
               setWebinarEnded(true);
               setBroadcastStarted(false);
             });
             
-            // Add event listener for play/pause to debug unexpected stops
-            player.on('pause', () => {
-              console.log('⏸️ Video paused');
-              
-              // REMOVED: Aggressive auto-resume that causes crash loops on mobile
-              // Mobile devices often pause video due to memory/bandwidth issues
-              // Let the user manually resume if needed
-            });
-            
-            player.on('play', () => {
-              console.log('▶️ Video playing');
-            });
-            
             // CRITICAL: Set muted state FIRST, before ANY other operations
-            // This ensures the browser knows this is a muted autoplay attempt
             try {
-              console.log('🔇 Setting muted=true for autoplay compliance...');
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Attempting to mute video');
-              }
               await player.setMuted(true);
               await player.setVolume(0);
-              console.log(`✅ Video muted successfully`);
-
+              
               // Apply saved playback rate
               if (playbackRate !== 1) {
                 try {
@@ -2160,80 +2057,23 @@ export default function WebinarLiveClient({
                 }
               }
 
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Video muted successfully');
-              }
             } catch (e) {
               console.error('⚠️ CRITICAL: Could not set mute!', e);
-              if (isSafariIOS) {
-                console.error('🍎 Safari iOS: Failed to mute video', e);
-                logVideoError(
-                  webinar.id,
-                  viewer?.id,
-                  'safari_ios_mute_failed',
-                  `Safari iOS failed to mute: ${e instanceof Error ? e.message : String(e)}`,
-                  e instanceof Error ? e.stack : undefined,
-                  {
-                    name: viewer?.name,
-                    email: viewer?.email,
-                  }
-                );
-              }
-              // If we can't mute, we definitely can't play
               throw new Error('Failed to mute video - autoplay will fail');
             }
             
             // Set start time AFTER muting
             try {
-              if (isSafariIOS) {
-                console.log(`🍎 Safari iOS: Setting time to ${startTime}s`);
-              }
               await player.setCurrentTime(startTime);
-              console.log(`✅ Time set to: ${startTime}s`);
-              if (isSafariIOS) {
-                console.log(`🍎 Safari iOS: Time set successfully to ${startTime}s`);
-              }
             } catch (e) {
               console.log('⚠️ Could not set time, starting from beginning...', e);
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Could not set time', e);
-                logVideoError(
-                  webinar.id,
-                  viewer?.id,
-                  'safari_ios_seek_failed',
-                  `Safari iOS failed to seek: ${e instanceof Error ? e.message : String(e)}`,
-                  e instanceof Error ? e.stack : undefined,
-                  {
-                    name: viewer?.name,
-                    email: viewer?.email,
-                  }
-                );
-              }
             }
             
-            // Now try to play - this is the critical part
-            // The video is muted, so this should work even on mobile
+            // Now try to play
             try {
-              console.log('🎮 Attempting to play video (muted)...');
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Calling player.play()...');
-                logVideoError(webinar.id, viewer?.id, 'safari_ios_play_attempt', 'Safari iOS: About to call player.play()', undefined, {
-                  name: viewer?.name,
-                  email: viewer?.email,
-                });
-              }
-              
               const playPromise = player.play();
               await playPromise;
               
-              console.log('🎉 Video playing successfully!');
-              if (isSafariIOS) {
-                console.log('🍎 Safari iOS: Video playing successfully!');
-                logVideoError(webinar.id, viewer?.id, 'safari_ios_play_success', 'Safari iOS: Video play() succeeded', undefined, {
-                  name: viewer?.name,
-                  email: viewer?.email,
-                });
-              }
               setIsMuted(true);
               clearTimeout(emergencyTimeout);
               setVideoLoading(false);
@@ -2244,11 +2084,9 @@ export default function WebinarLiveClient({
                 await trackerRef.current.startSession(device);
                 trackerRef.current.setMuteState(true);
                 trackerRef.current.trackVideoEvent('play', startTime);
-                console.log(`📊 Session tracking started (${device}, muted)`);
               }
               
               // ALWAYS show unmute hint since video starts muted (for ALL devices)
-              console.log('💡 Video started muted for autoplay compliance. Showing unmute hint.');
               setTimeout(() => setShowUnmuteHint(true), 2000);
             } catch (playErr) {
               const errorMsg = `Play failed: ${playErr instanceof Error ? playErr.message : String(playErr)}`;
@@ -2257,25 +2095,6 @@ export default function WebinarLiveClient({
                                         errorMsg.includes('user gesture');
               
               console.error('❌', errorMsg);
-              console.error('📱 Device info:', {
-                userAgent: navigator.userAgent,
-                isMobile: isMobileDevice,
-                isSafari,
-                isSafariIOS,
-                screen: `${window.screen.width}x${window.screen.height}`,
-                window: `${window.innerWidth}x${window.innerHeight}`,
-                documentHidden: document.hidden,
-                documentVisibility: document.visibilityState,
-                isPermissionError,
-              });
-              
-              if (isSafariIOS) {
-                console.error('🍎 Safari iOS: Play failed with error:', playErr);
-                console.error('🍎 Safari iOS: Additional context:', {
-                  lowPowerMode: (navigator as any).getBattery ? 'checking...' : 'unknown',
-                  connection: (navigator as any).connection || 'unknown',
-                });
-              }
               
               logVideoError(
                 webinar.id, 
@@ -2289,30 +2108,20 @@ export default function WebinarLiveClient({
                 }
               );
               
-              // If this is a permission/user gesture error, don't fail completely
-              // Instead, show a "Tap to Play" button that will have a fresh user gesture
               if (isPermissionError) {
-                console.log('🎯 Permission error detected - will show "Tap to Play" button with fresh user gesture');
                 clearTimeout(emergencyTimeout);
                 setVideoLoading(false);
                 setNeedsUserGesture(true); // Show tap to play button
                 setVideoError(false); // Don't show generic error
-                // Keep player instance for manual play
                 return; // Don't throw, handle gracefully
               }
               
-              throw playErr; // Pass to catch block for other errors
+              throw playErr;
             }
           })
           .catch(async (err: Error) => {
             const errorMsg = `Player initialization failed: ${err.message}`;
             console.error('❌', errorMsg);
-            console.error('❌ Full error:', err);
-            
-            if (isSafariIOS) {
-              console.error('🍎 Safari iOS: Player ready() promise rejected:', err);
-              console.error('🍎 Safari iOS: This typically means autoplay was blocked or iframe failed to load');
-            }
             
             logVideoError(
               webinar.id, 
@@ -2326,15 +2135,11 @@ export default function WebinarLiveClient({
               }
             );
             
-            // MOBILE FIX: Simplified recovery - just show error, let user retry
-            // No complex recovery loops that can cause crashes
-            console.log('❌ Showing retry button - user can tap to try again');
             clearTimeout(emergencyTimeout);
             setVideoLoading(false);
             setVideoError(true);
             setBroadcastStarted(false);
             
-            // Clean up failed player instance
             if (vimeoPlayerRef.current) {
               try {
                 vimeoPlayerRef.current.off('ended');
@@ -2348,44 +2153,20 @@ export default function WebinarLiveClient({
           });
       } catch (error) {
         const errorMsg = `Error creating Vimeo player: ${error instanceof Error ? error.message : String(error)}`;
-        const errorStack = error instanceof Error ? error.stack : undefined;
-        
-        // Check if this is a webkit messageHandlers error (common in Facebook/Instagram in-app browsers)
-        const isWebKitError = errorMsg.includes('webkit.messageHandlers') || 
-                              errorMsg.includes('webkit') && errorMsg.includes('postMessage');
-        const isInAppBrowser = /FBAN|FBAV|Instagram/.test(navigator.userAgent);
-        
         console.error('❌', errorMsg);
         
-        if (isWebKitError && isInAppBrowser) {
-          console.error('🌐 WebKit error detected in in-app browser (Facebook/Instagram)');
-          console.error('📱 This is a known issue with Vimeo player in certain in-app browsers');
-          console.error('💡 Recommendation: Open in Safari or Chrome for best experience');
-          
-          logVideoError(
-            webinar.id,
-            viewer?.id,
-            'webkit_in_app_browser_error',
-            `WebKit error in ${isInAppBrowser ? 'in-app browser' : 'browser'}: ${errorMsg}`,
-            errorStack,
-            {
-              name: viewer?.name,
-              email: viewer?.email,
-            }
-          );
-        } else {
-          logVideoError(
-            webinar.id,
-            viewer?.id,
-            'player_creation_failed',
-            errorMsg,
-            error instanceof Error ? error.stack : undefined,
-            {
-              name: viewer?.name,
-              email: viewer?.email,
-            }
-          );
-        }
+        logVideoError(
+          webinar.id,
+          viewer?.id,
+          'player_creation_failed',
+          errorMsg,
+          error instanceof Error ? error.stack : undefined,
+          {
+            name: viewer?.name,
+            email: viewer?.email,
+          }
+        );
+
         clearTimeout(emergencyTimeout);
         setVideoLoading(false);
         setVideoError(true);
@@ -2437,7 +2218,7 @@ export default function WebinarLiveClient({
     return () => {
       clearTimeout(emergencyTimeout);
     };
-  }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); // Removed elapsedSeconds - we use the ref instead
+  }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted, playbackRate]); 
 
   // Handler for manual play when user gesture is required
   const handleManualPlay = async () => {
@@ -2512,13 +2293,8 @@ export default function WebinarLiveClient({
   useEffect(() => {
     // Early return if basic conditions aren't met
     if (!viewer?.id || !broadcastStarted || !playerReady) {
-      console.log('⏭️ Skipping position save setup:', { hasViewer: !!viewer?.id, broadcastStarted, playerReady });
       return;
     }
-
-    console.log(`💾 Starting periodic position save for ${isReplay ? 'replay' : 'live'} mode`);
-    console.log('💾 Viewer ID:', viewer.id);
-    console.log('💾 Initial lastWatchedPosition:', viewer.lastWatchedPosition);
 
     // Save position every 10 seconds
     const saveInterval = setInterval(async () => {
@@ -2526,8 +2302,6 @@ export default function WebinarLiveClient({
         try {
           const currentTime = await vimeoPlayerRef.current.getCurrentTime();
           const roundedTime = Math.floor(currentTime);
-          
-          console.log(`💾 Attempting to save position: ${roundedTime}s (last saved: ${viewer.lastWatchedPosition || 0}s)`);
           
           // Only save if position changed significantly (more than 2 seconds)
           if (Math.abs(roundedTime - (viewer.lastWatchedPosition || 0)) > 2) {
@@ -2543,18 +2317,11 @@ export default function WebinarLiveClient({
               if (viewer) {
                 viewer.lastWatchedPosition = roundedTime;
               }
-              console.log(`✅ Successfully saved watch position: ${roundedTime}s`);
-            } else {
-              console.error(`❌ Failed to save position, status: ${response.status}`);
             }
-          } else {
-            console.log(`⏭️ Skipping save - position hasn't changed enough`);
           }
         } catch (err) {
           console.error('Error saving watch position:', err);
         }
-      } else {
-        console.log('⚠️ Cannot save position: player or viewer not available');
       }
     }, 10000); // Save every 10 seconds
 
@@ -2571,7 +2338,6 @@ export default function WebinarLiveClient({
             { type: 'application/json' }
           );
           navigator.sendBeacon(`/api/registrations/${viewer.id}/watch-position`, blob);
-          console.log(`💾 Saved final watch position on unload: ${roundedTime}s`);
         } catch (err) {
           console.error('Error saving final watch position:', err);
         }
@@ -2588,7 +2354,6 @@ export default function WebinarLiveClient({
     return () => {
       clearInterval(saveInterval);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Final save on cleanup
       handleBeforeUnload();
     };
   }, [viewer?.id, broadcastStarted, playerReady]); // Removed isReplay - save for both live and replay
@@ -2597,21 +2362,16 @@ export default function WebinarLiveClient({
   useEffect(() => {
     if (!broadcastStarted || !playerReady || !trackerRef.current) return;
     
-    let lastUpdateTime = Date.now();
-    
     const trackingInterval = setInterval(async () => {
       if (vimeoPlayerRef.current) {
         try {
           const currentTime = await vimeoPlayerRef.current.getCurrentTime();
-          const now = Date.now();
           const isPlaying = true; // Assume playing since interval is running
           
           // Update tracker with current position and playing state
           if (trackerRef.current) {
             trackerRef.current.updateWatchTime(currentTime, isPlaying);
           }
-          
-          lastUpdateTime = now;
         } catch (err) {
           console.error('Error tracking watch time:', err);
         }
@@ -2663,6 +2423,7 @@ export default function WebinarLiveClient({
   }, [isReplay, webinar.replayExpiresAt]);
 
   const getSpeedLabel = (rate: number) => {
+    if (rate === 0.9) return 'Slower';
     if (rate === 1) return 'Normal';
     if (rate === 1.1) return 'Fast';
     if (rate === 1.2) return 'Faster';
