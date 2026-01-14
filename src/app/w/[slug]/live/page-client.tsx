@@ -1829,12 +1829,13 @@ export default function WebinarLiveClient({
       const currentRate = playbackRate;
       let nextRate = 1;
       
-      // Cycle: 0.9 -> 1 -> 1.1 -> 1.2 -> 1.3 -> 0.9
-      if (currentRate === 0.9) nextRate = 1;
+      // Cycle: 0.8 -> 0.9 -> 1 -> 1.1 -> 1.2 -> 1.3 -> 0.8
+      if (currentRate === 0.8) nextRate = 0.9;
+      else if (currentRate === 0.9) nextRate = 1;
       else if (currentRate === 1) nextRate = 1.1;
       else if (currentRate === 1.1) nextRate = 1.2;
       else if (currentRate === 1.2) nextRate = 1.3;
-      else nextRate = 0.9;
+      else nextRate = 0.8;
 
       await vimeoPlayerRef.current.setPlaybackRate(nextRate);
       setPlaybackRate(nextRate);
@@ -2423,6 +2424,7 @@ export default function WebinarLiveClient({
   }, [isReplay, webinar.replayExpiresAt]);
 
   const getSpeedLabel = (rate: number) => {
+    if (rate === 0.8) return 'Slowest';
     if (rate === 0.9) return 'Slower';
     if (rate === 1) return 'Normal';
     if (rate === 1.1) return 'Fast';
