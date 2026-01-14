@@ -19,6 +19,8 @@ declare global {
         getVolume(): Promise<number>;
         getMuted(): Promise<boolean>;
         setMuted(muted: boolean): Promise<boolean>;
+        setPlaybackRate(rate: number): Promise<number>;
+        getPlaybackRate(): Promise<number>;
         on(event: string, callback: () => void): void;
         off(event: string, callback?: () => void): void;
       };
@@ -473,6 +475,7 @@ export default function WebinarLiveClient({
   const [showReplayPrompt, setShowReplayPrompt] = useState(false); // Show replay start prompt
   const [iframeKey, setIframeKey] = useState(0); // Force iframe recreation on retry
   const [showPausedOverlay, setShowPausedOverlay] = useState(false); // Show play button when video paused after tab switch
+  const [playbackRate, setPlaybackRate] = useState(1); // Video playback speed
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -1819,6 +1822,34 @@ export default function WebinarLiveClient({
     }
   }, [isMuted]);
 
+  const togglePlaybackSpeed = useCallback(async () => {
+    if (!vimeoPlayerRef.current) return;
+
+    try {
+      const currentRate = playbackRate;
+      let nextRate = 1;
+      
+      // Cycle: 1 -> 1.1 -> 1.2 -> 1.3 -> 1
+      if (currentRate < 1.1) nextRate = 1.1;
+      else if (currentRate < 1.2) nextRate = 1.2;
+      else if (currentRate < 1.3) nextRate = 1.3;
+      else nextRate = 1;
+
+      await vimeoPlayerRef.current.setPlaybackRate(nextRate);
+      setPlaybackRate(nextRate);
+      console.log(`⏩ Playback rate set to ${nextRate}x`);
+      
+      // Track event
+      if (trackerRef.current) {
+        trackerRef.current.trackEngagement('playback_speed', elapsedSeconds, { rate: nextRate });
+      }
+    } catch (err) {
+      console.error('Error changing playback rate:', err);
+      // Vimeo Free/Plus accounts might not support speed control via API
+      // If it fails, we should probably know about it or handle it gracefully
+    }
+  }, [playbackRate, elapsedSeconds]);
+
   const openChat = useCallback(() => {
     if (webinar.hasChat === false) {
       return;
@@ -2118,6 +2149,17 @@ export default function WebinarLiveClient({
               await player.setMuted(true);
               await player.setVolume(0);
               console.log(`✅ Video muted successfully`);
+
+              // Apply saved playback rate
+              if (playbackRate !== 1) {
+                try {
+                  await player.setPlaybackRate(playbackRate);
+                  console.log(`⏩ Applied saved playback rate: ${playbackRate}x`);
+                } catch (rateErr) {
+                  console.warn('Could not set playback rate on init:', rateErr);
+                }
+              }
+
               if (isSafariIOS) {
                 console.log('🍎 Safari iOS: Video muted successfully');
               }
@@ -2948,6 +2990,15 @@ export default function WebinarLiveClient({
                   )}
                   {broadcastStarted && (
                     <>
+                      <button
+                        type="button"
+                        className={styles.playbackSpeedButton}
+                        onClick={togglePlaybackSpeed}
+                        aria-label={`Current playback speed: ${playbackRate}x`}
+                        title="Change playback speed"
+                      >
+                        {playbackRate}x
+                      </button>
                       <button
                         type="button"
                         className={styles.muteButton}

@@ -446,6 +446,30 @@
   transform: scale(1.05);
 }
 
+/* Playback Speed Button */
+.playbackSpeedButton {
+  background: rgba(0, 0, 0, 0.5);
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 700;
+  border-radius: 6px;
+  width: 42px; /* Slightly wider for text */
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(4px);
+  margin-right: 2px;
+}
+
+.playbackSpeedButton:hover {
+  background: rgba(0, 0, 0, 0.75);
+  transform: scale(1.05);
+}
+
 /* Red CTA Button in Top-Left Corner of Video */
 .videoTopLeftCTA {
   position: absolute;
