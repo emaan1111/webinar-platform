@@ -437,8 +437,9 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
         <p className="hero-pre">From a <strong>former games programmer</strong> who spent 21 years & thousands of kids proving this works:</p>
         
         <h1>
-          Discover how parents like you transformed their 'Unmotivated' kids wasting themselves away into PURPOSEFUL COURAGEOUS ONES Who Value Their Time, Their Deen, And Themselves So Deeply That
-            <span className="highlight">No Amount Of Peer Pressure Can Shake Them</span>
+                     <span className="highlight">Discover how parents like you transformed their timid, unmotivated kids into  </span>
+           A Child Who Steps Up With Courage  And Conviction In Allah — Strong Enough To Handle What's Coming 
+   
         </h1>
 
         {/* ONE BIG BOLD STATEMENT */}
