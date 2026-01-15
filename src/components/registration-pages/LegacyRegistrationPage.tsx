@@ -437,8 +437,8 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
         <p className="hero-pre">From a <strong>former games programmer</strong> who spent 21 years & thousands of kids proving this works:</p>
         
         <h1>
-            How To Raise A Child Who Values Their Time, Their Deen, And Themselves So Deeply That
-            <span className="highlight">No Amount Of Peer Pressure, Screen Addiction, Or Worldly Distraction Can Shake Them</span>
+          Discover how parents like you transformed their 'Unmotivated' kids wasting themselves away into Purposeful Courageous Children Who Value Their Time, Their Deen, And Themselves So Deeply That
+            <span className="highlight">No Amount Of Peer Pressure Can Shake Them</span>
         </h1>
 
         {/* ONE BIG BOLD STATEMENT */}
@@ -483,7 +483,7 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
         <div className="discover-list">
             <div className="discover-item">
                 <span className="discover-num">01</span>
-                <p className="discover-text">The hidden reason your child seems "unmotivated" — and why it's not their fault (or yours.And the shift that reignites their fire.)</p>
+                <p className="discover-text">The hidden reason your child seems "unmotivated" — and why it's not their fault (or yours. Discover the Life-Changing Strategy to Boost Motivation & Passion</p>
             </div>
     <div className="discover-item">
                 <span className="discover-num">02</span>
@@ -500,7 +500,7 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
                 <span className="discover-num">04</span>
                 <p className="discover-text">The "switch" that replaces months of pushing with genuine inner drive</p>
             </div>
-
+     
             <div className="lg:hidden mt-8">
                  <div className="hero-cta-section section-cta">
                     <button onClick={handleRegisterClick} className="cta-button cursor-pointer border-none">CLAIM MY FREE PLACE</button>
