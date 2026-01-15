@@ -912,11 +912,7 @@ export default function WebinarLiveClient({
     setMounted(true);
     console.log('✅ Component mounted');
     
-    // Initialize tracker
-    if (viewer?.id && webinar.id) {
-      trackerRef.current = new WebinarTracker(viewer.id, webinar.id, null);
-      console.log('📊 WebinarTracker initialized');
-    }
+    // Tracker initialization moved to dedicated analytics effect below
     
     // REMOVED: Auto-start for mobile - force users to tap "Start" button
     // This ensures video starts UNMUTED (not muted for autoplay)
@@ -931,14 +927,8 @@ export default function WebinarLiveClient({
       console.log(`📍 Initial replay position: ${timing.initialElapsedSeconds}s`);
     }
     
-    // Cleanup on unmount
-    return () => {
-      if (trackerRef.current) {
-        console.log('🔚 Ending tracker session on unmount');
-        trackerRef.current.endSession();
-      }
-    };
-  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, viewer?.id, webinar.id, isMobile]);
+    // No cleanup here - tracker is managed by analytics effect
+  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, isMobile]);
 
   // Load seen offers from localStorage on mount
   useEffect(() => {
@@ -1233,7 +1223,7 @@ export default function WebinarLiveClient({
       if (trackerRef.current && broadcastStarted && isTabVisible) {
         trackerRef.current.updateWatchTime(elapsedSeconds, true);
       }
-    }, 5000); // Update every 5 seconds
+    }, 1000); // Update every 1 second
 
     return () => clearInterval(interval);
   }, [broadcastStarted, elapsedSeconds, isTabVisible]);

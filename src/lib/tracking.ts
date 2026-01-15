@@ -142,7 +142,7 @@ export class WebinarTracker {
     const now = Date.now();
     const timeDiff = (now - this.lastUpdateTime) / 1000;
     
-    if (isPlaying && timeDiff > 0 && timeDiff < 5) {
+    if (isPlaying && timeDiff > 0 && timeDiff < 60) {
       this.watchTime += timeDiff;
       this.updateMuteTime(); // Update muted/unmuted duration
     }
