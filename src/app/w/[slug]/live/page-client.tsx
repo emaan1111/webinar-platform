@@ -917,6 +917,10 @@ export default function WebinarLiveClient({
     // REMOVED: Auto-start for mobile - force users to tap "Start" button
     // This ensures video starts UNMUTED (not muted for autoplay)
     // Only auto-start on desktop for better UX
+    // 
+    // UPDATE: Disabling auto-start for everyone (including desktop) based on user request.
+    // Users must manually click to start the replay.
+    /*
     if (isReplayMode && !showReplayPrompt && !webinarEnded && !isMobile) {
       console.log('🎬 Auto-starting replay mode (desktop only)...');
       setBroadcastStarted(true);
@@ -926,6 +930,7 @@ export default function WebinarLiveClient({
       startTimeRef.current = timing.initialElapsedSeconds;
       console.log(`📍 Initial replay position: ${timing.initialElapsedSeconds}s`);
     }
+    */
     
     // No cleanup here - tracker is managed by analytics effect
   }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, isMobile]);
@@ -2455,7 +2460,7 @@ export default function WebinarLiveClient({
                 <>
                   <iframe
                     key={iframeKey}
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}badge=0&autopause=0&player_id=0&autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=${isReplay ? 1 : 0}&background=0&transparent=0&playsinline=1&dnt=1`}
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}badge=0&autopause=0&player_id=0&autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=0&background=0&transparent=0&playsinline=1&dnt=1`}
                     className={styles.videoEmbed}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                     allowFullScreen
