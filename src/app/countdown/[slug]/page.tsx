@@ -11,11 +11,20 @@ interface PageProps {
 }
 
 async function getCountdownData(slug: string, registrationId?: string | null, scheduleId?: string | null) {
-  const webinar = await prisma.webinar.findUnique({
+  // Parallel fetch: Webinar, Branding, Registration
+  const webinarPromise = prisma.webinar.findUnique({
     where: { slug },
-    include: {
+    select: {
+      id: true,
+      slug: true,
+      title: true,
+      description: true,
+      duration: true,
+      countdownPageId: true,
       host: { select: { name: true, email: true } },
-      schedules: {
+      // Only fetch the specific schedule if we have an ID, otherwise fetch minimal data
+      schedules: scheduleId ? {
+        where: { id: scheduleId },
         select: {
           id: true,
           scheduleType: true,
@@ -26,21 +35,55 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
           recurringPattern: true,
           isActive: true,
           createdAt: true,
-          isZoomSession: true,  // NEW
-          zoomLink: true,        // NEW
+          isZoomSession: true,
+          zoomLink: true,
+        },
+      } : {
+        take: 1, // Only get first schedule for faster loading
+        select: {
+          id: true,
+          scheduleType: true,
+          scheduledAt: true,
+          timezone: true,
+          useUserTimezone: true,
+          minutesFromReg: true,
+          recurringPattern: true,
+          isActive: true,
+          createdAt: true,
+          isZoomSession: true,
+          zoomLink: true,
         },
         orderBy: {
           createdAt: 'asc'
         }
       },
     },
-  })
+  });
+
+  const brandingPromise = readBrandingSettings();
+
+  const registrationPromise = registrationId
+    ? prisma.registration.findUnique({
+        where: { id: registrationId },
+        select: {
+          id: true,
+          scheduleId: true,
+          registeredAt: true,
+          scheduledStartTime: true,
+          referralCode: true,
+        },
+      })
+    : Promise.resolve(null);
+
+  const [webinar, brandingSettings, registration] = await Promise.all([
+    webinarPromise,
+    brandingPromise,
+    registrationPromise
+  ]);
 
   if (!webinar) {
-    return null
+    return null;
   }
- 
-  const brandingSettings = await readBrandingSettings()
 
   console.log('🔍 [Countdown] Webinar loaded:', {
     slug,
@@ -51,28 +94,17 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
     requestedScheduleId: scheduleId,
   })
 
-  // If registrationId is provided, get the registration to find the registered schedule
-  let registration = null
-  if (registrationId) {
-    registration = await prisma.registration.findUnique({
-      where: { id: registrationId },
-      select: { 
-        id: true, 
-        scheduleId: true, 
-        registeredAt: true,
-        scheduledStartTime: true, // NEW: Get the stored start time
-        referralCode: true, // For building referral links
-      },
-    })
-    
-    // Debug logging
+  // Log registration if found
+  if (registration) {
     console.log('🔍 [Countdown] Registration found:', {
-      id: registration?.id,
-      scheduleId: registration?.scheduleId,
-      registeredAt: registration?.registeredAt,
-      scheduledStartTime: registration?.scheduledStartTime, // NEW
-      hasStoredStartTime: !!registration?.scheduledStartTime,
+      id: registration.id,
+      scheduleId: registration.scheduleId,
+      registeredAt: registration.registeredAt,
+      scheduledStartTime: registration.scheduledStartTime,
+      hasStoredStartTime: !!registration.scheduledStartTime,
     })
+  } else if (registrationId) {
+    console.log('⚠️ [Countdown] Registration ID provided but not found:', registrationId)
   } else {
     console.log('⚠️ [Countdown] No registration ID provided in URL')
   }
@@ -533,6 +565,8 @@ function processCountdownTemplate(
       .replace(/\t/g, '\\t')
   }
 
+  const hasCountdownPlaceholder = html.includes('{{countdown}}')
+
   const countdownScript = `
 (function() {
   // Safety check: only run in browser context
@@ -608,7 +642,52 @@ function processCountdownTemplate(
 })();
   `
 
-  processed = processed.replace(/\{\{countdown\}\}/g, countdownScript)
+  const redirectOnlyScript = `
+<script>
+(function() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return;
+  }
+  var targetTime = new Date('${scheduleDateTime.toISOString()}').getTime();
+  var joinUrl = '${escapeJsString(joinLink)}';
+  var hasRedirected = false;
+
+  function checkRedirect() {
+    var now = new Date().getTime();
+    if (now < targetTime) {
+      return;
+    }
+    if (hasRedirected) {
+      return;
+    }
+    hasRedirected = true;
+    window.location.href = joinUrl;
+  }
+
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', function() {
+      checkRedirect();
+      setInterval(checkRedirect, 1000);
+    });
+  } else {
+    checkRedirect();
+    setInterval(checkRedirect, 1000);
+  }
+})();
+</script>
+  `
+
+  if (hasCountdownPlaceholder) {
+    processed = processed.replace(/\{\{countdown\}\}/g, countdownScript)
+  } else {
+    if (/<\/body>/i.test(processed)) {
+      processed = processed.replace(/<\/body>/i, `${redirectOnlyScript}\n</body>`)
+    } else if (/<\/html>/i.test(processed)) {
+      processed = processed.replace(/<\/html>/i, `${redirectOnlyScript}\n</html>`)
+    } else {
+      processed += redirectOnlyScript
+    }
+  }
   processed = processed.replace(/\{\{countdownIso\}\}/g, scheduleDateTime.toISOString())
 
   // Debug: Log a sample of the processed HTML around the script area
@@ -718,19 +797,10 @@ export default async function CountdownPage({ params, searchParams }: PageProps)
 }
 
 export async function generateMetadata({ params }: PageProps) {
-  const webinar = await prisma.webinar.findUnique({
-    where: { slug: params.slug },
-    select: { title: true },
-  })
-
-  if (!webinar) {
-    return {
-      title: 'Countdown',
-    }
-  }
-
+  // Remove database call from metadata generation to avoid double loading
+  // and prevent failures when database is unreachable
   return {
-    title: `Countdown - ${webinar.title}`,
-    description: `The countdown page for ${webinar.title}`,
+    title: 'Countdown',
+    description: 'Webinar countdown page',
   }
 }

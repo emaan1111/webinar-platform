@@ -809,9 +809,9 @@ async function main() {
                 <p class="share-description">
                     Imagine the reward you'll receive for helping even one mother strengthen her child's connection with Allah.
                 </p>
-                <a href="{{joinLink}}" class="webinar-link" target="_blank" rel="noopener">
-                    <i class="fas fa-share-alt"></i> Share Registration Link
-                </a>
+                <button onclick="copyReferralLink()" class="webinar-link" style="background: none; border: none; cursor: pointer; font: inherit; padding: 16px 40px; color: inherit; display: inline-flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-copy"></i> Copy Registration Link
+                </button>
             </div>
         </div>
     </section>
@@ -930,14 +930,33 @@ async function main() {
         });
 
         function shareOnWhatsApp() {
-            const shareText = "{{whatsappShareMessage}}";
+            const shareUrl = '{{referralLink}}';
+            const shareText = '{{whatsappShareMessage}} ' + shareUrl;
             const whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(shareText);
             window.open(whatsappUrl, '_blank');
         }
 
         function shareOnFacebook() {
-            const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u={{joinLink}}&quote={{facebookShareMessage}}';
-            window.open(shareUrl, '_blank', 'width=600,height=400');
+            const shareUrl = '{{referralLink}}';
+            const fbShareUrl = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(shareUrl) + '&quote={{facebookShareMessage}}';
+            window.open(fbShareUrl, '_blank', 'width=600,height=400');
+        }
+
+        function copyReferralLink() {
+            const referralUrl = '{{referralLink}}';
+            navigator.clipboard.writeText(referralUrl).then(function() {
+                const button = event.target.closest('button');
+                const originalHTML = button.innerHTML;
+                button.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                button.style.backgroundColor = '#48bb78';
+                setTimeout(function() {
+                    button.innerHTML = originalHTML;
+                    button.style.backgroundColor = '';
+                }, 2000);
+            }).catch(function(err) {
+                console.error('Failed to copy:', err);
+                alert('Failed to copy link. Please try again.');
+            });
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -2363,18 +2382,20 @@ async function main() {
                     <h3 class="step-title">Share & Inspire Others</h3>
                     <p class="step-description">Help others benefit from this session. Share with friends and family who might be interested.</p>
                     
-                    <div class="social-sharing">
-                        <a href="https://api.whatsapp.com/send?text=I just registered for {{webinarTitle}}. Join me! {{joinLink}}" target="_blank" class="social-btn whatsapp-btn">
-                            <i class="fab fa-whatsapp"></i>
+                    <div style="display: flex; gap: 12px; margin-bottom: 20px;">
+                        <a href="#" onclick="shareOnWhatsApp(); return false;" class="btn btn-success" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; background: #25D366; border-color: #25D366;">
+                            <i class="fab fa-whatsapp" style="font-size: 1.2rem;"></i>
+                            <span>WhatsApp</span>
                         </a>
-                        <a href="https://www.facebook.com/sharer/sharer.php?u={{joinLink}}" target="_blank" class="social-btn facebook-btn">
-                            <i class="fab fa-facebook-f"></i>
+                        <a href="#" onclick="shareOnFacebook(); return false;" class="btn btn-primary" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; text-decoration: none; background: #1877F2; border-color: #1877F2;">
+                            <i class="fab fa-facebook-f" style="font-size: 1.2rem;"></i>
+                            <span>Facebook</span>
                         </a>
                     </div>
                     
                     <p class="reward-text">"Whoever calls others to guidance will have a reward like that of those who follow it." - Hadith</p>
                     
-                    <button class="btn btn-secondary" style="margin-top: 20px; width: 100%;" onclick="copyLink()">
+                    <button class="btn btn-secondary" style="margin-top: 20px; width: 100%;" onclick="copyReferralLink()">
                         <i class="fas fa-copy"></i> Copy Registration Link
                     </button>
                     
@@ -2407,8 +2428,21 @@ async function main() {
     <script>
         {{countdown}}
         
-        function copyLink() {
-            const link = '{{joinLink}}';
+        function shareOnWhatsApp() {
+            const referralLink = '{{referralLink}}';
+            const shareText = "{{whatsappShareMessage}}";
+            const whatsappUrl = 'https://wa.me/?text=' + encodeURIComponent(shareText);
+            window.open(whatsappUrl, '_blank');
+        }
+
+        function shareOnFacebook() {
+            const referralLink = '{{referralLink}}';
+            const shareUrl = 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(referralLink) + '&quote=' + encodeURIComponent('{{facebookShareMessage}}');
+            window.open(shareUrl, '_blank', 'width=600,height=400');
+        }
+        
+        function copyReferralLink() {
+            const link = '{{referralLink}}';
             const dummy = document.createElement('input');
             document.body.appendChild(dummy);
             dummy.value = link;

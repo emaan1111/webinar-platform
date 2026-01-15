@@ -120,13 +120,13 @@ function processTemplate(html: string, data: any) {
   // Helper function to escape strings for safe insertion into JavaScript string literals
   // This is used when the URL will be INSIDE quotes in the template
   const escapeForJsString = (str: string) => {
+    // For URLs, we don't want to escape slashes or colons
+    // Only escape quotes and special control characters
     return str
-      .replace(/\\/g, '\\\\')   // Escape backslashes
       .replace(/"/g, '\\"')      // Escape double quotes
       .replace(/'/g, "\\'")      // Escape single quotes  
       .replace(/\n/g, '\\n')     // Escape newlines
       .replace(/\r/g, '\\r')     // Escape carriage returns
-      .replace(/\t/g, '\\t')     // Escape tabs
   }
   
   // For referral links in templates, they're used in string concatenations like:
@@ -174,6 +174,10 @@ function processTemplate(html: string, data: any) {
   const formattedTime = scheduleDateTime.toLocaleTimeString('en-US', timeOptions)
   const formattedDateTime = `${formattedDate} at ${formattedTime}`
   const scheduleISO = scheduleDateTime.toISOString()
+  
+  // Replace webinar title
+  processed = processed.replace(/\{\{webinarTitle\}\}/g, webinar.title)
+  processed = processed.replace(/\{\{webinar\.title\}\}/g, webinar.title)
   
   // Support both old and new format
   processed = processed.replace(/\{\{webinarDate\}\}/g, formattedDate)
@@ -253,11 +257,13 @@ function processTemplate(html: string, data: any) {
   const shareLink = referralLink || countdownLink
   const defaultWhatsAppMessage = `I just registered for '${webinar.title}' happening on ${formattedDate} at ${formattedTime} (${timezone.replace(/_/g, ' ')}). Join me: ${shareLink}`
   const whatsappMessage = webinar.whatsappShareMessage || defaultWhatsAppMessage
-  processed = processed.replace(/\{\{whatsappShareMessage\}\}/g, whatsappMessage)
+  const safeWhatsappMessage = escapeForJsString(whatsappMessage)
+  processed = processed.replace(/\{\{whatsappShareMessage\}\}/g, safeWhatsappMessage)
   
   const defaultFacebookMessage = `Check out this webinar: ${webinar.title}`
   const facebookMessage = webinar.facebookShareMessage || defaultFacebookMessage
-  processed = processed.replace(/\{\{facebookShareMessage\}\}/g, facebookMessage)
+  const safeFacebookMessage = escapeForJsString(facebookMessage)
+  processed = processed.replace(/\{\{facebookShareMessage\}\}/g, safeFacebookMessage)
   
   // Generate countdown timer script
   const countdownScript = `

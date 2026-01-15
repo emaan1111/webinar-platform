@@ -148,12 +148,29 @@ for (const reminderTagName of REMINDER_TAG_NAMES) {
   }
 }
 
-function getAttendanceTagName(tagKey: AttendanceTagKey): string | null {
+export interface WebinarCustomTags {
+  registrationTag?: string | null
+  attendedTag?: string | null
+  mostlyAttendedTag?: string | null
+  partlyAttendedTag?: string | null
+  missedTag?: string | null
+  replayAttendedTag?: string | null
+}
+
+function getAttendanceTagName(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): string | null {
+  if (customTags) {
+    if (tagKey === 'registered' && customTags.registrationTag) return customTags.registrationTag
+    if (tagKey === 'attended' && customTags.attendedTag) return customTags.attendedTag
+    if (tagKey === 'mostlyAttended' && customTags.mostlyAttendedTag) return customTags.mostlyAttendedTag
+    if (tagKey === 'partlyAttended' && customTags.partlyAttendedTag) return customTags.partlyAttendedTag
+    if (tagKey === 'missed' && customTags.missedTag) return customTags.missedTag
+    if (tagKey === 'replayAttended' && customTags.replayAttendedTag) return customTags.replayAttendedTag
+  }
   return ATTENDANCE_TAG_DEFAULT_NAMES[tagKey] || null
 }
 
-async function resolveAttendanceTagId(tagKey: AttendanceTagKey): Promise<number | null> {
-  const tagName = getAttendanceTagName(tagKey)
+async function resolveAttendanceTagId(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): Promise<number | null> {
+  const tagName = getAttendanceTagName(tagKey, customTags)
   if (!tagName) {
     return null
   }
@@ -161,12 +178,12 @@ async function resolveAttendanceTagId(tagKey: AttendanceTagKey): Promise<number 
   return await getOrCreateClickFunnelsTagId(tagName)
 }
 
-async function resolveAttendanceTagIds(tagKeys: AttendanceTagKey[]): Promise<number[]> {
+async function resolveAttendanceTagIds(tagKeys: AttendanceTagKey[], customTags?: WebinarCustomTags): Promise<number[]> {
   const uniqueKeys = Array.from(new Set(tagKeys))
   const resolvedIds: number[] = []
 
   for (const key of uniqueKeys) {
-    const tagName = getAttendanceTagName(key)
+    const tagName = getAttendanceTagName(key, customTags)
     if (!tagName) {
       continue
     }
@@ -220,12 +237,14 @@ async function findContactByEmailWithRetry(
   return null
 }
 
-async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
+export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
   const cachedId = clickFunnelsTagCache.get(tagName)
   if (cachedId) {
+    console.log(`⚡ Using cached ID for tag "${tagName}": ${cachedId}`)
     return cachedId
   }
 
+  console.log(`🔍 Resolving tag ID from API for: "${tagName}"`)
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
 
@@ -241,6 +260,7 @@ async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | n
   }
 
   const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/tags?filter[name]=${encodeURIComponent(tagName)}`
+  console.log(`🔍 Searching for tag: ${searchUrl}`)
 
   const findExistingTag = async (): Promise<number | null> => {
     const response = await fetch(searchUrl, {
@@ -255,6 +275,8 @@ async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | n
     }
 
     const searchResult = await response.json()
+    console.log(`📋 Tag search results for "${tagName}":`, JSON.stringify(searchResult, null, 2))
+    
     const tags = Array.isArray(searchResult)
       ? searchResult
       : Array.isArray(searchResult?.data)
@@ -262,10 +284,12 @@ async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | n
         : []
 
     const existingTag = tags[0]
+    console.log(`🏷️ Found existing tag:`, existingTag)
 
     if (existingTag?.id) {
       const tagId = Number(existingTag.id)
       if (!Number.isNaN(tagId)) {
+        console.log(`✅ Caching tag "${tagName}" with ID: ${tagId}`)
         clickFunnelsTagCache.set(tagName, tagId)
         return tagId
       }
@@ -535,7 +559,7 @@ async function updateClickFunnelsContact(
  */
 export async function tagClickFunnelsContact(
   email: string,
-  tags: string[]
+  tags: (string | number)[]
 ): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
@@ -547,6 +571,7 @@ export async function tagClickFunnelsContact(
 
   try {
     console.log('🏷️ Tagging contact in ClickFunnels:', email, tags)
+    // console.log('🔍 Stack trace for debugging:', new Error().stack)
 
     const contact = await findContactByEmailWithRetry(email, apiKey, workspaceId)
 
@@ -557,9 +582,19 @@ export async function tagClickFunnelsContact(
 
     const tagIds: number[] = []
 
-    for (const tagName of tags) {
+    for (const tag of tags) {
+      if (typeof tag === 'number') {
+        // Assume valid ID if number is passed directly
+        console.log(`📌 Using direct tag ID: ${tag}`)
+        tagIds.push(tag)
+        continue
+      }
+
+      // Handle string tags (names)
+      const tagName = String(tag)
       const tagId = await getOrCreateClickFunnelsTagId(tagName)
       if (tagId) {
+        console.log(`📌 Resolved tag "${tagName}" to ID: ${tagId}`)
         tagIds.push(tagId)
       }
     }
@@ -599,9 +634,10 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   attendeeTimezoneLabel?: string | null
   zoomLink?: string | null // Zoom meeting link for live sessions
   isZoomSession?: boolean  // Whether this is a Zoom session
+  customTags?: WebinarCustomTags
 }): Promise<boolean> {
   try {
-    const registeredTagId = await resolveAttendanceTagId('registered')
+    const registeredTagId = await resolveAttendanceTagId('registered', data.customTags)
 
     // Split name into first and last
     const nameParts = data.name.trim().split(' ')
@@ -849,6 +885,7 @@ export async function syncAttendanceToClickFunnels(data: {
   reachedOfferCTA?: boolean
   webinarTitle?: string
   leftAt?: Date
+  customTags?: WebinarCustomTags
 }): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
@@ -882,7 +919,7 @@ export async function syncAttendanceToClickFunnels(data: {
       return true
     }
 
-    const tagIds = await resolveAttendanceTagIds(tagsToApply)
+    const tagIds = await resolveAttendanceTagIds(tagsToApply, data.customTags)
 
     if (tagIds.length === 0) {
       console.log('⚠️ No valid tag IDs resolved for attendance tracking')

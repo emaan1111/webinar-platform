@@ -25,14 +25,26 @@ interface AttendanceTagOptions {
  */
 async function getAttendanceTag(
   registrationId: string
-): Promise<{ tagId: string | null; tagName: string; reason: string }> {
+): Promise<{ tagName: string; tagId?: number | null; tagKey: string; reason: string }> {
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     include: {
       webinar: {
         select: {
           mostlyAttendedThreshold: true,
-          videoDuration: true
+          videoDuration: true,
+          registrationTag: true,
+          registrationTagId: true,
+          attendedTag: true,
+          attendedTagId: true,
+          mostlyAttendedTag: true,
+          mostlyAttendedTagId: true,
+          partlyAttendedTag: true,
+          partlyAttendedTagId: true,
+          missedTag: true,
+          missedTagId: true,
+          replayAttendedTag: true,
+          replayAttendedTagId: true,
         }
       },
       sessions: {
@@ -45,14 +57,17 @@ async function getAttendanceTag(
   })
 
   if (!registration) {
-    return { tagId: null, tagName: 'NONE', reason: 'Registration not found' }
+    return { tagName: '', tagKey: 'NONE', reason: 'Registration not found' }
   }
+
+  const w = registration.webinar
 
   // If never attended, tag as MISSED
   if (!registration.attended) {
     return {
-      tagId: process.env.CLICKFUNNELS_TAG_MISSED || null,
-      tagName: 'MISSED',
+      tagName: w.missedTag || 'UM-Webinar-Missed',
+      tagId: w.missedTagId,
+      tagKey: 'MISSED',
       reason: 'Never attended'
     }
   }
@@ -67,27 +82,30 @@ async function getAttendanceTag(
     : (registration.lastWatchedPosition || 0)
 
   // Check if webinar has a MOSTLY_ATTENDED threshold configured
-  const threshold = registration.webinar.mostlyAttendedThreshold
+  const threshold = w.mostlyAttendedThreshold
 
   if (threshold && effectiveWatchTime >= threshold) {
     // Watched past the threshold - MOSTLY_ATTENDED
     return {
-      tagId: process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED || null,
-      tagName: 'MOSTLY_ATTENDED',
+      tagName: w.mostlyAttendedTag || 'UM-Webinar-MostlyAttended',
+      tagId: w.mostlyAttendedTagId,
+      tagKey: 'MOSTLY_ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, past threshold ${threshold}s`
     }
   } else if (threshold && effectiveWatchTime > 0) {
     // Attended but didn't reach threshold - PARTLY_ATTENDED
     return {
-      tagId: process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED || null,
-      tagName: 'PARTLY_ATTENDED',
+      tagName: w.partlyAttendedTag || 'UM-Webinar-PartlyAttended',
+      tagId: w.partlyAttendedTagId,
+      tagKey: 'PARTLY_ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, before threshold ${threshold}s`
     }
   } else {
     // No threshold configured, just mark as ATTENDED
     return {
-      tagId: process.env.CLICKFUNNELS_TAG_ATTENDED || null,
-      tagName: 'ATTENDED',
+      tagName: w.attendedTag || 'UM-Webinar-Attended',
+      tagId: w.attendedTagId,
+      tagKey: 'ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, no threshold configured`
     }
   }
@@ -135,24 +153,27 @@ export async function applyAttendanceTagOnSessionEnd(
     // Get the appropriate tag
     const tagInfo = await getAttendanceTag(registrationId)
 
-    if (!tagInfo.tagId) {
+    if (!tagInfo.tagName) {
       return { 
         success: false, 
-        error: `No tag configured for ${tagInfo.tagName}`,
+        error: `No tag configured for ${tagInfo.tagKey}`,
         reason: tagInfo.reason
       }
     }
 
     // Apply tag in ClickFunnels
-    console.log(`📋 Applying ${tagInfo.tagName} tag to ${registration.email}`, {
+    const tagToApply = tagInfo.tagId || tagInfo.tagName
+    
+    console.log(`📋 Applying ${tagInfo.tagKey} tag (${tagToApply}) to ${registration.email}`, {
       registrationId,
       reason: tagInfo.reason,
+      tagName: tagInfo.tagName,
       tagId: tagInfo.tagId
     })
 
     const success = await tagClickFunnelsContact(
       registration.email,
-      [tagInfo.tagId]
+      [tagToApply]
     )
 
     if (!success) {
@@ -171,11 +192,11 @@ export async function applyAttendanceTagOnSessionEnd(
       }
     })
 
-    console.log(`✅ Successfully applied ${tagInfo.tagName} tag to ${registration.email}`)
+    console.log(`✅ Successfully applied ${tagInfo.tagKey} tag to ${registration.email}`)
 
     return {
       success: true,
-      tag: tagInfo.tagName,
+      tag: tagInfo.tagKey,
       reason: tagInfo.reason
     }
   } catch (error) {
@@ -531,11 +552,17 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
         
         console.log(`   📌 Tag: ${tagResult.tagName}, Reason: ${tagResult.reason}`)
 
-        // Apply the tag if we have an email and tag ID
-        if (registration.email && tagResult.tagId) {
-          await tagClickFunnelsContact(registration.email, [tagResult.tagId])
-          console.log(`   ✅ Applied ${tagResult.tagName}`)
-          totalTagged++
+        // Apply the tag if we have an email
+        if (registration.email) {
+          const tagToApply = tagResult.tagId || tagResult.tagName
+          
+          if (tagToApply) {
+            await tagClickFunnelsContact(registration.email, [tagToApply])
+            console.log(`   ✅ Applied ${tagResult.tagName} (ID: ${tagResult.tagId || 'N/A'})`)
+            totalTagged++
+          } else {
+             console.log(`   ⚠️ No tag resolved to apply`)
+          }
         } else if (!registration.email) {
           console.log(`   ⚠️ No email address`)
         }
@@ -592,7 +619,15 @@ export async function reapplyAttendanceTagsAfterReplay(
           select: {
             mostlyAttendedThreshold: true,
             videoDuration: true,
-            title: true
+            title: true,
+            attendedTag: true,
+            attendedTagId: true,
+            mostlyAttendedTag: true,
+            mostlyAttendedTagId: true,
+            partlyAttendedTag: true,
+            partlyAttendedTagId: true,
+            replayAttendedTag: true,
+            replayAttendedTagId: true,
           }
         }
       }
@@ -613,44 +648,44 @@ export async function reapplyAttendanceTagsAfterReplay(
     const replayWatchTime = registration.replayWatchTime || 0
     const threshold = registration.webinar.mostlyAttendedThreshold
 
-    const tagsToApply: string[] = []
+    const tagsToApply: (string|number)[] = []
 
     // If they were previously tagged as MISSED, we should remove that tag
     // Note: ClickFunnels doesn't have a remove tag API, but we can skip re-applying it
     
     // ATTENDED - Always tag replay viewers as attended
-    const attendedTagId = process.env.CLICKFUNNELS_TAG_ATTENDED
-    if (attendedTagId) {
-      await tagClickFunnelsContact(registration.email, [attendedTagId])
-      tagsToApply.push('ATTENDED')
-      console.log(`✅ Applied ATTENDED tag to ${registration.email}`)
-    }
+    const attendedTag = registration.webinar.attendedTag || 'UM-Webinar-Attended'
+    const attendedTagId = registration.webinar.attendedTagId
+    
+    await tagClickFunnelsContact(registration.email, [attendedTagId || attendedTag])
+    tagsToApply.push(attendedTagId || attendedTag)
+    console.log(`✅ Applied ATTENDED tag (${attendedTag}, ID: ${attendedTagId || 'N/A'}) to ${registration.email}`)
 
     // REPLAY_ATTENDED - Special tag for replay viewers
-    const replayTagId = process.env.CLICKFUNNELS_TAG_REPLAY_ATTENDED
-    if (replayTagId) {
-      await tagClickFunnelsContact(registration.email, [replayTagId])
-      tagsToApply.push('REPLAY_ATTENDED')
-      console.log(`✅ Applied REPLAY_ATTENDED tag to ${registration.email}`)
-    }
+    const replayTag = registration.webinar.replayAttendedTag || 'UM-Webinar-ReplayAttended'
+    const replayTagId = registration.webinar.replayAttendedTagId
+    
+    await tagClickFunnelsContact(registration.email, [replayTagId || replayTag])
+    tagsToApply.push(replayTagId || replayTag)
+    console.log(`✅ Applied REPLAY_ATTENDED tag (${replayTag}, ID: ${replayTagId || 'N/A'}) to ${registration.email}`)
 
     // MOSTLY_ATTENDED or PARTLY_ATTENDED based on watch time
     if (threshold && replayWatchTime >= threshold) {
       // Watched past the threshold
-      const mostlyTagId = process.env.CLICKFUNNELS_TAG_MOSTLY_ATTENDED
-      if (mostlyTagId) {
-        await tagClickFunnelsContact(registration.email, [mostlyTagId])
-        tagsToApply.push('MOSTLY_ATTENDED')
-        console.log(`✅ Applied MOSTLY_ATTENDED tag to ${registration.email} (watched ${replayWatchTime}s, threshold ${threshold}s)`)
-      }
+      const mostlyTag = registration.webinar.mostlyAttendedTag || 'UM-Webinar-MostlyAttended'
+      const mostlyTagId = registration.webinar.mostlyAttendedTagId
+
+      await tagClickFunnelsContact(registration.email, [mostlyTagId || mostlyTag])
+      tagsToApply.push(mostlyTagId || mostlyTag)
+      console.log(`✅ Applied MOSTLY_ATTENDED tag (${mostlyTag}, ID: ${mostlyTagId || 'N/A'}) to ${registration.email} (watched ${replayWatchTime}s, threshold ${threshold}s)`)
     } else if (replayWatchTime >= 2400) {
       // Watched at least 40 minutes but didn't reach threshold
-      const partlyTagId = process.env.CLICKFUNNELS_TAG_PARTLY_ATTENDED
-      if (partlyTagId) {
-        await tagClickFunnelsContact(registration.email, [partlyTagId])
-        tagsToApply.push('PARTLY_ATTENDED')
-        console.log(`✅ Applied PARTLY_ATTENDED tag to ${registration.email} (watched ${replayWatchTime}s)`)
-      }
+      const partlyTag = registration.webinar.partlyAttendedTag || 'UM-Webinar-PartlyAttended'
+      const partlyTagId = registration.webinar.partlyAttendedTagId
+      
+      await tagClickFunnelsContact(registration.email, [partlyTagId || partlyTag])
+      tagsToApply.push(partlyTagId || partlyTag)
+      console.log(`✅ Applied PARTLY_ATTENDED tag (${partlyTag}, ID: ${partlyTagId || 'N/A'}) to ${registration.email} (watched ${replayWatchTime}s)`)
     }
 
     // Update database to mark tags as applied and set attended = true

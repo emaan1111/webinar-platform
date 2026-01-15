@@ -14,45 +14,21 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
   const { slug } = params;
   
   try {
-    // Fetch webinar with A/B testing configuration - optimized query
+    // Minimal fetch - only what's needed for initial page render
     const webinar = await prisma.webinar.findUnique({
       where: { slug },
       select: {
         id: true,
         slug: true,
-        title: true,
-        description: true,
-        duration: true,
-        videoUrl: true,
-        vimeoVideoId: true,
         registrationPageId: true,
         enableABTesting: true,
         testRegistrationPage: true,
         regPageAId: true,
         regPageBId: true,
-        testSchedule: true,
-        scheduleAIds: true,
-        scheduleBIds: true,
-        testVideo: true,
-        videoAId: true,
-        videoBId: true,
-        testOffer: true,
-        offerAId: true,
-        offerBId: true,
         trafficSplitPercent: true,
         maxSchedulesToShow: true,
         roundJITTo15Minutes: true,
-        schedules: {
-          select: {
-            id: true,
-            scheduleType: true,
-            scheduledAt: true,
-            minutesFromReg: true,
-            timezone: true,
-            useUserTimezone: true,
-            recurringPattern: true,
-          },
-        },
+        // Schedules will be fetched on-demand when modal opens
       },
     });
 
@@ -70,14 +46,12 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
     let testGroup: 'A' | 'B' | null = null;
     let testConfig = null;
     let registrationPage = null;
-    let activeOffer = null;
+    // Track page view with all active test elements
+    const activeElements: Array<{ element: 'registration' | 'schedule' | 'offer' | 'video'; variantShown: string }> = [];
 
     if (webinar.enableABTesting) {
       testGroup = await getVisitorTestGroup(webinar.id, webinar.trafficSplitPercent);
       testConfig = getTestConfiguration(webinar, testGroup);
-
-      // Track page view with all active test elements
-      const activeElements: Array<{ element: 'registration' | 'schedule' | 'offer' | 'video'; variantShown: string }> = [];
       
       if (webinar.testRegistrationPage && testConfig.registrationPageId) {
         activeElements.push({
@@ -85,68 +59,20 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
           variantShown: testConfig.registrationPageId,
         });
       }
-      
-      if (webinar.testSchedule && testConfig.scheduleIds.length > 0) {
-        activeElements.push({
-          element: 'schedule',
-          variantShown: testConfig.scheduleIds.join(','),
-        });
-      }
-      
-      if (webinar.testOffer && testConfig.offerId) {
-        activeElements.push({
-          element: 'offer',
-          variantShown: testConfig.offerId,
-        });
-      }
-      
-      if (webinar.testVideo && testConfig.videoId) {
-        activeElements.push({
-          element: 'video',
-          variantShown: testConfig.videoId,
-        });
-      }
 
-      // Track page view (non-blocking)
-      if (activeElements.length > 0) {
-        const headersList = await headers();
-        trackPageViewFromRequest(webinar.id, testGroup, activeElements, headersList).catch(() => {
-          // Silent fail - don't block page render
-        });
-      }
+      // Track page view moved to client side to improve initial load time
+      // The activeElements will be passed to the client component
 
-      // Parallel fetch registration page and offer if testing
-      const fetchPromises: Promise<any>[] = [];
-      
+      // Fetch registration page if testing
       if (webinar.testRegistrationPage && testConfig.registrationPageId) {
-        fetchPromises.push(
-          prisma.registrationPage.findUnique({
-            where: { id: testConfig.registrationPageId },
-          })
-        );
+        registrationPage = await prisma.registrationPage.findUnique({
+          where: { id: testConfig.registrationPageId },
+        });
       } else if (webinar.registrationPageId) {
-        fetchPromises.push(
-          prisma.registrationPage.findUnique({
-            where: { id: webinar.registrationPageId },
-          })
-        );
-      } else {
-        fetchPromises.push(Promise.resolve(null));
+        registrationPage = await prisma.registrationPage.findUnique({
+          where: { id: webinar.registrationPageId },
+        });
       }
-
-      if (webinar.testOffer && testConfig.offerId) {
-        fetchPromises.push(
-          prisma.offer.findUnique({
-            where: { id: testConfig.offerId },
-          })
-        );
-      } else {
-        fetchPromises.push(Promise.resolve(null));
-      }
-
-      const [regPage, offer] = await Promise.all(fetchPromises);
-      registrationPage = regPage;
-      activeOffer = offer;
     } else {
       // Load default registration page if specified
       if (webinar.registrationPageId) {
@@ -156,47 +82,15 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
       }
     }
 
-    // Filter schedules based on test group
-    const allSchedules = webinar.schedules as any[];
-    let filteredSchedules: any[] = allSchedules;
-    if (webinar.enableABTesting && webinar.testSchedule && testConfig) {
-      const scheduleIds: string[] = testConfig.scheduleIds;
-      if (scheduleIds.length > 0) {
-        filteredSchedules = allSchedules.filter((s: any) => (scheduleIds as string[]).includes(s.id));
-      }
-    }
-
-    // Prepare video URL based on test group
-    let videoUrl = webinar.videoUrl;
-    let vimeoVideoId = webinar.vimeoVideoId;
-    
-    if (webinar.enableABTesting && webinar.testVideo && testConfig?.videoId) {
-      // testConfig.videoId could be either a Vimeo ID or full URL
-      const videoId = testConfig.videoId;
-      if (videoId.startsWith('http')) {
-        videoUrl = videoId;
-        vimeoVideoId = null;
-      } else {
-        vimeoVideoId = videoId;
-        videoUrl = null;
-      }
-    }
-
-    // Prepare webinar data for client
+    // Prepare minimal webinar data for client (schedules loaded on demand)
     const webinarData = {
       id: webinar.id,
       slug: webinar.slug,
-      title: webinar.title,
-      description: webinar.description,
-      duration: webinar.duration,
-      schedules: filteredSchedules,
       maxSchedulesToShow: webinar.maxSchedulesToShow,
       roundJITTo15Minutes: webinar.roundJITTo15Minutes,
-      videoUrl,
-      vimeoVideoId,
-      offer: activeOffer,
       enableABTesting: webinar.enableABTesting,
       testGroup,
+      activeElements: webinar.enableABTesting ? activeElements : [],
     };
 
     return (

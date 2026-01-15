@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getOrCreateClickFunnelsTagId } from '@/lib/clickfunnels'
 
 // GET /api/webinars/[id] - Get single webinar
 export async function GET(
@@ -122,6 +123,13 @@ export async function PATCH(
       'replayEnabled',
       'replayDurationDays',
       'replayExpiresAt',
+      // ClickFunnels Custom Tags
+      'registrationTag',
+      'attendedTag',
+      'mostlyAttendedTag',
+      'partlyAttendedTag',
+      'missedTag',
+      'replayAttendedTag',
       'mostlyAttendedThreshold',
       'autoSendPostSessionSMS',
       'postSessionSMSMinutesAfter',
@@ -167,6 +175,33 @@ export async function PATCH(
         
         webinarData[field] = value
       }
+    }
+
+    // Pre-resolve ClickFunnels tags to warm up the cache and ensure tags exist
+    const tagFields = [
+      'registrationTag',
+      'attendedTag',
+      'mostlyAttendedTag',
+      'partlyAttendedTag',
+      'missedTag',
+      'replayAttendedTag'
+    ]
+
+    const tagsToResolve: string[] = []
+    
+    for (const field of tagFields) {
+      if (webinarData[field] && typeof webinarData[field] === 'string') {
+        tagsToResolve.push(webinarData[field])
+      }
+    }
+
+    if (tagsToResolve.length > 0) {
+      console.log('🔄 Pre-resolving ClickFunnels tags:', tagsToResolve)
+      // We don't await this to keep the UI response fast, but it will 
+      // populate the cache and create tags in the background
+      Promise.all(tagsToResolve.map(tag => getOrCreateClickFunnelsTagId(tag)))
+        .then(() => console.log('✅ Tags pre-resolved successfully'))
+        .catch(err => console.error('❌ Failed to pre-resolve tags:', err))
     }
 
     // Update webinar basic info

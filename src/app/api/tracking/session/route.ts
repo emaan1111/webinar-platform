@@ -120,7 +120,18 @@ export async function POST(request: NextRequest) {
         where: { id: registrationId },
         data: {},
         include: {
-          webinar: true,
+          webinar: {
+            select: {
+              title: true,
+              duration: true,
+              registrationTag: true,
+              attendedTag: true,
+              mostlyAttendedTag: true,
+              partlyAttendedTag: true,
+              missedTag: true,
+              replayAttendedTag: true,
+            }
+          },
         }
       });
 
@@ -185,6 +196,14 @@ export async function POST(request: NextRequest) {
         reachedOfferCTA,
         webinarTitle: registration.webinar.title,
         leftAt: updatedSession.leftAt || undefined,
+        customTags: {
+          registrationTag: registration.webinar.registrationTag,
+          attendedTag: registration.webinar.attendedTag,
+          mostlyAttendedTag: registration.webinar.mostlyAttendedTag,
+          partlyAttendedTag: registration.webinar.partlyAttendedTag,
+          missedTag: registration.webinar.missedTag,
+          replayAttendedTag: registration.webinar.replayAttendedTag,
+        }
       }).catch(err => {
         console.error('Failed to sync attendance to ClickFunnels:', err);
       });

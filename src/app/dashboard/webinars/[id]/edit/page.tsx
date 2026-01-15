@@ -70,6 +70,13 @@ export default function EditWebinarPage() {
     replayExpiresAt: null as string | null,
     // Attendance Tagging
     mostlyAttendedThreshold: null as number | null,
+    // ClickFunnels Custom Tags
+    registrationTag: '',
+    attendedTag: '',
+    mostlyAttendedTag: '',
+    partlyAttendedTag: '',
+    missedTag: '',
+    replayAttendedTag: '',
     // Post-Session SMS Automation
     autoSendPostSessionSMS: false,
     postSessionSMSMinutesAfter: 0,
@@ -189,6 +196,13 @@ export default function EditWebinarPage() {
         replayExpiresAt: webinar.replayExpiresAt || null,
         // Attendance Tagging
         mostlyAttendedThreshold: webinar.mostlyAttendedThreshold || null,
+        // ClickFunnels Custom Tags
+        registrationTag: webinar.registrationTag || '',
+        attendedTag: webinar.attendedTag || '',
+        mostlyAttendedTag: webinar.mostlyAttendedTag || '',
+        partlyAttendedTag: webinar.partlyAttendedTag || '',
+        missedTag: webinar.missedTag || '',
+        replayAttendedTag: webinar.replayAttendedTag || '',
         // Post-Session SMS Automation
         autoSendPostSessionSMS: webinar.autoSendPostSessionSMS || false,
         postSessionSMSMinutesAfter: webinar.postSessionSMSMinutesAfter || 0,
@@ -1575,6 +1589,112 @@ export default function EditWebinarPage() {
                     Users who don't reach this get <strong>PARTLY_ATTENDED</strong>.
                     Leave empty to only use <strong>ATTENDED</strong> tag for anyone who attended.
                   </p>
+                </div>
+
+                {/* Custom Tags Configuration */}
+                <div className="pt-6 border-t border-gray-100">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900">Custom ClickFunnels Tag Names</h3>
+                    <p className="text-xs text-gray-500">Override the global default tags for this specific webinar. Leave empty to use defaults.</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
+                    {/* Registered */}
+                    <div>
+                      <label htmlFor="registrationTag" className="block text-xs font-medium text-gray-700 mb-1">
+                        Registered Tag
+                      </label>
+                      <input
+                        type="text"
+                        id="registrationTag"
+                        name="registrationTag"
+                        value={formData.registrationTag || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="e.g. UM-Webinar-Registered"
+                      />
+                    </div>
+
+                    {/* Missed */}
+                    <div>
+                      <label htmlFor="missedTag" className="block text-xs font-medium text-gray-700 mb-1">
+                        Missed Tag
+                      </label>
+                      <input
+                        type="text"
+                        id="missedTag"
+                        name="missedTag"
+                        value={formData.missedTag || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="e.g. UM-Webinar-Missed"
+                      />
+                    </div>
+                    
+                    {/* Attended (Generic) */}
+                    <div>
+                      <label htmlFor="attendedTag" className="block text-xs font-medium text-gray-700 mb-1">
+                        Attended Tag (Any Duration)
+                      </label>
+                      <input
+                        type="text"
+                        id="attendedTag"
+                        name="attendedTag"
+                        value={formData.attendedTag || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="e.g. UM-Webinar-Attended"
+                      />
+                    </div>
+
+                    {/* Replay Attended */}
+                    <div>
+                      <label htmlFor="replayAttendedTag" className="block text-xs font-medium text-gray-700 mb-1">
+                        Replay Attended Tag
+                      </label>
+                      <input
+                        type="text"
+                        id="replayAttendedTag"
+                        name="replayAttendedTag"
+                        value={formData.replayAttendedTag || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="e.g. UM-Webinar-ReplayAttended"
+                      />
+                    </div>
+
+                    {/* Mostly Attended */}
+                    <div>
+                      <label htmlFor="mostlyAttendedTag" className="block text-xs font-medium text-gray-700 mb-1">
+                        Mostly Attended Tag
+                      </label>
+                      <input
+                        type="text"
+                        id="mostlyAttendedTag"
+                        name="mostlyAttendedTag"
+                        value={formData.mostlyAttendedTag || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="e.g. UM-Webinar-MostlyAttended"
+                      />
+                    </div>
+
+                    {/* Partly Attended */}
+                    <div>
+                      <label htmlFor="partlyAttendedTag" className="block text-xs font-medium text-gray-700 mb-1">
+                        Partly Attended Tag
+                      </label>
+                      <input
+                        type="text"
+                        id="partlyAttendedTag"
+                        name="partlyAttendedTag"
+                        value={formData.partlyAttendedTag || ''}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                        placeholder="e.g. UM-Webinar-PartlyAttended"
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {/* Example */}

@@ -104,7 +104,13 @@ ${scriptContent}
         
         try {
           newScript.text = wrappedScript
-          oldScript.parentNode?.replaceChild(newScript, oldScript)
+          // Check if parent node exists before replacing
+          if (oldScript.parentNode) {
+            oldScript.parentNode.replaceChild(newScript, oldScript)
+          } else {
+            // If no parent, just append to document body
+            document.body.appendChild(newScript)
+          }
         } catch (replaceError) {
           // Catch errors during script assignment/replacement (syntax errors)
           console.error(`[TemplateRenderer] Failed to replace/execute script ${index}:`, replaceError)

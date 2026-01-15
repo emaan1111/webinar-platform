@@ -144,6 +144,20 @@ model Webinar {
   // Attendance Tagging Configuration
   mostlyAttendedThreshold Int? // Timestamp in seconds - users who watch past this get MOSTLY_ATTENDED tag
 
+  // ClickFunnels Custom Tags (name + ID for performance)
+  registrationTag      String?
+  registrationTagId    Int?    // Store the ID directly for performance
+  attendedTag          String?
+  attendedTagId        Int?
+  mostlyAttendedTag    String?
+  mostlyAttendedTagId  Int?
+  partlyAttendedTag    String?
+  partlyAttendedTagId  Int?
+  missedTag            String?
+  missedTagId          Int?
+  replayAttendedTag    String?
+  replayAttendedTagId  Int?
+
   // Post-Session SMS Automation
   autoSendPostSessionSMS Boolean @default(false) // Enable automatic post-session SMS
   postSessionSMSMinutesAfter Int @default(0) // Minutes after session ends (0 = immediately)
@@ -434,8 +448,8 @@ model AttendeeSession {
 
   // Relations
   registration   Registration          @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  engagements    EngagementEvent[]
   videoEvents    VideoWatchEvent[]
+  engagements    EngagementEvent[]
   pageVisits     PageVisit[]
 
   @@index([registrationId])

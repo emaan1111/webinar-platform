@@ -86,6 +86,13 @@ export async function POST(
         slug: true,
         enableABTesting: true,
         trafficSplitPercent: true,
+        // ClickFunnels Custom Tags
+        registrationTag: true,
+        attendedTag: true,
+        mostlyAttendedTag: true,
+        partlyAttendedTag: true,
+        missedTag: true,
+        replayAttendedTag: true,
       }
     })
 
@@ -163,42 +170,7 @@ export async function POST(
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
 
-    // Link this registration to the visitor's page visit for conversion tracking
-    // Match by: most recent page visit for this webinar without a registrationId
-    // This happens synchronously so analytics can track the conversion rate immediately
-    runInBackground('Link page visit to registration', async () => {
-      try {
-        // Find the most recent page visit for this webinar on a registration page without a registrationId
-        // Look within last 30 minutes to avoid linking old visits
-        const recentPageVisit = await prisma.pageVisit.findFirst({
-          where: {
-            webinarId: id,
-            pageType: 'registration',
-            registrationId: null,
-            enteredAt: {
-              gte: new Date(Date.now() - 30 * 60 * 1000) // Within last 30 minutes
-            }
-          },
-          orderBy: {
-            enteredAt: 'desc'
-          }
-        });
-
-        if (recentPageVisit) {
-          await prisma.pageVisit.update({
-            where: { id: recentPageVisit.id },
-            data: { registrationId: registration.id }
-          });
-          console.log(`✅ Linked registration ${registration.id} to page visit ${recentPageVisit.id}`);
-        } else {
-          console.log(`⚠️ No recent page visit found to link registration ${registration.id}`);
-        }
-      } catch (error) {
-        console.error('Failed to link registration to page visit:', error);
-      }
-    });
-
-    // Return success immediately - all integrations happen in background
+    // Return success IMMEDIATELY - all non-critical work happens in background
     const response = NextResponse.json(
       { 
         registrationId: registration.id,
@@ -216,17 +188,40 @@ export async function POST(
       }
     );
 
-    // All integration work happens in background after response is sent
+    // ALL integration work happens in background - nothing blocks the user
     runInBackground('Post-registration integrations', async () => {
-      // Get schedule data if scheduleId provided (to check for Zoom link)
+      // Link page visit to registration for analytics
+      try {
+        const recentPageVisit = await prisma.pageVisit.findFirst({
+          where: {
+            webinarId: id,
+            pageType: 'registration',
+            registrationId: null,
+            enteredAt: {
+              gte: new Date(Date.now() - 30 * 60 * 1000)
+            }
+          },
+          orderBy: {
+            enteredAt: 'desc'
+          }
+        });
+
+        if (recentPageVisit) {
+          await prisma.pageVisit.update({
+            where: { id: recentPageVisit.id },
+            data: { registrationId: registration.id }
+          });
+        }
+      } catch (error) {
+        console.error('Failed to link registration to page visit:', error);
+      }
+
+      // Fetch schedule to get Zoom link if applicable
       let schedule = null;
       if (scheduleId) {
         schedule = await prisma.webinarSchedule.findUnique({
           where: { id: scheduleId },
-          select: {
-            isZoomSession: true,
-            zoomLink: true,
-          }
+          select: { zoomLink: true, isZoomSession: true }
         });
       }
 
@@ -349,6 +344,14 @@ export async function POST(
         attendeeTimezoneLabel,
         zoomLink: schedule?.zoomLink || undefined,
         isZoomSession: schedule?.isZoomSession || false,
+        customTags: {
+          registrationTag: webinar.registrationTag,
+          attendedTag: webinar.attendedTag,
+          mostlyAttendedTag: webinar.mostlyAttendedTag,
+          partlyAttendedTag: webinar.partlyAttendedTag,
+          missedTag: webinar.missedTag,
+          replayAttendedTag: webinar.replayAttendedTag,
+        }
       }).catch(err => console.error('ClickFunnels sync error:', err));
 
       // Schedule email and SMS reminders
