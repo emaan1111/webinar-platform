@@ -22,7 +22,7 @@ const countryCodes = [
   // Add other countries as needed...
 ];
 
-export default function RegistrationPage({ webinar, onRegister }) {
+export default function RegistrationPage({ webinar, onRegister }: { webinar: any, onRegister: any }) {
   const [showModal, setShowModal] = useState(false);
 
   // If we are passing an external handler, use it, otherwise use local modal

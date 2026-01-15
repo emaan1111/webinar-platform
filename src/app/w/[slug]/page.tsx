@@ -51,6 +51,7 @@ export default async function WebinarRegisterServerPage({ params }: PageProps) {
 
     if (webinar.enableABTesting) {
       testGroup = await getVisitorTestGroup(webinar.id, webinar.trafficSplitPercent);
+      // @ts-ignore - The webinar object from prisma includes all fields but TS doesn't see them all due to select/include nuance
       testConfig = getTestConfiguration(webinar, testGroup);
       
       if (webinar.testRegistrationPage && testConfig.registrationPageId) {

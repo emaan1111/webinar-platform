@@ -610,7 +610,7 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
  */
 export async function reapplyAttendanceTagsAfterReplay(
   registrationId: string
-): Promise<{ success: boolean; tags: string[]; error?: string }> {
+): Promise<{ success: boolean; tags: (string | number)[]; error?: string }> {
   try {
     const registration = await prisma.registration.findUnique({
       where: { id: registrationId },
