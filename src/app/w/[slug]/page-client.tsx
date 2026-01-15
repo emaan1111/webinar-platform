@@ -1905,8 +1905,8 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                       className="flex-1 px-8 py-4 rounded-xl text-white font-bold text-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02] active:scale-[0.98] relative overflow-hidden group"
                       style={{
                         // Use local theme or fallback
-                        background: theme?.buttonBg || '#4f46e5',
-                        boxShadow: theme?.buttonShadow || '0 10px 25px -5px rgba(79, 70, 229, 0.4)'
+                        background: '#4f46e5',
+                        boxShadow: '0 10px 25px -5px rgba(79, 70, 229, 0.4)'
                       }}
                     >
                       {/* Button glow effect */}
