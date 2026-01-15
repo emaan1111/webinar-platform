@@ -470,7 +470,6 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
         <div>
             <div className="section-header">
                 <h2>Inside this masterclass, you'll <span>discover</span></h2>
-                <p>Three insights that will change how you see your child — and what's possible for them.</p>
             </div>
             
             <div className="hidden lg:block mt-8">
@@ -484,16 +483,21 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
         <div className="discover-list">
             <div className="discover-item">
                 <span className="discover-num">01</span>
-                <p className="discover-text">The hidden reason your child seems "unmotivated" — and why it's not their fault (or yours)</p>
+                <p className="discover-text">The hidden reason your child seems "unmotivated" — and why it's not their fault (or yours.And the shift that reignites their fire.)</p>
             </div>
-
-            <div className="discover-item">
+    <div className="discover-item">
                 <span className="discover-num">02</span>
+                <p className="discover-text">Discover the Formula To Transform Any Child Into A Strong Self - Confident Muslim, that Most Schools and Teachers are Overlooking
+
+</p>
+            </div>
+            <div className="discover-item">
+                <span className="discover-num">03</span>
                 <p className="discover-text">The forgotten method that built the strongest generation of youth in history</p>
             </div>
 
             <div className="discover-item">
-                <span className="discover-num">03</span>
+                <span className="discover-num">04</span>
                 <p className="discover-text">The "switch" that replaces months of pushing with genuine inner drive</p>
             </div>
 

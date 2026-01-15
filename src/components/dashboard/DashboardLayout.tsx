@@ -23,7 +23,8 @@ import {
   ShoppingCart,
   Heart,
   Tag,
-  UserPlus
+  UserPlus,
+  ClipboardList
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -34,6 +35,7 @@ const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Webinars', href: '/dashboard/webinars', icon: Video },
   { name: 'Registration Pages', href: '/dashboard/registration-pages', icon: Layout },
+  { name: 'Forms', href: '/dashboard/forms', icon: ClipboardList },
   { name: 'Templates', href: '/dashboard/templates', icon: FileText },
   { name: 'Images', href: '/dashboard/images', icon: Image },
   { name: 'Attendees', href: '/dashboard/attendees', icon: Users },

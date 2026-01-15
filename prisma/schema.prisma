@@ -1034,3 +1034,79 @@ model ClickFunnelsReminderTag {
   @@unique([registrationId, tagName])
   @@map("clickfunnels_reminder_tags")
 }
+
+// Standalone Forms System
+model Form {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  submitText  String   @default("Submit")
+  successMsg  String   @default("Thank you for your submission.")
+  isActive    Boolean  @default(true)
+  
+  // Design settings
+  primaryColor   String   @default("#4f46e5") // Indigo-600
+  backgroundColor String  @default("#ffffff")
+  
+  // Post-submission behavior
+  redirectUrl    String?  // Optional URL to redirect to after success (or AI approval)
+
+  // AI Assessment Config
+  aiAssessmentEnabled Boolean @default(false)
+  aiPrompt            String? @db.Text // Custom instructions
+  
+  // AI Responses (Popups)
+  aiApproveTitle      String? @default("Application Approved")
+  aiApproveMsg        String? @default("Congratulations! Your application has been approved.")
+  aiRejectTitle       String? @default("Application Rejected")
+  aiRejectMsg         String? @default("Sorry, your application does not meet the criteria.")
+  aiReviewTitle       String? @default("Sent for Approval")
+  aiReviewMsg         String? @default("Your application is under review.")
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  fields      FormField[]
+  submissions FormSubmission[]
+
+  @@map("forms")
+}
+
+model FormField {
+  id          String   @id @default(cuid())
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  type        String   // "text", "email", "textarea", "number", "select", "checkbox", "radio"
+  label       String
+  placeholder String?
+  required    Boolean  @default(false)
+  options     String?  @db.Text // JSON string or comma-separated options for select/radio
+  position    Int      @default(0) // Ordering
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([formId])
+  @@map("form_fields")
+}
+
+model FormSubmission {
+  id          String   @id @default(cuid())
+  formId      String
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  data        String   @db.Text // JSON string of submitted data
+  
+  aiStatus    String? // "APPROVED", "REJECTED", "REVIEW"
+  aiReason    String? @db.Text
+
+  userAgent   String?
+  referrer    String?
+  
+  createdAt   DateTime @default(now())
+
+  @@index([formId])
+  @@map("form_submissions")
+}

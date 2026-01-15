@@ -21,6 +21,19 @@ module.exports = {
           900: '#0c4a6e',
         },
       },
+      keyframes: {
+        'progress-indeterminate': {
+          '0%': { width: '0%', marginLeft: '0%' },
+          '50%': { width: '70%', marginLeft: '15%' },
+          '100%': { width: '100%', marginLeft: '0%' },
+        },
+        'shimmer': {
+          '100%': { transform: 'translateX(100%)' },
+        }
+      },
+      animation: {
+        'progress-indeterminate': 'progress-indeterminate 2s ease-in-out infinite',
+      }
     },
   },
   plugins: [],

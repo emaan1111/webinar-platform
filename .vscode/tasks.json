@@ -1,0 +1,10 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Check Tag Values",
+			"type": "shell",
+			"command": "node check-tags.js > tags-output.txt"
+		}
+	]
+}
