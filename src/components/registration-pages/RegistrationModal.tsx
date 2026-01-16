@@ -26,6 +26,13 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
   });
   const [registering, setRegistering] = useState(false);
   const [error, setError] = useState('');
+  
+  // State to hold tracking parameters from parent or URL
+  const [trackingParams, setTrackingParams] = useState<{ st?: string | null, v?: string | null }>({
+    st: splitTestId || searchParams.get('st'),
+    v: variantId || searchParams.get('v')
+  });
+
   const [selectedTimezone, setSelectedTimezone] = useState(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
@@ -229,8 +236,8 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
             timezone: selectedTimezone,
             privacyConsent: formData.privacyConsent,
             country: 'US', // TODO: Get actual country
-            splitTestId: searchParams.get('st'),
-            variantId: searchParams.get('v')
+            splitTestId: trackingParams.st,
+            variantId: trackingParams.v
         }),
       });
 
@@ -302,6 +309,47 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
       onClose();
     }
   };
+
+  // Effect to grab params from window.parent if available (same-origin fix)
+  useEffect(() => {
+    // If we already have them from props or searchParams (iframe URL), skip
+    if (trackingParams.st && trackingParams.v) return;
+
+    try {
+       // Check if we are in an iframe
+       if (window.self !== window.top) {
+          // Try to access parent - this works if same-origin (e.g. platform Lead Page -> Embed Modal)
+          const parentUrl = new URL(window.parent.location.href);
+          const st = parentUrl.searchParams.get('st');
+          const v = parentUrl.searchParams.get('v');
+          
+          if (st || v) {
+            setTrackingParams(prev => ({
+              st: st || prev.st,
+              v: v || prev.v
+            }));
+            console.log('🔗 [RegistrationModal] Captured tracking params from parent window', { st, v });
+          }
+       }
+    } catch (e) {
+      // Cross-origin access blocked - expected for external embeds
+      // In that case, we can't get the params unless passed via postMessage or src
+      // console.log('Cross-origin parent access blocked');
+    }
+    
+    // Also listen for postMessage (External embeds using our script)
+    const handleMessage = (event: MessageEvent) => {
+       if (event.data?.type === 'WEBINAR_TRACKING_PARAMS') {
+          setTrackingParams(prev => ({
+              st: event.data.st || prev.st,
+              v: event.data.v || prev.v
+          }));
+       }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
