@@ -276,7 +276,17 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
         redirectUrl = `/thank-you/${webinar!.slug}?r=${data.registrationId}&s=${scheduleId}`
       }
       
-      window.location.href = redirectUrl
+      // Ensure we redirect the parent window if we are inside an iframe
+      try {
+        if (window.top && window.top !== window) {
+           window.top.location.href = redirectUrl;
+        } else {
+           window.location.href = redirectUrl;
+        }
+      } catch (e) {
+        // Fallback if cross-origin access is strictly blocked
+        window.location.href = redirectUrl;
+      }
     } catch (err: any) {
       console.error('Registration error:', err);
       setError(err.message);
