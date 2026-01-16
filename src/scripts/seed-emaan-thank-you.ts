@@ -182,9 +182,9 @@ const htmlCode = `<!DOCTYPE html>
                 <div class="hidden md:block w-px h-12 bg-gray-200"></div>
 
                 <!-- PRIMARY CTA (Royal 800) -->
-                <!-- Use joinLink placeholder -->
-                <a href="{{joinLink}}" class="btn-shine w-full md:w-auto bg-royal-800 hover:bg-royal-700 text-white font-bold text-base md:text-lg py-4 md:py-5 px-8 rounded-full shadow-lg shadow-royal-900/20 transition transform hover:-translate-y-1 border border-royal-600 flex items-center justify-center text-center">
-                    GO TO WEBINAR ROOM
+                <!-- Use countdownLink placeholder to go to lobby -->
+                <a href="{{countdownLink}}" class="btn-shine w-full md:w-auto bg-royal-800 hover:bg-royal-700 text-white font-bold text-base md:text-lg py-4 md:py-5 px-8 rounded-full shadow-lg shadow-royal-900/20 transition transform hover:-translate-y-1 border border-royal-600 flex items-center justify-center text-center">
+                    ACCESS WEBINAR LOBBY
                 </a>
             </div>
             <p class="text-center text-xs text-royal-400 opacity-80 italic">Keep this link safe. Check your email for a backup copy.</p>
@@ -202,8 +202,8 @@ const htmlCode = `<!DOCTYPE html>
                     <h2 class="text-xl font-serif font-bold text-royal-950">Check Email</h2>
                     <p class="text-gray-500 text-xs">Confirmation sent. Check <strong>Spam Folder</strong>.</p>
                 </div>
-                <!-- Backup Link - use joinLink -->
-                <a href="{{joinLink}}" class="text-rose-500 hover:text-rose-700 font-bold text-xs whitespace-nowrap flex items-center gap-1 border-b border-rose-300 pb-0.5">
+                <!-- Backup Link - use countdownLink -->
+                <a href="{{countdownLink}}" class="text-rose-500 hover:text-rose-700 font-bold text-xs whitespace-nowrap flex items-center gap-1 border-b border-rose-300 pb-0.5">
                     Access Room <i class="fas fa-arrow-right text-[10px]"></i>
                 </a>
             </div>
