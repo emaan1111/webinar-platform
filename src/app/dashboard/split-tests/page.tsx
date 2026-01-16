@@ -56,6 +56,27 @@ export default function SplitTestsDashboard() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this split test? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/split-tests/${id}`, {
+        method: 'DELETE',
+      });
+
+      if (res.ok) {
+        setSplitTests(splitTests.filter(t => t.id !== id));
+      } else {
+        alert('Failed to delete split test');
+      }
+    } catch (error) {
+      console.error('Failed to delete split test', error);
+      alert('An error occurred while deleting');
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('Link copied!');
@@ -116,7 +137,10 @@ export default function SplitTestsDashboard() {
                  </div>
                  <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => copyToClipboard(`${window.location.origin}/t/${test.slug}`)}>
-                       <Copy className="w-4 h-4 mr-2" /> Link
+                       <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(test.id)}>
+                       <Trash2 className="w-4 h-4" />
                     </Button>
                  </div>
               </div>
