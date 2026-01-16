@@ -276,7 +276,24 @@ async function getCountdownData(slug: string, registrationId?: string | null, sc
   }
 }
 
-function processCountdownTemplate(
+const getGoogleCalendarLink = (webinarDate: Date, title: string, description: string, url: string) => {
+  const start = webinarDate.toISOString().replace(/-|:|\.\d\d\d/g, "");
+  // Assume 1 hour duration
+  const endDate = new Date(webinarDate.getTime() + 60 * 60 * 1000);
+  const end = endDate.toISOString().replace(/-|:|\.\d\d\d/g, "");
+
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: title,
+    dates: `${start}/${end}`,
+    details: `${description}\n\nJoin here: ${url}`,
+    location: url,
+  });
+
+  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+}
+
+export function processCountdownTemplate(
   html: string,
   data: Awaited<ReturnType<typeof getCountdownData>>,
   timezoneOverride?: string
@@ -535,6 +552,13 @@ function processCountdownTemplate(
   const safeRegistrationLink = escapeJsInHtml(registrationLink)
   const safeReferralLink = escapeJsInHtml(fullReferralLink)
   
+  const calendarLink = getGoogleCalendarLink(
+    scheduleDateTime,
+    webinar.title,
+    webinar.description || '',
+    fullReferralLink || joinLink // Use full link if available
+  );
+  
   // Support both old and new variable formats for links
   processed = processed.replace(/\{\{joinLink\}\}/g, safeJoinLink)
   processed = processed.replace(/\{\{broadcast\.url\}\}/g, safeJoinLink)
@@ -542,6 +566,7 @@ function processCountdownTemplate(
   processed = processed.replace(/\{\{registrationLink\}\}/g, safeRegistrationLink)
   processed = processed.replace(/\{\{webinar\.registrationUrl\}\}/g, safeRegistrationLink)
   processed = processed.replace(/\{\{referralLink\}\}/g, safeReferralLink)
+  processed = processed.replace(/\{\{calendarLink\}\}/g, calendarLink)
   
   // Countdown template specific variables (simpler than CountdownPage)
   processed = processed.replace(/\{\{webinarStartDateTime\}\}/g, scheduleDateTime.toISOString())
