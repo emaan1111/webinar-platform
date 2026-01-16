@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
@@ -51,7 +52,9 @@ export async function POST(
       privacyConsent,
       marketingConsent,
       country,
-      referralCode: referredByCode // The referral code of who referred them
+      referralCode: referredByCode, // The referral code of who referred them
+      splitTestId,
+      variantId
     } = body
 
     // Validation
@@ -170,6 +173,9 @@ export async function POST(
 
     console.log('✅ Registration created with scheduledStartTime:', registration.scheduledStartTime)
 
+    // Capture visitor ID for analytics BEFORE sending response
+    const visitorId = cookies().get('webinar_visitor_id')?.value;
+    
     // Return success IMMEDIATELY - all non-critical work happens in background
     const response = NextResponse.json(
       { 
@@ -190,6 +196,33 @@ export async function POST(
 
     // ALL integration work happens in background - nothing blocks the user
     runInBackground('Post-registration integrations', async () => {
+      // Record Split Test Conversion if applicable
+      if (splitTestId && variantId) {
+        try {
+          await prisma.$transaction([
+            prisma.splitTest.update({
+              where: { id: splitTestId },
+              data: { conversions: { increment: 1 } }
+            }),
+            prisma.splitTestVariant.update({
+              where: { id: variantId },
+              data: { conversions: { increment: 1 } }
+            }),
+            prisma.splitTestEvent.create({
+              data: {
+                splitTestId,
+                variantId,
+                type: 'CONVERSION',
+                visitorId
+              }
+            })
+          ]);
+          console.log(`✅ Split test conversion recorded for ${splitTestId}/${variantId}`);
+        } catch (error) {
+          console.error('Failed to record split test conversion:', error);
+        }
+      }
+
       // Link page visit to registration for analytics
       try {
         const recentPageVisit = await prisma.pageVisit.findFirst({

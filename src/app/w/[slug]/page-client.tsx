@@ -1042,7 +1042,10 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
           scheduledStartTime: scheduledStartTime,
           timezone: selectedTimezone,
           privacyConsent: formData.privacyConsent,
-          country: userCountry
+          country: userCountry,
+          referralCode: searchParams.get('ref') || undefined,
+          splitTestId: searchParams.get('st'),
+          variantId: searchParams.get('v')
         })
       })
 

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, Clock, Calendar, CheckCircle, AlertCircle, Globe } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { roundToNearest15Minutes } from '@/lib/webinarSchedule';
 
 interface Props {
@@ -15,6 +15,7 @@ interface Props {
 
 export default function RegistrationModal({ onClose, webinar, countryCodes, splitTestId, variantId }: Props) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedSchedule, setSelectedSchedule] = useState('');
   const [formData, setFormData] = useState({
     name: '',
@@ -227,7 +228,9 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
             scheduledStartTime: scheduledStartTime,
             timezone: selectedTimezone,
             privacyConsent: formData.privacyConsent,
-            country: 'US' // TODO: Get actual country
+            country: 'US', // TODO: Get actual country
+            splitTestId: searchParams.get('st'),
+            variantId: searchParams.get('v')
         }),
       });
 
