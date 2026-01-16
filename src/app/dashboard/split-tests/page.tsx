@@ -148,36 +148,49 @@ export default function SplitTestsDashboard() {
               {/* Variants List */}
               <div className="space-y-4">
                  <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase pb-2 border-b">
-                     <div className="col-span-5">Variant Page</div>
+                     <div className="col-span-4">Variant Page</div>
                      <div className="col-span-2 text-center">Weight</div>
-                     <div className="col-span-5 text-right">Performance</div>
+                     <div className="col-span-2 text-center">Visitors</div>
+                     <div className="col-span-2 text-center">Conversions</div>
+                     <div className="col-span-2 text-right">Conv. Rate</div>
                  </div>
                  
                  {test.variants.map((v: any) => {
-                    const conversionRate = v.views > 0 ? ((v.conversions / v.views) * 100).toFixed(1) : 0;
+                    // Conversion Rate based on UNIQUE views and UNIQUE conversions
+                    const uniqueViews = v.uniqueViews || 0;
+                    const uniqueConversions = v.uniqueConversions || 0;
+                    const conversionRate = uniqueViews > 0 ? ((uniqueConversions / uniqueViews) * 100).toFixed(1) : 0;
+                    
                     return (
-                        <div key={v.id} className="grid grid-cols-12 items-center text-sm py-2 border-b last:border-0">
-                            <div className="col-span-5 font-medium flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-                                {v.leadPage.name}
+                        <div key={v.id} className="grid grid-cols-12 items-center text-sm py-2 border-b last:border-0 hover:bg-gray-50">
+                            <div className="col-span-4 font-medium flex items-center gap-2 overflow-hidden">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${v.weight > 0 ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
+                                <span className="truncate" title={v.leadPage.name}>{v.leadPage.name}</span>
                             </div>
                             <div className="col-span-2 text-center text-gray-500">
                                 {v.weight}%
                             </div>
-                            <div className="col-span-5 text-right flex items-center justify-end gap-4">
-                                <div>
-                                    <span className="block font-bold text-gray-900">{v.views}</span>
-                                    <span className="text-xs text-gray-400">Views</span>
+                            <div className="col-span-2 text-center">
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-gray-900">{uniqueViews}</span>
+                                    <span className="text-[10px] text-gray-400">Unique</span>
+                                    {/* Optional: Show total in tooltip or small text */}
+                                    <span className="text-[10px] text-gray-300">({v.views} Total)</span>
                                 </div>
-                                <div className="w-px h-8 bg-gray-100 mx-1"></div>
-                                <div>
-                                    <span className="block font-bold text-gray-900">{v.conversions}</span>
-                                    <span className="text-xs text-gray-400">Conversions</span>
+                            </div>
+                            <div className="col-span-2 text-center">
+                                <div className="flex flex-col">
+                                    <span className="font-bold text-gray-900">{uniqueConversions}</span>
+                                    <span className="text-[10px] text-gray-400">Unique</span>
+                                    <span className="text-[10px] text-gray-300">({v.conversions} Total)</span>
                                 </div>
-                                <div className="w-px h-8 bg-gray-100 mx-1"></div>
-                                <div>
-                                    <span className="block font-bold text-green-600">{conversionRate}%</span>
-                                    <span className="text-xs text-gray-400">Conv. Rate</span>
+                            </div>
+                            <div className="col-span-2 text-right">
+                                <div className="flex flex-col items-end">
+                                    <span className={`font-bold text-lg ${Number(conversionRate) > 20 ? 'text-green-600' : Number(conversionRate) > 10 ? 'text-blue-600' : 'text-gray-800'}`}>
+                                        {conversionRate}%
+                                    </span>
+                                    <span className="text-[10px] text-gray-400">from uniques</span>
                                 </div>
                             </div>
                         </div>

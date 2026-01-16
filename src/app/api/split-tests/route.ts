@@ -22,58 +22,66 @@ export async function GET(req: Request) {
       orderBy: { updatedAt: 'desc' }
     });
 
-    // If 'from' date is provided, calculate stats from events
-    if (from) {
-      const fromDate = new Date(from);
-      
-      const testsWithStats = await Promise.all(splitTests.map(async (test: any) => {
-        const variantsWithStats = await Promise.all(test.variants.map(async (variant: any) => {
-          // Count events since 'from' date
-          // Get Raw counts
-          // NOTE: We could use distinct: ['visitorId'] if we only wanted unique views.
-          // For now, we fetch all events to calculate uniques manually if needed or just count total.
-          // To truly answer "Unique Views", we should use distinct views.
-          
-          /*
-            Prisma doesn't support counting distinct easily in a simple count query with Date filters in this version cleanly for relations.
-            But we can use groupBy.
-          */
-         
-         const viewsCount = await prisma.splitTestEvent.groupBy({
-             by: ['visitorId'],
-             where: {
-                 variantId: variant.id,
-                 type: 'VIEW',
-                 createdAt: { gte: fromDate }
-             }
-         });
-         
-         const conversionsCount = await prisma.splitTestEvent.groupBy({
-             by: ['visitorId'],
-             where: {
-                 variantId: variant.id,
-                 type: 'CONVERSION',
-                 createdAt: { gte: fromDate }
-             }
-         });
+    const fromDate = from ? new Date(from) : new Date(0); // Default to epoch if no date provided
 
-          return {
-            ...variant,
-            views: viewsCount.length, // Unique visitors
-            conversions: conversionsCount.length // Unique conversions
-          };
-        }));
+    const testsWithStats = await Promise.all(splitTests.map(async (test: any) => {
+      const variantsWithStats = await Promise.all(test.variants.map(async (variant: any) => {
+        // 1. Calculate Unique Views (Group by VisitorID)
+        const uniqueViewsGroups = await prisma.splitTestEvent.groupBy({
+            by: ['visitorId'],
+            where: {
+                variantId: variant.id,
+                type: 'VIEW',
+                createdAt: { gte: fromDate }
+            }
+        });
+        const uniqueViews = uniqueViewsGroups.length;
+
+        // 2. Calculate Total Views (Count all VIEW events)
+        const totalViews = await prisma.splitTestEvent.count({
+            where: {
+                variantId: variant.id,
+                type: 'VIEW',
+                createdAt: { gte: fromDate }
+            }
+        });
+
+        // 3. Calculate Unique Conversions
+        const uniqueConversionsGroups = await prisma.splitTestEvent.groupBy({
+            by: ['visitorId'],
+            where: {
+                variantId: variant.id,
+                type: 'CONVERSION',
+                createdAt: { gte: fromDate }
+            }
+        });
+        const uniqueConversions = uniqueConversionsGroups.length;
+
+        // 4. Calculate Total Conversions
+        const totalConversions = await prisma.splitTestEvent.count({
+            where: {
+                variantId: variant.id,
+                type: 'CONVERSION',
+                createdAt: { gte: fromDate }
+            }
+        });
 
         return {
-          ...test,
-          variants: variantsWithStats
+          ...variant,
+          views: totalViews,      // Total Page Loads
+          uniqueViews,            // Unique Visitors
+          conversions: totalConversions, // Total Actions
+          uniqueConversions       // Unique Users who acted
         };
       }));
 
-      return NextResponse.json(testsWithStats);
-    }
+      return {
+        ...test,
+        variants: variantsWithStats
+      };
+    }));
 
-    return NextResponse.json(splitTests);
+    return NextResponse.json(testsWithStats);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch split tests' }, { status: 500 });
   }
