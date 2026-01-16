@@ -293,7 +293,7 @@ const getGoogleCalendarLink = (webinarDate: Date, title: string, description: st
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
 
-export function processCountdownTemplate(
+function processCountdownTemplate(
   html: string,
   data: Awaited<ReturnType<typeof getCountdownData>>,
   timezoneOverride?: string
