@@ -35,6 +35,25 @@ export default function LeadPagesDashboard() {
     alert('Link copied!');
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete "${name}"? This cannot be undone.`)) return;
+    
+    try {
+        const res = await fetch(`/api/lead-pages/${id}`, {
+            method: 'DELETE'
+        });
+        
+        if (res.ok) {
+            setLeadPages(leadPages.filter(p => p.id !== id));
+        } else {
+            alert('Failed to delete page');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('An error occurred');
+    }
+  };
+
   return (
     <DashboardLayout>
       <div className="flex justify-between items-center mb-6">
@@ -113,6 +132,9 @@ export default function LeadPagesDashboard() {
                         <Edit className="w-4 h-4" />
                     </Button>
                 </Link>
+                <Button variant="danger" size="sm" onClick={() => handleDelete(page.id, page.name)}>
+                    <Trash2 className="w-4 h-4" />
+                </Button>
               </div>
             </Card>
           ))}
