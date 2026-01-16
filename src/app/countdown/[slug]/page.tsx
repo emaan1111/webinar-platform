@@ -350,10 +350,13 @@ function processCountdownTemplate(
   const safeDescription = escapeJsInHtml(webinar.description || '')
   
   // Support both old and new variable formats
+  // Basic attributes
   processed = processed.replace(/\{\{webinarTitle\}\}/g, safeTitle)
   processed = processed.replace(/\{\{webinar\.title\}\}/g, safeTitle)
+  processed = processed.replace(/\{\{title\}\}/g, safeTitle) // Support simple {{title}}
   processed = processed.replace(/\{\{webinarDescription\}\}/g, safeDescription)
   processed = processed.replace(/\{\{webinar\.description\}\}/g, safeDescription)
+  processed = processed.replace(/\{\{description\}\}/g, safeDescription) // Support simple {{description}}
   processed = processed.replace(
     /\{\{webinarDuration\}\}/g,
     String(webinar.duration || 60)
@@ -501,8 +504,12 @@ function processCountdownTemplate(
   // Support both old and new variable formats for dates
   processed = processed.replace(/\{\{webinarDate\}\}/g, formattedDate)
   processed = processed.replace(/\{\{schedule\.date\}\}/g, formattedDate)
+  processed = processed.replace(/\{\{date\}\}/g, formattedDate) // Support simple {{date}}
+
   processed = processed.replace(/\{\{webinarTime\}\}/g, formattedTime)
   processed = processed.replace(/\{\{schedule\.time\}\}/g, formattedTime)
+  processed = processed.replace(/\{\{time\}\}/g, formattedTime) // Support simple {{time}}
+
   processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
   processed = processed.replace(/\{\{schedule\.dateTime\}\}/g, formattedDateTime)
   processed = processed.replace(/\{\{schedule\.dateISO\}\}/g, scheduleDateTime.toISOString())
@@ -558,16 +565,13 @@ function processCountdownTemplate(
     webinar.description || '',
     fullReferralLink || joinLink // Use full link if available
   );
-  
-  // Support both old and new variable formats for links
+
   processed = processed.replace(/\{\{joinLink\}\}/g, safeJoinLink)
-  processed = processed.replace(/\{\{broadcast\.url\}\}/g, safeJoinLink)
-  processed = processed.replace(/\{\{roomLink\}\}/g, safeJoinLink)
   processed = processed.replace(/\{\{registrationLink\}\}/g, safeRegistrationLink)
-  processed = processed.replace(/\{\{webinar\.registrationUrl\}\}/g, safeRegistrationLink)
   processed = processed.replace(/\{\{referralLink\}\}/g, safeReferralLink)
   processed = processed.replace(/\{\{calendarLink\}\}/g, calendarLink)
-  
+  processed = processed.replace(/\{\{targetDate\}\}/g, scheduleDateTime.toISOString())
+
   // Countdown template specific variables (simpler than CountdownPage)
   processed = processed.replace(/\{\{webinarStartDateTime\}\}/g, scheduleDateTime.toISOString())
   processed = processed.replace(/\{\{currentYear\}\}/g, new Date().getFullYear().toString())
