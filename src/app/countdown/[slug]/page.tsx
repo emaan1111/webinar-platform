@@ -513,6 +513,7 @@ function processCountdownTemplate(
   processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
   processed = processed.replace(/\{\{schedule\.dateTime\}\}/g, formattedDateTime)
   processed = processed.replace(/\{\{schedule\.dateISO\}\}/g, scheduleDateTime.toISOString())
+  processed = processed.replace(/\{\{targetDate\}\}/g, scheduleDateTime.toISOString())
   processed = processed.replace(
     /\{\{timeZone\}\}/g,
     friendlyTimezone
