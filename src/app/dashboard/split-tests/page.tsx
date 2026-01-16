@@ -13,6 +13,8 @@ export default function SplitTestsDashboard() {
   const [splitTests, setSplitTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('all'); // all, 1h, 24h, 7d, 30d
+  const [editingTest, setEditingTest] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', slug: '' });
 
   useEffect(() => {
     fetchSplitTests();
@@ -77,6 +79,38 @@ export default function SplitTestsDashboard() {
     }
   };
 
+  const handleEdit = (test: any) => {
+    setEditingTest(test.id);
+    setEditForm({ name: test.name, slug: test.slug });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTest(null);
+    setEditForm({ name: '', slug: '' });
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    try {
+      const res = await fetch(`/api/split-tests/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editForm),
+      });
+
+      if (res.ok) {
+        const updatedTest = await res.json();
+        setSplitTests(splitTests.map(t => (t.id === id ? { ...t, ...updatedTest } : t)));
+        setEditingTest(null);
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Failed to update split test');
+      }
+    } catch (error) {
+      console.error('Failed to update split test', error);
+      alert('An error occurred while updating');
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert('Link copied!');
@@ -125,25 +159,58 @@ export default function SplitTestsDashboard() {
         <div className="grid grid-cols-1 gap-6">
           {splitTests.map((test) => (
             <Card key={test.id} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex justify-between items-start mb-6">
-                 <div>
-                    <div className="flex items-center gap-3">
-                        <h3 className="font-bold text-xl">{test.name}</h3>
-                        <span className={`px-2 py-0.5 rounded text-xs font-bold ${test.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                            {test.isActive ? 'ACTIVE' : 'PAUSED'}
-                        </span>
+              {editingTest === test.id ? (
+                <div className="mb-6 space-y-4 border-b pb-4">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Test Name</label>
+                    <input
+                      type="text"
+                      className="w-full border rounded px-3 py-2"
+                      value={editForm.name}
+                      onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Slug URL</label>
+                    <div className="flex items-center">
+                        <span className="bg-gray-100 border border-r-0 border-gray-300 rounded-l px-3 py-2 text-gray-500 font-mono text-sm">/t/</span>
+                        <input
+                        type="text"
+                        className="w-full border border-gray-300 rounded-r px-3 py-2 font-mono text-sm"
+                        value={editForm.slug}
+                        onChange={(e) => setEditForm({ ...editForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                        />
                     </div>
-                    <div className="text-sm font-mono text-purple-600 mt-1">/t/{test.slug}</div>
-                 </div>
-                 <div className="flex gap-2">
-                    <Button variant="outline" size="sm" onClick={() => copyToClipboard(`${window.location.origin}/t/${test.slug}`)}>
-                       <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(test.id)}>
-                       <Trash2 className="w-4 h-4" />
-                    </Button>
-                 </div>
-              </div>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <Button size="sm" onClick={() => handleSaveEdit(test.id)}>Save Changes</Button>
+                    <Button size="sm" variant="outline" onClick={handleCancelEdit}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex justify-between items-start mb-6">
+                    <div>
+                        <div className="flex items-center gap-3">
+                            <h3 className="font-bold text-xl">{test.name}</h3>
+                            <span className={`px-2 py-0.5 rounded text-xs font-bold ${test.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                {test.isActive ? 'ACTIVE' : 'PAUSED'}
+                            </span>
+                        </div>
+                        <div className="text-sm font-mono text-purple-600 mt-1">/t/{test.slug}</div>
+                    </div>
+                    <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => copyToClipboard(`${window.location.origin}/t/${test.slug}`)}>
+                          <Copy className="w-4 h-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(test)}>
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="outline" size="sm" className="text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => handleDelete(test.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
+              )}
 
               {/* Variants List */}
               <div className="space-y-4">
