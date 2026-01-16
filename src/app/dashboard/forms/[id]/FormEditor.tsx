@@ -10,7 +10,7 @@ interface EditorProps {
 }
 
 export default function FormEditor({ form }: EditorProps) {
-  const [activeTab, setActiveTab] = useState<'build' | 'settings' | 'submissions' | 'ai'>('build')
+const [activeTab, setActiveTab] = useState<string>('build')
   const [saving, setSaving] = useState(false)
   const [reordering, setReordering] = useState<string | null>(null)
   
