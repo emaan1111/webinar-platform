@@ -221,6 +221,11 @@ async function main() {
         <span>Link copied to clipboard</span>
     </div>
 
+    <!-- Debug Info (Hidden by default, visible on hover at bottom right) -->
+    <div class="fixed bottom-0 right-0 p-2 opacity-50 hover:opacity-100 text-[10px] text-gray-500 bg-black/80 pointer-events-auto">
+        Target: {{targetDate}} | Server: {{schedule.dateISO}}
+    </div>
+
     <!-- SCRIPTS -->
     <script>
         // --- 1. COUNTDOWN LOGIC ---
