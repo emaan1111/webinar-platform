@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import { prisma } from '@/lib/prisma';
+import { cookies, headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,6 +27,11 @@ export default async function SplitTestPage({ params }: PageProps) {
   if (!splitTest || !splitTest.isActive || splitTest.variants.length === 0) {
     notFound();
   }
+
+  // Get Visitor ID (from cookie or new header from middleware)
+  const cookieStore = cookies();
+  const headersList = headers();
+  const visitorId = cookieStore.get('webinar_visitor_id')?.value || headersList.get('x-new-visitor-id');
 
   // Weighted random selection
   const totalWeight = splitTest.variants.reduce((sum, v) => sum + v.weight, 0);
@@ -57,7 +63,8 @@ export default async function SplitTestPage({ params }: PageProps) {
               data: {
                 splitTestId: splitTest.id,
                 variantId: selectedVariant.id,
-                type: 'VIEW'
+                type: 'VIEW',
+                visitorId: visitorId || null
               }
             })
         ]);

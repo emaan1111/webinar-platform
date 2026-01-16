@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   try {
@@ -8,6 +9,9 @@ export async function POST(req: Request) {
     if (!variantId) {
         return NextResponse.json({ error: 'Variant ID required' }, { status: 400 });
     }
+
+    const cookieStore = cookies();
+    const visitorId = cookieStore.get('webinar_visitor_id')?.value;
 
     await prisma.splitTestVariant.update({
         where: { id: variantId },
@@ -18,7 +22,8 @@ export async function POST(req: Request) {
       data: {
         splitTestId: splitTestId,
         variantId: variantId,
-        type: 'CONVERSION'
+        type: 'CONVERSION',
+        visitorId: visitorId || null
       }
     });
 

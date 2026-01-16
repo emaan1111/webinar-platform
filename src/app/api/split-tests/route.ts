@@ -29,27 +29,38 @@ export async function GET(req: Request) {
       const testsWithStats = await Promise.all(splitTests.map(async (test: any) => {
         const variantsWithStats = await Promise.all(test.variants.map(async (variant: any) => {
           // Count events since 'from' date
-          const [views, conversions] = await Promise.all([
-            prisma.splitTestEvent.count({
-              where: {
-                variantId: variant.id,
-                type: 'VIEW',
-                createdAt: { gte: fromDate }
-              }
-            }),
-            prisma.splitTestEvent.count({
-              where: {
-                variantId: variant.id,
-                type: 'CONVERSION',
-                createdAt: { gte: fromDate }
-              }
-            })
-          ]);
+          // Get Raw counts
+          // NOTE: We could use distinct: ['visitorId'] if we only wanted unique views.
+          // For now, we fetch all events to calculate uniques manually if needed or just count total.
+          // To truly answer "Unique Views", we should use distinct views.
           
+          /*
+            Prisma doesn't support counting distinct easily in a simple count query with Date filters in this version cleanly for relations.
+            But we can use groupBy.
+          */
+         
+         const viewsCount = await prisma.splitTestEvent.groupBy({
+             by: ['visitorId'],
+             where: {
+                 variantId: variant.id,
+                 type: 'VIEW',
+                 createdAt: { gte: fromDate }
+             }
+         });
+         
+         const conversionsCount = await prisma.splitTestEvent.groupBy({
+             by: ['visitorId'],
+             where: {
+                 variantId: variant.id,
+                 type: 'CONVERSION',
+                 createdAt: { gte: fromDate }
+             }
+         });
+
           return {
             ...variant,
-            views,
-            conversions
+            views: viewsCount.length, // Unique visitors
+            conversions: conversionsCount.length // Unique conversions
           };
         }));
 

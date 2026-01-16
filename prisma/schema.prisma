@@ -1186,6 +1186,7 @@ model SplitTestEvent {
   splitTestId String
   variantId   String
   type        String   // "VIEW" | "CONVERSION"
+  visitorId   String?  // For tracking unique visitors
   createdAt   DateTime @default(now())
 
   splitTest SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
