@@ -76,13 +76,14 @@ export default function NewSplitTest() {
       });
 
       if (!res.ok) {
-        throw new Error('Failed to create split test');
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to create split test');
       }
 
       router.push('/dashboard/split-tests');
       router.refresh();
-    } catch (err) {
-      setError('An error occurred. Please try again.');
+    } catch (err: any) {
+      setError(err.message || 'An error occurred. Please try again.');
     } finally {
       setLoading(false);
     }

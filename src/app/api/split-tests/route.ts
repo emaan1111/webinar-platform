@@ -101,7 +101,14 @@ export async function POST(req: Request) {
     });
 
     return NextResponse.json(splitTest);
-  } catch (error) {
-    return NextResponse.json({ error: 'Failed to create split test' }, { status: 500 });
+  } catch (error: any) {
+    console.error('❌ Failed to create split test:', error);
+    
+    // Check for unique constraint violation on slug
+    if (error.code === 'P2002' && error.meta?.target?.includes('slug')) {
+        return NextResponse.json({ error: 'A split test with this slug already exists.' }, { status: 400 });
+    }
+
+    return NextResponse.json({ error: error.message || 'Failed to create split test' }, { status: 500 });
   }
 }
