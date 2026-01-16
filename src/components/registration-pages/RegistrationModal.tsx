@@ -9,9 +9,11 @@ interface Props {
   onClose: () => void;
   webinar: any;
   countryCodes: Array<{ code: string; country: string; pattern: RegExp }>;
+  splitTestId?: string;
+  variantId?: string;
 }
 
-export default function RegistrationModal({ onClose, webinar, countryCodes }: Props) {
+export default function RegistrationModal({ onClose, webinar, countryCodes, splitTestId, variantId }: Props) {
   const router = useRouter();
   const [selectedSchedule, setSelectedSchedule] = useState('');
   const [formData, setFormData] = useState({
@@ -239,6 +241,31 @@ export default function RegistrationModal({ onClose, webinar, countryCodes }: Pr
 
       if (!res.ok) {
         throw new Error(data.error || 'Registration failed');
+      }
+
+      // Track Split Test conversion
+      if (splitTestId && variantId && data.registrationId) {
+         try {
+           const payload = JSON.stringify({
+             splitTestId,
+             variantId,
+             registrationId: data.registrationId,
+           })
+           
+           if (navigator.sendBeacon) {
+             const blob = new Blob([payload], { type: 'application/json' })
+             navigator.sendBeacon('/api/split-tests/track-conversion', blob)
+           } else {
+             fetch('/api/split-tests/track-conversion', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: payload,
+               keepalive: true
+             }).catch(() => {})
+           }
+         } catch (e) {
+           console.error('Failed to track split test conversion', e);
+         }
       }
 
       // Success Redirect Logic

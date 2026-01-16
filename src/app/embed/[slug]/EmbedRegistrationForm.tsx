@@ -5,6 +5,8 @@ import RegistrationModal from '@/components/registration-pages/RegistrationModal
 
 interface EmbedRegistrationFormProps {
   webinarData: any
+  splitTestId?: string
+  variantId?: string
 }
 
 // Country codes - same as used in RegistrationModal
@@ -28,7 +30,7 @@ const COUNTRY_CODES = [
   { code: '+93', country: 'Afghanistan', pattern: /^[7]\d{8}$/ },
 ]
 
-export default function EmbedRegistrationForm({ webinarData }: EmbedRegistrationFormProps) {
+export default function EmbedRegistrationForm({ webinarData, splitTestId, variantId }: EmbedRegistrationFormProps) {
   const [showModal, setShowModal] = useState(true)
 
   const handleClose = () => {
@@ -76,6 +78,8 @@ export default function EmbedRegistrationForm({ webinarData }: EmbedRegistration
         onClose={handleClose}
         webinar={webinarData}
         countryCodes={COUNTRY_CODES}
+        splitTestId={splitTestId}
+        variantId={variantId}
       />
     </>
   )

@@ -186,6 +186,9 @@ model Webinar {
   
   // Reminder System
   reminderTemplates WebinarReminderTemplate[] // Reminder templates for this webinar
+  
+  // Independent Lead Pages
+  leadPages    LeadPage[]
 
   @@map("webinars")
 }
@@ -743,370 +746,69 @@ model RegistrationPage {
   benefit1 String?
   benefit2 String?
   benefit3 String?
-  benefit4 String?
-  benefit5 String?
-  
-  // Branding
-  logoUrl          String? // Header logo
-  primaryColor     String? @default("#4f46e5") // Main brand color (CTA buttons, etc.)
-  secondaryColor   String? @default("#8b5cf6") // Secondary/accent color
-  backgroundColor  String? @default("#ffffff") // Page background
-  textColor        String? @default("#1f2937") // Main text color
-  
-  // Call-to-Action
-  ctaButtonText    String? @default("Register Now")
-  ctaButtonStyle   String? @default("solid") // "solid", "outline", "gradient"
-  
-  // Footer
-  showFooter       Boolean @default(true)
-  footerText       String? @db.Text // Custom footer text
-  privacyPolicyUrl String?
-  termsOfServiceUrl String?
-  
-  // SEO & Preview
-  thumbnail        String? // Screenshot or preview image URL
-  metaDescription  String? // For SEO
-  
-  // System
-  isSystem    Boolean  @default(false) // System pages cannot be deleted
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("registration_pages")
-}
-
-// Countdown Pages (New Dynamic System - Similar to Registration Pages)
-model CountdownPage {
-  id          String   @id @default(cuid())
-  name        String   @unique // e.g., "Islamic Mothers", "Default", "Minimal"
-  description String?  @db.Text // Short description of the countdown page
-  
-  // Page Content
-  htmlCode    String   @db.Text // Complete HTML with embedded CSS and JS
-  
-  // Video Settings (optional)
-  showVideo       Boolean @default(false)
-  videoUrl        String? // YouTube, Vimeo, or other video URL
-  videoTitle      String? // Title shown above video
-  videoPlaceholder String? @default("Watch this important message")
-  
-  // Bonus/Gift Settings (optional)
-  showBonus       Boolean @default(false)
-  bonusTitle      String? // e.g., "Stories of Great Mothers"
-  bonusDescription String? @db.Text
-  bonusImage      String? // URL to bonus image
-  bonusValue      String? // e.g., "$47" or "Free"
-  bonusBadge      String? // e.g., "FREE", "LIMITED"
-  
-  // Call-to-Action Settings
-  showReminder    Boolean @default(true)
-  showWhatsApp    Boolean @default(true)
-  showFacebook    Boolean @default(true)
-  showCustomCTA   Boolean @default(false)
-  customCTAText   String?
-  customCTAUrl    String?
-  
-  // Branding
-  organizationName String? // For footer
-  contactEmail     String? // For footer
-  websiteUrl       String? // For footer
-  logoUrl          String? // Header logo
-  
-  // Design
-  thumbnail   String? // Screenshot or preview image URL
-  primaryColor String? @default("#4a3b6b") // Main brand color
-  accentColor  String? @default("#d53f8c") // Accent color
-  
-  // System
-  isSystem    Boolean  @default(false) // System pages cannot be deleted
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("countdown_pages")
-}
-
-// FAQs for Webinars (shown during offer phase in live room)
-model WebinarFaq {
-  id         String   @id @default(cuid())
-  webinarId  String
-  webinar    Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  
-  question   String   @db.Text // The FAQ question
-  answer     String   @db.Text // The FAQ answer
-  sortOrder  Int      @default(0) // Display order (lower = shown first)
-  
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  @@map("webinar_faqs")
-}
-
-// AI Program Knowledge Base - Documents for AI to use after CTA
-model ProgramDocument {
-  id          String   @id @default(cuid())
-  webinarId   String
-  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  
-  title       String   // e.g., "Program Overview", "Pricing", "FAQs"
-  content     String   @db.Text // The actual content AI will use
-  category    String   @default("general") // "overview", "pricing", "faq", "curriculum", "testimonials"
-  isActive    Boolean  @default(true)
-  sortOrder   Int      @default(0)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("program_documents")
-}
-
-// AI Chat Configuration per Webinar
-model AIChatConfig {
-  id          String   @id @default(cuid())
-  webinarId   String   @unique
-  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  
-  enabled     Boolean  @default(true)
-  activateAfterOffer Boolean @default(true) // Only respond after CTA/offer is shown
-  assistantName String  @default("AI Assistant") // Display name for the AI
-  
-  systemPrompt String? @db.Text // Custom instructions for AI
-  temperature  Float   @default(0.7) // OpenAI temperature (0-1)
-  maxTokens    Int     @default(500) // Max response length
-  
-  // Response behavior
-  autoRespond  Boolean @default(true) // Automatically respond to questions
-  requireApproval Boolean @default(false) // Require host approval before sending
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@map("ai_chat_config")
-}
-
-// Image Library - Store uploaded images for use in pages
-model Image {
-  id           String   @id @default(cuid())
-  filename     String   // Unique filename on disk
-  originalName String   // Original uploaded filename
-  url          String   // Public URL to access image
-  size         Int      // File size in bytes
-  mimeType     String   // image/jpeg, image/png, etc.
-  width        Int?     // Image width in pixels
-  height       Int?     // Image height in pixels
-  
-  // Metadata
-  uploadedBy   String?  // User ID who uploaded
-  tags         String?  // Comma-separated tags for organization
-  description  String?  @db.Text // Optional description
-  
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@index([uploadedBy])
-  @@map("images")
-}
-
-// Webinar Reminder System
-enum ReminderStatus {
-  PENDING    // Not sent yet
-  SENT       // Successfully sent
-  FAILED     // Failed to send
-  CANCELLED  // Cancelled (e.g., user unregistered)
-  SKIPPED    // Skipped because webinar time has passed
-}
-
-enum ReminderChannel {
-  EMAIL
-  SMS
-  BOTH
-}
-
-// Template for reminder timing (e.g., "24 hours before", "2 hours before")
-model WebinarReminderTemplate {
-  id          String   @id @default(cuid())
-  webinarId   String
-  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  
-  // Type of reminder
-  type        String   @default("pre_webinar") // 'pre_webinar' or 'post_webinar'
-  
-  // Timing - Pre-webinar
-  minutesBefore Int?    // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
-  
-  // Timing - Post-session
-  minutesAfter Int?    // Minutes after session completion (e.g., 0 for immediate, 1440 for 1 day)
-  
-  // Watch criteria for post-session
-  minWatchedMinutes Int?     // Minimum minutes watched (e.g., 30)
-  minWatchedPercentage Int?  // Minimum percentage watched (e.g., 50)
-  
-  // Channels
-  channel     ReminderChannel @default(EMAIL)
-  
-  // Email content
-  emailSubject String?  // Optional when using SMS only
-  emailBody    String?  @db.Text // Can use placeholders: {{name}}, {{webinarTitle}}, {{countdownLink}}, {{referralLink}}, {{webinarTime}}
-  
-  // SMS content
-  smsBody      String? @db.Text
-  
-  // ClickFunnels Integration
-  clickFunnelsTag String? // Tag to apply in ClickFunnels (e.g., "24HRREMINDER", "2HRREMINDER")
-  applyClickFunnelsTag Boolean @default(false) // Whether to apply ClickFunnels tag
-  
-  // Status
-  isActive    Boolean  @default(true)
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
   
   // Relations
-  sentReminders WebinarReminderSent[]
-  
-  @@index([webinarId])
-  @@index([minutesBefore])
-  @@map("webinar_reminder_templates")
+  leadPages LeadPage[]
 }
 
-// Individual reminder sent to a specific registration
-model WebinarReminderSent {
-  id             String   @id @default(cuid())
-  
-  // Links to template and registration (template is optional for post-webinar reminders)
-  templateId     String?
-  template       WebinarReminderTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
-  
-  registrationId String
-  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  
-  // Timing
-  scheduledFor   DateTime?  // When this reminder should be sent (optional for immediate sends)
-  sendAt         DateTime?  // Alias for scheduledFor (for post-webinar reminders)
-  sentAt         DateTime? // When it was actually sent
-  
-  // Status
-  status         ReminderStatus @default(PENDING)
-  channel        ReminderChannel @default(SMS)
-  
-  // Type of reminder
-  type           String @default("pre_webinar") // 'pre_webinar' or 'post_webinar'
-  
-  // Direct message content (for post-webinar reminders without templates)
-  message        String?   @db.Text
-  phone          String?   // Phone number for direct SMS
-  
-  // Error tracking
-  errorMessage   String?   @db.Text
-  error          String?   @db.Text // Alias for errorMessage
-  retryCount     Int       @default(0)
-  lastRetryAt    DateTime?
-  
-  // Email/SMS details
-  emailSentTo    String?   // Email address it was sent to
-  smsSentTo      String?   // Phone number it was sent to
-  
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  
-  @@index([registrationId])
-  @@index([templateId])
-  @@index([scheduledFor])
-  @@index([status])
-  @@index([status, scheduledFor]) // For efficient querying of pending reminders
-  @@map("webinar_reminders_sent")
-}
-
-model ClickFunnelsReminderTag {
-  id             String   @id @default(cuid())
-  registrationId String
-  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  tagName        String
-  scheduledFor   DateTime
-  status         ReminderStatus @default(PENDING)
-  appliedAt      DateTime?
-  attempts       Int      @default(0)
-  errorMessage   String?  @db.Text
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  @@index([registrationId])
-  @@index([status, scheduledFor])
-  @@unique([registrationId, tagName])
-  @@map("clickfunnels_reminder_tags")
-}
-
-// Standalone Forms System
-model Form {
+model LeadPage {
   id          String   @id @default(cuid())
-  title       String
+  name        String
   slug        String   @unique
-  description String?  @db.Text
-  submitText  String   @default("Submit")
-  successMsg  String   @default("Thank you for your submission.")
+  
+  type        String   @default("TEMPLATE") // TEMPLATE, CUSTOM
+  
+  // If TEMPLATE
+  templateId  String?
+  template    RegistrationPage? @relation(fields: [templateId], references: [id])
+  
+  // If CUSTOM
+  htmlContent String?  @db.Text
+  
+  // The webinar context (needed for templates)
+  webinarId   String?
+  webinar     Webinar? @relation(fields: [webinarId], references: [id])
+  
+  // Analytics
+  views       Int      @default(0)
+  conversions Int      @default(0)
+  
+  splitTestVariants SplitTestVariant[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("lead_pages")
+}
+
+model SplitTest {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
   isActive    Boolean  @default(true)
   
-  // Design settings
-  primaryColor   String   @default("#4f46e5") // Indigo-600
-  backgroundColor String  @default("#ffffff")
+  variants    SplitTestVariant[]
   
-  // Post-submission behavior
-  redirectUrl    String?  // Optional URL to redirect to after success (or AI approval)
-
-  // AI Assessment Config
-  aiAssessmentEnabled Boolean @default(false)
-  aiPrompt            String? @db.Text // Custom instructions
-  
-  // AI Responses (Popups)
-  aiApproveTitle      String? @default("Application Approved")
-  aiApproveMsg        String? @default("Congratulations! Your application has been approved.")
-  aiRejectTitle       String? @default("Application Rejected")
-  aiRejectMsg         String? @default("Sorry, your application does not meet the criteria.")
-  aiReviewTitle       String? @default("Sent for Approval")
-  aiReviewMsg         String? @default("Your application is under review.")
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  fields      FormField[]
-  submissions FormSubmission[]
-
-  @@map("forms")
-}
-
-model FormField {
-  id          String   @id @default(cuid())
-  formId      String
-  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
-  
-  type        String   // "text", "email", "textarea", "number", "select", "checkbox", "radio"
-  label       String
-  placeholder String?
-  required    Boolean  @default(false)
-  options     String?  @db.Text // JSON string or comma-separated options for select/radio
-  position    Int      @default(0) // Ordering
+  views       Int      @default(0)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  @@index([formId])
-  @@map("form_fields")
+  
+  @@map("split_tests")
 }
 
-model FormSubmission {
+model SplitTestVariant {
   id          String   @id @default(cuid())
-  formId      String
-  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  splitTestId String
+  splitTest   SplitTest @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
   
-  data        String   @db.Text // JSON string of submitted data
+  leadPageId  String
+  leadPage    LeadPage @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
   
-  aiStatus    String? // "APPROVED", "REJECTED", "REVIEW"
-  aiReason    String? @db.Text
-
-  userAgent   String?
-  referrer    String?
+  weight      Int      @default(50)
   
-  createdAt   DateTime @default(now())
-
-  @@index([formId])
-  @@map("form_submissions")
+  views       Int      @default(0)
+  conversions Int      @default(0)
+  
+  @@map("split_test_variants")
 }

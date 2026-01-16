@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Gift, Clock, CheckCircle, X, AlertCircle, Globe } from 'lucide-react'
 import RegistrationPageTracker from '@/components/tracking/RegistrationPageTracker'
 import LegacyRegistrationPage from '@/components/registration-pages/LegacyRegistrationPage'
@@ -354,6 +355,7 @@ const popupThemes = {
 }
 
 export default function WebinarRegisterPage({ webinarData, registrationPage }: WebinarRegisterPageProps) {
+  const searchParams = useSearchParams()
   const webinar = webinarData
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
@@ -1073,6 +1075,29 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
           navigator.sendBeacon('/api/ab-test/track-conversion', blob)
         } else {
           fetch('/api/ab-test/track-conversion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true
+          }).catch(() => {})
+        }
+      }
+
+      // Track Split Test conversion (from independent lead pages)
+      const stId = searchParams.get('st')
+      const vId = searchParams.get('v')
+      if (stId && vId && registrationData.registrationId) {
+        const payload = JSON.stringify({
+          splitTestId: stId,
+          variantId: vId,
+          registrationId: registrationData.registrationId,
+        })
+        
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' })
+          navigator.sendBeacon('/api/split-tests/track-conversion', blob)
+        } else {
+          fetch('/api/split-tests/track-conversion', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: payload,
@@ -1855,7 +1880,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
                   <div className="mt-6 pt-6 border-t border-gray-200">
                     <div className="flex items-start gap-3">
                       <svg className="w-5 h-5 text-blue-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
                       </svg>
                       <div>
                         <p className="text-sm font-semibold text-gray-900">Your information is safe with us</p>
