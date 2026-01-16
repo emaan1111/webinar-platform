@@ -543,7 +543,7 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
       <section className="about">
         <div className="about-image">
             <Image 
-                src="/images/ariba-profile.jpg" 
+                src="https://emaanpowerclasses.com/api/images/serve/1763816064849-ddcpnvo4q6dmg47njrvy9g.jpg" 
                 alt="Ustadha Ariba Farheen"
                 fill
                 className="object-cover"
@@ -556,12 +556,12 @@ export default function RegistrationPage({ webinar, onRegister }: { webinar: any
             <h2 className="about-name">Ustadha Ariba Farheen</h2>
             
             <p className="lead">She started her career as a software engineer and games programmer — yes, she actually built video games.</p>
-            
-            <p>That unusual background gave her an insider's understanding of exactly how games capture our children's minds… and more importantly, how to redirect that same psychology toward building courage, purpose, and unshakeable iman.</p>
-            
-            <p>For the past 21 years, Ariba has worked with Muslim families across 43 countries. Her flagship program, Rising Heroes, has transformed over 100,000 children — turning shy kids into confident speakers, unmotivated gamers into self-driven strivers, and anxious youth into young Muslims who stand firm when the world tries to shake them.</p>
+                        <p>For the past 21 years, Ariba has worked with Muslim families across 43 countries. Helping shy kids into confident speakers, unmotivated gamers transform into self-driven strivers, and anxious youth into young Muslims who stand firm when the world tries to shake them.</p>
 
             <p>She is the author of books now used in Islamic schools globally and the founder of Eman Power.</p>
+
+            <p>That unusual background gave her an insider's understanding of exactly how games capture our children's minds… and more importantly, how to redirect that same psychology toward building courage, purpose, and unshakeable iman.</p>
+            
 
             <div className="about-stats">
                 {[

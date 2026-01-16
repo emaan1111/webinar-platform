@@ -370,10 +370,7 @@ export default function RegistrationModal({ onClose, webinar, countryCodes }: Pr
                             <option value="">Choose your preferred time...</option>
                             {scheduleOptions.map((slot: any) => (
                                 <option key={slot.id} value={slot.id}>
-                                    {slot.isRecurring 
-                                        ? formatScheduleTime(slot.schedule, slot.time)
-                                        : formatScheduleTime(slot.schedule)
-                                    }
+                                    {formatScheduleTime(slot.schedule, slot.time)}
                                 </option>
                             ))}
                         </select>

@@ -16,7 +16,7 @@ export default async function EmbedPage({ params }: PageProps) {
     include: {
       schedules: {
         where: { isActive: true },
-        orderBy: { scheduledAt: 'asc' }
+        orderBy: { createdAt: 'asc' }
       },
       host: {
         select: {
@@ -31,5 +31,6 @@ export default async function EmbedPage({ params }: PageProps) {
     notFound()
   }
 
-  return <EmbedRegistrationForm webinar={webinar} />
+  // Pass webinar data as JSON for client component
+  return <EmbedRegistrationForm webinarData={JSON.parse(JSON.stringify(webinar))} />
 }

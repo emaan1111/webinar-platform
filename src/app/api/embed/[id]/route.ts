@@ -24,7 +24,7 @@ export async function GET(
   try {
     const { searchParams } = new URL(request.url)
     const type = searchParams.get('type') || 'popup' // 'popup' or 'inline'
-    const theme = searchParams.get('theme') || 'purple' // 'purple', 'blue', etc.
+    const theme = searchParams.get('theme') || 'registration' // 'registration' is the modern default
 
     // Fetch webinar data
     const webinar = await prisma.webinar.findUnique({
@@ -1298,7 +1298,33 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     let modalHTML = '';
     const formHTML = createFormHTML();
     
-    if (THEME_NAME === 'purple') {
+    if (THEME_NAME === 'registration') {
+      // Registration: Modern popup with purple gradient header, trust badges, and professional design
+      modalHTML = \`
+        <div class="webinar-embed-modal-purple">
+          <div class="webinar-embed-header-purple">
+            <button class="webinar-embed-close" onclick="this.closest('.webinar-embed-overlay').remove()">×</button>
+            <h2 style="font-size: 28px; font-weight: 800; margin-bottom: 8px;">Secure Your Spot!</h2>
+            <p style="font-size: 15px; opacity: 0.95;">Join thousands who've already registered</p>
+            <div style="display: flex; gap: 16px; justify-content: center; margin-top: 16px; font-size: 13px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 16px;">🛡️</span>
+                <span>100% Secure</span>
+              </div>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 16px;">👍</span>
+                <span>No Spam</span>
+              </div>
+            </div>
+          </div>
+          <div class="webinar-embed-content-purple">
+            <form id="webinar-embed-form">
+              \${formHTML}
+            </form>
+          </div>
+        </div>
+      \`;
+    } else if (THEME_NAME === 'purple') {
       // Purple: Classic gradient header modal
       modalHTML = \`
         <div class="webinar-embed-modal-purple">

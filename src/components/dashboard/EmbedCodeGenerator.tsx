@@ -9,8 +9,8 @@ interface EmbedCodeGeneratorProps {
 }
 
 export default function EmbedCodeGenerator({ webinarId, webinarSlug }: EmbedCodeGeneratorProps) {
-  const [formType, setFormType] = useState<'inline' | 'popup'>('inline')
-  const [theme, setTheme] = useState('default')
+  const [formType, setFormType] = useState<'inline' | 'popup'>('popup')
+  const [theme, setTheme] = useState('registration')
   const [copied, setCopied] = useState(false)
 
   const baseUrl = typeof window !== 'undefined' 
@@ -21,15 +21,81 @@ export default function EmbedCodeGenerator({ webinarId, webinarSlug }: EmbedCode
 
   const getEmbedCode = () => {
     if (formType === 'inline') {
-      return `<!-- Webinar Registration Form -->
-<div id="webinar-embed-${webinarId}"></div>
-<script src="${baseUrl}/api/embed/${webinarId}?theme=${theme}&type=inline"></script>`
+      return `<!-- Webinar Registration Form (Inline) -->
+<iframe 
+  src="${baseUrl}/embed/${webinarSlug}" 
+  width="100%" 
+  height="800" 
+  frameborder="0" 
+  style="border: none; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);"
+  title="Webinar Registration">
+</iframe>`
     } else {
-      return `<!-- Add this to your button -->
-<button data-webinar-popup="${webinarId}">Register for Webinar</button>
+      return `<!-- Webinar Registration Modal (Popup) -->
+<script>
+(function() {
+  function openWebinarModal() {
+    // Create overlay
+    const overlay = document.createElement('div');
+    overlay.id = 'webinar-modal-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn 0.2s ease-out;';
+    
+    // Create iframe container
+    const container = document.createElement('div');
+    container.style.cssText = 'width:100%;max-width:600px;max-height:95vh;background:transparent;border-radius:16px;overflow:hidden;animation:slideUp 0.3s ease-out;';
+    
+    // Create iframe
+    const iframe = document.createElement('iframe');
+    iframe.src = '${baseUrl}/embed-modal/${webinarSlug}';
+    iframe.style.cssText = 'width:100%;height:95vh;max-height:700px;border:none;background:transparent;display:block;';
+    iframe.setAttribute('allow', 'clipboard-write');
+    
+    // Close on overlay click
+    overlay.onclick = (e) => { 
+      if(e.target === overlay) {
+        overlay.style.animation = 'fadeOut 0.2s ease-out';
+        setTimeout(() => overlay.remove(), 200);
+      }
+    };
+    
+    // Listen for close message from iframe
+    window.addEventListener('message', function(e) {
+      if(e.data === 'closeWebinarModal') {
+        overlay.style.animation = 'fadeOut 0.2s ease-out';
+        setTimeout(() => overlay.remove(), 200);
+      }
+    });
+    
+    // Add animations
+    if(!document.getElementById('webinar-modal-styles')) {
+      const style = document.createElement('style');
+      style.id = 'webinar-modal-styles';
+      style.textContent = \`
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+      \`;
+      document.head.appendChild(style);
+    }
+    
+    container.appendChild(iframe);
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+  }
+  
+  // Expose globally
+  window.openWebinarModal = openWebinarModal;
+})();
+</script>
 
-<!-- Add this script anywhere on your page -->
-<script src="${baseUrl}/api/embed/${webinarId}?theme=${theme}&type=popup"></script>`
+<!-- Use this button anywhere on your page -->
+<button 
+  onclick="openWebinarModal()" 
+  style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; padding: 14px 32px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 16px; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4); transition: all 0.2s;"
+  onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(139, 92, 246, 0.5)';"
+  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(139, 92, 246, 0.4)';">
+  Register for Webinar
+</button>`
     }
   }
 
