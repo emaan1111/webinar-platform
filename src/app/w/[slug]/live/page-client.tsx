@@ -152,75 +152,6 @@ const defaultFaqs = [
   },
 ];
 
-const baseNow = Date.now();
-
-const sampleChatMessages: ChatMessage[] = [
-  {
-    id: 'sample-1',
-    userName: 'Fatima',
-    message: 'This program has transformed my daily routine!',
-    videoTimestamp: 45,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 25).toISOString(),
-  },
-  {
-    id: 'sample-2',
-    userName: 'Aisha',
-    message: 'JazakAllah khair for this valuable information.',
-    videoTimestamp: 120,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 20).toISOString(),
-  },
-  {
-    id: 'sample-3',
-    userName: 'Khadija',
-    message: 'Can you share more about balancing work and family?',
-    videoTimestamp: 230,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 15).toISOString(),
-  },
-  {
-    id: 'sample-4',
-    userName: 'Maryam',
-    message: 'When does the next cohort start?',
-    videoTimestamp: 360,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 12).toISOString(),
-  },
-  {
-    id: 'sample-5',
-    userName: 'Zainab',
-    message: "I'm definitely joining this program!",
-    videoTimestamp: 420,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 10).toISOString(),
-  },
-  {
-    id: 'sample-6',
-    userName: 'Safiyyah',
-    message: 'Is there a payment plan option?',
-    videoTimestamp: 540,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 7).toISOString(),
-  },
-  {
-    id: 'sample-7',
-    userName: 'Hafsah',
-    message: 'This has helped me so much with my children.',
-    videoTimestamp: 680,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 5).toISOString(),
-  },
-  {
-    id: 'sample-8',
-    userName: 'Amina',
-    message: 'How long do we have access to the materials?',
-    videoTimestamp: 820,
-    isScripted: true,
-    createdAt: new Date(baseNow - 1000 * 60 * 3).toISOString(),
-  },
-];
-
 const randomResponses = [
   { userName: 'Ruqayyah', message: 'JazakAllah khair for sharing!' },
   { userName: 'Sumayyah', message: "That's a great question!" },
@@ -500,8 +431,7 @@ export default function WebinarLiveClient({
   }, [serverNowMs]);
 
   const sortedMessages = useMemo(() => {
-    const base =
-      chatMessages.length > 0 ? chatMessages : sampleChatMessages;
+    const base = chatMessages;
     return base.slice().sort((a, b) => {
       const aTime =
         typeof a.videoTimestamp === 'number'
