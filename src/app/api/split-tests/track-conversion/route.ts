@@ -13,7 +13,15 @@ export async function POST(req: Request) {
         where: { id: variantId },
         data: { conversions: { increment: 1 } }
     });
-    
+
+    await prisma.splitTestEvent.create({
+      data: {
+        splitTestId: splitTestId,
+        variantId: variantId,
+        type: 'CONVERSION'
+      }
+    });
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Track conversion error:', error);

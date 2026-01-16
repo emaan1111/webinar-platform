@@ -3,9 +3,12 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const { searchParams } = new URL(req.url);
+  const from = searchParams.get('from');
 
   try {
     const splitTests = await prisma.splitTest.findMany({
@@ -18,6 +21,46 @@ export async function GET() {
       },
       orderBy: { updatedAt: 'desc' }
     });
+
+    // If 'from' date is provided, calculate stats from events
+    if (from) {
+      const fromDate = new Date(from);
+      
+      const testsWithStats = await Promise.all(splitTests.map(async (test: any) => {
+        const variantsWithStats = await Promise.all(test.variants.map(async (variant: any) => {
+          // Count events since 'from' date
+          const [views, conversions] = await Promise.all([
+            prisma.splitTestEvent.count({
+              where: {
+                variantId: variant.id,
+                type: 'VIEW',
+                createdAt: { gte: fromDate }
+              }
+            }),
+            prisma.splitTestEvent.count({
+              where: {
+                variantId: variant.id,
+                type: 'CONVERSION',
+                createdAt: { gte: fromDate }
+              }
+            })
+          ]);
+          
+          return {
+            ...variant,
+            views,
+            conversions
+          };
+        }));
+
+        return {
+          ...test,
+          variants: variantsWithStats
+        };
+      }));
+
+      return NextResponse.json(testsWithStats);
+    }
 
     return NextResponse.json(splitTests);
   } catch (error) {

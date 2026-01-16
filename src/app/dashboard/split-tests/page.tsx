@@ -5,21 +5,47 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Plus, Edit, Trash2, ExternalLink, Copy, TrendingUp } from 'lucide-react';
+import { Plus, Edit, Trash2, ExternalLink, Copy, TrendingUp, Filter } from 'lucide-react';
 import Link from 'next/link';
 
 export default function SplitTestsDashboard() {
   const router = useRouter();
   const [splitTests, setSplitTests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState('all'); // all, 1h, 24h, 7d, 30d
 
   useEffect(() => {
     fetchSplitTests();
-  }, []);
+  }, [timeRange]);
 
   const fetchSplitTests = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/split-tests');
+      let url = '/api/split-tests';
+      
+      if (timeRange !== 'all') {
+        const now = new Date();
+        let fromDate = new Date();
+        
+        switch(timeRange) {
+          case '1h':
+            fromDate.setHours(now.getHours() - 1);
+            break;
+          case '24h':
+            fromDate.setDate(now.getDate() - 1);
+            break;
+          case '7d':
+            fromDate.setDate(now.getDate() - 7);
+            break;
+          case '30d':
+            fromDate.setDate(now.getDate() - 30);
+            break;
+        }
+        
+        url += `?from=${fromDate.toISOString()}`;
+      }
+      
+      const res = await fetch(url);
       if (res.ok) {
         setSplitTests(await res.json());
       }
@@ -44,11 +70,25 @@ export default function SplitTestsDashboard() {
           </h1>
           <p className="text-gray-600 mt-1">A/B test multiple lead pages to optimize conversion</p>
         </div>
-        <Link href="/dashboard/split-tests/new">
-          <Button className="flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Create Split Test
-          </Button>
-        </Link>
+        <div className="flex gap-4">
+            <select 
+                className="border rounded-md px-3 py-2 text-sm bg-white"
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+            >
+                <option value="all">All Time</option>
+                <option value="1h">Last Hour</option>
+                <option value="24h">Last 24 Hours</option>
+                <option value="7d">Last 7 Days</option>
+                <option value="30d">Last 30 Days</option>
+            </select>
+            
+            <Link href="/dashboard/split-tests/new">
+                <Button className="flex items-center gap-2">
+                    <Plus className="w-4 h-4" /> Create Split Test
+                </Button>
+            </Link>
+        </div>
       </div>
 
       {loading ? (
@@ -104,6 +144,11 @@ export default function SplitTestsDashboard() {
                                 <div>
                                     <span className="block font-bold text-gray-900">{v.views}</span>
                                     <span className="text-xs text-gray-400">Views</span>
+                                </div>
+                                <div className="w-px h-8 bg-gray-100 mx-1"></div>
+                                <div>
+                                    <span className="block font-bold text-gray-900">{v.conversions}</span>
+                                    <span className="text-xs text-gray-400">Conversions</span>
                                 </div>
                                 <div className="w-px h-8 bg-gray-100 mx-1"></div>
                                 <div>

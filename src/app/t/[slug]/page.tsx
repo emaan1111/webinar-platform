@@ -52,6 +52,13 @@ export default async function SplitTestPage({ params }: PageProps) {
             prisma.splitTestVariant.update({
                 where: { id: selectedVariant.id },
                 data: { views: { increment: 1 } }
+            }),
+            prisma.splitTestEvent.create({
+              data: {
+                splitTestId: splitTest.id,
+                variantId: selectedVariant.id,
+                type: 'VIEW'
+              }
             })
         ]);
       } catch (e) {

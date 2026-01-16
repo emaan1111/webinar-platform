@@ -1153,6 +1153,7 @@ model SplitTest {
   isActive Boolean @default(true)
 
   variants SplitTestVariant[]
+  events   SplitTestEvent[]
 
   views Int @default(0)
 
@@ -1175,5 +1176,22 @@ model SplitTestVariant {
   views       Int @default(0)
   conversions Int @default(0)
 
+  events SplitTestEvent[]
+
   @@map("split_test_variants")
+}
+
+model SplitTestEvent {
+  id          String   @id @default(cuid())
+  splitTestId String
+  variantId   String
+  type        String   // "VIEW" | "CONVERSION"
+  createdAt   DateTime @default(now())
+
+  splitTest SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
+  variant   SplitTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+
+  @@index([splitTestId, createdAt])
+  @@index([variantId, createdAt])
+  @@map("split_test_events")
 }
