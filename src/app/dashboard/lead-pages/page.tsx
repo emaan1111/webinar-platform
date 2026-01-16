@@ -108,6 +108,11 @@ export default function LeadPagesDashboard() {
                 >
                   <ExternalLink className="w-4 h-4" />
                 </a>
+                <Link href={`/dashboard/lead-pages/${page.id}`}>
+                    <Button variant="secondary" size="sm">
+                        <Edit className="w-4 h-4" />
+                    </Button>
+                </Link>
               </div>
             </Card>
           ))}
