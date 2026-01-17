@@ -220,11 +220,57 @@ export async function GET(request: NextRequest) {
     const offerClicks = engagementEvents.filter((e) => e.eventType === 'offer_click').length;
 
     // Engagement by minute
-    const engagementByMinute: Record<number, { chat: number; reactions: number }> = {};
+    const engagementByMinute: Record<number, { chat: number; reactions: number; viewers: number }> = {};
+    
+    // Determine max duration to initialize buckets
+    let maxDuration = 3600; // Default 60 mins
+    
+    // Check max from registrations
+    registrations.forEach((r: any) => {
+      if (r.webinar?.duration && r.webinar.duration * 60 > maxDuration) {
+        maxDuration = r.webinar.duration * 60;
+      }
+      if (r.sessions) {
+        r.sessions.forEach((s: any) => {
+           if(s.videoPosition > maxDuration) maxDuration = s.videoPosition;
+        });
+      }
+    });
+    
+    const maxMinutes = Math.ceil(maxDuration / 60);
+
+    // Initialize all buckets
+    for(let i=0; i<=maxMinutes; i++) {
+        engagementByMinute[i] = { chat: 0, reactions: 0, viewers: 0 };
+    }
+
+    // Populate Viewers (Retention)
+    registrations.forEach((r: any) => {
+      // Find max progress for this user
+      let userMaxPos = 0;
+      if (r.sessions && r.sessions.length > 0) {
+        userMaxPos = r.sessions.reduce((max: number, s: any) => Math.max(max, s.videoPosition), 0);
+      } else if (r.attended) {
+        // Fallback if attended but no sessions (legacy data?)
+        // Don't count them for retention as we don't know where they dropped off
+        userMaxPos = 0; 
+      }
+      
+      const userMaxMinute = Math.floor(userMaxPos / 60);
+      
+      // User counts as viewer for every minute up to their max position
+      for(let i=0; i <= userMaxMinute; i++) {
+         if (engagementByMinute[i]) {
+            engagementByMinute[i].viewers++;
+         }
+      }
+    });
+
+    // Populate Chat/Reactions
     engagementEvents.forEach((event) => {
       const minute = Math.floor(event.timestamp / 60);
       if (!engagementByMinute[minute]) {
-        engagementByMinute[minute] = { chat: 0, reactions: 0 };
+        engagementByMinute[minute] = { chat: 0, reactions: 0, viewers: 0 };
       }
       if (event.eventType === 'chat') {
         engagementByMinute[minute].chat++;

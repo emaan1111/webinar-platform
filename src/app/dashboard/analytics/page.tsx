@@ -72,6 +72,7 @@ interface AnalyticsData {
       minute: number
       chat: number
       reactions: number
+      viewers?: number
     }>
   }
   funnel: {
@@ -259,6 +260,7 @@ export default function AnalyticsPage() {
             if (existing) {
               existing.chat += item.chat
               existing.reactions += item.reactions
+              existing.viewers = (existing.viewers || 0) + (item.viewers || 0)
             } else {
               aggregated.engagement.byMinute.push({ ...item })
             }
@@ -508,7 +510,14 @@ export default function AnalyticsPage() {
   const conversionRate = uniqueViews > 0 ? ((totalRegs / uniqueViews) * 100).toFixed(1) : '0.0'
 
   // Prepare engagement timeline data (join/leave)
-  const engagementTimeline = analyticsData?.engagement.byMinute || []
+  const engagementTimeline = (analyticsData?.engagement.byMinute || []).sort((a, b) => a.minute - b.minute)
+  
+  // Prepare viewers retention chart
+  const viewersData = engagementTimeline.map((item) => ({
+    minute: `${item.minute}m`,
+    viewers: item.viewers || 0
+  }))
+
   const joinLeaveData = engagementTimeline.map((item) => ({
     minute: `${item.minute}m`,
     engagement: item.chat + item.reactions
@@ -926,10 +935,42 @@ export default function AnalyticsPage() {
             )}
 
             {/* Engagement Timeline (Join/Leave) */}
+            {/* Watch Engagement Graph */}
             <Card>
               <CardHeader>
-                <h2 className="text-xl font-bold text-gray-900">Engagement Timeline</h2>
-                <p className="text-sm text-gray-500">When people joined and how long they stayed</p>
+                <h2 className="text-xl font-bold text-gray-900">Watch Engagement</h2>
+                <p className="text-sm text-gray-500">Concurrent viewers by minute timestamp</p>
+              </CardHeader>
+              <CardBody>
+                <ResponsiveContainer width="100%" height={300}>
+                  <AreaChart data={viewersData}>
+                    <defs>
+                      <linearGradient id="colorViewers" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="minute" />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="viewers" 
+                      stroke="#10b981" 
+                      fillOpacity={1} 
+                      fill="url(#colorViewers)"
+                      name="Active Viewers"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </CardBody>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <h2 className="text-xl font-bold text-gray-900">Engagement Interactions</h2>
+                <p className="text-sm text-gray-500">Chat messages and reactions over time</p>
               </CardHeader>
               <CardBody>
                 <ResponsiveContainer width="100%" height={300}>
@@ -942,15 +983,15 @@ export default function AnalyticsPage() {
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="minute" />
-                    <YAxis />
-                    <Tooltip />
+                    <YAxis allowDecimals={false} />
+                    <Tooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
                     <Area 
-                      type="monotone" 
-                      dataKey="engagement" 
-                      stroke="#3b82f6" 
-                      fillOpacity={1} 
+                      type="monotone"
+                      dataKey="engagement"
+                      stroke="#3b82f6"
+                      fillOpacity={1}
                       fill="url(#colorEngagement)"
-                      name="Total Engagement"
+                      name="Total Interactions"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
