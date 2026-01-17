@@ -98,7 +98,7 @@ export async function reorderField(formId: string, fieldId: string, direction: '
       position: targetPosition
     }
   })
-
+  
   if (otherField) {
     // Swap positions
     await prisma.$transaction([
@@ -111,35 +111,14 @@ export async function reorderField(formId: string, fieldId: string, direction: '
         data: { position: currentPosition }
       })
     ])
-  } else {
-      // If we are moving and there is no exact match (gap in sequence?), we might need a safer reorder
-      // But for now, simple swap is fine as long as sequence is maintained. 
-      // If no other field, generally means we are at edge or sparse array.
-      // Let's at least try to find the "next" field if sparse.
-      
-      const adjacentField = await prisma.formField.findFirst({
-          where: {
-              formId,
-              position: direction === 'up' ? { lt: currentPosition } : { gt: currentPosition }
-          },
-          orderBy: {
-              position: direction === 'up' ? 'desc' : 'asc'
-          }
-      })
-      
-      if (adjacentField) {
-           await prisma.$transaction([
-            prisma.formField.update({
-                where: { id: fieldId },
-                data: { position: adjacentField.position }
-            }),
-            prisma.formField.update({
-                where: { id: adjacentField.id },
-                data: { position: currentPosition }
-            })
-            ])
-      }
   }
+  
+  revalidatePath(`/dashboard/forms/${formId}`)
+}
 
+export async function deleteSubmission(submissionId: string, formId: string) {
+  await prisma.formSubmission.delete({
+    where: { id: submissionId }
+  })
   revalidatePath(`/dashboard/forms/${formId}`)
 }
