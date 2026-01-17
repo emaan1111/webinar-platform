@@ -1224,7 +1224,7 @@ export default function AttendeesPage() {
 
         {/* Table - Clean Modern Design */}
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-400px)]">
+          <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-220px)]">
             <table className="min-w-full">
               <thead className="bg-gray-50 border-b border-gray-200 sticky top-0 z-10">
                 {/* Header Row */}
