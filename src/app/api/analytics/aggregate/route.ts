@@ -205,15 +205,32 @@ export async function GET(request: NextRequest) {
     registrations.forEach((r: any) => {
       if (r.scheduledStartTime) {
         const date = new Date(r.scheduledStartTime);
-        // Format to "HH:00" for hourly distribution
-        const hour = date.getHours().toString().padStart(2, '0') + ':00';
-        // Or "Day HH:00" if we want day specific
-        // Let's do Hourly aggregate for now as requested "at what time"
         
-        // Let's actually provide two distributions: Hourly (24h) and Day of Week
-        
-        // 1. Hourly Distribution (e.g., "14:00")
-        const timeKey = `${date.getHours().toString().padStart(2, '0')}:00`;
+        let hour;
+        // Try to use user's timezone if available
+        if (r.timezone) {
+          try {
+             // Get hour in user's timezone (0-23)
+             const hourString = new Intl.DateTimeFormat('en-US', {
+                hour: 'numeric',
+                hour12: false,
+                timeZone: r.timezone
+             }).format(date);
+             
+             // Handle "24" edge case from some Intl implementations or just parse
+             let h = parseInt(hourString);
+             if (h === 24) h = 0;
+             hour = h;
+          } catch (e) {
+             // Fallback to UTC if timezone invalid
+             hour = date.getUTCHours();
+          }
+        } else {
+             // Fallback to UTC
+             hour = date.getUTCHours();
+        }
+
+        const timeKey = `${hour.toString().padStart(2, '0')}:00`;
         scheduleDistribution[timeKey] = (scheduleDistribution[timeKey] || 0) + 1;
       }
     });

@@ -957,7 +957,7 @@ export default function AnalyticsPage() {
               <Card>
                 <CardHeader>
                   <h2 className="text-xl font-bold text-gray-900">Preferred Schedule Times</h2>
-                  <p className="text-sm text-gray-500">Distribution of scheduled session times</p>
+                  <p className="text-sm text-gray-500">Distribution of scheduled times (Attendee's Local Time)</p>
                 </CardHeader>
                 <CardBody>
                   <div className="h-[300px] w-full">
