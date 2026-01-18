@@ -191,7 +191,11 @@ export default function SplitTestsDashboard() {
                 <div className="flex justify-between items-start mb-6">
                     <div>
                         <div className="flex items-center gap-3">
-                            <h3 className="font-bold text-xl">{test.name}</h3>
+                            <h3 className="font-bold text-xl">
+                                <Link href={`/dashboard/split-tests/${test.id}`} className="hover:text-blue-600 hover:underline">
+                                    {test.name}
+                                </Link>
+                            </h3>
                             <span className={`px-2 py-0.5 rounded text-xs font-bold ${test.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                                 {test.isActive ? 'ACTIVE' : 'PAUSED'}
                             </span>
