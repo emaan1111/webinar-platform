@@ -130,6 +130,7 @@ export async function GET(request: NextRequest) {
         // Actually, main code doesn't check 'sawOffer' for filtering, but user wants it in table.
         // Let's rely on 'offerAnalytics' table.
 
+        const watchTimeMinutes = watchTimeSeconds / 60;
         const engagementScore = (reg.chatMessages.length * 2) + (reg.reactions.length * 1) + (watchTimeMinutes > 30 ? 5 : 0);
 
         return {
