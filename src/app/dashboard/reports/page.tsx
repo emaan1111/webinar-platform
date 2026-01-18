@@ -342,6 +342,16 @@ export default function ReportsPage() {
 
   // Helper function to render cell value
   const renderCellValue = (report: ReportData, columnId: string) => {
+    // Helper for linked numeric values
+    const renderLink = (value: number, metric: string) => (
+      <Link 
+        href={`/dashboard/reports/details?metric=${metric}&date=${report.date}`}
+        className="hover:underline hover:text-blue-800 cursor-pointer"
+      >
+        {value.toLocaleString()}
+      </Link>
+    )
+
     switch (columnId) {
       case 'date':
         return new Date(report.date).toLocaleDateString()
@@ -360,27 +370,27 @@ export default function ReportsPage() {
       case 'visitors':
         return report.visitors.toLocaleString()
       case 'registrations':
-        return report.registrations.toLocaleString()
+        return renderLink(report.registrations, 'registrations')
       case 'totalAttendees':
-        return report.totalAttendees.toLocaleString()
+        return renderLink(report.totalAttendees, 'totalAttendees')
       case 'liveAttendees':
-        return report.liveAttendees.toLocaleString()
+        return renderLink(report.liveAttendees, 'liveAttendees')
       case 'replayAttendees':
-        return report.replayAttendees.toLocaleString()
+        return renderLink(report.replayAttendees, 'replayAttendees')
       case 'pastRegistrationCount':
-        return report.pastRegistrationCount.toLocaleString()
+        return renderLink(report.pastRegistrationCount, 'pastRegistrationCount')
       case 'engagedTotal':
-        return report.engagedTotal.toLocaleString()
+        return renderLink(report.engagedTotal, 'engagedTotal')
       case 'engagedLive':
-        return report.engagedLive.toLocaleString()
+        return renderLink(report.engagedLive, 'engagedLive')
       case 'engagedReplay':
-        return report.engagedReplay.toLocaleString()
+        return renderLink(report.engagedReplay, 'engagedReplay')
       case 'salesTotal':
-        return report.salesTotal.toLocaleString()
+        return renderLink(report.salesTotal, 'salesTotal')
       case 'salesLive':
-        return report.salesLive.toLocaleString()
+        return renderLink(report.salesLive, 'salesLive')
       case 'salesReplay':
-        return report.salesReplay.toLocaleString()
+        return renderLink(report.salesReplay, 'salesReplay')
       case 'registrationRate':
         return <PercentageCell value={report.registrationRate} />
       case 'attendanceRate':
