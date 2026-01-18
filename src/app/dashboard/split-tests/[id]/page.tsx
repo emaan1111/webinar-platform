@@ -5,7 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, RefreshCw, Calendar } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Calendar, Edit } from 'lucide-react';
+import Link from 'next/link';
 import {
   LineChart,
   Line,
@@ -77,8 +78,12 @@ export default function SplitTestDetails() {
             <h1 className="text-2xl font-bold text-gray-900">{test.name}</h1>
             <p className="text-gray-500">Split Test Analytics</p>
           </div>
-          
-          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+            <Link href={`/dashboard/split-tests/${id}/edit`}>
+              <Button variant="secondary" size="sm">
+                <Edit className="w-4 h-4 mr-2" /> Edit Test
+              </Button>
+            </Link>
             <select
               value={timeRange}
               onChange={(e) => setTimeRange(e.target.value)}
