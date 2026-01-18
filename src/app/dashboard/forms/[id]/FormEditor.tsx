@@ -177,7 +177,7 @@ const [activeTab, setActiveTab] = useState<string>('build')
           <thead className="bg-gray-50 border-b">
             <tr>
               <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3">Result</th>
+              <th className="px-4 py-3 min-w-[200px]">Result</th>
               {form.fields.map((f: any) => (
                 <th key={f.id} className="px-4 py-3">{f.label}</th>
               ))}
@@ -189,23 +189,30 @@ const [activeTab, setActiveTab] = useState<string>('build')
               const data = JSON.parse(sub.data)
               return (
                 <tr key={sub.id} className="group hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{new Date(sub.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      sub.aiStatus === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                      sub.aiStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                      sub.aiStatus === 'REVIEW' ? 'bg-yellow-100 text-yellow-800' :
-                      'bg-gray-100 text-gray-800'
-                    }`}>
-                      {sub.aiStatus || 'SUBMITTED'}
-                    </span>
+                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap align-top">{new Date(sub.createdAt).toLocaleString()}</td>
+                  <td className="px-4 py-3 align-top">
+                    <div className="flex flex-col gap-1">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium w-fit ${
+                        sub.aiStatus === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                        sub.aiStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                        sub.aiStatus === 'REVIEW' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {sub.aiStatus || 'SUBMITTED'}
+                      </span>
+                      {sub.aiReason && (
+                        <p className="text-xs text-gray-500 italic leading-snug">
+                          {sub.aiReason}
+                        </p>
+                      )}
+                    </div>
                   </td>
                   {form.fields.map((f: any) => (
-                    <td key={f.id} className="px-4 py-3 bg-white group-hover:bg-gray-50">
+                    <td key={f.id} className="px-4 py-3 bg-white group-hover:bg-gray-50 align-top">
                       {typeof data[f.id] === 'object' ? JSON.stringify(data[f.id]) : data[f.id]}
                     </td>
                   ))}
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-right align-top">
                     <button 
                       onClick={() => handleDeleteSubmission(sub.id)}
                       className="text-gray-400 hover:text-red-600 transition p-1"
