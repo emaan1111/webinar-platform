@@ -241,7 +241,8 @@ export default function AttendeesPage() {
     const matchesAttendance = 
       attendanceFilter === 'all' ||
       (attendanceFilter === 'attended' && attendee.attended) ||
-      (attendanceFilter === 'no-show' && !attendee.attended)
+      (attendanceFilter === 'no-show' && attendee.webinarStatus === 'No Show') ||
+      (attendanceFilter === 'upcoming' && attendee.webinarStatus === 'Upcoming')
     
     const matchesWebinar = 
       webinarFilter === 'all' ||
@@ -1025,6 +1026,7 @@ export default function AttendeesPage() {
                   <option value="all">All Statuses</option>
                   <option value="attended">Attended</option>
                   <option value="no-show">No Show</option>
+                  <option value="upcoming">Upcoming</option>
                 </select>
               </div>
 
