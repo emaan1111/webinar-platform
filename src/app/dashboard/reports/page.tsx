@@ -129,6 +129,7 @@ export default function ReportsPage() {
       { id: 'totalAttendees', label: 'Total Attendees', group: 'Attendance' },
       { id: 'liveAttendees', label: 'Live Attendees', group: 'Attendance' },
       { id: 'replayAttendees', label: 'Replay Attendees', group: 'Attendance' },
+      { id: 'pastRegistrationCount', label: 'Eligible Registrations (Past)', group: 'Attendance' },
       { id: 'attendanceRate', label: '% Attendance (Total)', group: 'Attendance' },
       { id: 'realAttendanceRate', label: '% Real Attendance (Past Only)', group: 'Attendance' },
       { id: 'liveAttendanceRate', label: '% Live Attendance', group: 'Attendance' },
@@ -366,6 +367,8 @@ export default function ReportsPage() {
         return report.liveAttendees.toLocaleString()
       case 'replayAttendees':
         return report.replayAttendees.toLocaleString()
+      case 'pastRegistrationCount':
+        return report.pastRegistrationCount.toLocaleString()
       case 'engagedTotal':
         return report.engagedTotal.toLocaleString()
       case 'engagedLive':
@@ -1253,6 +1256,7 @@ export default function ReportsPage() {
                         else if (columnId === 'totalAttendees') totalValue = totals.totalAttendees.toLocaleString()
                         else if (columnId === 'liveAttendees') totalValue = totals.liveAttendees.toLocaleString()
                         else if (columnId === 'replayAttendees') totalValue = totals.replayAttendees.toLocaleString()
+                        else if (columnId === 'pastRegistrationCount') totalValue = totals.pastRegistrationCount.toLocaleString()
                         else if (columnId === 'engagedTotal') totalValue = totals.engagedTotal.toLocaleString()
                         else if (columnId === 'engagedLive') totalValue = totals.engagedLive.toLocaleString()
                         else if (columnId === 'engagedReplay') totalValue = totals.engagedReplay.toLocaleString()

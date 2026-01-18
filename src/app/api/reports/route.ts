@@ -296,9 +296,12 @@ export async function GET(request: NextRequest) {
       const registrationRate = visitors > 0 ? (registrationCount / visitors) * 100 : 0;
       const attendanceRate = registrationCount > 0 ? (totalAttendees / registrationCount) * 100 : 0;
       
-      // Calculate real attendance rate (only past webinars)
+      // Calculate real attendance rate (only past webinars or those who attended)
       const now = new Date();
       const pastRegistrations = registrations.filter((reg: any) => {
+        // Always include if they attended (even if session isn't technically over)
+        if (reg.attended) return true;
+
         if (!reg.scheduledStartTime || !reg.webinar?.duration) return false;
         const scheduledStart = new Date(reg.scheduledStartTime);
         const scheduledEnd = new Date(scheduledStart.getTime() + reg.webinar.duration * 60 * 1000);

@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
@@ -1030,7 +1031,18 @@ export default function ChatModerationPage() {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-sm font-medium text-gray-900">{message.userName || 'Anonymous'}</h3>
+                        <h3 className="text-sm font-medium text-gray-900">
+                          {message.registrationId ? (
+                            <Link 
+                              href={`/dashboard/attendees/${message.registrationId}`}
+                              className="hover:text-blue-600 hover:underline"
+                            >
+                              {message.userName || 'Anonymous'}
+                            </Link>
+                          ) : (
+                            message.userName || 'Anonymous'
+                          )}
+                        </h3>
                         <span className="text-xs text-gray-500">
                           {new Date(message.timestamp || message.createdAt).toLocaleString()}
                         </span>
