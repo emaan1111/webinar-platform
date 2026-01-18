@@ -13,6 +13,8 @@ export default function ReportDetailsPage() {
   const router = useRouter()
   
   const date = searchParams.get('date')
+  const startDate = searchParams.get('startDate')
+  const endDate = searchParams.get('endDate')
   const metric = searchParams.get('metric')
   const webinarIds = searchParams.get('webinarIds')
   
@@ -21,16 +23,19 @@ export default function ReportDetailsPage() {
   const [error, setError] = useState('')
 
   useEffect(() => {
-    if (date && metric) {
+    if ((date || (startDate && endDate)) && metric) {
       fetchDetails()
     }
-  }, [date, metric])
+  }, [date, startDate, endDate, metric])
 
   const fetchDetails = async () => {
     setLoading(true)
     setError('')
     try {
-      let url = `/api/reports/details?date=${date}&metric=${metric}`
+      let url = `/api/reports/details?metric=${metric}`
+      if (date) url += `&date=${date}`
+      else if (startDate && endDate) url += `&startDate=${startDate}&endDate=${endDate}`
+
       if (webinarIds) url += `&webinarIds=${webinarIds}`
       
       const response = await fetch(url)
@@ -116,7 +121,7 @@ export default function ReportDetailsPage() {
       return labels[m] || m
   }
 
-  if (!date || !metric) {
+  if ((!date && (!startDate || !endDate)) || !metric) {
       return (
           <DashboardLayout>
               <div className="p-8 text-center bg-yellow-50 rounded-lg">
@@ -144,7 +149,7 @@ export default function ReportDetailsPage() {
                     {getMetricLabel(metric)}
                 </h1>
                 <p className="text-sm text-gray-500">
-                    Breakdown for {new Date(date).toLocaleDateString()} • {data.length} records
+                    Breakdown for {date ? new Date(date).toLocaleDateString() : `${new Date(startDate!).toLocaleDateString()} - ${new Date(endDate!).toLocaleDateString()}`} • {data.length} records
                 </p>
              </div>
           </div>

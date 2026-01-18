@@ -1259,20 +1259,30 @@ export default function ReportsPage() {
                       {selectedColumns.map((columnId, colIndex) => {
                         let totalValue: any = '-'
                         
+                        // Helper for linked numeric values in totals
+                        const renderTotalLink = (value: number, metric: string) => (
+                          <Link 
+                            href={`/dashboard/reports/details?metric=${metric}&startDate=${dateRange.from}&endDate=${dateRange.to}`}
+                            className="hover:underline hover:text-blue-800 cursor-pointer"
+                          >
+                            {value.toLocaleString()}
+                          </Link>
+                        )
+
                         if (columnId === 'date') totalValue = 'TOTAL / AVG'
                         else if (columnId === 'fbSpend') totalValue = `$${totals.spend.toFixed(2)}`
                         else if (columnId === 'visitors') totalValue = totals.visitors.toLocaleString()
-                        else if (columnId === 'registrations') totalValue = totals.registrations.toLocaleString()
-                        else if (columnId === 'totalAttendees') totalValue = totals.totalAttendees.toLocaleString()
-                        else if (columnId === 'liveAttendees') totalValue = totals.liveAttendees.toLocaleString()
-                        else if (columnId === 'replayAttendees') totalValue = totals.replayAttendees.toLocaleString()
-                        else if (columnId === 'pastRegistrationCount') totalValue = totals.pastRegistrationCount.toLocaleString()
-                        else if (columnId === 'engagedTotal') totalValue = totals.engagedTotal.toLocaleString()
-                        else if (columnId === 'engagedLive') totalValue = totals.engagedLive.toLocaleString()
-                        else if (columnId === 'engagedReplay') totalValue = totals.engagedReplay.toLocaleString()
-                        else if (columnId === 'salesTotal') totalValue = totals.salesTotal.toLocaleString()
-                        else if (columnId === 'salesLive') totalValue = totals.salesLive.toLocaleString()
-                        else if (columnId === 'salesReplay') totalValue = totals.salesReplay.toLocaleString()
+                        else if (columnId === 'registrations') totalValue = renderTotalLink(totals.registrations, 'registrations')
+                        else if (columnId === 'totalAttendees') totalValue = renderTotalLink(totals.totalAttendees, 'totalAttendees')
+                        else if (columnId === 'liveAttendees') totalValue = renderTotalLink(totals.liveAttendees, 'liveAttendees')
+                        else if (columnId === 'replayAttendees') totalValue = renderTotalLink(totals.replayAttendees, 'replayAttendees')
+                        else if (columnId === 'pastRegistrationCount') totalValue = renderTotalLink(totals.pastRegistrationCount, 'pastRegistrationCount')
+                        else if (columnId === 'engagedTotal') totalValue = renderTotalLink(totals.engagedTotal, 'engagedTotal')
+                        else if (columnId === 'engagedLive') totalValue = renderTotalLink(totals.engagedLive, 'engagedLive')
+                        else if (columnId === 'engagedReplay') totalValue = renderTotalLink(totals.engagedReplay, 'engagedReplay')
+                        else if (columnId === 'salesTotal') totalValue = renderTotalLink(totals.salesTotal, 'salesTotal')
+                        else if (columnId === 'salesLive') totalValue = renderTotalLink(totals.salesLive, 'salesLive')
+                        else if (columnId === 'salesReplay') totalValue = renderTotalLink(totals.salesReplay, 'salesReplay')
                         else if (columnId === 'registrationRate') totalValue = <PercentageCell value={totals.registrationRate} />
                         else if (columnId === 'attendanceRate') totalValue = <PercentageCell value={totals.attendanceRate} />
                         else if (columnId === 'realAttendanceRate') totalValue = <PercentageCell value={totals.realAttendanceRate} />

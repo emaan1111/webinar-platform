@@ -5,24 +5,36 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const date = searchParams.get('date');
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
     const metric = searchParams.get('metric');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
     const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
 
-    if (!date || !metric) {
+    if ((!date && (!startDateParam || !endDateParam)) || !metric) {
       return NextResponse.json(
-        { error: 'Date and metric are required' },
+        { error: 'Either (date) or (startDate & endDate) and (metric) are required' },
         { status: 400 }
       );
     }
 
-    const currentDate = new Date(date + 'T00:00:00');
-    const nextDate = new Date(currentDate);
-    nextDate.setDate(nextDate.getDate() + 1);
+    let start: Date;
+    let end: Date;
 
-    console.log(`🔍 Fetching details for ${metric} on ${date}`);
+    if (date) {
+        start = new Date(date + 'T00:00:00');
+        end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        console.log(`🔍 Fetching details for ${metric} on ${date}`);
+    } else {
+        // Range query
+        start = new Date(startDateParam + 'T00:00:00');
+        end = new Date(endDateParam + 'T00:00:00');
+        end.setDate(end.getDate() + 1); // Include the end date fully
+        console.log(`🔍 Fetching details for ${metric} between ${startDateParam} and ${endDateParam}`);
+    }
 
-    // Base query for registrations on this date
+    // Base query for registrations on this date/range
     // Note: Metrics in main report are based on registrations created on that date
     // except specific cases. But generally all people-metrics are subsets of registrations.
     // 'pastRegistrationCount' is also based on registrations on that date.
@@ -32,8 +44,8 @@ export async function GET(request: NextRequest) {
     const registrations = await prisma.registration.findMany({
       where: {
         registeredAt: {
-          gte: currentDate,
-          lt: nextDate
+          gte: start,
+          lt: end
         },
         ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
       },
