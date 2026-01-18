@@ -59,8 +59,8 @@ export const defaultColumns: ColumnConfig[] = [
   
   // Device Info
   { key: 'registrationDevice', label: 'Registration Device', enabled: false, category: 'device' },
-  { key: 'lastSessionDevice', label: 'Last Session Device', enabled: false, category: 'device' },
-  { key: 'lastSessionBrowser', label: 'Browser', enabled: false, category: 'device' },
+  { key: 'lastSessionDevice', label: 'Device', enabled: true, category: 'device' },
+  { key: 'lastSessionBrowser', label: 'Browser', enabled: true, category: 'device' },
   { key: 'lastSessionOS', label: 'Operating System', enabled: false, category: 'device' },
   
   // Replay Analytics
