@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import ClientForm from './ClientForm'
 
 interface PageProps {
@@ -21,6 +22,25 @@ export default async function PublicFormPage({ params }: PageProps) {
   // Check if form exists and is active
   if (!form || !form.isActive) {
     notFound()
+  }
+
+  // Record view
+  try {
+    const headersList = headers()
+    const userAgent = headersList.get('user-agent') || 'Unknown'
+    const referrer = headersList.get('referer') || 'Direct'
+    const ip = headersList.get('x-forwarded-for') || 'Unknown' // simplified
+
+    await prisma.formView.create({
+      data: {
+        formId: form.id,
+        userAgent,
+        referrer,
+        ip
+      }
+    })
+  } catch (err) {
+    console.error('Failed to record form view:', err)
   }
 
   return (

@@ -86,15 +86,50 @@ export async function submitForm(formId: string, formData: FormData) {
   }
 
   // Save submission
-  await prisma.formSubmission.create({
-    data: {
-      formId,
-      data: JSON.stringify(submissionData),
-      userAgent: 'server-action', 
-      aiStatus,
-      aiReason
+  const existingId = formData.get('submissionId') as string | null
+
+  if (existingId) {
+    // Check if it exists and update
+    const existing = await prisma.formSubmission.findUnique({
+      where: { id: existingId }
+    })
+
+    if (existing) {
+      await prisma.formSubmission.update({
+        where: { id: existingId },
+        data: {
+          data: JSON.stringify(submissionData),
+          aiStatus,
+          aiReason,
+          status: 'COMPLETED',
+          lastSavedAt: new Date()
+        }
+      })
+    } else {
+        // Fallback create if not found
+        await prisma.formSubmission.create({
+            data: {
+              formId,
+              data: JSON.stringify(submissionData),
+              userAgent: 'server-action', 
+              aiStatus,
+              aiReason,
+              status: 'COMPLETED'
+            }
+        })
     }
-  })
+  } else {
+    await prisma.formSubmission.create({
+        data: {
+        formId,
+        data: JSON.stringify(submissionData),
+        userAgent: 'server-action', 
+        aiStatus,
+        aiReason,
+        status: 'COMPLETED'
+        }
+    })
+  }
 
   // Determine response message
   let responseData = {

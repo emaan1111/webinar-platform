@@ -198,57 +198,24 @@ export async function GET(request: NextRequest) {
     const earlyLate = joinTimes.filter((t) => t > 60 && t <= 300).length;
     const late = joinTimes.filter((t) => t > 300).length;
 
-    // Schedule Time Distribution
-    const scheduleDistribution: Record<string, number> = {};
-    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    
-    registrations.forEach((r: any) => {
-      if (r.scheduledStartTime) {
-        const date = new Date(r.scheduledStartTime);
-        
-        let hour;
-        // Try to use user's timezone if available
-        if (r.timezone) {
-          try {
-             // Get hour in user's timezone (0-23)
-             const hourString = new Intl.DateTimeFormat('en-US', {
-                hour: 'numeric',
-                hour12: false,
-                timeZone: r.timezone
-             }).format(date);
-             
-             // Handle "24" edge case from some Intl implementations or just parse
-             let h = parseInt(hourString);
-             if (h === 24) h = 0;
-             hour = h;
-          } catch (e) {
-             // Fallback to UTC if timezone invalid
-             hour = date.getUTCHours();
-          }
-        } else {
-             // Fallback to UTC
-             hour = date.getUTCHours();
-        }
-
-        const timeKey = `${hour.toString().padStart(2, '0')}:00`;
-        scheduleDistribution[timeKey] = (scheduleDistribution[timeKey] || 0) + 1;
+    // Geographic Distribution (Country)
+    const countryMap = new Map<string, number>();
+    registrations.forEach(r => {
+      if (r.country) {
+        countryMap.set(r.country, (countryMap.get(r.country) || 0) + 1);
       }
     });
 
-    // Fill missing hours
-    for (let i = 0; i < 24; i++) {
-        const key = `${i.toString().padStart(2, '0')}:00`;
-        if (!scheduleDistribution[key]) {
-            scheduleDistribution[key] = 0;
-        }
-    }
-    
-    const formattedScheduleDistribution = Object.entries(scheduleDistribution)
-        .map(([time, count]) => ({ time, count }))
-        .sort((a, b) => a.time.localeCompare(b.time));
+    // Convert map to array and sort by count descending
+    const countries = Array.from(countryMap.entries())
+      .map(([country, count]) => ({ country, count }))
+      .sort((a, b) => b.count - a.count);
 
-    // Engagement analysis
+    // Engagement metrics
     const engagementWhere: any = {
+      // Use webinar ID from already fetched registrations to ensure permission consistency
+      // However reaction/chat models don't have hostId relationship check easily
+      // So relying on webinarId being in the list of what user has access to
       webinarId: resultWebinarIds.length > 0 ? { in: resultWebinarIds } : undefined,
     };
     
@@ -475,23 +442,26 @@ export async function GET(request: NextRequest) {
           completionRate: Math.round(completionRate * 10) / 10,
         },
         offers: {
-          sawOffer,
-          clickedOffer,
-          converted,
-          offerViewRate: Math.round(offerViewRate * 10) / 10,
-          offerClickRate: Math.round(offerClickRate * 10) / 10,
-          conversionRate: Math.round(conversionRate * 10) / 10,
+            sawOffer,
+            clickedOffer,
+            converted,
+            offerViewRate,
+            offerClickRate,
+            conversionRate,
+        },
+        geographic: {
+            countries
         },
         joinTiming: {
-          onTime,
-          earlyLate,
-          late,
-          distribution: [
-            { label: 'On Time (0-1 min)', count: onTime },
-            { label: 'Slightly Late (1-5 min)', count: earlyLate },
-            { label: 'Late (5+ min)', count: late },
-          ],
-          scheduleDistribution: formattedScheduleDistribution,
+            onTime,
+            earlyLate,
+            late,
+            distribution: [
+              { label: 'On Time (0-1 min)', count: onTime },
+              { label: 'Slightly Late (1-5 min)', count: earlyLate },
+              { label: 'Late (5+ min)', count: late },
+            ],
+            // scheduleDistribution: formattedScheduleDistribution, // Temporarily commented out as unused
         },
         engagement: {
           total: engagementEvents.length,

@@ -57,6 +57,12 @@ interface AnalyticsData {
     offerClickRate: number
     conversionRate: number
   }
+  geographic: {
+    countries: Array<{
+      country: string
+      count: number
+    }>
+  }
   joinTiming: {
     onTime: number
     earlyLate: number
@@ -191,6 +197,9 @@ export default function AnalyticsPage() {
             offerViewRate: 0,
             offerClickRate: 0,
             conversionRate: 0
+          },
+          geographic: {
+            countries: []
           },
           joinTiming: {
             onTime: 0,
@@ -1155,6 +1164,39 @@ export default function AnalyticsPage() {
                       {analyticsData.engagement.total}
                     </p>
                   </div>
+                </CardBody>
+              </Card>
+            </div>
+
+            {/* Geographic Distribution */}
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Geographic Distribution</h2>
+              <Card>
+                <CardBody>
+                  <div className="h-80">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart
+                        data={analyticsData.geographic.countries.slice(0, 10)} // Top 10 countries
+                        layout="vertical"
+                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                      >
+                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                        <XAxis type="number" />
+                        <YAxis 
+                          type="category" 
+                          dataKey="country" 
+                          width={100}
+                          tick={{ fontSize: 12 }}
+                        />
+                        <Tooltip 
+                          formatter={(value: number) => [`${value} Registrations`, 'Count']}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Bar dataKey="count" fill="#4f46e5" radius={[0, 4, 4, 0]} name="Registrations" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-2 text-center">Top 10 Countries by Registration Volume</p>
                 </CardBody>
               </Card>
             </div>

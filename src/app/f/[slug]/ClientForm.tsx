@@ -1,4 +1,3 @@
-
 'use client'
 
 import { useState, useEffect } from 'react'
@@ -14,8 +13,55 @@ export default function ClientForm({ form }: ClientFormProps) {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [submissionId, setSubmissionId] = useState<string | null>(null)
 
-// ...existing code...
+  // Auto-save logic
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    // Debounced save
+    const formData = new FormData(e.currentTarget.closest('form')!)
+    const data: Record<string, any> = {}
+    formData.forEach((value, key) => {
+      // Handle checkboxes specifically if multiple values exist
+      if (data[key]) {
+        if (Array.isArray(data[key])) {
+          data[key].push(value)
+        } else {
+          data[key] = [data[key], value]
+        }
+      } else {
+        data[key] = value
+      }
+    })
+
+    // Store timeout ID in a way that persists across renders but isn't state
+    // Actually simplicity: just call the API with a debounce wrapper
+    if ((window as any).autosaveTimeout) {
+      clearTimeout((window as any).autosaveTimeout)
+    }
+
+    (window as any).autosaveTimeout = setTimeout(async () => {
+      try {
+        const res = await fetch('/api/forms/autosave', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            formId: form.id,
+            data,
+            submissionId
+          })
+        })
+        if (res.ok) {
+          const json = await res.json()
+          if (json.submissionId && !submissionId) {
+            setSubmissionId(json.submissionId)
+          }
+        }
+      } catch (err) {
+        console.error('Autosave failed', err)
+      }
+    }, 1000)
+  }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (loading) return
@@ -36,6 +82,16 @@ export default function ClientForm({ form }: ClientFormProps) {
       for (let i = 0; i < steps; i++) {
         await new Promise(r => setTimeout(r, interval))
         setProgress(Math.min(Math.round(((i + 1) / steps) * 100), 99)) // Cap at 99% until done
+      }
+      
+      // Append submissionId if it exists so backend knows to update instead of create? 
+      // Current server action might create a new one. Let's see submitForm action.
+      // If we use server action, we might duplicate. 
+      // Strategy: Use the same submissionId if possible.
+      // But server action needs to be updated to handle submissionId.
+      
+      if (submissionId) {
+        formData.append('submissionId', submissionId)
       }
       
       const res = await submitForm(form.id, formData)
@@ -156,6 +212,7 @@ export default function ClientForm({ form }: ClientFormProps) {
                 name={field.id}
                 required={field.required}
                 placeholder={field.placeholder || ''}
+                onChange={handleInputChange}
                 rows={4}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
@@ -163,6 +220,7 @@ export default function ClientForm({ form }: ClientFormProps) {
                <select
                  name={field.id}
                  required={field.required}
+                 onChange={handleInputChange}
                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm bg-white"
                >
                  <option value="">Select an option...</option>
@@ -175,13 +233,13 @@ export default function ClientForm({ form }: ClientFormProps) {
                   {field.options ? (
                     field.options.split(',').map((opt: string) => (
                       <label key={opt} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                        <input type="checkbox" name={field.id} value={opt.trim()} className="rounded text-blue-600 focus:ring-blue-500" />
+                        <input type="checkbox" name={field.id} value={opt.trim()} onChange={handleInputChange} className="rounded text-blue-600 focus:ring-blue-500" />
                         {opt.trim()}
                       </label>
                     ))
                   ) : (
                     <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                       <input type="checkbox" name={field.id} value="Yes" required={field.required} className="rounded text-blue-600 focus:ring-blue-500" />
+                       <input type="checkbox" name={field.id} value="Yes" required={field.required} onChange={handleInputChange} className="rounded text-blue-600 focus:ring-blue-500" />
                        {field.placeholder || 'Yes, I agree'}
                     </label>
                   )}
@@ -192,6 +250,7 @@ export default function ClientForm({ form }: ClientFormProps) {
                 name={field.id}
                 required={field.required}
                 placeholder={field.placeholder || ''}
+                onChange={handleInputChange}
                 className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
             )}

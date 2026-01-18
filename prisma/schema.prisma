@@ -883,7 +883,7 @@ model AIChatConfig {
   requireApproval Boolean @default(false) // Require host approval before sending
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@map("ai_chat_config")
 }
@@ -905,7 +905,7 @@ model Image {
   description String? @db.Text // Optional description
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@index([uploadedBy])
   @@map("images")
@@ -963,7 +963,7 @@ model WebinarReminderTemplate {
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   // Relations
   sentReminders WebinarReminderSent[]
@@ -1011,7 +1011,7 @@ model WebinarReminderSent {
   smsSentTo   String? // Phone number it was sent to
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@index([registrationId])
   @@index([templateId])
@@ -1032,7 +1032,7 @@ model ClickFunnelsReminderTag {
   attempts       Int            @default(0)
   errorMessage   String?        @db.Text
   createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  updatedAt      DateTime       @default(now())
 
   @@unique([registrationId, tagName])
   @@index([registrationId])
@@ -1056,6 +1056,10 @@ model Form {
 
   // Post-submission behavior
   redirectUrl String? // Optional URL to redirect to after success (or AI approval)
+  
+  fields      FormField[]
+  submissions FormSubmission[]
+  views       FormView[]
 
   // AI Assessment Config
   aiAssessmentEnabled Boolean @default(false)
@@ -1070,10 +1074,7 @@ model Form {
   aiReviewMsg    String? @default("Your application is under review.")
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  fields      FormField[]
-  submissions FormSubmission[]
+  updatedAt DateTime @default(now())
 
   @@map("forms")
 }
@@ -1091,7 +1092,7 @@ model FormField {
   position    Int     @default(0) // Ordering
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@index([formId])
   @@map("form_fields")
@@ -1110,10 +1111,31 @@ model FormSubmission {
   userAgent String?
   referrer  String?
 
+  // Submission status
+  status       String   @default("COMPLETED") // "COMPLETED", "PARTIAL"
+  lastSavedAt  DateTime @default(now())
+
   createdAt DateTime @default(now())
 
   @@index([formId])
   @@map("form_submissions")
+}
+
+model FormView {
+  id        String   @id @default(cuid())
+  formId    String
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  
+  // Tracking
+  visitorId String?  // Optional: cookie ID or similar
+  ip        String?
+  userAgent String?
+  referrer  String?
+  
+  viewedAt  DateTime @default(now())
+
+  @@index([formId])
+  @@map("form_views")
 }
 
 model LeadPage {
@@ -1141,7 +1163,7 @@ model LeadPage {
   splitTestVariants SplitTestVariant[]
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@map("lead_pages")
 }
@@ -1159,7 +1181,7 @@ model SplitTest {
   conversions Int @default(0)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@map("split_tests")
 }

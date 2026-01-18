@@ -58,9 +58,41 @@ const navigation = [
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [pendingChatCount, setPendingChatCount] = useState(0)
+  const [formSubmissionCount, setFormSubmissionCount] = useState(0)
   const pathname = usePathname()
   const router = useRouter()
   const { data: session, status } = useSession()
+  
+  // Fetch counts
+  useEffect(() => {
+    const fetchCounts = async () => {
+      try {
+        // Chat count
+        const chatRes = await fetch('/api/chat/pending-count')
+        if (chatRes.ok) {
+          const data = await chatRes.json()
+          setPendingChatCount(data.count)
+        }
+
+        // Form stats
+        const formRes = await fetch('/api/forms/stats')
+        if (formRes.ok) {
+          const data = await formRes.json()
+          setFormSubmissionCount(data.count)
+        }
+      } catch (error) {
+        console.error('Error fetching dashboard counts:', error)
+      }
+    }
+
+    if (session) {
+      fetchCounts()
+      // Poll every 30 seconds
+      const interval = setInterval(fetchCounts, 30000)
+      return () => clearInterval(interval)
+    }
+  }, [session])
   
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -133,6 +165,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   >
                     <item.icon className="w-5 h-5" />
                     {item.name}
+                    {item.name === 'Chat Moderation' && pendingChatCount > 0 && (
+                      <span className="ml-auto flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-2 w-2 rounded-full bg-red-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                      </span>
+                    )}
+                    {item.name === 'Forms' && formSubmissionCount > 0 && (
+                      <span className="ml-auto inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                        {formSubmissionCount}
+                      </span>
+                    )}
                   </Link>
                 )
               })}
@@ -169,8 +212,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
                 >
-                  <item.icon className="w-5 h-5" />
-                  {item.name}
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                  <span className="flex-1">{item.name}</span>
+                  {item.name === 'Chat Moderation' && pendingChatCount > 0 && (
+                     <span className="flex h-2.5 w-2.5 relative">
+                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                       <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-600"></span>
+                     </span>
+                  )}
+                  {item.name === 'Forms' && formSubmissionCount > 0 && (
+                     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                       {formSubmissionCount}
+                     </span>
+                  )}
                 </Link>
               )
             })}
