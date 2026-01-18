@@ -72,12 +72,16 @@ export async function GET(
     // 7d -> 6 hours? or day? Let's do hour for 24h, day for 7d+
     
     const getBucketKey = (date: Date) => {
+      // Use ISO string but ensure it is reconstructable
       if (timeRange === '1h') {
-        return date.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+        // Minute bucket
+        return date.toISOString().slice(0, 16) + ':00.000Z'; // YYYY-MM-DDTHH:mm:00.000Z
       } else if (timeRange === '24h') {
-        return date.toISOString().slice(0, 13); // YYYY-MM-DDTHH
+        // Hour bucket
+        return date.toISOString().slice(0, 13) + ':00:00.000Z'; // YYYY-MM-DDTHH:00:00.000Z
       } else {
-        return date.toISOString().slice(0, 10); // YYYY-MM-DD
+        // Day bucket
+        return date.toISOString().slice(0, 10) + 'T00:00:00.000Z'; // YYYY-MM-DDT00:00:00.000Z
       }
     };
 

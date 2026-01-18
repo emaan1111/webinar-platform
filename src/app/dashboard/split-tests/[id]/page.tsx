@@ -150,7 +150,7 @@ export default function SplitTestDetails() {
           <CardBody>
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={chartData}>
+                <LineChart data={chartData}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="timestamp" 
@@ -162,20 +162,23 @@ export default function SplitTestDetails() {
                       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
                     }}
                   />
-                  <YAxis />
+                  <YAxis allowDecimals={false} />
                   <Tooltip 
                      labelFormatter={(value) => new Date(value).toLocaleString()}
                   />
                   <Legend />
                   {variants.map((variant: any, index: number) => (
-                    <Bar
+                    <Line
                       key={variant.id}
+                      type="monotone"
                       dataKey={`${variant.id}_conversions`}
                       name={`${variant.leadPage?.name || 'Variant ' + (index + 1)} Conversions`}
-                      fill={COLORS[index % COLORS.length]}
+                      stroke={COLORS[index % COLORS.length]}
+                      strokeWidth={2}
+                      dot={false}
                     />
                   ))}
-                </BarChart>
+                </LineChart>
               </ResponsiveContainer>
             </div>
           </CardBody>
@@ -190,7 +193,7 @@ export default function SplitTestDetails() {
           <CardBody>
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis 
                     dataKey="timestamp" 
@@ -202,7 +205,7 @@ export default function SplitTestDetails() {
                       return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
                     }}
                   />
-                  <YAxis unit="%" />
+                  <YAxis unit="%" padding={{ top: 20 }} domain={[0, 'auto']} />
                   <Tooltip 
                      labelFormatter={(value) => new Date(value).toLocaleString()}
                      formatter={(value: any) => [`${value}%`, 'Conversion Rate']}
