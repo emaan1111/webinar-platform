@@ -199,6 +199,11 @@ export default function SplitTestsDashboard() {
                         <div className="text-sm font-mono text-purple-600 mt-1">/t/{test.slug}</div>
                     </div>
                     <div className="flex gap-2">
+                        <Link href={`/dashboard/split-tests/${test.id}`}>
+                            <Button variant="outline" size="sm" title="View Analytics">
+                                <TrendingUp className="w-4 h-4 text-blue-600" />
+                            </Button>
+                        </Link>
                         <Button variant="outline" size="sm" onClick={() => copyToClipboard(`${window.location.origin}/t/${test.slug}`)}>
                           <Copy className="w-4 h-4" />
                         </Button>
