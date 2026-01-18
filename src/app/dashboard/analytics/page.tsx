@@ -61,6 +61,10 @@ interface AnalyticsData {
     onTime: number
     earlyLate: number
     late: number
+    scheduleDistribution?: Array<{
+        time: string
+        count: number
+    }>
   }
   engagement: {
     total: number
@@ -246,6 +250,20 @@ export default function AnalyticsPage() {
           aggregated.joinTiming.onTime += data.joinTiming.onTime
           aggregated.joinTiming.earlyLate += data.joinTiming.earlyLate
           aggregated.joinTiming.late += data.joinTiming.late
+          
+          // Merge Schedule Distribution
+          if (data.joinTiming.scheduleDistribution) {
+              if (!aggregated.joinTiming.scheduleDistribution) aggregated.joinTiming.scheduleDistribution = [];
+              
+              data.joinTiming.scheduleDistribution.forEach((item: any) => {
+                  const existing = aggregated.joinTiming.scheduleDistribution!.find(d => d.time === item.time);
+                  if (existing) {
+                      existing.count += item.count;
+                  } else {
+                      aggregated.joinTiming.scheduleDistribution!.push({ ...item });
+                  }
+              });
+          }
           
           // Sum engagement
           aggregated.engagement.total += data.engagement.total
@@ -934,7 +952,40 @@ export default function AnalyticsPage() {
               </Card>
             )}
 
-            {/* Engagement Timeline (Join/Leave) */}
+            {/* Schedule Preference Graph */}
+            {analyticsData.joinTiming.scheduleDistribution && analyticsData.joinTiming.scheduleDistribution.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-bold text-gray-900">Preferred Schedule Times</h2>
+                  <p className="text-sm text-gray-500">Distribution of scheduled session times</p>
+                </CardHeader>
+                <CardBody>
+                  <div className="h-[300px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={analyticsData.joinTiming.scheduleDistribution}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis 
+                          dataKey="time" 
+                          tickFormatter={(val: string) => parseInt(val).toString() + 'h'}
+                        />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip 
+                          cursor={{ fill: '#f3f4f6' }}
+                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                        />
+                        <Bar 
+                          dataKey="count" 
+                          fill="#8b5cf6" 
+                          name="Registrations" 
+                          radius={[4, 4, 0, 0]} 
+                        />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
+
             {/* Watch Engagement Graph */}
             <Card>
               <CardHeader>

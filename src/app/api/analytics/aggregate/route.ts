@@ -198,6 +198,38 @@ export async function GET(request: NextRequest) {
     const earlyLate = joinTimes.filter((t) => t > 60 && t <= 300).length;
     const late = joinTimes.filter((t) => t > 300).length;
 
+    // Schedule Time Distribution
+    const scheduleDistribution: Record<string, number> = {};
+    const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    
+    registrations.forEach((r: any) => {
+      if (r.scheduledStartTime) {
+        const date = new Date(r.scheduledStartTime);
+        // Format to "HH:00" for hourly distribution
+        const hour = date.getHours().toString().padStart(2, '0') + ':00';
+        // Or "Day HH:00" if we want day specific
+        // Let's do Hourly aggregate for now as requested "at what time"
+        
+        // Let's actually provide two distributions: Hourly (24h) and Day of Week
+        
+        // 1. Hourly Distribution (e.g., "14:00")
+        const timeKey = `${date.getHours().toString().padStart(2, '0')}:00`;
+        scheduleDistribution[timeKey] = (scheduleDistribution[timeKey] || 0) + 1;
+      }
+    });
+
+    // Fill missing hours
+    for (let i = 0; i < 24; i++) {
+        const key = `${i.toString().padStart(2, '0')}:00`;
+        if (!scheduleDistribution[key]) {
+            scheduleDistribution[key] = 0;
+        }
+    }
+    
+    const formattedScheduleDistribution = Object.entries(scheduleDistribution)
+        .map(([time, count]) => ({ time, count }))
+        .sort((a, b) => a.time.localeCompare(b.time));
+
     // Engagement analysis
     const engagementWhere: any = {
       webinarId: resultWebinarIds.length > 0 ? { in: resultWebinarIds } : undefined,
@@ -442,6 +474,7 @@ export async function GET(request: NextRequest) {
             { label: 'Slightly Late (1-5 min)', count: earlyLate },
             { label: 'Late (5+ min)', count: late },
           ],
+          scheduleDistribution: formattedScheduleDistribution,
         },
         engagement: {
           total: engagementEvents.length,
