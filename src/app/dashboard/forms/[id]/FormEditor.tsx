@@ -13,6 +13,7 @@ export default function FormEditor({ form }: EditorProps) {
 const [activeTab, setActiveTab] = useState<string>('build')
   const [saving, setSaving] = useState(false)
   const [reordering, setReordering] = useState<string | null>(null)
+  const [viewingSubmission, setViewingSubmission] = useState<any>(null)
   
   // Field Types
   const fieldTypes = [
@@ -172,64 +173,178 @@ const [activeTab, setActiveTab] = useState<string>('build')
 
   if (activeTab === 'submissions') {
     return (
-      <div className="bg-white rounded-lg shadow overflow-hidden">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 border-b">
-            <tr>
-              <th className="px-4 py-3">Date</th>
-              <th className="px-4 py-3 min-w-[200px]">Result</th>
-              {form.fields.map((f: any) => (
-                <th key={f.id} className="px-4 py-3">{f.label}</th>
-              ))}
-              <th className="px-4 py-3 w-10">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y">
-            {form.submissions.map((sub: any) => {
-              const data = JSON.parse(sub.data)
-              return (
-                <tr key={sub.id} className="group hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap align-top">{new Date(sub.createdAt).toLocaleString()}</td>
-                  <td className="px-4 py-3 align-top">
-                    <div className="flex flex-col gap-1">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium w-fit ${
-                        sub.aiStatus === 'APPROVED' ? 'bg-green-100 text-green-800' :
-                        sub.aiStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
-                        sub.aiStatus === 'REVIEW' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-gray-100 text-gray-800'
-                      }`}>
-                        {sub.aiStatus || 'SUBMITTED'}
-                      </span>
-                      {sub.aiReason && (
-                        <p className="text-xs text-gray-500 italic leading-snug">
-                          {sub.aiReason}
-                        </p>
-                      )}
-                    </div>
-                  </td>
-                  {form.fields.map((f: any) => (
-                    <td key={f.id} className="px-4 py-3 bg-white group-hover:bg-gray-50 align-top">
-                      {typeof data[f.id] === 'object' ? JSON.stringify(data[f.id]) : data[f.id]}
+      <>
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3">Date</th>
+                <th className="px-4 py-3 min-w-[200px]">Result</th>
+                {form.fields.map((f: any) => (
+                  <th key={f.id} className="px-4 py-3">{f.label}</th>
+                ))}
+                <th className="px-4 py-3 w-10">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {form.submissions.map((sub: any) => {
+                const data = JSON.parse(sub.data)
+                return (
+                  <tr 
+                    key={sub.id} 
+                    className="group hover:bg-blue-50 cursor-pointer transition"
+                    onClick={() => setViewingSubmission(sub)}
+                  >
+                    <td className="px-4 py-3 text-gray-500 whitespace-nowrap align-top">{new Date(sub.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex flex-col gap-1">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium w-fit ${
+                          sub.aiStatus === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                          sub.aiStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                          sub.aiStatus === 'REVIEW' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {sub.aiStatus || 'SUBMITTED'}
+                        </span>
+                        {sub.aiReason && (
+                          <p className="text-xs text-gray-500 italic leading-snug">
+                            {sub.aiReason}
+                          </p>
+                        )}
+                      </div>
                     </td>
-                  ))}
-                  <td className="px-4 py-3 text-right align-top">
-                    <button 
-                      onClick={() => handleDeleteSubmission(sub.id)}
-                      className="text-gray-400 hover:text-red-600 transition p-1"
-                      title="Delete Submission"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </td>
-                </tr>
-              )
-            })}
-             {form.submissions.length === 0 && (
-               <tr><td colSpan={100} className="p-8 text-center text-gray-500">No submissions yet</td></tr>
-             )}
-          </tbody>
-        </table>
-      </div>
+                    {form.fields.map((f: any) => (
+                      <td key={f.id} className="px-4 py-3 bg-white group-hover:bg-blue-50 align-top">
+                        <div className="truncate max-w-xs">
+                          {typeof data[f.id] === 'object' ? JSON.stringify(data[f.id]) : data[f.id]}
+                        </div>
+                      </td>
+                    ))}
+                    <td className="px-4 py-3 text-right align-top">
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteSubmission(sub.id);
+                        }}
+                        className="text-gray-400 hover:text-red-600 transition p-1"
+                        title="Delete Submission"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                )
+              })}
+               {form.submissions.length === 0 && (
+                 <tr><td colSpan={100} className="p-8 text-center text-gray-500">No submissions yet</td></tr>
+               )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Submission Detail Modal */}
+        {viewingSubmission && (
+          <div 
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setViewingSubmission(null)}
+          >
+            <div 
+              className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6 border-b bg-gray-50 flex justify-between items-start">
+                <div>
+                  <h2 className="text-xl font-bold text-gray-900">Submission Details</h2>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {new Date(viewingSubmission.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                <button 
+                  onClick={() => setViewingSubmission(null)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="p-6 overflow-y-auto max-h-[calc(80vh-180px)]">
+                {/* AI Status */}
+                <div className="mb-6 p-4 rounded-lg border ${
+                  viewingSubmission.aiStatus === 'APPROVED' ? 'bg-green-50 border-green-200' :
+                  viewingSubmission.aiStatus === 'REJECTED' ? 'bg-red-50 border-red-200' :
+                  viewingSubmission.aiStatus === 'REVIEW' ? 'bg-yellow-50 border-yellow-200' :
+                  'bg-gray-50 border-gray-200'
+                }">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-gray-500 uppercase">Status</span>
+                    <span className={`inline-flex items-center px-3 py-1 rounded text-sm font-medium ${
+                      viewingSubmission.aiStatus === 'APPROVED' ? 'bg-green-100 text-green-800' :
+                      viewingSubmission.aiStatus === 'REJECTED' ? 'bg-red-100 text-red-800' :
+                      viewingSubmission.aiStatus === 'REVIEW' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {viewingSubmission.aiStatus || 'SUBMITTED'}
+                    </span>
+                  </div>
+                  {viewingSubmission.aiReason && (
+                    <p className="text-sm text-gray-700 italic">
+                      {viewingSubmission.aiReason}
+                    </p>
+                  )}
+                </div>
+
+                {/* Form Data */}
+                <div className="space-y-4">
+                  {form.fields.map((field: any) => {
+                    const data = JSON.parse(viewingSubmission.data);
+                    const value = data[field.id];
+                    return (
+                      <div key={field.id} className="border-b pb-4 last:border-0">
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-2">
+                          {field.label}
+                          {field.required && <span className="text-red-500 ml-1">*</span>}
+                        </label>
+                        <div className="text-gray-900">
+                          {typeof value === 'object' ? (
+                            <pre className="bg-gray-50 p-3 rounded text-xs overflow-x-auto">
+                              {JSON.stringify(value, null, 2)}
+                            </pre>
+                          ) : field.type === 'textarea' ? (
+                            <p className="whitespace-pre-wrap">{value || '—'}</p>
+                          ) : (
+                            <p>{value || '—'}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="p-6 border-t bg-gray-50 flex justify-between items-center">
+                <button
+                  onClick={() => {
+                    if (confirm('Delete this submission? This cannot be undone.')) {
+                      handleDeleteSubmission(viewingSubmission.id);
+                      setViewingSubmission(null);
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 text-red-600 hover:bg-red-50 rounded transition"
+                >
+                  <Trash2 size={16} />
+                  Delete Submission
+                </button>
+                <button
+                  onClick={() => setViewingSubmission(null)}
+                  className="px-6 py-2 bg-gray-200 hover:bg-gray-300 rounded transition"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     )
   }
 
