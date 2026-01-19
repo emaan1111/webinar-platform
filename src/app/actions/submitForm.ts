@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import OpenAI from 'openai'
+import { tagClickFunnelsContact } from '@/lib/clickfunnels'
 
 export async function submitForm(formId: string, formData: FormData) {
   const form = await prisma.form.findUnique({
@@ -82,6 +83,20 @@ export async function submitForm(formId: string, formData: FormData) {
     } catch (error) {
       console.error('AI Assessment failed:', error)
       // Fallback: pending review or approve? Let's just default null (no AI decision)
+    }
+  }
+
+  // ClickFunnels Integration: Tag RH26-APPROVED if approved
+  if (aiStatus === 'APPROVED') {
+    const emailField = form.fields.find(f => f.type === 'email')
+    if (emailField) {
+      const email = submissionData[emailField.id]
+      if (email && typeof email === 'string') {
+        // Run in background (fire and forget) to not slow down response
+        tagClickFunnelsContact(email, ['RH26-APPROVED']).catch(err => 
+          console.error('Failed to tag user in ClickFunnels:', err)
+        )
+      }
     }
   }
 
