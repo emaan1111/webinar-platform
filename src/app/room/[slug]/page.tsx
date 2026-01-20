@@ -29,6 +29,8 @@ interface ChatMessagePayload {
   videoTimestamp: number | null;
   isScripted: boolean;
   createdAt: string;
+  likes: number;
+  likedBySystem: string | null;
 }
 
 interface ReactionPayload {
@@ -205,6 +207,13 @@ export default async function WebinarRoomPage({
               email: true,
             },
           },
+          _count: {
+            select: { likes: true }
+          },
+          likes: {
+            where: { isSystem: true },
+            select: { likerName: true }
+          }
         },
       },
       reactions: {
@@ -391,6 +400,10 @@ export default async function WebinarRoomPage({
         message.registration?.name ||
         'Guest';
 
+      // Safe access to _count and likes (Prisma types might need refresh)
+      const likeCount = (message as any)._count?.likes || 0;
+      const systemLike = (message as any).likes?.find((l: any) => l.likerName) // Just take first one for now
+      
       return {
         id: message.id,
         userName: displayName,
@@ -398,6 +411,8 @@ export default async function WebinarRoomPage({
         videoTimestamp: message.videoTimestamp,
         isScripted: message.isScripted,
         createdAt: message.createdAt.toISOString(),
+        likes: likeCount,
+        likedBySystem: systemLike ? systemLike.likerName : null
       };
     }
   );

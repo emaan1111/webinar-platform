@@ -43,6 +43,7 @@ model User {
   accounts       Account[]
   sessions       Session[]
   chatMessages   ChatMessage[]
+  chatMessageLikes ChatMessageLike[]
   reactions      Reaction[]
 
   @@map("users")
@@ -279,7 +280,30 @@ model ChatMessage {
   isApproved     Boolean       @default(false) // Admin approval for user messages
   createdAt      DateTime      @default(now())
 
+  likes     ChatMessageLike[]
+
   @@map("chat_messages")
+}
+
+model ChatMessageLike {
+  id            String      @id @default(cuid())
+  chatMessageId String
+  chatMessage   ChatMessage @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
+  
+  // Who liked it?
+  userId         String? // Optional - for authenticated users
+  user           User?         @relation(fields: [userId], references: [id])
+  registrationId String? // Optional - for registered attendees
+  registration   Registration? @relation(fields: [registrationId], references: [id])
+  
+  // Or if it was the system (AI/Host bot)
+  isSystem     Boolean       @default(false)
+  likerName    String?       // "Naseera", "Host", etc.
+
+  createdAt    DateTime      @default(now())
+
+  @@unique([chatMessageId, userId, registrationId, likerName])
+  @@map("chat_message_likes")
 }
 
 model Reaction {
@@ -364,6 +388,7 @@ model Registration {
   sessions       AttendeeSession[]
   pageVisits     PageVisit[]
   chatMessages   ChatMessage[] // Chat messages sent by this registered attendee
+  chatMessageLikes ChatMessageLike[]
   reactions      Reaction[] // Reactions sent by this registered attendee
   sales          WebinarSale[]
   offerAnalytics OfferAnalytics[] // Offer analytics for this registration
@@ -825,7 +850,7 @@ model CountdownPage {
   // System
   isSystem  Boolean  @default(false) // System pages cannot be deleted
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@map("countdown_pages")
 }
@@ -859,7 +884,7 @@ model ProgramDocument {
   sortOrder Int     @default(0)
 
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
 
   @@map("program_documents")
 }
@@ -881,6 +906,10 @@ model AIChatConfig {
   // Response behavior
   autoRespond     Boolean @default(true) // Automatically respond to questions
   requireApproval Boolean @default(false) // Require host approval before sending
+
+  // Auto-Like Configuration
+  autoLikeEnabled Boolean @default(true) 
+  autoLikePrompt  String? @db.Text // Guidelines for when to like a message
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())

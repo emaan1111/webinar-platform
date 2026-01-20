@@ -37,6 +37,8 @@ interface ChatMessage {
   videoTimestamp: number | null;
   isScripted: boolean;
   createdAt: string;
+  likes?: number;
+  likedByMe?: boolean;
 }
 
 interface LiveOffer {
@@ -1542,6 +1544,33 @@ export default function WebinarLiveClient({
     [spawnReaction, viewer, webinar.id, elapsedSeconds]
   );
 
+  const handleLikeMessage = async (msgId: string) => {
+    // Optimistic UI update
+    setMessages(prev => prev.map(m => {
+      if (m.id === msgId) {
+        return {
+          ...m,
+          likes: (m.likes || 0) + (m.likedByMe ? -1 : 1),
+          likedByMe: !m.likedByMe
+        }
+      }
+      return m
+    }));
+
+    try {
+      await fetch(`/api/chat/${msgId}/like`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          registrationId: viewer?.id,
+          userName: viewer?.name || 'Guest'
+        })
+      });
+    } catch (err) {
+      console.error('Error liking message:', err);
+    }
+  };
+
   const handleSendMessage = useCallback(async () => {
     const text = chatInput.trim();
     if (!text) {
@@ -1629,6 +1658,35 @@ export default function WebinarLiveClient({
             if (aiResponse.ok) {
               const aiData = await aiResponse.json();
               console.log('🤖 AI Response:', aiData);
+
+              // Handle AI Like
+              if (aiData.liked) {
+                // Show notification
+                // You might need to add a toast/notification component or just a console log for now
+                console.log(`❤️ ${aiData.likerName || 'The Host'} liked your comment!`);
+                
+                // Update the user's message to show it was liked
+                setMessages((prev) => 
+                  prev.map((msg) => 
+                    msg.message === text && msg.userName === userName // Find the message we just sent
+                      ? { ...msg, likes: (msg.likes || 0) + 1 }
+                      : msg
+                  )
+                );
+
+                // Show visual feedback (simple system message for now)
+                const notifId = `notif-${Date.now()}`;
+                const notificationMsg: ChatMessage = {
+                  id: notifId,
+                  userName: 'System',
+                  message: `${aiData.likerName || 'The Host'} liked your comment`,
+                  videoTimestamp: elapsedSeconds,
+                  isScripted: false,
+                  createdAt: new Date().toISOString(),
+                  isSystemNotification: true // We'll handle this styling
+                } as any;
+                addChatMessage(notificationMsg);
+              }
               
               // Check if AI decided to skip this question (not relevant or insufficient info)
               if (aiData.skipped || !aiData.shouldRespond) {
@@ -3025,14 +3083,25 @@ export default function WebinarLiveClient({
                 }`}
               >
                 {messages.map((message) => (
-                  <div key={message.id} className={styles.message}>
+                  <div key={message.id} className={`${styles.message} ${(message as any).isSystemNotification ? styles.systemMessage : ''}`}>
                     <div className={styles.messageContent}>
                       <div className={styles.messageText}>
-                        <strong style={{ color: '#7b68ee', marginRight: '6px' }}>
+                        <strong style={{ color: (message as any).isSystemNotification ? '#fab005' : '#7b68ee', marginRight: '6px' }}>
                           {message.userName}:
                         </strong>
-                        <span>{message.message}</span>
+                        <span style={ (message as any).isSystemNotification ? { fontWeight: 'bold', color: '#fab005' } : {} }>{message.message}</span>
                       </div>
+                      {!(message as any).isSystemNotification && (
+                        <div className="flex items-center gap-2 mt-1 -ml-1">
+                          <button 
+                            onClick={() => handleLikeMessage(message.id)}
+                            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded transition ${message.likedByMe ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-red-400'}`}
+                          >
+                            <i className={`${message.likedByMe ? 'fas' : 'far'} fa-heart`}></i>
+                            {message.likes && message.likes > 0 && <span>{message.likes}</span>}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
