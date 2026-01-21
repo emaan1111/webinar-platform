@@ -48,6 +48,8 @@ interface AIConfig {
   maxTokens: number
   autoRespond: boolean
   requireApproval: boolean
+  autoLikeEnabled: boolean
+  autoLikePrompt: string | null
 }
 
 const categoryOptions = [
@@ -74,7 +76,9 @@ export default function AIAssistantPage() {
     temperature: 0.7,
     maxTokens: 500,
     autoRespond: true,
-    requireApproval: false
+    requireApproval: false,
+    autoLikeEnabled: true,
+    autoLikePrompt: null
   })
 
   const [showDocEditor, setShowDocEditor] = useState(false)
@@ -704,6 +708,48 @@ export default function AIAssistantPage() {
                   </label>
                 </div>
 
+                {/* Auto Like Settings */}
+                <div className="flex items-start justify-between p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                       <span className="text-red-500 text-lg">❤️</span> AI Auto-Liking
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Automatically "like" user messages based on specific criteria
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiConfig.autoLikeEnabled}
+                      onChange={(e) => setAIConfig({ ...aiConfig, autoLikeEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-400 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-500"></div>
+                  </label>
+                </div>
+
+                {aiConfig.autoLikeEnabled && (
+                  <div className="pl-4 border-l-2 border-yellow-200 ml-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Like Instructions
+                      <span className="text-gray-500 font-normal ml-2">
+                        (Tell the AI which messages deserve a heart)
+                      </span>
+                    </label>
+                    <textarea
+                      value={aiConfig.autoLikePrompt || ''}
+                      onChange={(e) => setAIConfig({ ...aiConfig, autoLikePrompt: e.target.value || null })}
+                      rows={3}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-transparent text-sm"
+                      placeholder="Like messages that are positive, say 'I am in', 'bought', 'purchased', 'joined', or express excitement."
+                    />
+                    <p className="mt-2 text-xs text-gray-500">
+                      Example: "Any messages saying 'I am in' or 'registered' - like them."
+                    </p>
+                  </div>
+                )}
+
                 {/* Temperature */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -765,6 +811,46 @@ export default function AIAssistantPage() {
                     placeholder="You are a helpful assistant for [Program Name]...&#10;&#10;Your role is to answer questions about the program ONLY..."
                   />
                 </div>
+
+                {/* Auto Like Settings */}
+                <div className="flex items-start justify-between p-4 border border-gray-200 rounded-lg">
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">Auto-Like Responses</h3>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Automatically like responses that match the prompt (recommended)
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={aiConfig.autoLikeEnabled}
+                      onChange={(e) => setAIConfig({ ...aiConfig, autoLikeEnabled: e.target.checked })}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                  </label>
+                </div>
+
+                {aiConfig.autoLikeEnabled && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Auto-Like Prompt
+                      <span className="text-gray-500 font-normal ml-2">
+                        (What the AI looks for to auto-like responses)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={aiConfig.autoLikePrompt || ''}
+                      onChange={(e) => setAIConfig({ ...aiConfig, autoLikePrompt: e.target.value || null })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                      placeholder="e.g., 'Great question!', 'Thanks for the info!'"
+                    />
+                    <p className="mt-2 text-xs text-gray-500">
+                      The AI will automatically like responses containing this text
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
