@@ -175,9 +175,28 @@ export default async function LeadPage({ params }: PageProps) {
       </script>
     `;
 
+    // Script to suppress Tailwind CDN warning since we use it for dynamic user content
+    const suppressionScript = `
+      <script>
+        (function(){
+            const originalWarn = console.warn;
+            console.warn = function(...args) {
+                if (args[0] && typeof args[0] === 'string' && args[0].includes('cdn.tailwindcss.com')) {
+                    return;
+                }
+                originalWarn.apply(console, args);
+            };
+        })();
+      </script>
+    `;
+
+    // Inject suppression script before content to ensure it catches the CDN warning
+    const finalHtml = (leadPage.htmlContent || '').replace('<head>', '<head>' + suppressionScript);
+
     return (
       <div id="custom-content-root">
-        <div dangerouslySetInnerHTML={{ __html: (leadPage.htmlContent || '') + trackingScript }} />
+         {/* Use finalHtml if replacement worked, otherwise prepend the script */}
+        <div dangerouslySetInnerHTML={{ __html: (finalHtml === (leadPage.htmlContent || '') ? suppressionScript + finalHtml : finalHtml) + trackingScript }} />
       </div>
     );
   }

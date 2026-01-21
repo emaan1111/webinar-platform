@@ -197,9 +197,59 @@ export async function POST(
 
     // ALL integration work happens in background - nothing blocks the user
     runInBackground('Post-registration integrations', async () => {
-      // Note: Split Test & Lead Page tracking is now handled via client-side Beacons 
-      // (see src/app/w/[slug]/page-client.tsx) to ensure reliability without blocking response.
-      // This allows the UI to stay fast while tracking happens in the browser background.
+      // 1. Server-Side Split Test & Lead Page Tracking
+      // More reliable than client-side beacons
+      if (splitTestId && variantId) {
+         try {
+           await prisma.$transaction(async (tx) => {
+              // 1. Update Variant
+              const variant = await tx.splitTestVariant.update({
+                  where: { id: variantId },
+                  data: { conversions: { increment: 1 } },
+                  select: { splitTestId: true, leadPageId: true }
+              });
+      
+              // 2. Update Parent Split Test
+              if (splitTestId) {
+                   await tx.splitTest.update({
+                      where: { id: splitTestId },
+                      data: { conversions: { increment: 1 } }
+                  });
+              }
+      
+              // 3. Log Event
+              await tx.splitTestEvent.create({
+                  data: {
+                      splitTestId: splitTestId || variant.splitTestId,
+                      variantId: variantId,
+                      type: 'CONVERSION',
+                      visitorId: visitorId || null
+                  }
+              });
+      
+              // 4. Update Underlying Lead Page (if exists)
+              if (variant.leadPageId) {
+                  await tx.leadPage.update({
+                      where: { id: variant.leadPageId },
+                      data: { conversions: { increment: 1 } }
+                  });
+              }
+          });
+          console.log(`✅ Server-Tracking: Split Test conversion recorded for ${splitTestId}/${variantId}`);
+         } catch(e) {
+           console.error('Failed to track split test conversion on server', e);
+         }
+      } else if (leadPageId) {
+         try {
+            await prisma.leadPage.update({
+                where: { id: leadPageId },
+                data: { conversions: { increment: 1 } }
+            });
+            console.log(`✅ Server-Tracking: Lead page conversion recorded for ${leadPageId}`);
+         } catch(e) {
+            console.error('Failed to track lead page conversion on server', e);
+         }
+      }
 
       // Link page visit to registration for analytics
       try {
