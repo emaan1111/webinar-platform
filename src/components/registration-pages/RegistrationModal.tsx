@@ -303,8 +303,7 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
            console.error('Failed to track lead page conversion', e);
          }
       }
-      }
-
+      
       // Success Redirect Logic
       let redirectUrl: string
       if (shouldRedirectToCountdown) {
