@@ -1684,8 +1684,8 @@ export default function WebinarLiveClient({
                 const notifId = `notif-${Date.now()}`;
                 const notificationMsg: ChatMessage = {
                   id: notifId,
-                  userName: 'System',
-                  message: `${aiData.likerName || 'The Host'} liked your comment`,
+                  userName: aiData.likerName || 'System', // Use the AI's name as the sender
+                  message: 'Liked your comment',
                   videoTimestamp: elapsedSeconds,
                   isScripted: false,
                   createdAt: new Date().toISOString(),
