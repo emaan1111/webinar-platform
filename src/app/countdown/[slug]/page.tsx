@@ -598,6 +598,7 @@ function processCountdownTemplate(
   const hasCountdownPlaceholder = html.includes('{{countdown}}')
 
   const countdownScript = `
+<script>
 (function() {
   // Safety check: only run in browser context
   if (typeof window === 'undefined' || typeof document === 'undefined') {
@@ -645,18 +646,21 @@ function processCountdownTemplate(
     var el = document.getElementById('countdown');
     if (el) {
       el.innerHTML = text;
+    } else {
+        // Fallback debug
+        // console.log('Countdown ticking:', text);
     }
     
-    // Update countdown in individual elements if they exist (for custom templates)
+    // Force update the specific elements for the Royal template
     var daysEl = document.getElementById('days');
     var hoursEl = document.getElementById('hours');
     var minutesEl = document.getElementById('minutes');
     var secondsEl = document.getElementById('seconds');
     
-    if (daysEl) daysEl.textContent = days.toString().padStart(2, '0');
-    if (hoursEl) hoursEl.textContent = hours.toString().padStart(2, '0');
-    if (minutesEl) minutesEl.textContent = minutes.toString().padStart(2, '0');
-    if (secondsEl) secondsEl.textContent = seconds.toString().padStart(2, '0');
+    if (daysEl) daysEl.innerText = days < 10 ? "0" + days : days;
+    if (hoursEl) hoursEl.innerText = hours < 10 ? "0" + hours : hours;
+    if (minutesEl) minutesEl.innerText = minutes < 10 ? "0" + minutes : minutes;
+    if (secondsEl) secondsEl.innerText = seconds < 10 ? "0" + seconds : seconds;
   }
   
   // Start countdown immediately and repeat every second
@@ -670,6 +674,7 @@ function processCountdownTemplate(
     setInterval(updateCountdown, 1000);
   }
 })();
+</script>
   `
 
   const redirectOnlyScript = `
