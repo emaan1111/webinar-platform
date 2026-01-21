@@ -64,7 +64,77 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check if OpenAI API key is configured
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: 'OpenAI API key is not configured' },
+        { status: 500 }
+      );
+    }
+
+    // --- AUTO-LIKE LOGIC ---
+    // Moved to TOP so it can run even if AI shouldn't "reply" yet (e.g. before offer)
+    let liked = false;
+    let likerName = webinar.aiChatConfig.assistantName || 'AI Assistant';
+    
+    // Explicitly check config for auto-like
+    if (webinar.aiChatConfig.autoLikeEnabled) {
+      try {
+        const likePrompt = `
+          Rules:
+          ${webinar.aiChatConfig.autoLikePrompt || "Like messages that are positive, say 'I'm in', 'bought', 'purchased', or express excitement."}
+
+          User Message: "${question}"
+
+          Should I like this message? Respond with JSON: {"like": true|false}
+        `;
+
+        const likeClient = getOpenAIClient();
+        const likeCompletion = await likeClient.chat.completions.create({
+          messages: [{ role: 'system', content: likePrompt }],
+          model: 'gpt-3.5-turbo', // Cheaper model for simple decision
+          temperature: 0.3,
+          response_format: { type: 'json_object' }
+        });
+
+        const likeContent = likeCompletion.choices[0].message.content;
+        if (likeContent) {
+          const decision = JSON.parse(likeContent);
+          if (decision.like) {
+            liked = true;
+            
+            // Find the most recent message by this user/registration to "Attach" the like to
+            const userMessage = await prisma.chatMessage.findFirst({
+               where: {
+                 webinarId,
+                 message: question, // Match content
+                 registrationId: registrationId || undefined,
+                 createdAt: {
+                   gte: new Date(Date.now() - 10000) // Within last 10 seconds
+                 }
+               },
+               orderBy: { createdAt: 'desc' }
+            });
+
+            if (userMessage) {
+               await prisma.chatMessageLike.create({
+                 data: {
+                   chatMessageId: userMessage.id,
+                   isSystem: true,
+                   likerName: likerName
+                 }
+               });
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Auto-like check failed:', err);
+      }
+    }
+    // --- END AUTO-LIKE LOGIC ---
+
     // Check if we should activate AI (only after offer is shown)
+    // NOTE: This applies to TEXT RESPONSES only. Likes are allowed anytime.
     const shouldActivate = checkIfShouldActivate(
       webinar.aiChatConfig,
       webinar.offers,
@@ -72,20 +142,16 @@ export async function POST(request: NextRequest) {
     );
 
     if (!shouldActivate) {
+      // If we liked it, we return success with liked=true, but shouldRespond=false
+      // consistently with the rest of the flow
       return NextResponse.json(
         {
           shouldRespond: false,
-          message: 'AI is not active yet. Will activate after the offer is shown.',
+          message: 'AI is not active for text replies yet (pre-offer).',
+          liked,
+          likerName
         },
         { status: 200 }
-      );
-    }
-
-    // Check if OpenAI API key is configured
-    if (!process.env.OPENAI_API_KEY) {
-      return NextResponse.json(
-        { error: 'OpenAI API key is not configured' },
-        { status: 500 }
       );
     }
 
@@ -121,33 +187,8 @@ export async function POST(request: NextRequest) {
       trimmedResponse.toLowerCase().includes("i don't know") ||
       (trimmedResponse.toLowerCase().includes("sorry") && trimmedResponse.length < 150);
 
-    // --- AUTO-LIKE LOGIC ---
-    // Moved before skip check so AI can like messages it doesn't want to reply to (e.g. "I'm in!")
-    let liked = false;
-    let likerName = webinar.aiChatConfig.assistantName || 'AI Assistant';
-    
-    // Explicitly check config for auto-like
-    if (webinar.aiChatConfig.autoLikeEnabled) {
-      try {
-        const likePrompt = `
-          Rules:
-          ${webinar.aiChatConfig.autoLikePrompt || "Like messages that are positive, say 'I'm in', 'bought', 'purchased', or express excitement."}
+    // --- OLD AUTO-LIKE LOCATION WAS HERE ---
 
-          User Message: "${question}"
-
-          Should I like this message? Respond with JSON: {"like": true|false}
-        `;
-
-        const likeClient = getOpenAIClient();
-        const likeCompletion = await likeClient.chat.completions.create({
-          messages: [{ role: 'system', content: likePrompt }],
-          model: 'gpt-3.5-turbo', // Cheaper model for simple decision
-          temperature: 0.3,
-          response_format: { type: 'json_object' }
-        });
-
-        const likeContent = likeCompletion.choices[0].message.content;
-        if (likeContent) {
           const decision = JSON.parse(likeContent);
           if (decision.like) {
             liked = true;
