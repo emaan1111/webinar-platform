@@ -1638,9 +1638,13 @@ export default function WebinarLiveClient({
           )
         );
 
-        // Check if we should get an AI response (after CTA is shown)
-        if (activeOfferId) {
-          console.log('🤖 Checking for AI response after CTA...');
+        // Check if we should get an AI response
+        // Note: We check both offer active state OR simply if AI is enabled globally
+        // The server-side will handle "activation" logic (e.g. only after offer), BUT
+        // we want to allow auto-likes even before offers for engagement ("I'm excited!", etc)
+        // So we remove the strict `if (activeOfferId)` check here and let the server decide.
+        // if (activeOfferId) { <--- REMOVED strict check
+          console.log('🤖 Checking for AI response...');
           try {
             const aiResponse = await fetch('/api/chat/ai-response', {
               method: 'POST',
