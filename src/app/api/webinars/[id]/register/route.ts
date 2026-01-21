@@ -213,7 +213,7 @@ export async function POST(
                 splitTestId,
                 variantId,
                 type: 'CONVERSION',
-                visitorId
+                visitorId: visitorId || null
               }
             })
           ]);
