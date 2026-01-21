@@ -3101,9 +3101,9 @@ export default function WebinarLiveClient({
                         <div className="flex items-center gap-2 mt-1 -ml-1">
                           <button 
                             onClick={() => handleLikeMessage(message.id)}
-                            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded transition ${message.likedByMe ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-red-400'}`}
+                            className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded transition ${(message.likes && message.likes > 0) || message.likedByMe ? 'text-red-500 bg-red-50' : 'text-gray-400 hover:text-red-400'}`}
                           >
-                            <i className={`${message.likedByMe ? 'fas' : 'far'} fa-heart`}></i>
+                            <i className={`${(message.likes && message.likes > 0) || message.likedByMe ? 'fas' : 'far'} fa-heart`}></i>
                             {message.likes && message.likes > 0 && <span>{message.likes}</span>}
                           </button>
                         </div>
