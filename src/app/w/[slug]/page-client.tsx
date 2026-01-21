@@ -1091,6 +1091,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
       // Track Split Test conversion (from independent lead pages)
       const stId = searchParams.get('st')
       const vId = searchParams.get('v')
+      
       if (stId && vId && registrationData.registrationId) {
         const payload = JSON.stringify({
           splitTestId: stId,
@@ -1103,6 +1104,25 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
           navigator.sendBeacon('/api/split-tests/track-conversion', blob)
         } else {
           fetch('/api/split-tests/track-conversion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true
+          }).catch(() => {})
+        }
+      }
+      // Track Standalone Lead Page conversion (if not a split test)
+      else if (leadPageId && registrationData.registrationId) {
+         const payload = JSON.stringify({
+          leadPageId: leadPageId,
+          registrationId: registrationData.registrationId,
+        })
+        
+        if (navigator.sendBeacon) {
+          const blob = new Blob([payload], { type: 'application/json' })
+          navigator.sendBeacon('/api/lead-pages/track-conversion', blob)
+        } else {
+          fetch('/api/lead-pages/track-conversion', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: payload,

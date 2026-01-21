@@ -197,61 +197,9 @@ export async function POST(
 
     // ALL integration work happens in background - nothing blocks the user
     runInBackground('Post-registration integrations', async () => {
-      // Record Split Test Conversion if applicable
-      if (splitTestId && variantId) {
-        try {
-          // 1. Update Split Test & Variant Counts
-          await prisma.$transaction([
-            prisma.splitTest.update({
-              where: { id: splitTestId },
-              data: { conversions: { increment: 1 } }
-            }),
-            prisma.splitTestVariant.update({
-              where: { id: variantId },
-              data: { conversions: { increment: 1 } }
-            }),
-            prisma.splitTestEvent.create({
-              data: {
-                splitTestId,
-                variantId,
-                type: 'CONVERSION',
-                visitorId: visitorId || null
-              }
-            })
-          ]);
-          console.log(`✅ Split test conversion recorded for ${splitTestId}/${variantId}`);
-
-          // 2. Also update the specific Lead Page stats associated with this variant
-          // (This ensures Lead Page analytics match Split Test analytics)
-          const variant = await prisma.splitTestVariant.findUnique({
-            where: { id: variantId },
-            select: { leadPageId: true }
-          });
-          
-          if (variant?.leadPageId) {
-             await prisma.leadPage.update({
-                where: { id: variant.leadPageId },
-                data: { conversions: { increment: 1 } }
-             });
-             console.log(`✅ Linked Lead Page conversion recorded for ${variant.leadPageId}`);
-          }
-
-        } catch (e) {
-          console.error('❌ Failed to record split test conversion:', e);
-        }
-      } 
-      // Handle Standalone Lead Page Conversion (No Split Test)
-      else if (leadPageId) {
-        try {
-           await prisma.leadPage.update({
-              where: { id: leadPageId },
-              data: { conversions: { increment: 1 } }
-           });
-           console.log(`✅ Standalone Lead Page conversion recorded for ${leadPageId}`);
-        } catch (e) {
-           console.error('❌ Failed to record lead page conversion:', e);
-        }
-      }
+      // Note: Split Test & Lead Page tracking is now handled via client-side Beacons 
+      // (see src/app/w/[slug]/page-client.tsx) to ensure reliability without blocking response.
+      // This allows the UI to stay fast while tracking happens in the browser background.
 
       // Link page visit to registration for analytics
       try {
