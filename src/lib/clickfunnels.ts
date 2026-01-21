@@ -362,8 +362,14 @@ export async function sendContactToClickFunnels(
     return null
   }
 
+  // Normalize email to lowercase
+  const normalizedContactData = {
+    ...contactData,
+    email_address: contactData.email_address.trim().toLowerCase()
+  }
+
   try {
-    console.log('📤 Sending contact to ClickFunnels:', contactData.email_address)
+    console.log('📤 Sending contact to ClickFunnels:', normalizedContactData.email_address)
     console.log('   Workspace ID:', workspaceId)
     console.log('   API Key:', apiKey?.substring(0, 10) + '...')
 
@@ -379,7 +385,7 @@ export async function sendContactToClickFunnels(
         'Accept': 'application/json',
       },
       body: JSON.stringify({
-        contact: contactData  // Wrap in contact object like the working implementation
+        contact: normalizedContactData
       })
     })
 
@@ -398,7 +404,7 @@ export async function sendContactToClickFunnels(
         (response.status === 422 && /Duplicate entry/i.test(errorText || ''))
 
       if (isDuplicate) {
-        return await updateClickFunnelsContact(contactData)
+        return await updateClickFunnelsContact(normalizedContactData)
       }
 
       return null
@@ -413,9 +419,9 @@ export async function sendContactToClickFunnels(
     console.log('✅ Contact sent to ClickFunnels - ID:', contact?.id || 'ID not in response')
 
     // Apply tags with a separate API call if tag_ids were provided
-    if (contactData.tag_ids && contactData.tag_ids.length > 0 && contact.id) {
+    if (normalizedContactData.tag_ids && normalizedContactData.tag_ids.length > 0 && contact.id) {
       console.log('🏷️ Applying tags to contact...')
-      await applyTagsToContact(contact.id, contactData.tag_ids)
+      await applyTagsToContact(contact.id, normalizedContactData.tag_ids)
     }
 
     return contact
@@ -498,12 +504,14 @@ async function updateClickFunnelsContact(
     return null
   }
 
+  const normalizedEmail = contactData.email_address.trim().toLowerCase()
+
   try {
-    console.log('🔄 Updating existing contact in ClickFunnels:', contactData.email_address)
+    console.log('🔄 Updating existing contact in ClickFunnels:', normalizedEmail)
 
     // First, find the contact by email (with retry to allow CF sync)
     const existingContact = await findContactByEmailWithRetry(
-      contactData.email_address,
+      normalizedEmail,
       apiKey,
       workspaceId
     )
@@ -563,6 +571,7 @@ export async function tagClickFunnelsContact(
 ): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+  const normalizedEmail = email.trim().toLowerCase()
 
   if (!apiKey || !workspaceId) {
     console.log('⚠️ ClickFunnels API not configured - skipping tagging')
@@ -570,16 +579,16 @@ export async function tagClickFunnelsContact(
   }
 
   try {
-    console.log('🏷️ Tagging contact in ClickFunnels:', email, tags)
+    console.log('🏷️ Tagging contact in ClickFunnels:', normalizedEmail, tags)
     // console.log('🔍 Stack trace for debugging:', new Error().stack)
 
-    let contact = await findContactByEmailWithRetry(email, apiKey, workspaceId)
-
+    let contact = await findContactByEmailWithRetry(normalizedEmail, apiKey, workspaceId)
+    
     if (!contact) {
       console.log('⚠️ Contact not found for tagging - Creating new contact...')
       // Create the contact with just the email
       const newContactRes = await sendContactToClickFunnels({
-        email_address: email
+        email_address: normalizedEmail
       });
       
       if (newContactRes && newContactRes.id) {

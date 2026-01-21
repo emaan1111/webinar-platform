@@ -218,8 +218,8 @@ export async function POST(
             })
           ]);
           console.log(`✅ Split test conversion recorded for ${splitTestId}/${variantId}`);
-        } catch (error) {
-          console.error('Failed to record split test conversion:', error);
+        } catch (e) {
+          console.error('❌ Failed to record split test conversion:', e);
         }
       }
 

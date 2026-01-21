@@ -43,10 +43,49 @@ export default async function LeadPage({ params }: PageProps) {
                        leadPage.htmlContent?.toLowerCase().includes('<!doctype');
 
     if (isFullPage) {
+        // Inject script to preserve tracking parameters (st, v) in links
+        const trackingScript = `
+          <script>
+            (function() {
+              try {
+                // Try references to parent if in iframe, or self if top
+                const search = window.parent !== window ? window.parent.location.search : window.location.search;
+                const params = new URLSearchParams(search);
+                const st = params.get('st');
+                const v = params.get('v');
+                
+                if (st && v) {
+                  document.addEventListener('DOMContentLoaded', function() {
+                    document.querySelectorAll('a').forEach(link => {
+                      try {
+                        const url = new URL(link.href, window.location.origin);
+                        // Only add if internal link
+                        if (url.origin === window.location.origin || link.getAttribute('href').startsWith('/')) {
+                          url.searchParams.set('st', st);
+                          url.searchParams.set('v', v);
+                          link.href = url.toString();
+                        }
+                      } catch(e) {}
+                    });
+                  });
+                }
+              } catch(e) { console.error('Tracking script error', e); }
+            })();
+          </script>
+        `;
+        
+        // Insert before closing body tag, or at the end if not found
+        let contentWithScript = leadPage.htmlContent || '';
+        if (contentWithScript.includes('</body>')) {
+          contentWithScript = contentWithScript.replace('</body>', `${trackingScript}</body>`);
+        } else {
+          contentWithScript += trackingScript;
+        }
+
         return (
             <div className="fixed inset-0 z-[100] bg-white">
                  <iframe 
-                    srcDoc={leadPage.htmlContent || ''}
+                    srcDoc={contentWithScript}
                     className="w-full h-full border-0"
                     title={leadPage.name}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -56,8 +95,38 @@ export default async function LeadPage({ params }: PageProps) {
         );
     }
 
+    // For non-full page custom HTML (embedded in layout)
+    // We can't easily inject script here as it's dangerouslySetInnerHTML.
+    // Instead we can use a client component wrapper or just useEffect in a wrapper.
+    // But since "dangerouslySetInnerHTML" is static, we can append a script tag string.
+    
+    const trackingScript = `
+      <script>
+        (function() {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const st = params.get('st');
+                const v = params.get('v');
+                if (st && v) {
+                    const links = document.getElementById('custom-content-root').querySelectorAll('a');
+                    links.forEach(link => {
+                        if (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/')) {
+                            const url = new URL(link.href, window.location.origin);
+                            url.searchParams.set('st', st);
+                            url.searchParams.set('v', v);
+                            link.href = url.toString();
+                        }
+                    });
+                }
+            } catch(e) {}
+        })();
+      </script>
+    `;
+
     return (
-      <div dangerouslySetInnerHTML={{ __html: leadPage.htmlContent || '' }} />
+      <div id="custom-content-root">
+        <div dangerouslySetInnerHTML={{ __html: (leadPage.htmlContent || '') + trackingScript }} />
+      </div>
     );
   }
 
