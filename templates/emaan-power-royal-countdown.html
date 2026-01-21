@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting Room | {{webinarTitle}}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        royal: {
+                            50: '#eef2ff',
+                            100: '#e0e7ff',
+                            200: '#c7d2fe',
+                            700: '#4338ca',
+                            800: '#3730a3',
+                            900: '#312e81',
+                            950: '#1e1b4b',
+                        },
+                        rose: {
+                            50: '#fff1f2',
+                            100: '#ffe4e6',
+                            300: '#fda4af',
+                            500: '#f43f5e',
+                            600: '#e11d48',
+                            700: '#be123c',
+                            900: '#881337',
+                        },
+                        gold: {
+                            100: '#fef3c7',
+                            400: '#fbbf24',
+                            500: '#f59e0b',
+                            600: '#d97706',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Lato', 'sans-serif'],
+                        serif: ['Playfair Display', 'serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .countdown-item {
+            position: relative;
+        }
+        
+        .countdown-item::after {
+            content: ':';
+            position: absolute;
+            right: -10px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 2rem;
+            color: rgba(255,255,255,0.5);
+        }
+        
+        .countdown-item:last-child::after {
+            display: none;
+        }
+
+        .btn-shine {
+            position: relative;
+            overflow: hidden;
+        }
+        .btn-shine::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+            transition: 0.5s;
+        }
+        .btn-shine:hover::after {
+            left: 100%;
+        }
+        
+        /* Pulse animation for the live dot */
+        @keyframes pulse-red {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
+        .live-pulse {
+            animation: pulse-red 2s infinite;
+        }
+    </style>
+</head>
+<body class="bg-royal-50 font-sans antialiased overflow-x-hidden flex flex-col min-h-screen">
+
+    <!-- Top Waiting Room Section -->
+    <section class="bg-royal-950 text-white pt-12 pb-24 relative overflow-hidden flex-shrink-0">
+        <!-- Background Elements -->
+        <div class="absolute inset-0 opacity-20" style="background-image: radial-gradient(#ffffff 1px, transparent 1px); background-size: 30px 30px;"></div>
+        <div class="absolute top-0 right-0 w-64 h-64 bg-rose-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+        <div class="absolute bottom-0 left-0 w-64 h-64 bg-royal-500 rounded-full mix-blend-multiply filter blur-3xl opacity-20"></div>
+
+        <div class="container mx-auto px-6 relative z-10 text-center">
+            
+            <!-- Live Indicator -->
+            <div class="inline-flex items-center justify-center mb-8 bg-black/30 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+                <span class="relative flex h-3 w-3 mr-3">
+                  <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span class="relative inline-flex rounded-full h-3 w-3 bg-rose-500"></span>
+                </span>
+                <span class="text-rose-400 font-bold tracking-widest uppercase text-xs">Waiting Room Open</span>
+            </div>
+
+            <h1 class="text-4xl md:text-5xl font-serif font-bold mb-4">We Are Starting Soon...</h1>
+            <p class="text-royal-200 text-lg max-w-2xl mx-auto mb-10">
+                Welcome! Please check your audio, grab a notebook, and get comfortable. <br class="hidden md:block">The broadcast will begin automatically when the timer hits zero.
+            </p>
+
+            <!-- Countdown Timer -->
+            <div class="max-w-4xl mx-auto mb-8">
+                <div class="grid grid-cols-4 gap-4 max-w-2xl mx-auto">
+                    <div class="glass-panel rounded-xl p-4 countdown-item">
+                        <div id="days" class="text-3xl md:text-5xl font-bold font-serif mb-1">00</div>
+                        <div class="text-xs text-royal-200 uppercase">Days</div>
+                    </div>
+                    <div class="glass-panel rounded-xl p-4 countdown-item">
+                        <div id="hours" class="text-3xl md:text-5xl font-bold font-serif mb-1">00</div>
+                        <div class="text-xs text-royal-200 uppercase">Hours</div>
+                    </div>
+                    <div class="glass-panel rounded-xl p-4 countdown-item">
+                        <div id="minutes" class="text-3xl md:text-5xl font-bold font-serif mb-1">00</div>
+                        <div class="text-xs text-royal-200 uppercase">Minutes</div>
+                    </div>
+                    <div class="glass-panel rounded-xl p-4">
+                        <div id="seconds" class="text-3xl md:text-5xl font-bold font-serif mb-1">00</div>
+                        <div class="text-xs text-royal-200 uppercase">Seconds</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date/Time & Enter Room Button -->
+            <div class="flex flex-col items-center justify-center gap-6">
+                 <div class="text-center w-full">
+                    <h3 class="text-lg md:text-xl font-serif font-bold text-white bg-white/10 inline-block px-6 py-2 rounded-full border border-white/10">
+                        {{webinarDate}} <span class="text-gold-400 mx-2">•</span> {{webinarTime}}
+                    </h3>
+                </div>
+
+                <div class="text-center">
+                    <a href="{{joinLink}}" class="btn-shine bg-rose-600 hover:bg-rose-700 text-white px-8 py-3 rounded-full font-bold shadow-lg shadow-rose-900/30 transition transform hover:-translate-y-1 inline-flex items-center gap-2">
+                        Enter Webinar Room <i class="fas fa-sign-in-alt ml-1"></i>
+                    </a>
+                    <p class="text-xs text-royal-400 mt-3 opacity-70">You will be automatically redirected when we go live.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Share & Earn Section -->
+    <main class="flex-grow -mt-16 relative z-20 pb-20">
+        <div class="container mx-auto px-6">
+            <div class="max-w-3xl mx-auto bg-white rounded-2xl shadow-2xl p-8 md:p-12 border-t-8 border-gold-400">
+                
+                <div class="text-center mb-8">
+                    <div class="inline-block bg-royal-100 text-royal-800 px-3 py-1 rounded-full text-xs font-bold tracking-widest mb-4 uppercase">While You Wait</div>
+                    <h2 class="text-3xl font-serif font-bold text-royal-950 mb-2">Be A Light For Others</h2>
+                    <p class="text-lg text-gray-600 mb-6">Invite friends to join this free Masterclass before we start.</p>
+                    
+                    <div class="bg-royal-50 p-6 rounded-xl border border-royal-100 relative">
+                        <i class="fas fa-quote-left text-royal-200 text-4xl absolute top-4 left-4"></i>
+                        <p class="text-royal-800 font-serif text-lg italic relative z-10 mb-2">
+                            "Whoever guides someone to goodness will have a reward like the one who does it."
+                        </p>
+                        <p class="text-sm font-bold text-royal-600 uppercase tracking-wider">— Prophet (ﷺ)</p>
+                    </div>
+                </div>
+
+                <!-- Referral Link Box -->
+                <div class="space-y-4">
+                    <label class="text-xs font-bold text-gray-500 uppercase">Your Unique Referral Link</label>
+                    <div class="flex gap-2">
+                        <input type="text" id="refLink" value="{{referralLink}}" class="w-full bg-gray-50 border border-gray-200 text-gray-600 px-4 py-3 rounded-lg focus:outline-none" readonly>
+                        <button onclick="copyLink()" class="bg-royal-800 hover:bg-royal-900 text-white px-6 py-3 rounded-lg font-bold transition whitespace-nowrap min-w-[100px]">
+                            <span id="copyText">Copy</span>
+                        </button>
+                    </div>
+
+                    <!-- Social Share Buttons -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                        <a href="https://wa.me/?text=Join%20me%20for%20this%20Masterclass:%20{{referralLink}}" target="_blank" class="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#20bd5a] text-white py-3 rounded-lg font-bold transition shadow-lg shadow-green-200">
+                            <i class="fab fa-whatsapp text-xl"></i> Share on WhatsApp
+                        </a>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u={{referralLink}}" target="_blank" class="flex items-center justify-center gap-2 bg-[#1877F2] hover:bg-[#166fe5] text-white py-3 rounded-lg font-bold transition shadow-lg shadow-blue-200">
+                            <i class="fab fa-facebook-f"></i> Share on Facebook
+                        </a>
+                        <a href="mailto:?subject=Join%20me&body=Join%20me%20for%20this%20Masterclass:%20{{referralLink}}" class="flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-lg font-bold transition shadow-lg sm:col-span-2">
+                            <i class="fas fa-envelope"></i> Share via Email
+                        </a>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-royal-950 text-royal-200 py-8 border-t border-royal-900 text-center mt-auto">
+        <div class="container mx-auto px-6">
+            <p class="text-sm opacity-60">© {{currentYear}} Emaan Power. All Rights Reserved.</p>
+        </div>
+    </footer>
+
+    <script>
+        // --- Copy Link Logic ---
+        function copyLink() {
+            const copyText = document.getElementById("refLink");
+            
+            // For mobile compatibility
+            copyText.select();
+            copyText.setSelectionRange(0, 99999); 
+
+            try {
+                // Modern way
+                navigator.clipboard.writeText(copyText.value).then(() => {
+                   showCopiedState();
+                });
+            } catch (err) {
+                // Fallback
+                document.execCommand('copy');
+                showCopiedState();
+            }
+        }
+
+        function showCopiedState() {
+            const btn = document.getElementById("copyText");
+            const originalText = btn.innerText;
+            btn.innerText = "Copied!";
+            btn.parentElement.classList.add("bg-green-600");
+            btn.parentElement.classList.remove("bg-royal-800");
+            
+            setTimeout(() => {
+                btn.innerText = originalText;
+                btn.parentElement.classList.remove("bg-green-600");
+                btn.parentElement.classList.add("bg-royal-800");
+            }, 2000);
+        }
+    </script>
+
+    {{countdown}}
+</body>
+</html>

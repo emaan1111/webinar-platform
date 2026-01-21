@@ -54,7 +54,8 @@ export async function POST(
       country,
       referralCode: referredByCode, // The referral code of who referred them
       splitTestId,
-      variantId
+      variantId,
+      leadPageId
     } = body
 
     // Validation
@@ -199,6 +200,7 @@ export async function POST(
       // Record Split Test Conversion if applicable
       if (splitTestId && variantId) {
         try {
+          // 1. Update Split Test & Variant Counts
           await prisma.$transaction([
             prisma.splitTest.update({
               where: { id: splitTestId },
@@ -218,8 +220,36 @@ export async function POST(
             })
           ]);
           console.log(`✅ Split test conversion recorded for ${splitTestId}/${variantId}`);
+
+          // 2. Also update the specific Lead Page stats associated with this variant
+          // (This ensures Lead Page analytics match Split Test analytics)
+          const variant = await prisma.splitTestVariant.findUnique({
+            where: { id: variantId },
+            select: { leadPageId: true }
+          });
+          
+          if (variant?.leadPageId) {
+             await prisma.leadPage.update({
+                where: { id: variant.leadPageId },
+                data: { conversions: { increment: 1 } }
+             });
+             console.log(`✅ Linked Lead Page conversion recorded for ${variant.leadPageId}`);
+          }
+
         } catch (e) {
           console.error('❌ Failed to record split test conversion:', e);
+        }
+      } 
+      // Handle Standalone Lead Page Conversion (No Split Test)
+      else if (leadPageId) {
+        try {
+           await prisma.leadPage.update({
+              where: { id: leadPageId },
+              data: { conversions: { increment: 1 } }
+           });
+           console.log(`✅ Standalone Lead Page conversion recorded for ${leadPageId}`);
+        } catch (e) {
+           console.error('❌ Failed to record lead page conversion:', e);
         }
       }
 

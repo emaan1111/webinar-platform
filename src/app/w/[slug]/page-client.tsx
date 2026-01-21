@@ -300,6 +300,7 @@ const timezones = [
 interface WebinarRegisterPageProps {
   webinarData: Webinar
   registrationPage?: RegistrationPage | null
+  leadPageId?: string | null
 }
 
 // Popup Theme Configurations
@@ -354,7 +355,7 @@ const popupThemes = {
   },
 }
 
-export default function WebinarRegisterPage({ webinarData, registrationPage }: WebinarRegisterPageProps) {
+export default function WebinarRegisterPage({ webinarData, registrationPage, leadPageId }: WebinarRegisterPageProps) {
   const searchParams = useSearchParams()
   const webinar = webinarData
   const [showScheduleModal, setShowScheduleModal] = useState(false)
@@ -1045,7 +1046,8 @@ export default function WebinarRegisterPage({ webinarData, registrationPage }: W
           country: userCountry,
           referralCode: searchParams.get('ref') || undefined,
           splitTestId: searchParams.get('st'),
-          variantId: searchParams.get('v')
+          variantId: searchParams.get('v'),
+          leadPageId: leadPageId
         })
       })
 

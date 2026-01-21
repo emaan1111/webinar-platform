@@ -153,6 +153,7 @@ export default async function LeadPage({ params }: PageProps) {
         <WebinarRegisterPage
         webinarData={webinarData}
         registrationPage={leadPage.template}
+        leadPageId={leadPage.id}
         />
     );
   }
