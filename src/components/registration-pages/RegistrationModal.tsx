@@ -11,9 +11,10 @@ interface Props {
   countryCodes: Array<{ code: string; country: string; pattern: RegExp }>;
   splitTestId?: string;
   variantId?: string;
+  leadPageId?: string;
 }
 
-export default function RegistrationModal({ onClose, webinar, countryCodes, splitTestId, variantId }: Props) {
+export default function RegistrationModal({ onClose, webinar, countryCodes, splitTestId, variantId, leadPageId }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [selectedSchedule, setSelectedSchedule] = useState('');
@@ -28,9 +29,10 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
   const [error, setError] = useState('');
   
   // State to hold tracking parameters from parent or URL
-  const [trackingParams, setTrackingParams] = useState<{ st?: string | null, v?: string | null }>({
+  const [trackingParams, setTrackingParams] = useState<{ st?: string | null, v?: string | null, lp?: string | null }>({
     st: splitTestId || searchParams.get('st'),
-    v: variantId || searchParams.get('v')
+    v: variantId || searchParams.get('v'),
+    lp: leadPageId || searchParams.get('leadPageId') || searchParams.get('lp')
   });
 
   const [selectedTimezone, setSelectedTimezone] = useState(() => {
@@ -237,7 +239,8 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
             privacyConsent: formData.privacyConsent,
             country: 'US', // TODO: Get actual country
             splitTestId: trackingParams.st,
-            variantId: trackingParams.v
+            variantId: trackingParams.v,
+            leadPageId: trackingParams.lp
         }),
       });
 
@@ -254,11 +257,11 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
       }
 
       // Track Split Test conversion
-      if (splitTestId && variantId && data.registrationId) {
+      if (trackingParams.st && trackingParams.v && data.registrationId) {
          try {
            const payload = JSON.stringify({
-             splitTestId,
-             variantId,
+             splitTestId: trackingParams.st,
+             variantId: trackingParams.v,
              registrationId: data.registrationId,
            })
            
@@ -276,6 +279,30 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
          } catch (e) {
            console.error('Failed to track split test conversion', e);
          }
+      } 
+      // Track Standalone Lead Page Conversion
+      else if (trackingParams.lp && data.registrationId) {
+         try {
+           const payload = JSON.stringify({
+             leadPageId: trackingParams.lp,
+             registrationId: data.registrationId,
+           })
+           
+           if (navigator.sendBeacon) {
+             const blob = new Blob([payload], { type: 'application/json' })
+             navigator.sendBeacon('/api/lead-pages/track-conversion', blob)
+           } else {
+             fetch('/api/lead-pages/track-conversion', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: payload,
+               keepalive: true
+             }).catch(() => {})
+           }
+         } catch (e) {
+           console.error('Failed to track lead page conversion', e);
+         }
+      }
       }
 
       // Success Redirect Logic
@@ -320,15 +347,17 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
        if (window.self !== window.top) {
           // Try to access parent - this works if same-origin (e.g. platform Lead Page -> Embed Modal)
           const parentUrl = new URL(window.parent.location.href);
-          const st = parentUrl.searchParams.get('st');
-          const v = parentUrl.searchParams.get('v');
+          const st = parentParams.get('st');
+          const v = parentParams.get('v');
+          const lp = parentParams.get('lp') || parentParams.get('leadPageId');
           
-          if (st || v) {
+          if (st || v || lp) {
             setTrackingParams(prev => ({
               st: st || prev.st,
-              v: v || prev.v
+              v: v || prev.v,
+              lp: lp || prev.lp
             }));
-            console.log('🔗 [RegistrationModal] Captured tracking params from parent window', { st, v });
+            console.log('🔗 [RegistrationModal] Captured tracking params from parent window', { st, v, lp });
           }
        }
     } catch (e) {
@@ -342,7 +371,8 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
        if (event.data?.type === 'WEBINAR_TRACKING_PARAMS') {
           setTrackingParams(prev => ({
               st: event.data.st || prev.st,
-              v: event.data.v || prev.v
+              v: event.data.v || prev.v,
+              lp: event.data.lp || event.data.leadPageId || prev.lp
           }));
        }
     };
