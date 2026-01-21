@@ -107,17 +107,68 @@ export default async function LeadPage({ params }: PageProps) {
                 const params = new URLSearchParams(window.location.search);
                 const st = params.get('st');
                 const v = params.get('v');
+                // Also get leadPageId if present (for single lead page tracking)
+                const LeadPageId = '${leadPage.id}'; 
+
                 if (st && v) {
+                    // Update Links
                     const links = document.getElementById('custom-content-root').querySelectorAll('a');
                     links.forEach(link => {
+                        // Only update internal links or links to our domain
                         if (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/')) {
-                            const url = new URL(link.href, window.location.origin);
-                            url.searchParams.set('st', st);
-                            url.searchParams.set('v', v);
-                            link.href = url.toString();
+                            try {
+                                const url = new URL(link.href, window.location.origin);
+                                url.searchParams.set('st', st);
+                                url.searchParams.set('v', v);
+                                link.href = url.toString();
+                            } catch (e) {}
                         }
                     });
+
+                    // Update Iframes (Inline Embeds)
+                    const iframes = document.getElementById('custom-content-root').querySelectorAll('iframe');
+                    iframes.forEach(iframe => {
+                         try {
+                            const src = iframe.src;
+                            if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
+                                const url = new URL(src, window.location.origin);
+                                url.searchParams.set('st', st);
+                                url.searchParams.set('v', v);
+                                iframe.src = url.toString();
+                            }
+                         } catch (e) {}
+                    });
                 }
+                
+                // Always append leadPageId to links/iframes if valid
+                if (LeadPageId) {
+                     const frames = document.getElementById('custom-content-root').querySelectorAll('iframe');
+                     frames.forEach(frame => {
+                        try {
+                            const url = new URL(frame.src, window.location.origin);
+                            // Only set if not already set (e.g. by st/v logic above, though st/v logic doesn't set lp)
+                            if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
+                                url.searchParams.set('lp', LeadPageId);
+                                frame.src = url.toString();
+                            }
+                        } catch(e) {}
+                     });
+                     
+                     const links = document.getElementById('custom-content-root').querySelectorAll('a');
+                     links.forEach(link => {
+                        try {
+                             // Only internal
+                             if (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/')) {
+                                const url = new URL(link.href, window.location.origin);
+                                if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
+                                    url.searchParams.set('lp', LeadPageId);
+                                    link.href = url.toString();
+                                }
+                             }
+                        } catch(e) {}
+                     });
+                }
+
             } catch(e) {}
         })();
       </script>
