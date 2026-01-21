@@ -104,6 +104,7 @@ export default async function LeadPage({ params }: PageProps) {
       <script>
         (function() {
             try {
+                console.log('Attaching tracking parameters to embeds...');
                 const params = new URLSearchParams(window.location.search);
                 const st = params.get('st');
                 const v = params.get('v');

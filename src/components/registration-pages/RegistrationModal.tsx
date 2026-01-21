@@ -35,6 +35,19 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
     lp: leadPageId || searchParams.get('leadPageId') || searchParams.get('lp')
   });
 
+  useEffect(() => {
+    console.log('RegistrationModal Initialization:', {
+      props: { splitTestId, variantId, leadPageId },
+      searchParams: {
+        st: searchParams.get('st'),
+        v: searchParams.get('v'),
+        lp: searchParams.get('lp'),
+        leadPageId: searchParams.get('leadPageId')
+      },
+      trackingParams
+    });
+  }, []);
+
   const [selectedTimezone, setSelectedTimezone] = useState(() => {
     try {
       return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
@@ -255,6 +268,8 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
       if (!res.ok) {
         throw new Error(data.error || 'Registration failed');
       }
+
+      console.log('Registration successful, attempting tracking with:', trackingParams);
 
       // Track Split Test conversion
       if (trackingParams.st && trackingParams.v && data.registrationId) {

@@ -43,7 +43,13 @@ export default async function EmbedPage({ params, searchParams }: PageProps) {
       webinarData={JSON.parse(JSON.stringify(webinar))} 
       splitTestId={typeof searchParams.st === 'string' ? searchParams.st : undefined}
       variantId={typeof searchParams.v === 'string' ? searchParams.v : undefined}
-      leadPageId={typeof searchParams.leadPageId === 'string' ? searchParams.leadPageId : undefined}
+      leadPageId={
+        typeof searchParams.leadPageId === 'string' 
+          ? searchParams.leadPageId 
+          : typeof searchParams.lp === 'string' 
+            ? searchParams.lp 
+            : undefined
+      }
     />
   )
 }
