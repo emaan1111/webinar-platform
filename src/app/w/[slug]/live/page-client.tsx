@@ -32,6 +32,7 @@ type ReactionType = 'heart' | 'clap' | 'thumbsUp';
 
 interface ChatMessage {
   id: string;
+  clientId?: string; // Stable ID for React keys to prevent DOM thrashing
   userName: string;
   message: string;
   videoTimestamp: number | null;
@@ -1591,6 +1592,7 @@ export default function WebinarLiveClient({
     const tempId = `temp-${Date.now()}`;
     const userMessage: ChatMessage = {
       id: tempId,
+      clientId: tempId, // Use tempId as stable clientId for key
       userName,
       message: text,
       videoTimestamp: elapsedSeconds,
@@ -3087,7 +3089,7 @@ export default function WebinarLiveClient({
                 }`}
               >
                 {messages.map((message) => (
-                  <div key={message.id} className={`${styles.message} ${(message as any).isSystemNotification ? styles.systemMessage : ''}`}>
+                  <div key={message.clientId || message.id} className={`${styles.message} ${(message as any).isSystemNotification ? styles.systemMessage : ''}`}>
                     <div className={styles.messageContent}>
                       <div className={styles.messageText}>
                         <strong style={{ color: (message as any).isSystemNotification ? '#fab005' : '#7b68ee', marginRight: '6px' }}>
