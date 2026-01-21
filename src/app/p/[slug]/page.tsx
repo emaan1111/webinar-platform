@@ -38,6 +38,24 @@ export default async function LeadPage({ params }: PageProps) {
   });
 
   if (leadPage.type === 'CUSTOM') {
+    // Check if it's a full HTML document (contains html tag or doctype)
+    const isFullPage = leadPage.htmlContent?.toLowerCase().includes('<html') || 
+                       leadPage.htmlContent?.toLowerCase().includes('<!doctype');
+
+    if (isFullPage) {
+        return (
+            <div className="fixed inset-0 z-[100] bg-white">
+                 <iframe 
+                    srcDoc={leadPage.htmlContent || ''}
+                    className="w-full h-full border-0"
+                    title={leadPage.name}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                 />
+            </div>
+        );
+    }
+
     return (
       <div dangerouslySetInnerHTML={{ __html: leadPage.htmlContent || '' }} />
     );
