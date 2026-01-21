@@ -189,40 +189,6 @@ export async function POST(request: NextRequest) {
 
     // --- OLD AUTO-LIKE LOCATION WAS HERE ---
 
-          const decision = JSON.parse(likeContent);
-          if (decision.like) {
-            liked = true;
-            
-            // Find the most recent message by this user/registration to "Attach" the like to
-            const userMessage = await prisma.chatMessage.findFirst({
-               where: {
-                 webinarId,
-                 message: question, // Match content
-                 registrationId: registrationId || undefined,
-                 createdAt: {
-                   gte: new Date(Date.now() - 10000) // Within last 10 seconds
-                 }
-               },
-               orderBy: { createdAt: 'desc' }
-            });
-
-            if (userMessage) {
-               await prisma.chatMessageLike.create({
-                 data: {
-                   chatMessageId: userMessage.id,
-                   isSystem: true,
-                   likerName: likerName
-                 }
-               });
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Auto-like check failed:', err);
-      }
-    }
-    // --- END AUTO-LIKE LOGIC ---
-
     if (shouldSkip) {
       console.log('🤫 AI staying quiet:', trimmedResponse.substring(0, 100));
       return NextResponse.json({
