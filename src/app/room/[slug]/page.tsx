@@ -207,13 +207,13 @@ export default async function WebinarRoomPage({
               email: true,
             },
           },
-          _count: {
-            select: { likes: true }
-          },
-          likes: {
-            where: { isSystem: true },
-            select: { likerName: true }
-          }
+          // _count: {
+          //   select: { likes: true }
+          // },
+          // likes: {
+          //   where: { isSystem: true },
+          //   select: { likerName: true }
+          // }
         },
       },
       reactions: {
@@ -401,8 +401,8 @@ export default async function WebinarRoomPage({
         'Guest';
 
       // Safe access to _count and likes (Prisma types might need refresh)
-      const likeCount = (message as any)._count?.likes || 0;
-      const systemLike = (message as any).likes?.find((l: any) => l.likerName) // Just take first one for now
+      // const likeCount = (message as any)._count?.likes || 0;
+      // const systemLike = (message as any).likes?.find((l: any) => l.likerName) // Just take first one for now
       
       return {
         id: message.id,
@@ -411,8 +411,8 @@ export default async function WebinarRoomPage({
         videoTimestamp: message.videoTimestamp,
         isScripted: message.isScripted,
         createdAt: message.createdAt.toISOString(),
-        likes: likeCount,
-        likedBySystem: systemLike ? systemLike.likerName : null
+        likes: 0, // likeCount,
+        likedBySystem: null // systemLike ? systemLike.likerName : null
       };
     }
   );
