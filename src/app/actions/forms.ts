@@ -3,6 +3,7 @@
 import { prisma } from '@/lib/prisma'
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
+import { tagClickFunnelsContact } from '@/lib/clickfunnels'
 
 export async function createForm(formData: FormData) {
   const title = formData.get('title') as string
@@ -121,4 +122,39 @@ export async function deleteSubmission(submissionId: string, formId: string) {
     where: { id: submissionId }
   })
   revalidatePath(`/dashboard/forms/${formId}`)
+}
+
+export async function updateSubmissionStatus(submissionId: string, status: string, formId: string) {
+  const submission = await prisma.formSubmission.update({
+    where: { id: submissionId },
+    data: { aiStatus: status }
+  })
+
+  // Start ClickFunnels tagging if approved (manual override)
+  if (status === 'APPROVED') {
+    const form = await prisma.form.findUnique({
+      where: { id: formId },
+      include: { fields: true }
+    })
+
+    if (form) {
+      const emailField = form.fields.find(f => f.type === 'email')
+      if (emailField) {
+        try {
+            const data = JSON.parse(submission.data as string)
+            const email = data[emailField.id]
+            if (email) {
+                // Fire and forget, but log error
+                tagClickFunnelsContact(email, ['RH26-APPROVED']).catch(e => 
+                    console.error('Manual approval tagging failed:', e)
+                )
+            }
+        } catch (e) {
+            console.error('Error parsing submission data for tagging:', e)
+        }
+      }
+    }
+  }
+
+  revalidatePath(`/dashboard/forms/${formId}`);
 }

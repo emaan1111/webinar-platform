@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2, GripVertical, Save, Check, ArrowUp, ArrowDown, Bot } from 'lucide-react'
-import { addField, updateField, deleteField, updateFormSettings, reorderField, deleteSubmission } from '@/app/actions/forms'
+import { addField, updateField, deleteField, updateFormSettings, reorderField, deleteSubmission, updateSubmissionStatus } from '@/app/actions/forms'
 
 interface EditorProps {
   form: any
@@ -79,6 +79,22 @@ const [activeTab, setActiveTab] = useState<string>('build')
   const handleDeleteSubmission = async (id: string) => {
     if(!confirm('Delete this submission? This cannot be undone.')) return
     await deleteSubmission(id, form.id)
+  }
+
+  const handleStatusUpdate = async (status: string) => {
+    if (!viewingSubmission) return;
+    const previousStatus = viewingSubmission.aiStatus;
+    
+    // Optimistic update
+    setViewingSubmission({ ...viewingSubmission, aiStatus: status });
+    
+    try {
+        await updateSubmissionStatus(viewingSubmission.id, status, form.id);
+    } catch (e) {
+        // Revert on error
+        setViewingSubmission({ ...viewingSubmission, aiStatus: previousStatus });
+        alert('Failed to update status');
+    }
   }
 
   if (activeTab === 'ai') {
@@ -286,9 +302,28 @@ const [activeTab, setActiveTab] = useState<string>('build')
                       {viewingSubmission.aiStatus || 'SUBMITTED'}
                     </span>
                   </div>
+                  
+                  {/* Manual Approval Buttons */}
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100">
+                    <button 
+                        onClick={() => handleStatusUpdate('APPROVED')}
+                        disabled={viewingSubmission.aiStatus === 'APPROVED'}
+                        className="flex-1 px-3 py-1.5 bg-green-600 text-white text-xs font-medium rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Mark Approved
+                    </button>
+                    <button 
+                        onClick={() => handleStatusUpdate('REJECTED')}
+                        disabled={viewingSubmission.aiStatus === 'REJECTED'}
+                        className="flex-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        Mark Rejected
+                    </button>
+                  </div>
+
                   {viewingSubmission.aiReason && (
-                    <p className="text-sm text-gray-700 italic">
-                      {viewingSubmission.aiReason}
+                    <p className="text-sm text-gray-700 italic mt-3">
+                      AI Reason: {viewingSubmission.aiReason}
                     </p>
                   )}
                 </div>
