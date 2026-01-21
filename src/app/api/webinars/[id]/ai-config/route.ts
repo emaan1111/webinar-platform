@@ -90,6 +90,8 @@ export async function POST(
       maxTokens,
       autoRespond,
       requireApproval,
+      autoLikeEnabled,
+      autoLikePrompt,
     } = body;
 
     // Create or update AI config
@@ -104,6 +106,8 @@ export async function POST(
         maxTokens: maxTokens ?? 500,
         autoRespond: autoRespond ?? true,
         requireApproval: requireApproval ?? false,
+        autoLikeEnabled: autoLikeEnabled ?? false,
+        autoLikePrompt: autoLikePrompt ?? '',
       },
       create: {
         webinarId: params.id,
@@ -115,6 +119,8 @@ export async function POST(
         maxTokens: maxTokens ?? 500,
         autoRespond: autoRespond ?? true,
         requireApproval: requireApproval ?? false,
+        autoLikeEnabled: autoLikeEnabled ?? false,
+        autoLikePrompt: autoLikePrompt ?? '',
       },
     });
 
