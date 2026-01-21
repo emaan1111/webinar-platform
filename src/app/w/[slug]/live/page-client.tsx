@@ -1720,7 +1720,7 @@ export default function WebinarLiveClient({
             console.error('Error getting AI response:', error);
             // Silently fail - don't interrupt user experience
           }
-        }
+        // } <--- Removed closing bracket for if(activeOfferId)
       } else {
         console.error('Failed to save message:', await response.text());
       }
