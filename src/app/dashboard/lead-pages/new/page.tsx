@@ -165,6 +165,13 @@ export default function NewLeadPage() {
                         value={form.htmlContent}
                         onChange={e => setForm({...form, htmlContent: e.target.value})}
                     />
+                    <div className="bg-blue-50 p-4 rounded-md mt-4 text-sm text-blue-800">
+                        <strong className="block mb-1">Important for Custom HTML:</strong>
+                        <ul className="list-disc pl-5 space-y-1">
+                            <li>The system will automatically inject the registration modal logic.</li>
+                            <li>Ensure your buttons have <code>onclick="openModal()"</code> or use the class <code>cta-button</code> to trigger the popup.</li>
+                        </ul>
+                    </div>
                   </div>
               )}
           </div>

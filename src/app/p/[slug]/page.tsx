@@ -31,6 +31,12 @@ export default async function LeadPage({ params }: PageProps) {
     notFound();
   }
 
+  // Track views
+  await prisma.leadPage.update({
+    where: { id: leadPage.id },
+    data: { views: { increment: 1 } }
+  });
+
   if (leadPage.type === 'CUSTOM') {
     return (
       <div dangerouslySetInnerHTML={{ __html: leadPage.htmlContent || '' }} />
