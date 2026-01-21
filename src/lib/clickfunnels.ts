@@ -573,11 +573,22 @@ export async function tagClickFunnelsContact(
     console.log('🏷️ Tagging contact in ClickFunnels:', email, tags)
     // console.log('🔍 Stack trace for debugging:', new Error().stack)
 
-    const contact = await findContactByEmailWithRetry(email, apiKey, workspaceId)
+    let contact = await findContactByEmailWithRetry(email, apiKey, workspaceId)
 
     if (!contact) {
-      console.log('⚠️ Contact not found for tagging')
-      return false
+      console.log('⚠️ Contact not found for tagging - Creating new contact...')
+      // Create the contact with just the email
+      const newContactRes = await sendContactToClickFunnels({
+        email_address: email
+      });
+      
+      if (newContactRes && newContactRes.id) {
+          contact = newContactRes;
+          console.log('✅ Created new contact ID:', contact.id);
+      } else {
+          console.error('❌ Failed to create contact for tagging');
+          return false;
+      }
     }
 
     const tagIds: number[] = []
