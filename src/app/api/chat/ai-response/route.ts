@@ -121,16 +121,8 @@ export async function POST(request: NextRequest) {
       trimmedResponse.toLowerCase().includes("i don't know") ||
       (trimmedResponse.toLowerCase().includes("sorry") && trimmedResponse.length < 150);
 
-    if (shouldSkip) {
-      console.log('🤫 AI staying quiet:', trimmedResponse.substring(0, 100));
-      return NextResponse.json({
-        shouldRespond: false,
-        message: 'AI chose not to respond to this question (outside scope or insufficient information)',
-        skipped: true,
-      });
-    }
-
     // --- AUTO-LIKE LOGIC ---
+    // Moved before skip check so AI can like messages it doesn't want to reply to (e.g. "I'm in!")
     let liked = false;
     let likerName = webinar.aiChatConfig.assistantName || 'AI Assistant';
     
@@ -189,6 +181,17 @@ export async function POST(request: NextRequest) {
       }
     }
     // --- END AUTO-LIKE LOGIC ---
+
+    if (shouldSkip) {
+      console.log('🤫 AI staying quiet:', trimmedResponse.substring(0, 100));
+      return NextResponse.json({
+        shouldRespond: false,
+        message: 'AI chose not to respond to this question (outside scope or insufficient information)',
+        skipped: true,
+        liked, // Return liked status even if skipped
+        likerName
+      });
+    }
 
     // If auto-respond is enabled, save the response as a chat message
     // AI responses need moderation approval before appearing in future replays
