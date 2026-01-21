@@ -346,6 +346,7 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
        if (window.self !== window.top) {
           // Try to access parent - this works if same-origin (e.g. platform Lead Page -> Embed Modal)
           const parentUrl = new URL(window.parent.location.href);
+          const parentParams = parentUrl.searchParams;
           const st = parentParams.get('st');
           const v = parentParams.get('v');
           const lp = parentParams.get('lp') || parentParams.get('leadPageId');
