@@ -62,6 +62,10 @@ interface AnalyticsData {
       country: string
       count: number
     }>
+    timezones: Array<{
+      timezone: string
+      count: number
+    }>
   }
   joinTiming: {
     onTime: number
@@ -199,7 +203,8 @@ export default function AnalyticsPage() {
             conversionRate: 0
           },
           geographic: {
-            countries: []
+            countries: [],
+            timezones: []
           },
           joinTiming: {
             onTime: 0,
@@ -1168,35 +1173,73 @@ export default function AnalyticsPage() {
               </Card>
             </div>
 
-            {/* Geographic Distribution */}
+            {/* Geographic Distribution - Timezones */}
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Geographic Distribution</h2>
               <Card>
                 <CardBody>
-                  <div className="h-80">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <BarChart
-                        data={analyticsData.geographic.countries.slice(0, 10)} // Top 10 countries
-                        layout="vertical"
-                        margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
-                      >
-                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                        <XAxis type="number" />
-                        <YAxis 
-                          type="category" 
-                          dataKey="country" 
-                          width={100}
-                          tick={{ fontSize: 12 }}
-                        />
-                        <Tooltip 
-                          formatter={(value: number) => [`${value} Registrations`, 'Count']}
-                          contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                        />
-                        <Bar dataKey="count" fill="#4f46e5" radius={[0, 4, 4, 0]} name="Registrations" />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2 text-center">Top 10 Countries by Registration Volume</p>
+                  {analyticsData.geographic.timezones.length > 0 ? (
+                    <>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={analyticsData.geographic.timezones.slice(0, 10)}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 80, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                            <XAxis type="number" />
+                            <YAxis 
+                              type="category" 
+                              dataKey="timezone" 
+                              width={120}
+                              tick={{ fontSize: 11 }}
+                            />
+                            <Tooltip 
+                              formatter={(value: number) => [`${value} Registrations`, 'Count']}
+                              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            />
+                            <Bar dataKey="count" fill="#4f46e5" radius={[0, 4, 4, 0]} name="Registrations" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 text-center">Top 10 Timezones by Registration Volume</p>
+                    </>
+                  ) : analyticsData.geographic.countries.length > 0 ? (
+                    <>
+                      <div className="h-80">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={analyticsData.geographic.countries.slice(0, 10)}
+                            layout="vertical"
+                            margin={{ top: 5, right: 30, left: 40, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                            <XAxis type="number" />
+                            <YAxis 
+                              type="category" 
+                              dataKey="country" 
+                              width={100}
+                              tick={{ fontSize: 12 }}
+                            />
+                            <Tooltip 
+                              formatter={(value: number) => [`${value} Registrations`, 'Count']}
+                              contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                            />
+                            <Bar dataKey="count" fill="#4f46e5" radius={[0, 4, 4, 0]} name="Registrations" />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2 text-center">Top 10 Countries by Registration Volume</p>
+                    </>
+                  ) : (
+                    <div className="h-80 flex items-center justify-center">
+                      <div className="text-center text-gray-500">
+                        <p className="text-lg font-medium">No geographic data available</p>
+                        <p className="text-sm mt-1">Timezone data will appear when registrations include location information</p>
+                      </div>
+                    </div>
+                  )}
                 </CardBody>
               </Card>
             </div>

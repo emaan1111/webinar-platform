@@ -211,6 +211,24 @@ export async function GET(request: NextRequest) {
       .map(([country, count]) => ({ country, count }))
       .sort((a, b) => b.count - a.count);
 
+    // Timezone Distribution
+    const timezoneMap = new Map<string, number>();
+    registrations.forEach(r => {
+      if (r.timezone) {
+        // Simplify timezone name for display (e.g., "America/New_York" -> "New York")
+        const parts = r.timezone.split('/');
+        const displayName = parts.length > 1 
+          ? parts[parts.length - 1].replace(/_/g, ' ') 
+          : r.timezone;
+        timezoneMap.set(displayName, (timezoneMap.get(displayName) || 0) + 1);
+      }
+    });
+
+    // Convert map to array and sort by count descending
+    const timezones = Array.from(timezoneMap.entries())
+      .map(([timezone, count]) => ({ timezone, count }))
+      .sort((a, b) => b.count - a.count);
+
     // Engagement metrics
     const engagementWhere: any = {
       // Use webinar ID from already fetched registrations to ensure permission consistency
@@ -450,7 +468,8 @@ export async function GET(request: NextRequest) {
             conversionRate,
         },
         geographic: {
-            countries
+            countries,
+            timezones
         },
         joinTiming: {
             onTime,
