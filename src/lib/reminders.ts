@@ -60,10 +60,26 @@ export async function getWebinarReminderTemplates(webinarId: string) {
  */
 export async function updateReminderTemplate(
   templateId: string,
-  data: Partial<ReminderTemplateData>
+  data: Partial<ReminderTemplateData> & Record<string, unknown>
 ) {
-  const updateData: Partial<ReminderTemplateData> = { ...data }
+  // Only include fields that are valid for the Prisma schema
+  // This prevents errors from frontend sending extra fields like 'useWatchMinutes'
+  const updateData: Record<string, unknown> = {}
+  
+  // Copy only valid fields
+  if (data.type !== undefined) updateData.type = data.type
+  if (data.minutesBefore !== undefined) updateData.minutesBefore = data.minutesBefore
+  if (data.minutesAfter !== undefined) updateData.minutesAfter = data.minutesAfter
+  if (data.minWatchedMinutes !== undefined) updateData.minWatchedMinutes = data.minWatchedMinutes
+  if (data.minWatchedPercentage !== undefined) updateData.minWatchedPercentage = data.minWatchedPercentage
+  if (data.channel !== undefined) updateData.channel = data.channel
+  if (data.emailSubject !== undefined) updateData.emailSubject = data.emailSubject
+  if (data.emailBody !== undefined) updateData.emailBody = data.emailBody
+  if (data.smsBody !== undefined) updateData.smsBody = data.smsBody
+  if (data.isActive !== undefined) updateData.isActive = data.isActive
+  if (data.applyClickFunnelsTag !== undefined) updateData.applyClickFunnelsTag = data.applyClickFunnelsTag
 
+  // Handle clickFunnelsTag specially
   if (data.applyClickFunnelsTag === false) {
     updateData.clickFunnelsTag = null
   } else if (data.clickFunnelsTag !== undefined) {
