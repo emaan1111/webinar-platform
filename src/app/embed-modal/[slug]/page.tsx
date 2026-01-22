@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import RegistrationModal from '@/components/registration-pages/RegistrationModal'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams } from 'next/navigation'
 
 // Country codes - same as used in RegistrationModal
 const COUNTRY_CODES = [
@@ -27,9 +27,15 @@ const COUNTRY_CODES = [
 
 export default function EmbedModalPage() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const [webinar, setWebinar] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  
+  // Extract tracking params from URL
+  const splitTestId = searchParams.get('st') || undefined
+  const variantId = searchParams.get('v') || undefined
+  const leadPageId = searchParams.get('lp') || searchParams.get('leadPageId') || undefined
 
   useEffect(() => {
     async function fetchWebinar() {
@@ -99,6 +105,9 @@ export default function EmbedModalPage() {
         onClose={handleClose}
         webinar={webinar}
         countryCodes={COUNTRY_CODES}
+        splitTestId={splitTestId}
+        variantId={variantId}
+        leadPageId={leadPageId}
       />
     </>
   )

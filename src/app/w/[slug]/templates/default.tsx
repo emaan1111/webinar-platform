@@ -226,7 +226,10 @@ export default function WebinarRegisterPage() {
           privacyConsent: formData.privacyConsent,
           marketingConsent: formData.marketingConsent,
           country: userCountry,
-          referralCode: referralCode || undefined // Include referral code if present
+          referralCode: referralCode || undefined, // Include referral code if present
+          splitTestId: searchParams.get('st') || undefined,
+          variantId: searchParams.get('v') || undefined,
+          leadPageId: searchParams.get('lp') || searchParams.get('leadPageId') || undefined
         })
       })
 

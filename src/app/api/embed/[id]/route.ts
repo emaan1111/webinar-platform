@@ -679,11 +679,20 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
   const API_BASE = '${apiBase}';
   const THEME_NAME = '${theme}';
   
+  // Extract tracking parameters from the current page URL
+  const pageParams = new URLSearchParams(window.location.search);
+  const TRACKING_PARAMS = {
+    splitTestId: pageParams.get('st') || null,
+    variantId: pageParams.get('v') || null,
+    leadPageId: pageParams.get('lp') || pageParams.get('leadPageId') || null
+  };
+  
   console.log('🎯 Webinar Embed Script Loaded', {
     type: TYPE,
     theme: THEME_NAME,
     webinarId: WEBINAR_DATA.id,
-    readyState: document.readyState
+    readyState: document.readyState,
+    trackingParams: TRACKING_PARAMS
   });
 
   // CSS Styles
@@ -1243,6 +1252,10 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
           phone: data.phone ? countryCode + data.phone : '',
           scheduleId: data.schedule,
           timezone: timezone,
+          privacyConsent: true,
+          splitTestId: TRACKING_PARAMS.splitTestId,
+          variantId: TRACKING_PARAMS.variantId,
+          leadPageId: TRACKING_PARAMS.leadPageId
         })
       });
 
