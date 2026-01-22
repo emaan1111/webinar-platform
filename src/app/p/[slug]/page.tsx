@@ -103,80 +103,94 @@ export default async function LeadPage({ params }: PageProps) {
     const trackingScript = `
       <script>
         (function() {
-            try {
-                console.log('Attaching tracking parameters to embeds...');
-                const params = new URLSearchParams(window.location.search);
-                const st = params.get('st');
-                const v = params.get('v');
-                // Also get leadPageId if present (for single lead page tracking)
-                const LeadPageId = '${leadPage.id}'; 
+            function updateTracking() {
+                try {
+                    console.log('Tracking: Checking for embeds...');
+                    const params = new URLSearchParams(window.location.search);
+                    const st = params.get('st');
+                    const v = params.get('v');
+                    // Also get leadPageId if present (for single lead page tracking)
+                    const LeadPageId = '${leadPage.id}'; 
 
-                if (st && v) {
-                    // Update Links
-                    const links = document.querySelectorAll('a');
-                    links.forEach(link => {
-                        // Only update internal links or links to our domain
-                        try {
-                            if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
-                                const url = new URL(link.href, window.location.origin);
-                                url.searchParams.set('st', st);
-                                url.searchParams.set('v', v);
-                                link.href = url.toString();
-                            }
-                        } catch (e) {}
-                    });
+                    if (st && v) {
+                        // Update Links
+                        const links = document.querySelectorAll('a');
+                        links.forEach(link => {
+                            // Only update internal links or links to our domain
+                            try {
+                                if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
+                                    const url = new URL(link.href, window.location.origin);
+                                    if(url.searchParams.get('st') !== st) {
+                                        url.searchParams.set('st', st);
+                                        url.searchParams.set('v', v);
+                                        link.href = url.toString();
+                                    }
+                                }
+                            } catch (e) {}
+                        });
 
-                    // Update Iframes (Inline Embeds)
-                    const iframes = document.querySelectorAll('iframe');
-                    console.log('Found iframes:', iframes.length);
-                    iframes.forEach(iframe => {
-                         try {
-                            const src = iframe.src;
-                            console.log('Checking iframe src:', src);
-                            if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
-                                const url = new URL(src, window.location.origin);
-                                url.searchParams.set('st', st);
-                                url.searchParams.set('v', v);
-                                iframe.src = url.toString();
-                                console.log('Updated iframe src:', iframe.src);
-                            }
-                         } catch (e) {
-                             console.error('Error updating iframe:', e);
-                         }
-                    });
-                }
-                
-                // Always append leadPageId to links/iframes if valid
-                if (LeadPageId) {
-                     const frames = document.querySelectorAll('iframe');
-                     frames.forEach(frame => {
-                        try {
-                            const url = new URL(frame.src, window.location.origin);
-                            // Only set if not already set (e.g. by st/v logic above, though st/v logic doesn't set lp)
-                            if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
-                                url.searchParams.set('lp', LeadPageId);
-                                frame.src = url.toString();
-                                console.log('Updated iframe src with lp:', frame.src);
-                            }
-                        } catch(e) {}
-                     });
-                     
-                     const links = document.querySelectorAll('a');
-                     links.forEach(link => {
-                        try {
-                             // Only internal
-                             if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
-                                const url = new URL(link.href, window.location.origin);
+                        // Update Iframes (Inline Embeds)
+                        const iframes = document.querySelectorAll('iframe');
+                        console.log('Tracking: Found iframes:', iframes.length);
+                        iframes.forEach(iframe => {
+                             try {
+                                const src = iframe.src;
+                                if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
+                                    const url = new URL(src, window.location.origin);
+                                    if(url.searchParams.get('st') !== st) {
+                                        url.searchParams.set('st', st);
+                                        url.searchParams.set('v', v);
+                                        iframe.src = url.toString();
+                                        console.log('Tracking: Updated iframe src:', iframe.src);
+                                    }
+                                }
+                             } catch (e) {
+                                 console.error('Tracking: Error updating iframe:', e);
+                             }
+                        });
+                    }
+                    
+                    // Always append leadPageId to links/iframes if valid
+                    if (LeadPageId) {
+                         const frames = document.querySelectorAll('iframe');
+                         frames.forEach(frame => {
+                            try {
+                                const url = new URL(frame.src, window.location.origin);
+                                // Only set if not already set (e.g. by st/v logic above, though st/v logic doesn't set lp)
                                 if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
                                     url.searchParams.set('lp', LeadPageId);
-                                    link.href = url.toString();
+                                    frame.src = url.toString();
+                                    console.log('Tracking: Updated iframe src with lp:', frame.src);
                                 }
-                             }
-                        } catch(e) {}
-                     });
+                            } catch(e) {}
+                         });
+                         
+                         const links = document.querySelectorAll('a');
+                         links.forEach(link => {
+                            try {
+                                 // Only internal
+                                 if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
+                                    const url = new URL(link.href, window.location.origin);
+                                    if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
+                                        url.searchParams.set('lp', LeadPageId);
+                                        link.href = url.toString();
+                                    }
+                                 }
+                            } catch(e) {}
+                         });
+                    }
+                } catch(e) {
+                    console.error('Tracking Error:', e);
                 }
-
-            } catch(e) {}
+            }
+            
+            // Run immediately
+            updateTracking();
+            // Run on load
+            window.addEventListener('load', updateTracking);
+            // Run periodically for a few seconds to catch lazy elements
+            const interval = setInterval(updateTracking, 1000);
+            setTimeout(() => clearInterval(interval), 10000);
         })();
       </script>
     `;
