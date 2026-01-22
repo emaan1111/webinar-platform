@@ -58,6 +58,13 @@ export async function POST(
       leadPageId
     } = body
 
+    console.log('REGISTER API BODY PAYLOAD:', {
+        splitTestId,
+        variantId,
+        leadPageId,
+        email
+    });
+
     // Validation
     if (!name || !email) {
       return NextResponse.json(

@@ -113,37 +113,42 @@ export default async function LeadPage({ params }: PageProps) {
 
                 if (st && v) {
                     // Update Links
-                    const links = document.getElementById('custom-content-root').querySelectorAll('a');
+                    const links = document.querySelectorAll('a');
                     links.forEach(link => {
                         // Only update internal links or links to our domain
-                        if (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/')) {
-                            try {
+                        try {
+                            if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
                                 const url = new URL(link.href, window.location.origin);
                                 url.searchParams.set('st', st);
                                 url.searchParams.set('v', v);
                                 link.href = url.toString();
-                            } catch (e) {}
-                        }
+                            }
+                        } catch (e) {}
                     });
 
                     // Update Iframes (Inline Embeds)
-                    const iframes = document.getElementById('custom-content-root').querySelectorAll('iframe');
+                    const iframes = document.querySelectorAll('iframe');
+                    console.log('Found iframes:', iframes.length);
                     iframes.forEach(iframe => {
                          try {
                             const src = iframe.src;
+                            console.log('Checking iframe src:', src);
                             if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
                                 const url = new URL(src, window.location.origin);
                                 url.searchParams.set('st', st);
                                 url.searchParams.set('v', v);
                                 iframe.src = url.toString();
+                                console.log('Updated iframe src:', iframe.src);
                             }
-                         } catch (e) {}
+                         } catch (e) {
+                             console.error('Error updating iframe:', e);
+                         }
                     });
                 }
                 
                 // Always append leadPageId to links/iframes if valid
                 if (LeadPageId) {
-                     const frames = document.getElementById('custom-content-root').querySelectorAll('iframe');
+                     const frames = document.querySelectorAll('iframe');
                      frames.forEach(frame => {
                         try {
                             const url = new URL(frame.src, window.location.origin);
@@ -151,15 +156,16 @@ export default async function LeadPage({ params }: PageProps) {
                             if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
                                 url.searchParams.set('lp', LeadPageId);
                                 frame.src = url.toString();
+                                console.log('Updated iframe src with lp:', frame.src);
                             }
                         } catch(e) {}
                      });
                      
-                     const links = document.getElementById('custom-content-root').querySelectorAll('a');
+                     const links = document.querySelectorAll('a');
                      links.forEach(link => {
                         try {
                              // Only internal
-                             if (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/')) {
+                             if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
                                 const url = new URL(link.href, window.location.origin);
                                 if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
                                     url.searchParams.set('lp', LeadPageId);
