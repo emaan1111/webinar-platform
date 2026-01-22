@@ -365,6 +365,13 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
   const effectiveSplitTestId = splitTestId || searchParams.get('st')
   const effectiveVariantId = variantId || searchParams.get('v')
   
+  // Debug logging for tracking
+  console.log('📊 WebinarRegisterPage Tracking:', {
+    props: { splitTestId, variantId, leadPageId },
+    searchParams: { st: searchParams.get('st'), v: searchParams.get('v') },
+    effective: { effectiveSplitTestId, effectiveVariantId }
+  })
+  
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -1036,6 +1043,14 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
       const startTime = scheduledStartTime ? new Date(scheduledStartTime).getTime() : now
       const minutesUntilStart = (startTime - now) / (1000 * 60)
       const shouldRedirectToCountdown = minutesUntilStart <= 15 && minutesUntilStart > 0
+      
+      // Debug log before registration
+      console.log('📝 Submitting registration with tracking:', {
+        effectiveSplitTestId,
+        effectiveVariantId,
+        leadPageId,
+        email: formData.email.trim().toLowerCase()
+      })
       
       // Fire registration request
       const registrationPromise = fetch(`/api/webinars/${webinar!.id}/register`, {
