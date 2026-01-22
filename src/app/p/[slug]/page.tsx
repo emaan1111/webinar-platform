@@ -61,6 +61,51 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
                     leadPageId: '${leadPage.id}'
                 };
                 
+                // Helper to add tracking params to a URL
+                function addTrackingToUrl(urlStr) {
+                    try {
+                        const tracking = window.__WEBINAR_TRACKING__;
+                        // Parse the URL - handle both absolute and relative URLs
+                        let url;
+                        if (urlStr.startsWith('http')) {
+                            url = new URL(urlStr);
+                        } else {
+                            return urlStr; // Don't modify relative URLs without origin context
+                        }
+                        
+                        // Add tracking params if they exist
+                        if (tracking.splitTestId && !url.searchParams.has('st')) {
+                            url.searchParams.set('st', tracking.splitTestId);
+                        }
+                        if (tracking.variantId && !url.searchParams.has('v')) {
+                            url.searchParams.set('v', tracking.variantId);
+                        }
+                        if (tracking.leadPageId && !url.searchParams.has('lp')) {
+                            url.searchParams.set('lp', tracking.leadPageId);
+                        }
+                        console.log('🔗 Tracking: Modified URL', urlStr, '->', url.toString());
+                        return url.toString();
+                    } catch(e) {
+                        console.error('Error adding tracking to URL:', e);
+                        return urlStr;
+                    }
+                }
+                
+                // Intercept iframe src setter to add tracking params
+                const iframeSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+                if (iframeSrcDescriptor && iframeSrcDescriptor.set) {
+                    Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+                        get: iframeSrcDescriptor.get,
+                        set: function(value) {
+                            const modifiedUrl = addTrackingToUrl(value);
+                            return iframeSrcDescriptor.set.call(this, modifiedUrl);
+                        },
+                        enumerable: true,
+                        configurable: true
+                    });
+                    console.log('🎯 Tracking: Iframe src setter intercepted');
+                }
+                
                 // Intercept fetch calls to inject tracking params into registration API calls
                 const originalFetch = window.fetch;
                 window.fetch = function(url, options) {
@@ -113,34 +158,27 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
                           } catch(e) {}
                         });
 
-                        // Update Iframes
+                        // Update Iframes - use setAttribute to avoid our interceptor re-triggering
                         document.querySelectorAll('iframe').forEach(iframe => {
                             try {
-                                const src = iframe.src;
-                                if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
-                                    const url = new URL(src, window.location.origin);
-                                    if(url.searchParams.get('st') !== st) {
+                                const src = iframe.getAttribute('src');
+                                if (src && src.startsWith('http')) {
+                                    const url = new URL(src);
+                                    if(!url.searchParams.has('st')) {
                                         url.searchParams.set('st', st);
                                         url.searchParams.set('v', v);
-                                        iframe.src = url.toString();
+                                        if (LeadPageId && !url.searchParams.has('lp')) {
+                                            url.searchParams.set('lp', LeadPageId);
+                                        }
+                                        iframe.setAttribute('src', url.toString());
                                     }
                                 }
                             } catch(e) {}
                         });
                     }
 
-                    // Update LP param
+                    // Update LP param for links
                     if (LeadPageId) {
-                         document.querySelectorAll('iframe').forEach(frame => {
-                            try {
-                                const url = new URL(frame.src, window.location.origin);
-                                if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
-                                    url.searchParams.set('lp', LeadPageId);
-                                    frame.src = url.toString();
-                                }
-                            } catch(e) {}
-                         });
-                         
                          document.querySelectorAll('a').forEach(link => {
                             try {
                                  if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
@@ -206,6 +244,51 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
                 leadPageId: '${leadPage.id}'
             };
             
+            // Helper to add tracking params to a URL
+            function addTrackingToUrl(urlStr) {
+                try {
+                    const tracking = window.__WEBINAR_TRACKING__;
+                    // Parse the URL - handle both absolute and relative URLs
+                    let url;
+                    if (urlStr.startsWith('http')) {
+                        url = new URL(urlStr);
+                    } else {
+                        return urlStr; // Don't modify relative URLs without origin context
+                    }
+                    
+                    // Add tracking params if they exist
+                    if (tracking.splitTestId && !url.searchParams.has('st')) {
+                        url.searchParams.set('st', tracking.splitTestId);
+                    }
+                    if (tracking.variantId && !url.searchParams.has('v')) {
+                        url.searchParams.set('v', tracking.variantId);
+                    }
+                    if (tracking.leadPageId && !url.searchParams.has('lp')) {
+                        url.searchParams.set('lp', tracking.leadPageId);
+                    }
+                    console.log('🔗 Tracking: Modified URL', urlStr, '->', url.toString());
+                    return url.toString();
+                } catch(e) {
+                    console.error('Error adding tracking to URL:', e);
+                    return urlStr;
+                }
+            }
+            
+            // Intercept iframe src setter to add tracking params
+            const iframeSrcDescriptor = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'src');
+            if (iframeSrcDescriptor && iframeSrcDescriptor.set) {
+                Object.defineProperty(HTMLIFrameElement.prototype, 'src', {
+                    get: iframeSrcDescriptor.get,
+                    set: function(value) {
+                        const modifiedUrl = addTrackingToUrl(value);
+                        return iframeSrcDescriptor.set.call(this, modifiedUrl);
+                    },
+                    enumerable: true,
+                    configurable: true
+                });
+                console.log('🎯 Tracking: Iframe src setter intercepted');
+            }
+            
             // Intercept fetch calls to inject tracking params into registration API calls
             const originalFetch = window.fetch;
             window.fetch = function(url, options) {
@@ -236,17 +319,13 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
             
             function updateTracking() {
                 try {
-                    console.log('Tracking: Checking for embeds...');
                     const st = window.__WEBINAR_TRACKING__.splitTestId;
                     const v = window.__WEBINAR_TRACKING__.variantId;
-                    // Also get leadPageId if present (for single lead page tracking)
                     const LeadPageId = window.__WEBINAR_TRACKING__.leadPageId; 
 
                     if (st && v) {
                         // Update Links
-                        const links = document.querySelectorAll('a');
-                        links.forEach(link => {
-                            // Only update internal links or links to our domain
+                        document.querySelectorAll('a').forEach(link => {
                             try {
                                 if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
                                     const url = new URL(link.href, window.location.origin);
@@ -259,46 +338,29 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
                             } catch (e) {}
                         });
 
-                        // Update Iframes (Inline Embeds)
-                        const iframes = document.querySelectorAll('iframe');
-                        console.log('Tracking: Found iframes:', iframes.length);
-                        iframes.forEach(iframe => {
+                        // Update Iframes - use setAttribute to avoid our interceptor
+                        document.querySelectorAll('iframe').forEach(iframe => {
                              try {
-                                const src = iframe.src;
-                                if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
-                                    const url = new URL(src, window.location.origin);
-                                    if(url.searchParams.get('st') !== st) {
+                                const src = iframe.getAttribute('src');
+                                if (src && src.startsWith('http')) {
+                                    const url = new URL(src);
+                                    if(!url.searchParams.has('st')) {
                                         url.searchParams.set('st', st);
                                         url.searchParams.set('v', v);
-                                        iframe.src = url.toString();
-                                        console.log('Tracking: Updated iframe src:', iframe.src);
+                                        if (LeadPageId && !url.searchParams.has('lp')) {
+                                            url.searchParams.set('lp', LeadPageId);
+                                        }
+                                        iframe.setAttribute('src', url.toString());
                                     }
                                 }
-                             } catch (e) {
-                                 console.error('Tracking: Error updating iframe:', e);
-                             }
+                             } catch (e) {}
                         });
                     }
                     
-                    // Always append leadPageId to links/iframes if valid
+                    // Always append leadPageId to links if valid
                     if (LeadPageId) {
-                         const frames = document.querySelectorAll('iframe');
-                         frames.forEach(frame => {
+                         document.querySelectorAll('a').forEach(link => {
                             try {
-                                const url = new URL(frame.src, window.location.origin);
-                                // Only set if not already set (e.g. by st/v logic above, though st/v logic doesn't set lp)
-                                if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
-                                    url.searchParams.set('lp', LeadPageId);
-                                    frame.src = url.toString();
-                                    console.log('Tracking: Updated iframe src with lp:', frame.src);
-                                }
-                            } catch(e) {}
-                         });
-                         
-                         const links = document.querySelectorAll('a');
-                         links.forEach(link => {
-                            try {
-                                 // Only internal
                                  if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
                                     const url = new URL(link.href, window.location.origin);
                                     if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
