@@ -196,13 +196,26 @@ export default async function LeadPage({ params }: PageProps) {
       </script>
     `;
 
-    // Inject suppression script before content to ensure it catches the CDN warning
-    const finalHtml = (leadPage.htmlContent || '').replace('<head>', '<head>' + suppressionScript);
+    // Inject suppression script and tracking script
+    let htmlContent = leadPage.htmlContent || '';
+    
+    // 1. Inject Suppression Script (Best effort: inside <head>, or at top)
+    if (htmlContent.match(/<head>/i)) {
+        htmlContent = htmlContent.replace(/<head>/i, `<head>${suppressionScript}`);
+    } else {
+        htmlContent = suppressionScript + htmlContent;
+    }
+
+    // 2. Inject Tracking Script (Best effort: before </body>, or at bottom)
+    if (htmlContent.match(/<\/body>/i)) {
+        htmlContent = htmlContent.replace(/<\/body>/i, `${trackingScript}</body>`);
+    } else {
+        htmlContent = htmlContent + trackingScript;
+    }
 
     return (
       <div id="custom-content-root">
-         {/* Use finalHtml if replacement worked, otherwise prepend the script */}
-        <div dangerouslySetInnerHTML={{ __html: (finalHtml === (leadPage.htmlContent || '') ? suppressionScript + finalHtml : finalHtml) + trackingScript }} />
+        <div dangerouslySetInnerHTML={{ __html: htmlContent }} />
       </div>
     );
   }
