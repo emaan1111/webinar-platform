@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card, CardHeader, CardBody } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ArrowLeft, RefreshCw, Calendar, Edit } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Calendar, Edit, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 import {
   LineChart,
@@ -28,6 +28,7 @@ export default function SplitTestDetails() {
   const id = params.id as string;
 
   const [loading, setLoading] = useState(true);
+  const [resetting, setResetting] = useState(false);
   const [data, setData] = useState<any>(null);
   const [timeRange, setTimeRange] = useState('7d');
 
@@ -48,6 +49,31 @@ export default function SplitTestDetails() {
       console.error('Failed to fetch analytics', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResetStats = async () => {
+    if (!confirm('Are you sure you want to reset all stats for this split test? This will reset views, conversions, and delete all tracking events. This cannot be undone.')) {
+      return;
+    }
+    
+    setResetting(true);
+    try {
+      const res = await fetch(`/api/split-tests/${id}/reset-stats`, {
+        method: 'POST'
+      });
+      
+      if (res.ok) {
+        alert('Stats have been reset successfully');
+        fetchAnalytics();
+      } else {
+        alert('Failed to reset stats');
+      }
+    } catch (error) {
+      console.error('Failed to reset stats', error);
+      alert('Failed to reset stats');
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -79,6 +105,16 @@ export default function SplitTestDetails() {
             <p className="text-gray-500">Split Test Analytics</p>
           </div>
             <div className="flex items-center gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={handleResetStats}
+              disabled={resetting}
+              className="text-red-600 border-red-200 hover:bg-red-50"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" /> 
+              {resetting ? 'Resetting...' : 'Reset Stats'}
+            </Button>
             <Link href={`/dashboard/split-tests/${id}/edit`}>
               <Button variant="secondary" size="sm">
                 <Edit className="w-4 h-4 mr-2" /> Edit Test

@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ChevronRight, Loader2, Trash2 } from 'lucide-react';
+import { ChevronRight, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
 export default function EditLeadPage({ params }: { params: { id: string } }) {
@@ -13,6 +13,7 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [resettingStats, setResettingStats] = useState(false);
   
   const [form, setForm] = useState({
     name: '',
@@ -105,6 +106,28 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
     }
   };
 
+  const handleResetStats = async () => {
+    if (!confirm('Are you sure you want to reset all stats (views and conversions) for this lead page? This cannot be undone.')) return;
+    
+    setResettingStats(true);
+    try {
+        const res = await fetch(`/api/lead-pages/${params.id}/reset-stats`, {
+            method: 'POST'
+        });
+        
+        if (res.ok) {
+            alert('Stats have been reset successfully');
+        } else {
+            alert('Failed to reset stats');
+        }
+    } catch (e) {
+        console.error(e);
+        alert('Failed to reset stats');
+    } finally {
+        setResettingStats(false);
+    }
+  };
+
   if (loading) {
       return (
           <DashboardLayout>
@@ -126,9 +149,20 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
       <div className="max-w-2xl mx-auto">
         <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-bold">Edit Lead Page</h1>
-            <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
-                {deleting ? 'Deleting...' : <div className="flex items-center gap-2"><Trash2 className="w-4 h-4" /> Delete</div>}
-            </Button>
+            <div className="flex items-center gap-2">
+                <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleResetStats} 
+                    disabled={resettingStats}
+                    className="text-orange-600 border-orange-200 hover:bg-orange-50"
+                >
+                    {resettingStats ? 'Resetting...' : <div className="flex items-center gap-2"><RotateCcw className="w-4 h-4" /> Reset Stats</div>}
+                </Button>
+                <Button variant="danger" size="sm" onClick={handleDelete} disabled={deleting}>
+                    {deleting ? 'Deleting...' : <div className="flex items-center gap-2"><Trash2 className="w-4 h-4" /> Delete</div>}
+                </Button>
+            </div>
         </div>
         
         <Card className="p-6 space-y-6">
