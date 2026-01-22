@@ -43,33 +43,86 @@ export default async function LeadPage({ params }: PageProps) {
                        leadPage.htmlContent?.toLowerCase().includes('<!doctype');
 
     if (isFullPage) {
-        // Inject script to preserve tracking parameters (st, v) in links
+        // Inject script to preserve tracking parameters (st, v, lp) in links and iframes
         const trackingScript = `
           <script>
             (function() {
-              try {
-                // Try references to parent if in iframe, or self if top
-                const search = window.parent !== window ? window.parent.location.search : window.location.search;
-                const params = new URLSearchParams(search);
-                const st = params.get('st');
-                const v = params.get('v');
-                
-                if (st && v) {
-                  document.addEventListener('DOMContentLoaded', function() {
-                    document.querySelectorAll('a').forEach(link => {
-                      try {
-                        const url = new URL(link.href, window.location.origin);
-                        // Only add if internal link
-                        if (url.origin === window.location.origin || link.getAttribute('href').startsWith('/')) {
-                          url.searchParams.set('st', st);
-                          url.searchParams.set('v', v);
-                          link.href = url.toString();
-                        }
-                      } catch(e) {}
-                    });
-                  });
+                function updateTracking() {
+                  try {
+                    // Try references to parent if in iframe, or self if top
+                    const search = window.parent !== window ? window.parent.location.search : window.location.search;
+                    const params = new URLSearchParams(search);
+                    const st = params.get('st');
+                    const v = params.get('v');
+                    // LeadPageId from server
+                    const LeadPageId = '${leadPage.id}';
+                    
+                    if (st && v) {
+                        // Update Links
+                        document.querySelectorAll('a').forEach(link => {
+                          try {
+                            const url = new URL(link.href, window.location.origin);
+                            // Only add if internal link
+                            if (url.origin === window.location.origin || link.getAttribute('href').startsWith('/')) {
+                              if(url.searchParams.get('st') !== st) {
+                                url.searchParams.set('st', st);
+                                url.searchParams.set('v', v);
+                                link.href = url.toString();
+                              }
+                            }
+                          } catch(e) {}
+                        });
+
+                        // Update Iframes
+                        document.querySelectorAll('iframe').forEach(iframe => {
+                            try {
+                                const src = iframe.src;
+                                if (src && (src.startsWith(window.location.origin) || src.startsWith('/'))) {
+                                    const url = new URL(src, window.location.origin);
+                                    if(url.searchParams.get('st') !== st) {
+                                        url.searchParams.set('st', st);
+                                        url.searchParams.set('v', v);
+                                        iframe.src = url.toString();
+                                    }
+                                }
+                            } catch(e) {}
+                        });
+                    }
+
+                    // Update LP param
+                    if (LeadPageId) {
+                         document.querySelectorAll('iframe').forEach(frame => {
+                            try {
+                                const url = new URL(frame.src, window.location.origin);
+                                if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
+                                    url.searchParams.set('lp', LeadPageId);
+                                    frame.src = url.toString();
+                                }
+                            } catch(e) {}
+                         });
+                         
+                         document.querySelectorAll('a').forEach(link => {
+                            try {
+                                 if (link.href && (link.href.startsWith(window.location.origin) || link.getAttribute('href').startsWith('/'))) {
+                                    const url = new URL(link.href, window.location.origin);
+                                    if (!url.searchParams.has('lp') && !url.searchParams.has('leadPageId')) {
+                                        url.searchParams.set('lp', LeadPageId);
+                                        link.href = url.toString();
+                                    }
+                                 }
+                            } catch(e) {}
+                         });
+                    }
+
+                  } catch(e) { console.error('Tracking script error', e); }
                 }
-              } catch(e) { console.error('Tracking script error', e); }
+
+                // Run strategies
+                updateTracking(); // Immediate
+                document.addEventListener('DOMContentLoaded', updateTracking);
+                window.addEventListener('load', updateTracking);
+                const interval = setInterval(updateTracking, 1000);
+                setTimeout(() => clearInterval(interval), 10000);
             })();
           </script>
         `;
