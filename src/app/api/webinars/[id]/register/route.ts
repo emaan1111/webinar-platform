@@ -106,7 +106,7 @@ export async function POST(
         replayAttendedTag: true,
       }
     })
-
+    
     if (!webinar) {
       return NextResponse.json(
         { error: 'Webinar not found' },
@@ -284,15 +284,19 @@ export async function POST(
         console.error('Failed to link registration to page visit:', error);
       }
 
+      // Start: Fix for undefined 'schedule' error
       // Fetch schedule to get Zoom link if applicable
       let schedule = null;
       if (scheduleId) {
-        schedule = await prisma.webinarSchedule.findUnique({
-          where: { id: scheduleId },
-          select: { zoomLink: true, isZoomSession: true }
-        });
+        try {
+            schedule = await prisma.webinarSchedule.findUnique({
+            where: { id: scheduleId },
+            select: { zoomLink: true, isZoomSession: true }
+            });
+        } catch(e) { console.error('Error fetching schedule', e); }
       }
-
+      // End: Fix
+      
       // Validate referral code in background
       if (referredByCode && referredBy) {
         const referrer = await prisma.registration.findUnique({
