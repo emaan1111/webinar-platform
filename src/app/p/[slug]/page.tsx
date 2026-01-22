@@ -54,13 +54,48 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
         const trackingScript = `
           <script>
             (function() {
+                // Server-injected tracking params - available globally
+                window.__WEBINAR_TRACKING__ = {
+                    splitTestId: '${splitTestId || ''}' || null,
+                    variantId: '${variantId || ''}' || null,
+                    leadPageId: '${leadPage.id}'
+                };
+                
+                // Intercept fetch calls to inject tracking params into registration API calls
+                const originalFetch = window.fetch;
+                window.fetch = function(url, options) {
+                    try {
+                        const urlStr = typeof url === 'string' ? url : url.toString();
+                        // Check if this is a registration API call
+                        if (urlStr.includes('/api/webinars/') && urlStr.includes('/register') && options?.method === 'POST') {
+                            const body = options.body ? JSON.parse(options.body) : {};
+                            // Inject tracking params if not already present
+                            if (!body.splitTestId && window.__WEBINAR_TRACKING__.splitTestId) {
+                                body.splitTestId = window.__WEBINAR_TRACKING__.splitTestId;
+                            }
+                            if (!body.variantId && window.__WEBINAR_TRACKING__.variantId) {
+                                body.variantId = window.__WEBINAR_TRACKING__.variantId;
+                            }
+                            if (!body.leadPageId && window.__WEBINAR_TRACKING__.leadPageId) {
+                                body.leadPageId = window.__WEBINAR_TRACKING__.leadPageId;
+                            }
+                            if (!body.privacyConsent) {
+                                body.privacyConsent = true;
+                            }
+                            options.body = JSON.stringify(body);
+                            console.log('🔍 Tracking: Injected params into registration', window.__WEBINAR_TRACKING__);
+                        }
+                    } catch(e) { console.error('Tracking fetch intercept error:', e); }
+                    return originalFetch.apply(this, arguments);
+                };
+
                 function updateTracking() {
                   try {
                     // Server-injected tracking params (works for srcDoc iframes)
-                    const st = '${splitTestId || ''}' || null;
-                    const v = '${variantId || ''}' || null;
+                    const st = window.__WEBINAR_TRACKING__.splitTestId;
+                    const v = window.__WEBINAR_TRACKING__.variantId;
                     // LeadPageId from server
-                    const LeadPageId = '${leadPage.id}';
+                    const LeadPageId = window.__WEBINAR_TRACKING__.leadPageId;
                     
                     if (st && v) {
                         // Update Links
@@ -161,15 +196,51 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
     const trackingScript = `
       <script>
         (function() {
+            // Try URL params first, fall back to server-injected values
+            const params = new URLSearchParams(window.location.search);
+            
+            // Server-injected tracking params - available globally
+            window.__WEBINAR_TRACKING__ = {
+                splitTestId: params.get('st') || '${splitTestId || ''}' || null,
+                variantId: params.get('v') || '${variantId || ''}' || null,
+                leadPageId: '${leadPage.id}'
+            };
+            
+            // Intercept fetch calls to inject tracking params into registration API calls
+            const originalFetch = window.fetch;
+            window.fetch = function(url, options) {
+                try {
+                    const urlStr = typeof url === 'string' ? url : url.toString();
+                    // Check if this is a registration API call
+                    if (urlStr.includes('/api/webinars/') && urlStr.includes('/register') && options?.method === 'POST') {
+                        const body = options.body ? JSON.parse(options.body) : {};
+                        // Inject tracking params if not already present
+                        if (!body.splitTestId && window.__WEBINAR_TRACKING__.splitTestId) {
+                            body.splitTestId = window.__WEBINAR_TRACKING__.splitTestId;
+                        }
+                        if (!body.variantId && window.__WEBINAR_TRACKING__.variantId) {
+                            body.variantId = window.__WEBINAR_TRACKING__.variantId;
+                        }
+                        if (!body.leadPageId && window.__WEBINAR_TRACKING__.leadPageId) {
+                            body.leadPageId = window.__WEBINAR_TRACKING__.leadPageId;
+                        }
+                        if (!body.privacyConsent) {
+                            body.privacyConsent = true;
+                        }
+                        options.body = JSON.stringify(body);
+                        console.log('🔍 Tracking: Injected params into registration', window.__WEBINAR_TRACKING__);
+                    }
+                } catch(e) { console.error('Tracking fetch intercept error:', e); }
+                return originalFetch.apply(this, arguments);
+            };
+            
             function updateTracking() {
                 try {
                     console.log('Tracking: Checking for embeds...');
-                    // Try URL params first, fall back to server-injected values
-                    const params = new URLSearchParams(window.location.search);
-                    const st = params.get('st') || '${splitTestId || ''}' || null;
-                    const v = params.get('v') || '${variantId || ''}' || null;
+                    const st = window.__WEBINAR_TRACKING__.splitTestId;
+                    const v = window.__WEBINAR_TRACKING__.variantId;
                     // Also get leadPageId if present (for single lead page tracking)
-                    const LeadPageId = '${leadPage.id}'; 
+                    const LeadPageId = window.__WEBINAR_TRACKING__.leadPageId; 
 
                     if (st && v) {
                         // Update Links
