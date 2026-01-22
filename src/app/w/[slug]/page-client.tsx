@@ -301,6 +301,8 @@ interface WebinarRegisterPageProps {
   webinarData: Webinar
   registrationPage?: RegistrationPage | null
   leadPageId?: string | null
+  splitTestId?: string | null
+  variantId?: string | null
 }
 
 // Popup Theme Configurations
@@ -355,9 +357,14 @@ const popupThemes = {
   },
 }
 
-export default function WebinarRegisterPage({ webinarData, registrationPage, leadPageId }: WebinarRegisterPageProps) {
+export default function WebinarRegisterPage({ webinarData, registrationPage, leadPageId, splitTestId, variantId }: WebinarRegisterPageProps) {
   const searchParams = useSearchParams()
   const webinar = webinarData
+  
+  // Use props first, fall back to URL params for tracking
+  const effectiveSplitTestId = splitTestId || searchParams.get('st')
+  const effectiveVariantId = variantId || searchParams.get('v')
+  
   const [showScheduleModal, setShowScheduleModal] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -1045,8 +1052,8 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
           privacyConsent: formData.privacyConsent,
           country: userCountry,
           referralCode: searchParams.get('ref') || undefined,
-          splitTestId: searchParams.get('st'),
-          variantId: searchParams.get('v'),
+          splitTestId: effectiveSplitTestId,
+          variantId: effectiveVariantId,
           leadPageId: leadPageId
         })
       })
@@ -1089,13 +1096,11 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
       }
 
       // Track Split Test conversion (from independent lead pages)
-      const stId = searchParams.get('st')
-      const vId = searchParams.get('v')
-      
-      if (stId && vId && registrationData.registrationId) {
+      // Note: Server-side tracking is now primary, but keeping client-side as fallback
+      if (effectiveSplitTestId && effectiveVariantId && registrationData.registrationId) {
         const payload = JSON.stringify({
-          splitTestId: stId,
-          variantId: vId,
+          splitTestId: effectiveSplitTestId,
+          variantId: effectiveVariantId,
           registrationId: registrationData.registrationId,
         })
         

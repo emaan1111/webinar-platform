@@ -6,10 +6,15 @@ interface PageProps {
   params: {
     slug: string;
   };
+  searchParams: { [key: string]: string | string[] | undefined };
 }
 
-export default async function LeadPage({ params }: PageProps) {
+export default async function LeadPage({ params, searchParams }: PageProps) {
   const { slug } = params;
+  
+  // Extract tracking parameters from URL
+  const splitTestId = typeof searchParams.st === 'string' ? searchParams.st : undefined;
+  const variantId = typeof searchParams.v === 'string' ? searchParams.v : undefined;
 
   const leadPage = await prisma.leadPage.findUnique({
     where: { slug },
@@ -44,16 +49,16 @@ export default async function LeadPage({ params }: PageProps) {
 
     if (isFullPage) {
         // Inject script to preserve tracking parameters (st, v, lp) in links and iframes
+        // NOTE: For srcDoc iframes, window.parent.location is not accessible due to null origin
+        // So we inject the values directly from the server
         const trackingScript = `
           <script>
             (function() {
                 function updateTracking() {
                   try {
-                    // Try references to parent if in iframe, or self if top
-                    const search = window.parent !== window ? window.parent.location.search : window.location.search;
-                    const params = new URLSearchParams(search);
-                    const st = params.get('st');
-                    const v = params.get('v');
+                    // Server-injected tracking params (works for srcDoc iframes)
+                    const st = '${splitTestId || ''}' || null;
+                    const v = '${variantId || ''}' || null;
                     // LeadPageId from server
                     const LeadPageId = '${leadPage.id}';
                     
@@ -159,9 +164,10 @@ export default async function LeadPage({ params }: PageProps) {
             function updateTracking() {
                 try {
                     console.log('Tracking: Checking for embeds...');
+                    // Try URL params first, fall back to server-injected values
                     const params = new URLSearchParams(window.location.search);
-                    const st = params.get('st');
-                    const v = params.get('v');
+                    const st = params.get('st') || '${splitTestId || ''}' || null;
+                    const v = params.get('v') || '${variantId || ''}' || null;
                     // Also get leadPageId if present (for single lead page tracking)
                     const LeadPageId = '${leadPage.id}'; 
 
@@ -311,6 +317,8 @@ export default async function LeadPage({ params }: PageProps) {
         webinarData={webinarData}
         registrationPage={leadPage.template}
         leadPageId={leadPage.id}
+        splitTestId={splitTestId}
+        variantId={variantId}
         />
     );
   }
