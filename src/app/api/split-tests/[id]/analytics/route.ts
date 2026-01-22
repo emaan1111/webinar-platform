@@ -108,12 +108,35 @@ export async function GET(
         });
       }
 
+      // Important: Cumulative counting? Or per-bucket counting?
+      // Charts usually want "per day". But cumulative totals are good for "total/rate over time".
+      // Let's stick to per-bucket "velocity" for now. 
+      // EXCEPT: The user might expect "Total Conversions" line to go up.
+      // But the current naming "Conversions by Time" implies a histogram/bar chart feel (how many happened TODAY).
+      // Let's keep it as per-bucket counts.
+      
       if (event.type === 'VIEW') {
         timeBuckets[key][`${event.variantId}_views`] = (timeBuckets[key][`${event.variantId}_views`] || 0) + 1;
       } else if (event.type === 'CONVERSION') {
         timeBuckets[key][`${event.variantId}_conversions`] = (timeBuckets[key][`${event.variantId}_conversions`] || 0) + 1;
       }
     });
+
+    // If no events, return empty array but with test data
+    if (Object.keys(timeBuckets).length === 0 && events.length === 0) {
+         // Maybe return at least one empty bucket for "now"?
+         const nowKey = getBucketKey(new Date());
+         const initialBucket: any = { timestamp: nowKey };
+         splitTest.variants.forEach(v => {
+              initialBucket[`${v.id}_views`] = 0;
+              initialBucket[`${v.id}_conversions`] = 0;
+              initialBucket[`${v.id}_rate`] = 0;
+         });
+         return NextResponse.json({
+            test: splitTest,
+            chartData: [initialBucket]
+         });
+    }
 
     // Convert to array and sort
     const chartData = Object.values(timeBuckets).sort((a: any, b: any) => a.timestamp.localeCompare(b.timestamp));
