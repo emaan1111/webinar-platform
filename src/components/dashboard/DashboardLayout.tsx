@@ -26,7 +26,8 @@ import {
   UserPlus,
   ClipboardList,
   LayoutList,
-  GitFork
+  GitFork,
+  Calendar
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -36,6 +37,7 @@ interface DashboardLayoutProps {
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Webinars', href: '/dashboard/webinars', icon: Video },
+  { name: 'Events', href: '/dashboard/events', icon: Calendar },
   { name: 'Lead Pages', href: '/dashboard/lead-pages', icon: LayoutList },
   { name: 'Split Tests', href: '/dashboard/split-tests', icon: GitFork },
   { name: 'Registration Pages', href: '/dashboard/registration-pages', icon: Layout },
