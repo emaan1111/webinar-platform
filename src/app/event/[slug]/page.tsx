@@ -29,7 +29,14 @@ async function getEventData(slug: string) {
           description: true,
           duration: true,
           schedules: {
-            where: { isActive: true },
+            where: { 
+              isActive: true,
+              // Include: justInTime/recurring schedules OR specific schedules in the future
+              OR: [
+                { scheduleType: { not: 'specific' } },
+                { scheduleType: 'specific', scheduledAt: { gte: new Date() } }
+              ]
+            },
             orderBy: { scheduledAt: 'asc' }
           }
         }

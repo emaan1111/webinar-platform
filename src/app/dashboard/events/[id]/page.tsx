@@ -435,6 +435,64 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                 )}
               </div>
             </Card>
+
+            {/* Embed Code Section */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Embed Code</h2>
+              <p className="text-sm text-gray-600 mb-4">
+                Copy this code to embed the event registration form on your website.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Embed URL</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${typeof window !== 'undefined' ? window.location.origin : ''}/embed-event/${event.slug}`}
+                      className="flex-1 p-2 border rounded-lg bg-gray-50 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => {
+                        const url = `${window.location.origin}/embed-event/${event.slug}`;
+                        navigator.clipboard.writeText(url);
+                        alert('URL copied to clipboard!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Iframe Embed Code</label>
+                  <div className="relative">
+                    <textarea
+                      readOnly
+                      className="w-full p-2 border rounded-lg bg-gray-50 text-sm font-mono h-24"
+                      value={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/embed-event/${event.slug}" width="100%" height="600" frameborder="0" style="border:none;"></iframe>`}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="absolute top-2 right-2"
+                      onClick={() => {
+                        const code = `<iframe src="${window.location.origin}/embed-event/${event.slug}" width="100%" height="600" frameborder="0" style="border:none;"></iframe>`;
+                        navigator.clipboard.writeText(code);
+                        alert('Embed code copied to clipboard!');
+                      }}
+                    >
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                  <strong>Tip:</strong> The embed form includes the two-step registration process if you have a bundled webinar configured.
+                </div>
+              </div>
+            </Card>
           </div>
         )}
 
