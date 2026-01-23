@@ -581,35 +581,45 @@ export default function AttendeesPage() {
     const enabledColumns = activeView.columns.filter(c => c.enabled)
     const headers = enabledColumns.map(c => c.label)
     
+    // Helper function to escape CSV values (handles commas, quotes, and newlines)
+    const escapeCSVValue = (val: string): string => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\r')) {
+        // Escape double quotes by doubling them, then wrap in quotes
+        return `"${val.replace(/"/g, '""')}"`
+      }
+      return val
+    }
+    
     // Use sorted/filtered data for export
     const rows = sortedAttendees.map(a => 
       enabledColumns.map(col => {
         const value = (a as any)[col.key]
+        let formattedValue: string
         
         // Format special values
         if (col.key === 'registeredAt' || col.key === 'scheduledAt' || col.key === 'joinedAt' || col.key === 'leftAt' || col.key === 'lastSeenAt' || col.key === 'lastPurchaseAt') {
-          return value ? formatDateTime(value) : 'N/A'
-        }
-        if (col.key === 'lastPurchaseAmount') {
-          return value != null ? formatCurrencyValue(value, (a as any).lastPurchaseCurrency) : 'N/A'
-        }
-        if (col.key === 'totalPurchaseAmount') {
-          return value != null ? formatCurrencyValue(value, (a as any).purchaseCurrency) : 'N/A'
-        }
-        if (col.key === 'attended' || col.key === 'watchedReplay' || col.key === 'replayClickedCTA' || 
+          formattedValue = value ? formatDateTime(value) : 'N/A'
+        } else if (col.key === 'lastPurchaseAmount') {
+          formattedValue = value != null ? formatCurrencyValue(value, (a as any).lastPurchaseCurrency) : 'N/A'
+        } else if (col.key === 'totalPurchaseAmount') {
+          formattedValue = value != null ? formatCurrencyValue(value, (a as any).purchaseCurrency) : 'N/A'
+        } else if (col.key === 'attended' || col.key === 'watchedReplay' || col.key === 'replayClickedCTA' || 
             col.key === 'gdprConsent' || col.key === 'privacyConsent' || col.key === 'marketingConsent' ||
             col.key === 'hasPurchased') {
-          return value ? 'Yes' : 'No'
-        }
-        if (col.key === 'webinarStatus') {
-          return value || 'Unknown'
+          formattedValue = value ? 'Yes' : 'No'
+        } else if (col.key === 'webinarStatus') {
+          formattedValue = value || 'Unknown'
+        } else {
+          formattedValue = value?.toString() || 'N/A'
         }
         
-        return value?.toString() || 'N/A'
+        return escapeCSVValue(formattedValue)
       })
     )
     
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
+    // Also escape headers in case they contain special characters
+    const escapedHeaders = headers.map(h => escapeCSVValue(h))
+    const csv = [escapedHeaders, ...rows].map(row => row.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')

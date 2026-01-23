@@ -76,23 +76,31 @@ export default function ReportDetailsPage() {
         'Reactions'
      ]
      
+     // Helper function to escape CSV values (handles commas, quotes, and newlines)
+     const escapeCSVValue = (val: string): string => {
+       if (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\r')) {
+         return `"${val.replace(/"/g, '""')}"`
+       }
+       return val
+     }
+
      const rows = data.map(row => [
-        `"${row.name || ''}"`,
-        row.email,
-        row.phone,
-        row.timezone,
-        `"${row.webinarTitle || ''}"`,
-        new Date(row.registeredAt).toLocaleString(),
-        row.attendedAt ? new Date(row.attendedAt).toLocaleString() : '-',
-        row.status,
-        row.totalTimeStayed,
-        row.totalTimeSeconds,
-        row.sawOffer,
-        row.replayWatched,
-        row.leftAt ? new Date(row.leftAt).toLocaleString() : '-',
-        row.lastWatchedPosition,
-        row.chatCount,
-        row.reactionCount
+        escapeCSVValue(row.name || ''),
+        escapeCSVValue(row.email || ''),
+        escapeCSVValue(row.phone || ''),
+        escapeCSVValue(row.timezone || ''),
+        escapeCSVValue(row.webinarTitle || ''),
+        escapeCSVValue(new Date(row.registeredAt).toLocaleString()),
+        escapeCSVValue(row.attendedAt ? new Date(row.attendedAt).toLocaleString() : '-'),
+        escapeCSVValue(row.status || ''),
+        escapeCSVValue(String(row.totalTimeStayed || '')),
+        escapeCSVValue(String(row.totalTimeSeconds || '')),
+        escapeCSVValue(String(row.sawOffer || '')),
+        escapeCSVValue(String(row.replayWatched || '')),
+        escapeCSVValue(row.leftAt ? new Date(row.leftAt).toLocaleString() : '-'),
+        escapeCSVValue(String(row.lastWatchedPosition || '')),
+        escapeCSVValue(String(row.chatCount || '')),
+        escapeCSVValue(String(row.reactionCount || ''))
      ])
      
      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')

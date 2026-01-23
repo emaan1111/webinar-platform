@@ -198,24 +198,35 @@ export default function AttendeesPage() {
     const enabledColumns = activeView.columns.filter(c => c.enabled)
     const headers = enabledColumns.map(c => c.label)
     
+    // Helper function to escape CSV values (handles commas, quotes, and newlines)
+    const escapeCSVValue = (val: string): string => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\r')) {
+        return `"${val.replace(/"/g, '""')}"`
+      }
+      return val
+    }
+    
     const rows = filteredAttendees.map(a => 
       enabledColumns.map(col => {
         const value = (a as any)[col.key]
+        let formattedValue: string
         
         // Format special values
         if (col.key === 'registeredAt' || col.key === 'joinedAt' || col.key === 'leftAt') {
-          return value ? new Date(value).toLocaleString() : 'N/A'
-        }
-        if (col.key === 'attended' || col.key === 'watchedReplay' || col.key === 'replayClickedCTA' || 
+          formattedValue = value ? new Date(value).toLocaleString() : 'N/A'
+        } else if (col.key === 'attended' || col.key === 'watchedReplay' || col.key === 'replayClickedCTA' || 
             col.key === 'gdprConsent' || col.key === 'privacyConsent' || col.key === 'marketingConsent') {
-          return value ? 'Yes' : 'No'
+          formattedValue = value ? 'Yes' : 'No'
+        } else {
+          formattedValue = value?.toString() || 'N/A'
         }
         
-        return value?.toString() || 'N/A'
+        return escapeCSVValue(formattedValue)
       })
     )
     
-    const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
+    const escapedHeaders = headers.map(h => escapeCSVValue(h))
+    const csv = [escapedHeaders, ...rows].map(row => row.join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv' })
     const url = window.URL.createObjectURL(blob)
     const a = document.createElement('a')

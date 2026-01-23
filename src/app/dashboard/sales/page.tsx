@@ -81,17 +81,25 @@ export default function SalesPage() {
       'Attended Webinar'
     ]
 
+    // Helper function to escape CSV values (handles commas, quotes, and newlines)
+    const escapeCSVValue = (val: string): string => {
+      if (val.includes(',') || val.includes('"') || val.includes('\n') || val.includes('\r')) {
+        return `"${val.replace(/"/g, '""')}"`
+      }
+      return val
+    }
+
     const rows = filteredSales.map(sale => [
-      sale.orderId,
-      sale.purchasedAt ? new Date(sale.purchasedAt).toLocaleString() : '',
+      escapeCSVValue(sale.orderId),
+      escapeCSVValue(sale.purchasedAt ? new Date(sale.purchasedAt).toLocaleString() : ''),
       sale.amount?.toFixed(2) || '0.00',
       sale.currency || 'USD',
-      sale.email || '',
-      sale.registration 
+      escapeCSVValue(sale.email || ''),
+      escapeCSVValue(sale.registration 
         ? `${sale.registration.firstName || ''} ${sale.registration.lastName || ''}`.trim()
-        : 'N/A',
-      sale.productName || '',
-      sale.status || '',
+        : 'N/A'),
+      escapeCSVValue(sale.productName || ''),
+      escapeCSVValue(sale.status || ''),
       sale.registrationId ? 'Yes' : 'No',
       sale.registration?.attended ? 'Yes' : 'No'
     ])

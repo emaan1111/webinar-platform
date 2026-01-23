@@ -36,6 +36,7 @@ model User {
 
   // Relations
   hostedWebinars Webinar[]      @relation("HostedWebinars")
+  hostedEvents   Event[]        @relation("HostedEvents")
   registrations  Registration[]
   posts          Post[]
   comments       Comment[]
@@ -190,6 +191,9 @@ model Webinar {
 
   // Independent Lead Pages
   leadPages LeadPage[]
+
+  // Event Bundles
+  bundledEvents Event[] @relation("BundledWebinars") // Events that include this webinar as a bundle
 
   @@map("webinars")
 }
@@ -1248,3 +1252,121 @@ model SplitTestEvent {
   @@index([variantId, createdAt])
   @@map("split_test_events")
 }
+
+// ============================================
+// EVENTS SYSTEM (Zoom Events with Webinar Bundles)
+// ============================================
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+model Event {
+  id          String      @id @default(cuid())
+  slug        String      @unique // For public URLs
+  title       String
+  description String?     @db.Text
+  thumbnail   String?
+  hostId      String
+  status      EventStatus @default(DRAFT)
+
+  // Zoom Configuration
+  zoomLink      String? // Default Zoom link (can be overridden per schedule)
+  zoomMeetingId String?
+  zoomPassword  String?
+
+  // Bundle with Webinar (optional)
+  bundledWebinarId String? // If set, registration is a two-step process
+  bundleDescription String? @db.Text // Explain the bundle offer
+  webinarOptional Boolean @default(true) // Can they skip webinar registration?
+
+  // Registration Settings
+  maxAttendees Int? // Maximum per event schedule (null = unlimited)
+  requirePhone Boolean @default(false)
+
+  // Email/SMS Settings
+  confirmationEmailEnabled Boolean @default(true)
+  reminderEmailEnabled Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  host          User              @relation("HostedEvents", fields: [hostId], references: [id])
+  bundledWebinar Webinar?         @relation("BundledWebinars", fields: [bundledWebinarId], references: [id], onDelete: SetNull)
+  schedules     EventSchedule[]
+  registrations EventRegistration[]
+
+  @@map("events")
+}
+
+model EventSchedule {
+  id       String @id @default(cuid())
+  eventId  String
+  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  // Schedule Details
+  startTime DateTime
+  endTime   DateTime?
+  timezone  String @default("America/New_York")
+
+  // Zoom Override (if different from event default)
+  zoomLink      String?
+  zoomMeetingId String?
+  zoomPassword  String?
+
+  // Capacity
+  maxAttendees Int? // Override event default
+  isActive     Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  registrations EventRegistration[]
+
+  @@index([eventId, startTime])
+  @@map("event_schedules")
+}
+
+model EventRegistration {
+  id              String   @id @default(cuid())
+  eventId         String
+  eventScheduleId String
+  
+  // Contact Information
+  name            String
+  email           String
+  phone           String?
+  timezone        String?
+  
+  // Registration Status
+  registeredAt    DateTime @default(now())
+  attended        Boolean  @default(false)
+  joinedAt        DateTime?
+  
+  // Webinar Bundle (if event has bundled webinar)
+  webinarRegistrationId String? // Links to webinar Registration if they opted in
+  skippedWebinar        Boolean @default(false) // True if they chose to skip
+
+  // Consent
+  gdprConsent      Boolean @default(false)
+  privacyConsent   Boolean @default(false)
+  marketingConsent Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  event         Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSchedule EventSchedule @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
+
+  @@unique([email, eventScheduleId]) // One registration per email per schedule
+  @@index([eventId])
+  @@index([email])
+  @@map("event_registrations")
+}
+
