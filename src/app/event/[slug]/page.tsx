@@ -51,17 +51,17 @@ export default async function EventRegistrationPage({ params }: PageProps) {
     notFound();
   }
 
-  // Transform data for client component
+  // Transform data for client component (convert null to undefined for optional fields)
   const eventData = {
     id: event.id,
     title: event.title,
     slug: event.slug,
-    description: event.description,
-    hostName: event.host.name,
-    zoomLink: event.zoomLink,
+    description: event.description ?? undefined,
+    hostName: event.host.name ?? undefined,
+    zoomLink: event.zoomLink ?? undefined,
     requirePhone: event.requirePhone,
-    maxAttendees: event.maxAttendees,
-    bundleDescription: event.bundleDescription,
+    maxAttendees: event.maxAttendees ?? undefined,
+    bundleDescription: event.bundleDescription ?? undefined,
     webinarOptional: event.webinarOptional,
     schedules: event.schedules.map((s: any) => ({
       id: s.id,
@@ -75,14 +75,14 @@ export default async function EventRegistrationPage({ params }: PageProps) {
       id: event.bundledWebinar.id,
       title: event.bundledWebinar.title,
       slug: event.bundledWebinar.slug,
-      description: event.bundledWebinar.description,
+      description: event.bundledWebinar.description ?? undefined,
       duration: event.bundledWebinar.duration,
       schedules: event.bundledWebinar.schedules.map((s: any) => ({
         id: s.id,
         scheduledAt: s.scheduledAt?.toISOString(),
         scheduleType: s.scheduleType,
-        minutesFromReg: s.minutesFromReg,
-        timezone: s.timezone,
+        minutesFromReg: s.minutesFromReg ?? undefined,
+        timezone: s.timezone ?? undefined,
       })),
     } : null,
   };
