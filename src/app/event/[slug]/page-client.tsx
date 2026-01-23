@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, Users, Video, Check, ArrowRight, ArrowLeft } from 'lucide-react';
 
 interface EventSchedule {
@@ -18,6 +18,7 @@ interface WebinarSchedule {
   scheduleType: string;
   minutesFromReg?: number;
   timezone?: string;
+  recurringPattern?: string;
 }
 
 interface BundledWebinar {
@@ -26,6 +27,8 @@ interface BundledWebinar {
   slug: string;
   description?: string;
   duration: number;
+  roundJITTo15Minutes?: boolean;
+  maxSchedulesToShow?: number;
   schedules: WebinarSchedule[];
 }
 
@@ -47,10 +50,72 @@ interface Props {
   event: Event;
 }
 
+// Schedule slot for display
+interface ScheduleSlot {
+  id: string;
+  time: Date;
+  schedule: WebinarSchedule;
+  isRecurring: boolean;
+  displayLabel?: string;
+}
+
+// Helper to round to nearest 15 minutes
+function roundToNearest15Minutes(date: Date): Date {
+  const ms = 1000 * 60 * 15;
+  return new Date(Math.ceil(date.getTime() / ms) * ms);
+}
+
+// Generate recurring slots from pattern
+function generateRecurringSlots(schedule: WebinarSchedule, count: number = 5): { id: string; time: Date; baseScheduleId: string }[] {
+  const slots: { id: string; time: Date; baseScheduleId: string }[] = [];
+  if (!schedule.recurringPattern) return slots;
+  
+  try {
+    const pattern = JSON.parse(schedule.recurringPattern);
+    const now = new Date();
+    
+    if (pattern.interval === 'daily') {
+      const [hours, minutes] = pattern.time.split(':').map(Number);
+      for (let i = 0; i < count + 5; i++) {
+        const slotDate = new Date();
+        slotDate.setDate(now.getDate() + i);
+        slotDate.setHours(hours, minutes, 0, 0);
+        if (slotDate > now && slots.length < count) {
+          slots.push({ id: `${schedule.id}-slot-${slots.length}`, time: slotDate, baseScheduleId: schedule.id });
+        }
+      }
+    } else if (pattern.interval === 'weekly' && pattern.daysOfWeek) {
+      const daysMap: Record<string, number> = { 'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6 };
+      const [hours, minutes] = pattern.time.split(':').map(Number);
+      const targetDays = pattern.daysOfWeek.map((d: any) => typeof d === 'number' ? d : daysMap[d]).sort((a: number, b: number) => a - b);
+      
+      let currentDate = new Date(now);
+      for (let week = 0; week < 20 && slots.length < count; week++) {
+        for (const targetDay of targetDays) {
+          if (slots.length >= count) break;
+          const slotDate = new Date(currentDate);
+          const currentDay = slotDate.getDay();
+          const daysUntilTarget = (targetDay - currentDay + 7) % 7;
+          slotDate.setDate(slotDate.getDate() + daysUntilTarget + (week > 0 ? 7 * week : 0));
+          slotDate.setHours(hours, minutes, 0, 0);
+          if (slotDate > now) {
+            slots.push({ id: `${schedule.id}-slot-${slots.length}`, time: slotDate, baseScheduleId: schedule.id });
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Error parsing recurring pattern:', e);
+  }
+  
+  return slots;
+}
+
 export default function EventRegistrationClient({ event }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Event schedule, 2: Webinar schedule (if bundle), 3: Success
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [webinarScheduleSlots, setWebinarScheduleSlots] = useState<ScheduleSlot[]>([]);
 
   // Form state
   const [form, setForm] = useState({
@@ -70,6 +135,56 @@ export default function EventRegistrationClient({ event }: Props) {
     webinarDate?: string;
   } | null>(null);
 
+  // Generate webinar schedule slots (like RegistrationModal does)
+  useEffect(() => {
+    if (!event.bundledWebinar?.schedules) return;
+
+    const maxSchedulesToShow = event.bundledWebinar.maxSchedulesToShow ?? 5;
+    const roundJIT = event.bundledWebinar.roundJITTo15Minutes ?? true;
+    const allTimeSlots: ScheduleSlot[] = [];
+    const now = new Date();
+
+    event.bundledWebinar.schedules.forEach((schedule) => {
+      if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
+        const scheduleTime = new Date(schedule.scheduledAt);
+        if (scheduleTime > now) {
+          allTimeSlots.push({ id: schedule.id, time: scheduleTime, schedule, isRecurring: false });
+        }
+      } else if (schedule.scheduleType === 'justInTime') {
+        const jitTime = new Date();
+        jitTime.setMinutes(jitTime.getMinutes() + (schedule.minutesFromReg || 5));
+        const finalJitTime = roundJIT ? roundToNearest15Minutes(jitTime) : jitTime;
+        allTimeSlots.push({ 
+          id: schedule.id, 
+          time: finalJitTime, 
+          schedule, 
+          isRecurring: false,
+          displayLabel: 'Watch Now'
+        });
+      } else if (schedule.scheduleType === 'recurring' && schedule.recurringPattern) {
+        const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 3);
+        slots.forEach((slot) => {
+          allTimeSlots.push({ 
+            id: slot.id, 
+            time: slot.time, 
+            schedule, 
+            isRecurring: true 
+          });
+        });
+      }
+    });
+
+    // Remove duplicates (within 1 minute)
+    const uniqueSlots = allTimeSlots.filter((slot, index, self) => {
+      const duplicateIndex = self.findIndex(s => Math.abs(s.time.getTime() - slot.time.getTime()) < 60000);
+      return duplicateIndex === index;
+    });
+
+    // Sort by time and limit
+    uniqueSlots.sort((a, b) => a.time.getTime() - b.time.getTime());
+    setWebinarScheduleSlots(uniqueSlots.slice(0, maxSchedulesToShow));
+  }, [event.bundledWebinar]);
+
   const formatDate = (dateStr: string, tz?: string) => {
     return new Date(dateStr).toLocaleDateString('en-US', {
       weekday: 'long',
@@ -86,6 +201,24 @@ export default function EventRegistrationClient({ event }: Props) {
       minute: '2-digit',
       timeZoneName: 'short',
       timeZone: tz,
+    });
+  };
+
+  // Format Date object directly (for generated slots)
+  const formatDateFromDate = (date: Date) => {
+    return date.toLocaleDateString('en-US', {
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  };
+
+  const formatTimeFromDate = (date: Date) => {
+    return date.toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      timeZoneName: 'short',
     });
   };
 
@@ -371,72 +504,52 @@ export default function EventRegistrationClient({ event }: Props) {
             </p>
 
             <form onSubmit={handleStep2Submit} className="space-y-6">
-              {/* Webinar Schedule Selection */}
+              {/* Webinar Schedule Selection - Generated slots like RegistrationModal */}
               <div className="space-y-3">
-                {event.bundledWebinar.schedules
-                  .filter(s => s.scheduleType === 'specific' && s.scheduledAt)
-                  .map(schedule => (
-                    <label
-                      key={schedule.id}
-                      className={`block p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        form.webinarScheduleId === schedule.id
-                          ? 'border-purple-600 bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="webinarSchedule"
-                          value={schedule.id}
-                          checked={form.webinarScheduleId === schedule.id}
-                          onChange={(e) => setForm({ ...form, webinarScheduleId: e.target.value, skipWebinar: false })}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <div>
-                          <div className="font-medium">{formatDate(schedule.scheduledAt!, schedule.timezone)}</div>
-                          <div className="text-sm text-gray-500 flex items-center gap-1">
-                            <Clock className="w-3 h-3" />
-                            {formatTime(schedule.scheduledAt!, schedule.timezone)}
-                            {event.bundledWebinar?.duration && (
-                              <span className="text-gray-400"> • {event.bundledWebinar.duration} min</span>
-                            )}
-                          </div>
+                {webinarScheduleSlots.map(slot => (
+                  <label
+                    key={slot.id}
+                    className={`block p-4 border-2 rounded-xl cursor-pointer transition-all ${
+                      form.webinarScheduleId === slot.id
+                        ? 'border-purple-600 bg-purple-50'
+                        : 'border-gray-200 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name="webinarSchedule"
+                        value={slot.id}
+                        checked={form.webinarScheduleId === slot.id}
+                        onChange={(e) => setForm({ ...form, webinarScheduleId: e.target.value, skipWebinar: false })}
+                        className="w-4 h-4 text-purple-600"
+                      />
+                      <div>
+                        <div className="font-medium">
+                          {slot.displayLabel || formatDateFromDate(slot.time)}
+                        </div>
+                        <div className="text-sm text-gray-500 flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {formatTimeFromDate(slot.time)}
+                          {event.bundledWebinar?.duration && (
+                            <span className="text-gray-400"> • {event.bundledWebinar.duration} min</span>
+                          )}
+                          {slot.schedule.scheduleType === 'justInTime' && (
+                            <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                              Starts Soon
+                            </span>
+                          )}
                         </div>
                       </div>
-                    </label>
-                  ))}
+                    </div>
+                  </label>
+                ))}
 
-                {/* Just-in-time schedules */}
-                {event.bundledWebinar.schedules
-                  .filter(s => s.scheduleType === 'justInTime')
-                  .map(schedule => (
-                    <label
-                      key={schedule.id}
-                      className={`block p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                        form.webinarScheduleId === schedule.id
-                          ? 'border-purple-600 bg-purple-50'
-                          : 'border-gray-200 hover:border-purple-300'
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <input
-                          type="radio"
-                          name="webinarSchedule"
-                          value={schedule.id}
-                          checked={form.webinarScheduleId === schedule.id}
-                          onChange={(e) => setForm({ ...form, webinarScheduleId: e.target.value, skipWebinar: false })}
-                          className="w-4 h-4 text-purple-600"
-                        />
-                        <div>
-                          <div className="font-medium">Watch Now</div>
-                          <div className="text-sm text-gray-500">
-                            Start within {schedule.minutesFromReg} minutes
-                          </div>
-                        </div>
-                      </div>
-                    </label>
-                  ))}
+                {webinarScheduleSlots.length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    No available webinar times at the moment
+                  </div>
+                )}
               </div>
 
               {/* Skip Option */}

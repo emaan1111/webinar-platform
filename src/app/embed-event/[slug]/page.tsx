@@ -32,6 +32,8 @@ export default async function EmbedEventPage({ params }: PageProps) {
           slug: true,
           description: true,
           duration: true,
+          roundJITTo15Minutes: true,
+          maxSchedulesToShow: true,
           schedules: {
             where: {
               isActive: true,
@@ -77,12 +79,15 @@ export default async function EmbedEventPage({ params }: PageProps) {
           slug: event.bundledWebinar.slug ?? '',
           description: event.bundledWebinar.description ?? undefined,
           duration: event.bundledWebinar.duration,
+          roundJITTo15Minutes: event.bundledWebinar.roundJITTo15Minutes ?? true,
+          maxSchedulesToShow: event.bundledWebinar.maxSchedulesToShow ?? 5,
           schedules: event.bundledWebinar.schedules.map((s: any) => ({
             id: s.id,
             scheduledAt: s.scheduledAt?.toISOString(),
             scheduleType: s.scheduleType,
             minutesFromReg: s.minutesFromReg ?? undefined,
             timezone: s.timezone ?? undefined,
+            recurringPattern: s.recurringPattern ?? undefined,
           })),
         }
       : null,
