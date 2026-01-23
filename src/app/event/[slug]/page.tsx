@@ -74,7 +74,7 @@ export default async function EventRegistrationPage({ params }: PageProps) {
     bundledWebinar: event.bundledWebinar ? {
       id: event.bundledWebinar.id,
       title: event.bundledWebinar.title,
-      slug: event.bundledWebinar.slug,
+      slug: event.bundledWebinar.slug ?? '',
       description: event.bundledWebinar.description ?? undefined,
       duration: event.bundledWebinar.duration,
       schedules: event.bundledWebinar.schedules.map((s: any) => ({
