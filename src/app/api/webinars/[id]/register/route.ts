@@ -183,8 +183,149 @@ export async function POST(
 
     // Capture visitor ID for analytics BEFORE sending response
     const visitorId = cookies().get('webinar_visitor_id')?.value;
+
+    // ====== CRITICAL: ClickFunnels sync happens BEFORE response ======
+    // This ensures the registration tag is applied immediately and not killed
+    // by serverless function termination
+    let schedule = null;
+    if (scheduleId) {
+      try {
+        schedule = await prisma.webinarSchedule.findUnique({
+          where: { id: scheduleId },
+          select: { zoomLink: true, isZoomSession: true }
+        });
+      } catch (e) {
+        console.error('Error fetching schedule', e);
+      }
+    }
+
+    // Format times for ClickFunnels
+    const formatInTimezone = (date: Date, timeZone: string) => {
+      return new Intl.DateTimeFormat('en-US', {
+        timeZone,
+        dateStyle: 'full',
+        timeStyle: 'long'
+      }).format(date);
+    };
+
+    let formattedWebinarTime: string | null = null;
+    let formattedLocalWebinarTime: string | null = null;
+    let attendeeTimezoneLabel: string | null = null;
     
-    // Return success IMMEDIATELY - all non-critical work happens in background
+    if (registration.scheduledStartTime) {
+      try {
+        formattedWebinarTime = formatInTimezone(new Date(registration.scheduledStartTime), 'America/New_York');
+      } catch (error) {
+        console.error('Failed to format time for EST:', error);
+      }
+
+      const attendeeTimezone = registration.timezone || timezone;
+      if (attendeeTimezone) {
+        try {
+          const userTime = formatInTimezone(new Date(registration.scheduledStartTime), attendeeTimezone);
+          const [region, city] = attendeeTimezone.split('/');
+          const cityLabel = city?.replace(/_/g, ' ') || attendeeTimezone;
+          const regionLabel = region?.replace(/_/g, ' ');
+          attendeeTimezoneLabel = regionLabel ? `${cityLabel}, ${regionLabel}` : cityLabel;
+          formattedLocalWebinarTime = `${userTime}${attendeeTimezoneLabel ? ` (${attendeeTimezoneLabel})` : ''}`;
+        } catch (error) {
+          console.error('Failed to format attendee timezone time:', error);
+        }
+      }
+    }
+
+    if (!formattedLocalWebinarTime && formattedWebinarTime) {
+      formattedLocalWebinarTime = formattedWebinarTime;
+    }
+
+    // Build links for ClickFunnels
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                    process.env.NEXTAUTH_URL || 
+                    'https://emaanpowerclasses.com';
+    const countdownLink = webinar.slug 
+      ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
+      : null;
+    const referralLink = webinar.slug
+      ? `${baseUrl}/w/${webinar.slug}?ref=${registration.referralCode}`
+      : null;
+
+    // SYNC TO CLICKFUNNELS IMMEDIATELY (registration tag applied here)
+    console.log('🚀 Syncing registration to ClickFunnels BEFORE response...');
+    try {
+      await syncWebinarRegistrationToClickFunnels({
+        name: registration.name,
+        email: registration.email,
+        phone: registration.phone,
+        timezone: registration.timezone,
+        country: registration.country,
+        webinarId: webinar.id,
+        webinarTitle: webinar.title,
+        scheduledStartTime: registration.scheduledStartTime,
+        countdownLink: countdownLink,
+        referralLink: referralLink,
+        formattedWebinarTime: formattedWebinarTime,
+        formattedWebinarTimeLocal: formattedLocalWebinarTime,
+        attendeeTimezoneLabel,
+        zoomLink: schedule?.zoomLink || undefined,
+        isZoomSession: schedule?.isZoomSession || false,
+        customTags: {
+          registrationTag: webinar.registrationTag,
+          attendedTag: webinar.attendedTag,
+          mostlyAttendedTag: webinar.mostlyAttendedTag,
+          partlyAttendedTag: webinar.partlyAttendedTag,
+          missedTag: webinar.missedTag,
+          replayAttendedTag: webinar.replayAttendedTag,
+        }
+      });
+      console.log('✅ ClickFunnels sync completed - registration tag applied!');
+    } catch (err) {
+      console.error('❌ ClickFunnels sync error:', err);
+      // Don't fail registration if CF sync fails - log and continue
+    }
+
+    // Apply timing reminder tag immediately as well (if needed)
+    if (registration.scheduledStartTime) {
+      const webinarStart = new Date(registration.scheduledStartTime);
+      const now = new Date();
+      const hoursUntilWebinar = (webinarStart.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      const timingBuckets = [
+        { tagName: '24HRREMINDER', offsetHours: 24 },
+        { tagName: '2HRREMINDER', offsetHours: 2 },
+        { tagName: '1HRREMINDER', offsetHours: 1 },
+        { tagName: '15MINREMINDER', offsetHours: 0.25 },
+        { tagName: 'WESTARTED', offsetHours: 0 }
+      ] as const;
+
+      const selectedBucket = timingBuckets.find(bucket => hoursUntilWebinar >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1];
+      const scheduledFor = selectedBucket.offsetHours > 0
+        ? new Date(webinarStart.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
+        : now;
+
+      if (selectedBucket.offsetHours > 0 && scheduledFor > now) {
+        try {
+          await scheduleDelayedClickFunnelsTag({
+            registrationId: registration.id,
+            tagName: selectedBucket.tagName,
+            scheduledFor
+          });
+          console.log(`⏰ Scheduled ${selectedBucket.tagName} for later`);
+        } catch (err) {
+          console.error(`Failed to schedule ${selectedBucket.tagName}:`, err);
+        }
+      } else {
+        try {
+          const { applyReminderTagToContact } = await import('@/lib/clickfunnels');
+          await applyReminderTagToContact(registration.email, selectedBucket.tagName);
+          console.log(`✅ Applied ${selectedBucket.tagName} immediately`);
+        } catch (err) {
+          console.error(`Failed to apply ${selectedBucket.tagName}:`, err);
+        }
+      }
+    }
+    // ====== END CRITICAL SECTION ======
+    
+    // Return success - ClickFunnels sync is complete
     const response = NextResponse.json(
       { 
         registrationId: registration.id,
@@ -202,7 +343,7 @@ export async function POST(
       }
     );
 
-    // ALL integration work happens in background - nothing blocks the user
+    // NON-CRITICAL integration work happens in background
     runInBackground('Post-registration integrations', async () => {
       // 1. Server-Side Split Test & Lead Page Tracking
       // More reliable than client-side beacons
@@ -283,19 +424,6 @@ export async function POST(
       } catch (error) {
         console.error('Failed to link registration to page visit:', error);
       }
-
-      // Start: Fix for undefined 'schedule' error
-      // Fetch schedule to get Zoom link if applicable
-      let schedule = null;
-      if (scheduleId) {
-        try {
-            schedule = await prisma.webinarSchedule.findUnique({
-            where: { id: scheduleId },
-            select: { zoomLink: true, isZoomSession: true }
-            });
-        } catch(e) { console.error('Error fetching schedule', e); }
-      }
-      // End: Fix
       
       // Validate referral code in background
       if (referredByCode && referredBy) {
@@ -346,121 +474,9 @@ export async function POST(
         currency: 'USD'
       }).catch(err => console.error('Facebook API error:', err));
 
-      // Build countdown page link
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                      process.env.NEXTAUTH_URL || 
-                      'https://emaanpowerclasses.com';
-      const countdownLink = webinar.slug 
-        ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
-        : null;
-
-      // Build referral link
-      const referralLink = webinar.slug
-        ? `${baseUrl}/w/${webinar.slug}?ref=${registration.referralCode}`
-        : null;
-
-      // Format scheduled time in US/Eastern timezone and attendee timezone
-      const formatInTimezone = (date: Date, timeZone: string) => {
-        return new Intl.DateTimeFormat('en-US', {
-          timeZone,
-          dateStyle: 'full',
-          timeStyle: 'long'
-        }).format(date);
-      };
-
-      let formattedWebinarTime: string | null = null;
-      let formattedLocalWebinarTime: string | null = null;
-      let attendeeTimezoneLabel: string | null = null;
-      
-      if (registration.scheduledStartTime) {
-        try {
-          formattedWebinarTime = formatInTimezone(new Date(registration.scheduledStartTime), 'America/New_York');
-        } catch (error) {
-          console.error('Failed to format time for EST:', error);
-        }
-
-        const attendeeTimezone = registration.timezone || timezone;
-        if (attendeeTimezone) {
-          try {
-            const userTime = formatInTimezone(new Date(registration.scheduledStartTime), attendeeTimezone);
-            const [region, city] = attendeeTimezone.split('/');
-            const cityLabel = city?.replace(/_/g, ' ') || attendeeTimezone;
-            const regionLabel = region?.replace(/_/g, ' ');
-            attendeeTimezoneLabel = regionLabel ? `${cityLabel}, ${regionLabel}` : cityLabel;
-            formattedLocalWebinarTime = `${userTime}${attendeeTimezoneLabel ? ` (${attendeeTimezoneLabel})` : ''}`;
-          } catch (error) {
-            console.error('Failed to format attendee timezone time:', error);
-          }
-        }
-      }
-
-      // Fallback to EST time when attendee timezone formatting fails
-      if (!formattedLocalWebinarTime && formattedWebinarTime) {
-        formattedLocalWebinarTime = formattedWebinarTime;
-      }
-
-      // Sync to ClickFunnels
-      await syncWebinarRegistrationToClickFunnels({
-        name: registration.name,
-        email: registration.email,
-        phone: registration.phone,
-        timezone: registration.timezone,
-        country: registration.country,
-        webinarId: webinar.id,
-        webinarTitle: webinar.title,
-        scheduledStartTime: registration.scheduledStartTime,
-        countdownLink: countdownLink,
-        referralLink: referralLink,
-        formattedWebinarTime: formattedWebinarTime,
-        formattedWebinarTimeLocal: formattedLocalWebinarTime,
-        attendeeTimezoneLabel,
-        zoomLink: schedule?.zoomLink || undefined,
-        isZoomSession: schedule?.isZoomSession || false,
-        customTags: {
-          registrationTag: webinar.registrationTag,
-          attendedTag: webinar.attendedTag,
-          mostlyAttendedTag: webinar.mostlyAttendedTag,
-          partlyAttendedTag: webinar.partlyAttendedTag,
-          missedTag: webinar.missedTag,
-          replayAttendedTag: webinar.replayAttendedTag,
-        }
-      }).catch(err => console.error('ClickFunnels sync error:', err));
-
-      // Schedule email and SMS reminders
+      // Schedule email and SMS reminders (non-critical, can run in background)
       await scheduleRemindersForRegistration(registration.id)
         .catch(err => console.error('Failed to schedule reminders:', err));
-
-      // Schedule reminder tags
-      if (registration.scheduledStartTime) {
-        const webinarStart = new Date(registration.scheduledStartTime);
-        const now = new Date();
-        const hoursUntilWebinar = (webinarStart.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-        const timingBuckets = [
-          { tagName: '24HRREMINDER', offsetHours: 24 },
-          { tagName: '2HRREMINDER', offsetHours: 2 },
-          { tagName: '1HRREMINDER', offsetHours: 1 },
-          { tagName: '15MINREMINDER', offsetHours: 0.25 },
-          { tagName: 'WESTARTED', offsetHours: 0 }
-        ] as const;
-
-        const selectedBucket = timingBuckets.find(bucket => hoursUntilWebinar >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1];
-        const scheduledFor = selectedBucket.offsetHours > 0
-          ? new Date(webinarStart.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
-          : now;
-
-        if (selectedBucket.offsetHours > 0 && scheduledFor > now) {
-          await scheduleDelayedClickFunnelsTag({
-            registrationId: registration.id,
-            tagName: selectedBucket.tagName,
-            scheduledFor
-          }).catch(err => console.error(`Failed to schedule ${selectedBucket.tagName}:`, err));
-        } else {
-          const { applyReminderTagToContact } = await import('@/lib/clickfunnels');
-          await applyReminderTagToContact(registration.email, selectedBucket.tagName)
-            .catch(err => console.error(`Failed to apply ${selectedBucket.tagName}:`, err));
-        }
-      }
     });
 
     return response;
