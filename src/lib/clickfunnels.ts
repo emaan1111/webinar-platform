@@ -399,19 +399,11 @@ export async function sendContactToClickFunnels(
         error: errorText
       })
 
-      // Check for duplicate/existing contact scenarios
-      // ClickFunnels 2.0 may return 422 with various messages about existing contacts
       const isDuplicate =
         response.status === 409 ||
-        (response.status === 422 && (
-          /Duplicate entry/i.test(errorText || '') ||
-          /already.*exists/i.test(errorText || '') ||
-          /already.*been.*taken/i.test(errorText || '') ||
-          /email.*address.*taken/i.test(errorText || '')
-        ))
+        (response.status === 422 && /Duplicate entry/i.test(errorText || ''))
 
       if (isDuplicate) {
-        console.log('🔄 Contact exists - updating and re-applying tags...')
         return await updateClickFunnelsContact(normalizedContactData)
       }
 
@@ -427,8 +419,6 @@ export async function sendContactToClickFunnels(
     console.log('✅ Contact sent to ClickFunnels - ID:', contact?.id || 'ID not in response')
 
     // Apply tags with a separate API call if tag_ids were provided
-    // For new contacts, just apply normally. The applyTagsToContact function will
-    // handle the case where tag already exists (remove and re-apply)
     if (normalizedContactData.tag_ids && normalizedContactData.tag_ids.length > 0 && contact.id) {
       console.log('🏷️ Applying tags to contact...')
       await applyTagsToContact(contact.id, normalizedContactData.tag_ids)
@@ -448,12 +438,10 @@ export async function sendContactToClickFunnels(
 /**
  * Apply tags to a contact using a separate API call
  * ClickFunnels requires tags to be applied after contact creation
- * @param forceReapply - If true, always remove and re-apply tag to trigger automation
  */
 async function applyTagsToContact(
   contactId: number,
-  tagIds: number[],
-  forceReapply: boolean = false
+  tagIds: number[]
 ): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
 
@@ -463,15 +451,7 @@ async function applyTagsToContact(
 
   try {
     for (const tagId of tagIds) {
-      console.log(`   Applying tag ${tagId} to contact ${contactId}...${forceReapply ? ' (force re-apply mode)' : ''}`)
-
-      // If force reapply mode, always remove the tag first
-      if (forceReapply) {
-        console.log(`   🔄 Force re-apply: Removing tag ${tagId} first to ensure automation triggers...`)
-        await removeTagFromContact(contactId, tagId)
-        // Small delay to ensure ClickFunnels processes the removal
-        await new Promise(resolve => setTimeout(resolve, 500))
-      }
+      console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
 
       const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
 
@@ -496,46 +476,8 @@ async function applyTagsToContact(
 
       const errorText = await response.text()
 
-      // Check for "tag already exists" scenarios with various message formats
-      const tagAlreadyExists = 
-        response.status === 422 && (
-          errorText.includes('already been taken') ||
-          errorText.includes('already exists') ||
-          errorText.includes('has already been') ||
-          /tag.*already/i.test(errorText) ||
-          /already.*tag/i.test(errorText)
-        )
-
-      if (tagAlreadyExists) {
-        // Tag already exists - remove it and re-apply to trigger automation
-        console.log(`   🔄 Tag ${tagId} already applied - removing and re-applying to trigger automation...`)
-        console.log(`   📋 Error message was: ${errorText.substring(0, 200)}`)
-        const removed = await removeTagFromContact(contactId, tagId)
-        if (removed) {
-          // Small delay to ensure ClickFunnels processes the removal
-          await new Promise(resolve => setTimeout(resolve, 500))
-          
-          // Re-apply the tag
-          const reapplyResponse = await fetch(url, {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json',
-            },
-            body: JSON.stringify({
-              contacts_applied_tag: {
-                tag_id: tagId
-              }
-            })
-          })
-          
-          if (reapplyResponse.ok) {
-            console.log(`   ✅ Tag ${tagId} re-applied successfully! Automation should trigger.`)
-          } else {
-            console.error(`   ❌ Failed to re-apply tag ${tagId} after removal`)
-          }
-        }
+      if (response.status === 422 && errorText.includes('already been taken')) {
+        console.log(`   ℹ️ Tag ${tagId} already applied to contact ${contactId}`)
         continue
       }
 
@@ -545,77 +487,6 @@ async function applyTagsToContact(
     return true
   } catch (error) {
     console.error('❌ Failed to apply tags:', error)
-    return false
-  }
-}
-
-/**
- * Remove a tag from a contact in ClickFunnels
- * This allows re-applying the tag to trigger automations
- */
-async function removeTagFromContact(
-  contactId: number,
-  tagId: number
-): Promise<boolean> {
-  const apiKey = process.env.CLICKFUNNELS_API_KEY
-
-  if (!apiKey) {
-    return false
-  }
-
-  try {
-    // First, we need to find the applied_tag ID (not the tag ID)
-    // ClickFunnels requires the applied_tag record ID to delete
-    const listUrl = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
-    
-    const listResponse = await fetch(listUrl, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      }
-    })
-
-    if (!listResponse.ok) {
-      console.error(`   ❌ Failed to list applied tags for contact ${contactId}`)
-      return false
-    }
-
-    const appliedTags = await listResponse.json()
-    const tagsList = Array.isArray(appliedTags) ? appliedTags : appliedTags?.data || []
-    
-    // Find the applied_tag record that matches our tag_id
-    const appliedTag = tagsList.find((at: any) => at.tag_id === tagId || at.tag?.id === tagId)
-    
-    if (!appliedTag) {
-      console.log(`   ℹ️ Tag ${tagId} not found in applied tags - may have been removed already`)
-      return true // Consider it removed
-    }
-
-    const appliedTagId = appliedTag.id
-    console.log(`   🗑️ Removing applied_tag ${appliedTagId} (tag_id: ${tagId})...`)
-
-    // Delete the applied_tag record
-    const deleteUrl = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags/${appliedTagId}`
-    
-    const deleteResponse = await fetch(deleteUrl, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Accept': 'application/json',
-      }
-    })
-
-    if (deleteResponse.ok || deleteResponse.status === 204) {
-      console.log(`   ✅ Tag ${tagId} removed from contact ${contactId}`)
-      return true
-    }
-
-    const errorText = await deleteResponse.text()
-    console.error(`   ❌ Failed to remove tag: ${deleteResponse.status}`, errorText)
-    return false
-  } catch (error) {
-    console.error('❌ Failed to remove tag from contact:', error)
     return false
   }
 }
@@ -680,10 +551,8 @@ async function updateClickFunnelsContact(
     const result = await updateResponse.json()
     console.log('✅ Contact updated in ClickFunnels - ID:', result?.id || 'Unknown')
 
-    // Force re-apply tags for existing contacts to trigger automation
     if (tag_ids && tag_ids.length > 0) {
-      console.log('🔄 Forcing tag re-apply for existing contact to trigger automation...')
-      await applyTagsToContact(existingContact.id, tag_ids, true) // forceReapply = true
+      await applyTagsToContact(existingContact.id, tag_ids)
     }
 
     return result
@@ -755,8 +624,7 @@ export async function tagClickFunnelsContact(
       return false
     }
 
-    // Force re-apply since this function is typically called for existing contacts
-    await applyTagsToContact(contact.id, tagIds, true) // forceReapply = true
+    await applyTagsToContact(contact.id, tagIds)
 
     console.log('✅ Contact tagged successfully:', tagIds)
     return true
@@ -789,12 +657,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   customTags?: WebinarCustomTags
 }): Promise<boolean> {
   try {
-    // Get the webinar-specific registration tag (or default if not set)
-    const tagName = getAttendanceTagName('registered', data.customTags)
-    console.log(`🏷️ Using registration tag: "${tagName}" for webinar "${data.webinarTitle}"`)
-    
     const registeredTagId = await resolveAttendanceTagId('registered', data.customTags)
-    console.log(`🏷️ Resolved tag "${tagName}" to ID: ${registeredTagId}`)
 
     // Split name into first and last
     const nameParts = data.name.trim().split(' ')

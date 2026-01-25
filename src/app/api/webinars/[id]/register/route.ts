@@ -117,32 +117,6 @@ export async function POST(
       )
     }
 
-    // Check for existing registration with same email for this webinar
-    // We'll still create a new registration but re-sync to ClickFunnels to trigger automation
-    const existingRegistration = await prisma.registration.findFirst({
-      where: {
-        webinarId: id,
-        email: email.trim().toLowerCase(),
-      },
-      orderBy: {
-        registeredAt: 'desc' // Get most recent registration
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        referralCode: true,
-        scheduledStartTime: true,
-        scheduleId: true,
-      }
-    });
-
-    // Log if user has registered before (we'll still create a new registration)
-    // The ClickFunnels sync will handle tag removal/re-apply to trigger automation
-    if (existingRegistration) {
-      console.log(`📋 Existing registration found for ${email} - will create new registration and re-trigger ClickFunnels automation`);
-    }
-
     // Get test group if A/B testing is enabled
     let testGroup: string | null = null
     if (webinar.enableABTesting) {
