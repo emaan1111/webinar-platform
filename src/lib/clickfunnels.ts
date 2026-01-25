@@ -427,9 +427,10 @@ export async function sendContactToClickFunnels(
     console.log('✅ Contact sent to ClickFunnels - ID:', contact?.id || 'ID not in response')
 
     // Apply tags with a separate API call if tag_ids were provided
+    // Always use forceReapply=true to ensure automation triggers even if tag already exists
     if (normalizedContactData.tag_ids && normalizedContactData.tag_ids.length > 0 && contact.id) {
-      console.log('🏷️ Applying tags to contact...')
-      await applyTagsToContact(contact.id, normalizedContactData.tag_ids)
+      console.log('🏷️ Applying tags to contact (with force re-apply)...')
+      await applyTagsToContact(contact.id, normalizedContactData.tag_ids, true) // forceReapply = true
     }
 
     return contact
