@@ -399,11 +399,19 @@ export async function sendContactToClickFunnels(
         error: errorText
       })
 
+      // Check for duplicate/existing contact scenarios
+      // ClickFunnels 2.0 may return 422 with various messages about existing contacts
       const isDuplicate =
         response.status === 409 ||
-        (response.status === 422 && /Duplicate entry/i.test(errorText || ''))
+        (response.status === 422 && (
+          /Duplicate entry/i.test(errorText || '') ||
+          /already.*exists/i.test(errorText || '') ||
+          /already.*been.*taken/i.test(errorText || '') ||
+          /email.*address.*taken/i.test(errorText || '')
+        ))
 
       if (isDuplicate) {
+        console.log('🔄 Contact exists - updating and re-applying tags...')
         return await updateClickFunnelsContact(normalizedContactData)
       }
 
@@ -438,10 +446,12 @@ export async function sendContactToClickFunnels(
 /**
  * Apply tags to a contact using a separate API call
  * ClickFunnels requires tags to be applied after contact creation
+ * @param forceReapply - If true, always remove and re-apply tag to trigger automation
  */
 async function applyTagsToContact(
   contactId: number,
-  tagIds: number[]
+  tagIds: number[],
+  forceReapply: boolean = false
 ): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
 
@@ -451,7 +461,15 @@ async function applyTagsToContact(
 
   try {
     for (const tagId of tagIds) {
-      console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
+      console.log(`   Applying tag ${tagId} to contact ${contactId}...${forceReapply ? ' (force re-apply mode)' : ''}`)
+
+      // If force reapply mode, always remove the tag first
+      if (forceReapply) {
+        console.log(`   🔄 Force re-apply: Removing tag ${tagId} first to ensure automation triggers...`)
+        await removeTagFromContact(contactId, tagId)
+        // Small delay to ensure ClickFunnels processes the removal
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
 
       const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
 
@@ -476,9 +494,20 @@ async function applyTagsToContact(
 
       const errorText = await response.text()
 
-      if (response.status === 422 && errorText.includes('already been taken')) {
+      // Check for "tag already exists" scenarios with various message formats
+      const tagAlreadyExists = 
+        response.status === 422 && (
+          errorText.includes('already been taken') ||
+          errorText.includes('already exists') ||
+          errorText.includes('has already been') ||
+          /tag.*already/i.test(errorText) ||
+          /already.*tag/i.test(errorText)
+        )
+
+      if (tagAlreadyExists) {
         // Tag already exists - remove it and re-apply to trigger automation
         console.log(`   🔄 Tag ${tagId} already applied - removing and re-applying to trigger automation...`)
+        console.log(`   📋 Error message was: ${errorText.substring(0, 200)}`)
         const removed = await removeTagFromContact(contactId, tagId)
         if (removed) {
           // Small delay to ensure ClickFunnels processes the removal
@@ -649,8 +678,10 @@ async function updateClickFunnelsContact(
     const result = await updateResponse.json()
     console.log('✅ Contact updated in ClickFunnels - ID:', result?.id || 'Unknown')
 
+    // Force re-apply tags for existing contacts to trigger automation
     if (tag_ids && tag_ids.length > 0) {
-      await applyTagsToContact(existingContact.id, tag_ids)
+      console.log('🔄 Forcing tag re-apply for existing contact to trigger automation...')
+      await applyTagsToContact(existingContact.id, tag_ids, true) // forceReapply = true
     }
 
     return result
@@ -722,7 +753,8 @@ export async function tagClickFunnelsContact(
       return false
     }
 
-    await applyTagsToContact(contact.id, tagIds)
+    // Force re-apply since this function is typically called for existing contacts
+    await applyTagsToContact(contact.id, tagIds, true) // forceReapply = true
 
     console.log('✅ Contact tagged successfully:', tagIds)
     return true
