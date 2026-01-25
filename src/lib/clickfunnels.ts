@@ -755,7 +755,12 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   customTags?: WebinarCustomTags
 }): Promise<boolean> {
   try {
+    // Get the webinar-specific registration tag (or default if not set)
+    const tagName = getAttendanceTagName('registered', data.customTags)
+    console.log(`🏷️ Using registration tag: "${tagName}" for webinar "${data.webinarTitle}"`)
+    
     const registeredTagId = await resolveAttendanceTagId('registered', data.customTags)
+    console.log(`🏷️ Resolved tag "${tagName}" to ID: ${registeredTagId}`)
 
     // Split name into first and last
     const nameParts = data.name.trim().split(' ')
