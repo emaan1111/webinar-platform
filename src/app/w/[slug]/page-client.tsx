@@ -1089,18 +1089,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
       }
 
       const registrationData = await response.json()
-
-      // Handle "already registered" case - redirect to countdown/room with their existing registration
-      if (registrationData.alreadyRegistered) {
-        console.log('📋 User already registered - redirecting to countdown page...')
-        // Use the countdown link from the response, or fallback to constructing it
-        if (registrationData.links?.countdown) {
-          window.location.href = registrationData.links.countdown
-        } else {
-          window.location.href = `/countdown/${webinar!.slug}?r=${registrationData.registrationId}`
-        }
-        return
-      }
       
       // Track A/B test conversion (fire-and-forget, doesn't block redirect)
       if (webinar?.enableABTesting && registrationData.registrationId) {

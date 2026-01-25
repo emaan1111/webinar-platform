@@ -1265,12 +1265,6 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
 
       const result = await response.json();
       
-      // Handle "already registered" case
-      if (result.alreadyRegistered) {
-        showAlreadyRegistered(result.links?.countdown || result.links?.room);
-        return;
-      }
-      
       // Show success message
       showSuccess();
       
@@ -1301,35 +1295,6 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
           <button onclick="window.location.reload()" style="padding: 12px 24px; background: \${THEME.buttonBg}; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
             Close
           </button>
-        </div>
-      \`;
-    }
-  }
-
-  // Show already registered message with link to webinar
-  function showAlreadyRegistered(webinarLink) {
-    const contentEl = document.querySelector('.webinar-embed-content-purple, .webinar-embed-content-blue, .webinar-embed-content-green, .webinar-embed-content') 
-      || document.getElementById(\`webinar-embed-\${WEBINAR_DATA.id}\`);
-    
-    if (contentEl) {
-      contentEl.innerHTML = \`
-        <div class="webinar-embed-success">
-          <div class="webinar-embed-success-icon" style="background: #FEF3C7; color: #D97706;">📋</div>
-          <h2 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 12px;">
-            You're Already Registered!
-          </h2>
-          <p style="font-size: 16px; color: #6b7280; margin-bottom: 24px;">
-            We've resent your webinar link to your email. Check your inbox!
-          </p>
-          \${webinarLink ? \`
-            <a href="\${webinarLink}" target="_blank" style="display: inline-block; padding: 12px 24px; background: \${THEME.buttonBg}; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; text-decoration: none;">
-              Go to Webinar →
-            </a>
-          \` : \`
-            <button onclick="window.location.reload()" style="padding: 12px 24px; background: \${THEME.buttonBg}; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
-              Close
-            </button>
-          \`}
         </div>
       \`;
     }

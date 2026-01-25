@@ -608,6 +608,47 @@ function processCountdownTemplate(
   var targetTime = new Date('${scheduleDateTime.toISOString()}').getTime();
   var joinUrl = '${escapeJsString(joinLink)}';
   var hasRedirected = false;
+  var webinarStarted = false;
+  
+  // Function to check if webinar has started
+  function isWebinarStarted() {
+    return new Date().getTime() >= targetTime;
+  }
+  
+  // Intercept clicks on room/join links before webinar starts
+  function setupJoinLinkProtection() {
+    // Find all links that point to /room/
+    var allLinks = document.querySelectorAll('a[href*="/room/"]');
+    
+    allLinks.forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        if (!isWebinarStarted()) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          // Calculate time remaining
+          var now = new Date().getTime();
+          var distance = targetTime - now;
+          var minutes = Math.ceil(distance / (1000 * 60));
+          
+          // Show alert message
+          if (minutes > 60) {
+            var hours = Math.floor(minutes / 60);
+            var remainingMinutes = minutes % 60;
+            alert('The webinar has not started yet. Please come back in ' + hours + ' hour(s) and ' + remainingMinutes + ' minute(s).');
+          } else if (minutes > 1) {
+            alert('The webinar has not started yet. Please come back in ' + minutes + ' minute(s).');
+          } else {
+            alert('The webinar will start very soon! Please wait for the countdown to complete.');
+          }
+          
+          return false;
+        }
+      });
+    });
+    
+    console.log('[Countdown] Protected ' + allLinks.length + ' join link(s) from early access');
+  }
   
   function updateCountdown() {
     if (!document || !document.getElementById) {
@@ -618,6 +659,7 @@ function processCountdownTemplate(
     var distance = targetTime - now;
     
     if (distance <= 0) {
+      webinarStarted = true;
       var el = document.getElementById('countdown');
       if (el) {
         el.innerHTML = 'Webinar is Live! Redirecting...';
@@ -666,10 +708,12 @@ function processCountdownTemplate(
   // Start countdown immediately and repeat every second
   if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', function() {
+      setupJoinLinkProtection();
       updateCountdown();
       setInterval(updateCountdown, 1000);
     });
   } else {
+    setupJoinLinkProtection();
     updateCountdown();
     setInterval(updateCountdown, 1000);
   }
@@ -687,6 +731,41 @@ function processCountdownTemplate(
   var joinUrl = '${escapeJsString(joinLink)}';
   var hasRedirected = false;
 
+  // Function to check if webinar has started
+  function isWebinarStarted() {
+    return new Date().getTime() >= targetTime;
+  }
+  
+  // Intercept clicks on room/join links before webinar starts
+  function setupJoinLinkProtection() {
+    var allLinks = document.querySelectorAll('a[href*="/room/"]');
+    
+    allLinks.forEach(function(link) {
+      link.addEventListener('click', function(e) {
+        if (!isWebinarStarted()) {
+          e.preventDefault();
+          e.stopPropagation();
+          
+          var now = new Date().getTime();
+          var distance = targetTime - now;
+          var minutes = Math.ceil(distance / (1000 * 60));
+          
+          if (minutes > 60) {
+            var hours = Math.floor(minutes / 60);
+            var remainingMinutes = minutes % 60;
+            alert('The webinar has not started yet. Please come back in ' + hours + ' hour(s) and ' + remainingMinutes + ' minute(s).');
+          } else if (minutes > 1) {
+            alert('The webinar has not started yet. Please come back in ' + minutes + ' minute(s).');
+          } else {
+            alert('The webinar will start very soon! Please wait for the countdown to complete.');
+          }
+          
+          return false;
+        }
+      });
+    });
+  }
+
   function checkRedirect() {
     var now = new Date().getTime();
     if (now < targetTime) {
@@ -701,10 +780,12 @@ function processCountdownTemplate(
 
   if (document.readyState === 'loading') {
     window.addEventListener('DOMContentLoaded', function() {
+      setupJoinLinkProtection();
       checkRedirect();
       setInterval(checkRedirect, 1000);
     });
   } else {
+    setupJoinLinkProtection();
     checkRedirect();
     setInterval(checkRedirect, 1000);
   }
