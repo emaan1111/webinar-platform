@@ -477,7 +477,34 @@ async function applyTagsToContact(
       const errorText = await response.text()
 
       if (response.status === 422 && errorText.includes('already been taken')) {
-        console.log(`   ℹ️ Tag ${tagId} already applied to contact ${contactId}`)
+        // Tag already exists - remove it and re-apply to trigger automation
+        console.log(`   🔄 Tag ${tagId} already applied - removing and re-applying to trigger automation...`)
+        const removed = await removeTagFromContact(contactId, tagId)
+        if (removed) {
+          // Small delay to ensure ClickFunnels processes the removal
+          await new Promise(resolve => setTimeout(resolve, 500))
+          
+          // Re-apply the tag
+          const reapplyResponse = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${apiKey}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+              contacts_applied_tag: {
+                tag_id: tagId
+              }
+            })
+          })
+          
+          if (reapplyResponse.ok) {
+            console.log(`   ✅ Tag ${tagId} re-applied successfully! Automation should trigger.`)
+          } else {
+            console.error(`   ❌ Failed to re-apply tag ${tagId} after removal`)
+          }
+        }
         continue
       }
 
@@ -487,6 +514,77 @@ async function applyTagsToContact(
     return true
   } catch (error) {
     console.error('❌ Failed to apply tags:', error)
+    return false
+  }
+}
+
+/**
+ * Remove a tag from a contact in ClickFunnels
+ * This allows re-applying the tag to trigger automations
+ */
+async function removeTagFromContact(
+  contactId: number,
+  tagId: number
+): Promise<boolean> {
+  const apiKey = process.env.CLICKFUNNELS_API_KEY
+
+  if (!apiKey) {
+    return false
+  }
+
+  try {
+    // First, we need to find the applied_tag ID (not the tag ID)
+    // ClickFunnels requires the applied_tag record ID to delete
+    const listUrl = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
+    
+    const listResponse = await fetch(listUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      }
+    })
+
+    if (!listResponse.ok) {
+      console.error(`   ❌ Failed to list applied tags for contact ${contactId}`)
+      return false
+    }
+
+    const appliedTags = await listResponse.json()
+    const tagsList = Array.isArray(appliedTags) ? appliedTags : appliedTags?.data || []
+    
+    // Find the applied_tag record that matches our tag_id
+    const appliedTag = tagsList.find((at: any) => at.tag_id === tagId || at.tag?.id === tagId)
+    
+    if (!appliedTag) {
+      console.log(`   ℹ️ Tag ${tagId} not found in applied tags - may have been removed already`)
+      return true // Consider it removed
+    }
+
+    const appliedTagId = appliedTag.id
+    console.log(`   🗑️ Removing applied_tag ${appliedTagId} (tag_id: ${tagId})...`)
+
+    // Delete the applied_tag record
+    const deleteUrl = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags/${appliedTagId}`
+    
+    const deleteResponse = await fetch(deleteUrl, {
+      method: 'DELETE',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      }
+    })
+
+    if (deleteResponse.ok || deleteResponse.status === 204) {
+      console.log(`   ✅ Tag ${tagId} removed from contact ${contactId}`)
+      return true
+    }
+
+    const errorText = await deleteResponse.text()
+    console.error(`   ❌ Failed to remove tag: ${deleteResponse.status}`, errorText)
+    return false
+  } catch (error) {
+    console.error('❌ Failed to remove tag from contact:', error)
     return false
   }
 }

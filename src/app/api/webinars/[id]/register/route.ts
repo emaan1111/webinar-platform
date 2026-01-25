@@ -117,6 +117,113 @@ export async function POST(
       )
     }
 
+    // Check for existing registration with same email for this webinar
+    const existingRegistration = await prisma.registration.findFirst({
+      where: {
+        webinarId: id,
+        email: email.trim().toLowerCase(),
+      },
+      orderBy: {
+        registeredAt: 'desc' // Get most recent registration
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        referralCode: true,
+        scheduledStartTime: true,
+        scheduleId: true,
+      }
+    });
+
+    // If they've already registered, return their existing registration
+    // But still re-sync to ClickFunnels to trigger automation
+    if (existingRegistration) {
+      console.log(`📋 Existing registration found for ${email} - re-triggering ClickFunnels automation...`);
+      
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                      process.env.NEXTAUTH_URL || 
+                      'https://emaanpowerclasses.com';
+      
+      // Build links for the existing registration
+      const countdownLink = webinar.slug 
+        ? `${baseUrl}/countdown/${webinar.slug}?r=${existingRegistration.id}${existingRegistration.scheduleId ? `&s=${existingRegistration.scheduleId}` : ''}`
+        : null;
+      const roomLink = webinar.slug
+        ? `${baseUrl}/room/${webinar.slug}?r=${existingRegistration.id}`
+        : null;
+      const referralLink = webinar.slug
+        ? `${baseUrl}/w/${webinar.slug}?ref=${existingRegistration.referralCode}`
+        : null;
+
+      // Re-sync to ClickFunnels to trigger automation (tag will be removed and re-applied)
+      try {
+        // Format times for ClickFunnels
+        const formatInTimezone = (date: Date, timeZone: string) => {
+          return new Intl.DateTimeFormat('en-US', {
+            timeZone,
+            dateStyle: 'full',
+            timeStyle: 'long'
+          }).format(date);
+        };
+
+        let formattedWebinarTime: string | null = null;
+        if (existingRegistration.scheduledStartTime) {
+          try {
+            formattedWebinarTime = formatInTimezone(new Date(existingRegistration.scheduledStartTime), 'America/New_York');
+          } catch (error) {
+            console.error('Failed to format time for EST:', error);
+          }
+        }
+
+        await syncWebinarRegistrationToClickFunnels({
+          name: existingRegistration.name,
+          email: existingRegistration.email,
+          webinarId: webinar.id,
+          webinarTitle: webinar.title,
+          scheduledStartTime: existingRegistration.scheduledStartTime,
+          countdownLink: countdownLink,
+          referralLink: referralLink,
+          formattedWebinarTime: formattedWebinarTime,
+          customTags: {
+            registrationTag: webinar.registrationTag,
+            attendedTag: webinar.attendedTag,
+            mostlyAttendedTag: webinar.mostlyAttendedTag,
+            partlyAttendedTag: webinar.partlyAttendedTag,
+            missedTag: webinar.missedTag,
+            replayAttendedTag: webinar.replayAttendedTag,
+          }
+        });
+        console.log('✅ ClickFunnels automation re-triggered for existing registration');
+      } catch (err) {
+        console.error('❌ Failed to re-trigger ClickFunnels automation:', err);
+      }
+
+      // Return "already registered" response with links
+      return NextResponse.json(
+        { 
+          alreadyRegistered: true,
+          registrationId: existingRegistration.id,
+          registration: {
+            id: existingRegistration.id,
+            name: existingRegistration.name,
+            email: existingRegistration.email,
+            referralCode: existingRegistration.referralCode
+          },
+          links: {
+            countdown: countdownLink,
+            room: roomLink,
+            referral: referralLink,
+          },
+          message: `You're already registered! Your webinar link has been resent to your email.` 
+        },
+        { 
+          status: 200,
+          headers: corsHeaders
+        }
+      );
+    }
+
     // Get test group if A/B testing is enabled
     let testGroup: string | null = null
     if (webinar.enableABTesting) {

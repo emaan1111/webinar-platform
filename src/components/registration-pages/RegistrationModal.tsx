@@ -269,6 +269,22 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
         throw new Error(data.error || 'Registration failed');
       }
 
+      // Handle "already registered" case - redirect to countdown/room with their existing registration
+      if (data.alreadyRegistered) {
+        console.log('📋 User already registered - redirecting to countdown page...')
+        const redirectUrl = data.links?.countdown || `/countdown/${webinar!.slug}?r=${data.registrationId}`
+        try {
+          if (window.top && window.top !== window) {
+            window.top.location.href = redirectUrl;
+          } else {
+            window.location.href = redirectUrl;
+          }
+        } catch (e) {
+          window.location.href = redirectUrl;
+        }
+        return;
+      }
+
       console.log('Registration successful, attempting tracking with:', trackingParams);
 
       // Track Split Test conversion
