@@ -155,7 +155,7 @@ export async function GET(request: NextRequest) {
       console.log(`📅 Processing ${dateStr}: ${currentDate.toISOString()} to ${nextDate.toISOString()}`);
 
       // Get registrations for this date
-      const registrations = await prisma.registration.findMany({
+      const allRegistrations = await prisma.registration.findMany({
         where: {
           registeredAt: {
             gte: currentDate,
@@ -164,6 +164,12 @@ export async function GET(request: NextRequest) {
           ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
         },
         include: {
+          user: {
+            select: {
+              name: true,
+              email: true
+            }
+          },
           webinar: {
             select: {
               duration: true
@@ -173,6 +179,31 @@ export async function GET(request: NextRequest) {
           sales: true
         }
       });
+
+      // Filter out test users to match Attendees page logic
+      const isTestUser = (name: string, email: string) => {
+        const nameLower = (name || '').toLowerCase()
+        const emailLower = (email || '').toLowerCase()
+        return (
+          emailLower.includes('test') ||
+          emailLower.includes('demo') ||
+          emailLower.includes('fake') ||
+          emailLower.includes('scripted') ||
+          emailLower.includes('example') ||
+          emailLower.includes('sample') ||
+          nameLower.includes('test') ||
+          nameLower.includes('demo') ||
+          nameLower.includes('fake') ||
+          nameLower.includes('scripted') ||
+          nameLower.includes('sample')
+        )
+      }
+
+      const registrations = allRegistrations.filter((reg: any) => {
+        const name = reg.name || reg.user?.name || ''
+        const email = reg.email || reg.user?.email || ''
+        return !isTestUser(name, email)
+      })
 
       // Get page visits (for visitor count)
       const pageVisits = await prisma.pageVisit.findMany({
