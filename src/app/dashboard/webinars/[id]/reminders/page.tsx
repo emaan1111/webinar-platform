@@ -1354,6 +1354,7 @@ export default function WebinarRemindersPage() {
                       <tr
                         key={log.id}
                         className="border-t border-gray-100 hover:bg-gray-50"
+                      >
                         <td className="px-4 py-3 align-top">
                           <p className="font-semibold text-gray-900">
                             {log.registration.name || log.registration.email}
@@ -1365,7 +1366,6 @@ export default function WebinarRemindersPage() {
                             {log.registration.timezone ? log.registration.timezone.replace(/_/g, ' ') : '—'}
                           </p>
                         </td>
-                        <td className="px-4 py-3 align-top">
                         <td className="px-4 py-3 align-top">
                           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
                             reminderType === 'pre_webinar' 
@@ -1410,14 +1410,14 @@ export default function WebinarRemindersPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 align-top">
-                  {reminderLogs.length === 0 && (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
+                          {log.channel === 'BOTH' ? 'Email + SMS' : log.channel === 'SMS' ? 'SMS' : 'Email'}
+                        </td>
+                      </tr>
                     )
                   })}
                   {reminderLogs.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
                         {loadingLogs ? 'Loading...' : queueTypeFilter !== 'all' || queueStatusFilter !== 'all' ? 'No reminders match the selected filters.' : 'No reminder activity yet.'}
                       </td>
                     </tr>
