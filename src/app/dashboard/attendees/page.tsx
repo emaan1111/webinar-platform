@@ -257,10 +257,16 @@ export default function AttendeesPage() {
     const matchesRegisteredDate = (() => {
       if (!registeredDateStart && !registeredDateEnd) return true
       const regDate = new Date(attendee.registeredAt)
-      if (registeredDateStart && regDate < new Date(registeredDateStart)) return false
+      
+      // Parse dates as local time by appending time component
+      // YYYY-MM-DD -> YYYY-MM-DD T00:00:00 (Local)
+      if (registeredDateStart) {
+        const startDate = new Date(registeredDateStart + 'T00:00:00')
+        if (regDate < startDate) return false
+      }
+      
       if (registeredDateEnd) {
-        const endDate = new Date(registeredDateEnd)
-        endDate.setHours(23, 59, 59, 999) // Include the entire end day
+        const endDate = new Date(registeredDateEnd + 'T23:59:59.999')
         if (regDate > endDate) return false
       }
       return true
@@ -271,10 +277,14 @@ export default function AttendeesPage() {
       if (!joinedDateStart && !joinedDateEnd) return true
       if (!attendee.joinedAt) return false
       const joinDate = new Date(attendee.joinedAt)
-      if (joinedDateStart && joinDate < new Date(joinedDateStart)) return false
+      
+      if (joinedDateStart) {
+        const startDate = new Date(joinedDateStart + 'T00:00:00')
+        if (joinDate < startDate) return false
+      }
+      
       if (joinedDateEnd) {
-        const endDate = new Date(joinedDateEnd)
-        endDate.setHours(23, 59, 59, 999)
+        const endDate = new Date(joinedDateEnd + 'T23:59:59.999')
         if (joinDate > endDate) return false
       }
       return true
