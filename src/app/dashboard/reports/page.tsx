@@ -497,7 +497,8 @@ export default function ReportsPage() {
     setLoading(true)
     setFbWarning(null)
     try {
-      let url = `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}`
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+      let url = `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}&timezone=${encodeURIComponent(timezone)}`
       if (selectedWebinars.length > 0) {
         url += `&webinarIds=${selectedWebinars.join(',')}`
       }

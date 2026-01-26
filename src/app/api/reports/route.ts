@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 /**
  * GET /api/reports
@@ -12,6 +13,7 @@ export async function GET(request: NextRequest) {
     const to = searchParams.get('to');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
     const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
+    const timezone = searchParams.get('timezone') || 'UTC';
 
     if (!from || !to) {
       return NextResponse.json(
@@ -20,13 +22,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Parse dates in local timezone (not UTC)
-    // Date strings like "2025-11-19" should be treated as local dates
-    const fromDate = new Date(from + 'T00:00:00');
-    const toDate = new Date(to + 'T23:59:59.999');
+    // Parse dates in user's timezone
+    // We convert the "local" date string (e.g. 2026-01-27 00:00:00) 
+    // combined with the user's timezone into a UTC Date object
+    const fromDate = fromZonedTime(from + 'T00:00:00', timezone);
+    const toDate = fromZonedTime(to + 'T23:59:59.999', timezone);
 
     console.log('📊 Generating reports from', from, 'to', to);
-    console.log('📅 Date range:', fromDate.toISOString(), 'to', toDate.toISOString());
+    console.log('🌍 Timezone:', timezone);
+    console.log('📅 Date range (UTC):', fromDate.toISOString(), 'to', toDate.toISOString());
     console.log('⏱️  Engagement threshold:', engagementMinutes, 'minutes');
     if (webinarIds.length > 0) {
       console.log('🎯 Filtering by webinar IDs:', webinarIds);
@@ -142,11 +146,10 @@ export async function GET(request: NextRequest) {
     const currentDate = new Date(fromDate);
 
     while (currentDate <= toDate) {
-      // Get date string in local format
-      const year = currentDate.getFullYear();
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-      const day = String(currentDate.getDate()).padStart(2, '0');
-      const dateStr = `${year}-${month}-${day}`;
+      // Get date string in user's timezone
+      // This ensures that the report label matches the user's date, 
+      // even if the UTC timestamp falls on the previous/next day.
+      const dateStr = formatInTimeZone(currentDate, timezone, 'yyyy-MM-dd');
       
       // Create next day boundary
       const nextDate = new Date(currentDate);
