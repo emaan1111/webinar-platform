@@ -34,6 +34,42 @@ export default function SettingsLandingPage() {
             </div>
           </CardBody>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-gray-900">SMS Settings</h2>
+          </CardHeader>
+          <CardBody>
+            <p className="text-sm text-gray-600">
+              Control which timezones receive SMS messages. Block specific regions to reduce costs.
+            </p>
+            <div className="mt-6">
+              <Link href="/dashboard/settings/sms">
+                <Button>
+                  Manage SMS Settings
+                </Button>
+              </Link>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold text-gray-900">SMS Settings</h2>
+          </CardHeader>
+          <CardBody>
+            <p className="text-sm text-gray-600">
+              Control which timezones receive SMS messages. Block specific regions to reduce costs.
+            </p>
+            <div className="mt-6">
+              <Link href="/dashboard/settings/sms">
+                <Button>
+                  Manage SMS Settings
+                </Button>
+              </Link>
+            </div>
+          </CardBody>
+        </Card>
       </div>
     </DashboardLayout>
   )

@@ -107,7 +107,11 @@ export async function processEndedSessionsForPostSMS(): Promise<{
           .replace(/\{webinar_title\}/g, registration.webinar.title)
 
         // Send SMS
-        await sendClickSendSMS(registration.phone!, personalizedMessage)
+        await sendClickSendSMS(
+          registration.phone!, 
+          personalizedMessage,
+          registration.timezone
+        )
 
         // Mark as sent
         await prisma.registration.update({
@@ -251,7 +255,11 @@ export async function sendPostSessionSMSForWebinar(webinarId: string): Promise<{
         .replace(/\{name\}/g, registration.name || 'there')
         .replace(/\{webinar_title\}/g, webinar.title)
 
-      await sendClickSendSMS(registration.phone!, personalizedMessage)
+      await sendClickSendSMS(
+        registration.phone!, 
+        personalizedMessage,
+        registration.timezone
+      )
 
       await prisma.registration.update({
         where: { id: registration.id },

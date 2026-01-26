@@ -529,7 +529,11 @@ async function sendReminderSMSMessage(
 
   const body = replacePlaceholders(template.smsBody, placeholders)
 
-  const { success, error } = await sendClickSendSMS(normalizedPhone, body)
+  const { success, error } = await sendClickSendSMS(
+    normalizedPhone, 
+    body,
+    registration.timezone
+  )
 
   if (success) {
     console.log('📱 Reminder SMS sent', {

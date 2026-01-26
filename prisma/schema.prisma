@@ -1370,3 +1370,12 @@ model EventRegistration {
   @@map("event_registrations")
 }
 
+// SMS Settings - single row configuration
+model SMSSettings {
+  id               String   @id @default("default") // Always "default" - single row pattern
+  blockedTimezones String[] @default([]) // Array of timezone identifiers to block
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("sms_settings")
+}

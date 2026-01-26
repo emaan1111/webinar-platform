@@ -1,3 +1,5 @@
+import { prisma } from './prisma'
+
 const CLICK_SEND_API_URL = 'https://rest.clicksend.com/v3/sms/send'
 const CLICK_SEND_USERNAME = process.env.CLICK_SEND_USERNAME
 const CLICK_SEND_API_KEY = process.env.CLICK_SEND_API_KEY
@@ -19,9 +21,34 @@ function isConfigured(): boolean {
 }
 
 /**
- * Send an SMS message via ClickSend
+ * Check if timezone is blocked from receiving SMS
  */
-export async function sendClickSendSMS(to: string, body: string): Promise<ClickSendResponse> {
+async function isTimezoneBlocked(timezone: string | null | undefined): Promise<boolean> {
+  if (!timezone) return false
+  
+  try {
+    const settings = await prisma.sMSSettings.findUnique({
+      where: { id: 'default' }
+    })
+    
+    return settings?.blockedTimezones.includes(timezone) || false
+  } catch (error) {
+    console.error('Error checking blocked timezones:', error)
+    return false // Don't block on error
+  }
+}
+
+/**
+ * Send an SMS message via ClickSend
+ * @param to - Phone number to send to
+ * @param body - SMS message body
+ * @param timezone - Optional timezone of recipient (for blocking check)
+ */
+export async function sendClickSendSMS(
+  to: string, 
+  body: string,
+  timezone?: string | null
+): Promise<ClickSendResponse> {
   if (!isConfigured()) {
     return {
       success: false,
@@ -33,6 +60,15 @@ export async function sendClickSendSMS(to: string, body: string): Promise<ClickS
     return {
       success: false,
       error: 'Phone number is missing'
+    }
+  }
+
+  // Check if timezone is blocked
+  if (await isTimezoneBlocked(timezone)) {
+    console.log(`[SMS] Blocked: timezone ${timezone} is in blocked list`)
+    return {
+      success: false,
+      error: `SMS blocked: timezone ${timezone} is in blocked list`
     }
   }
 
