@@ -58,6 +58,7 @@ interface ReminderLog {
     name?: string | null
     email: string
     phone?: string | null
+    timezone?: string | null
   }
   template: {
     minutesBefore: number
@@ -1322,6 +1323,7 @@ export default function WebinarRemindersPage() {
                 <thead className="bg-gray-50 text-left text-xs uppercase tracking-wider text-gray-500">
                   <tr>
                     <th className="px-4 py-3">Recipient</th>
+                    <th className="px-4 py-3">Timezone</th>
                     <th className="px-4 py-3">Type</th>
                     <th className="px-4 py-3">Timing</th>
                     <th className="px-4 py-3">Message</th>
@@ -1352,13 +1354,18 @@ export default function WebinarRemindersPage() {
                       <tr
                         key={log.id}
                         className="border-t border-gray-100 hover:bg-gray-50"
-                      >
                         <td className="px-4 py-3 align-top">
                           <p className="font-semibold text-gray-900">
                             {log.registration.name || log.registration.email}
                           </p>
                           <p className="text-xs text-gray-500">{log.registration.email}</p>
                         </td>
+                        <td className="px-4 py-3 align-top">
+                          <p className="text-xs text-gray-700">
+                            {log.registration.timezone ? log.registration.timezone.replace(/_/g, ' ') : '—'}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 align-top">
                         <td className="px-4 py-3 align-top">
                           <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold ${
                             reminderType === 'pre_webinar' 
@@ -1403,9 +1410,9 @@ export default function WebinarRemindersPage() {
                           </span>
                         </td>
                         <td className="px-4 py-3 align-top">
-                          {log.channel === 'BOTH' ? 'Email + SMS' : log.channel === 'SMS' ? 'SMS' : 'Email'}
-                        </td>
-                      </tr>
+                  {reminderLogs.length === 0 && (
+                    <tr>
+                      <td colSpan={9} className="px-4 py-8 text-center text-sm text-gray-500">
                     )
                   })}
                   {reminderLogs.length === 0 && (
