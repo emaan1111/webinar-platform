@@ -352,6 +352,82 @@ export default function AnalyticsPage() {
               }
             })
           }
+
+          // Merge geographic data
+          if (data.geographic) {
+            // Merge countries
+            data.geographic.countries.forEach((item: any) => {
+              const existing = aggregated.geographic.countries.find(c => c.country === item.country)
+              if (existing) {
+                existing.count += item.count
+              } else {
+                aggregated.geographic.countries.push({ ...item })
+              }
+            })
+            
+            // Merge timezones
+            data.geographic.timezones.forEach((item: any) => {
+              const existing = aggregated.geographic.timezones.find(t => t.timezone === item.timezone)
+              if (existing) {
+                existing.count += item.count
+              } else {
+                aggregated.geographic.timezones.push({ ...item })
+              }
+            })
+          }
+
+          // Sum funnel metrics
+          aggregated.funnel.registrationPageVisits += data.funnel.registrationPageVisits
+          aggregated.funnel.countdownPageVisits += data.funnel.countdownPageVisits
+          aggregated.funnel.webinarPageVisits += data.funnel.webinarPageVisits
+          aggregated.funnel.thankYouPageVisits += data.funnel.thankYouPageVisits
+          
+          // Aggregate embed views
+          if (data.funnel.embedViews) {
+            if (!aggregated.funnel.embedViews) {
+              aggregated.funnel.embedViews = {
+                total: 0,
+                inline: 0,
+                popup: 0,
+                uniqueVisitors: 0,
+                uniqueInlineVisitors: 0,
+                uniquePopupVisitors: 0,
+              }
+            }
+            aggregated.funnel.embedViews.total += data.funnel.embedViews.total
+            aggregated.funnel.embedViews.inline += data.funnel.embedViews.inline
+            aggregated.funnel.embedViews.popup += data.funnel.embedViews.popup
+            aggregated.funnel.embedViews.uniqueVisitors += data.funnel.embedViews.uniqueVisitors
+            aggregated.funnel.embedViews.uniqueInlineVisitors += data.funnel.embedViews.uniqueInlineVisitors
+            aggregated.funnel.embedViews.uniquePopupVisitors += data.funnel.embedViews.uniquePopupVisitors
+          }
+          
+          // Aggregate registration pages data
+          if (data.funnel.registrationPages && data.funnel.registrationPages.length > 0) {
+            data.funnel.registrationPages.forEach((page: any) => {
+              const key = `${page.pageId || 'default'}-${page.variantGroup || 'none'}`
+              const existing = registrationPagesMap.get(key)
+              
+              if (existing) {
+                existing.views += page.views
+                existing.uniqueViews += page.uniqueViews
+                existing.registrations += page.registrations
+                existing.totalTimeOnPage += page.avgTimeOnPage * page.views
+                existing.count += page.views
+              } else {
+                registrationPagesMap.set(key, {
+                  pageId: page.pageId,
+                  pageName: page.pageName,
+                  variantGroup: page.variantGroup,
+                  views: page.views,
+                  uniqueViews: page.uniqueViews,
+                  registrations: page.registrations,
+                  totalTimeOnPage: page.avgTimeOnPage * page.views,
+                  count: page.views
+                })
+              }
+            })
+          }
         })
 
         // Convert registration pages map to array with calculated averages
