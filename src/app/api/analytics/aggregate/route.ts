@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 // GET /api/analytics/aggregate - Get aggregated analytics for multiple webinars
 export async function GET(request: NextRequest) {
@@ -29,6 +30,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const webinarIds = searchParams.get('webinarIds')?.split(',') || [];
     const timeFrame = searchParams.get('timeFrame') || 'all';
+    const timezone = searchParams.get('timezone') || 'UTC';
 
     // Calculate date filter based on timeFrame
     let dateFilter: Date | undefined;
@@ -36,7 +38,9 @@ export async function GET(request: NextRequest) {
     
     switch (timeFrame) {
       case 'today':
-        dateFilter = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        // Calculate start of day in user's timezone
+        const todayStr = formatInTimeZone(now, timezone, 'yyyy-MM-dd');
+        dateFilter = fromZonedTime(todayStr + ' 00:00:00', timezone);
         break;
       case '7d':
         dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);

@@ -160,10 +160,12 @@ export default function AnalyticsPage() {
       setLoading(true)
       setError('')
       try {
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
         // Use the aggregate API endpoint for better performance
         const queryParams = new URLSearchParams({
           webinarIds: webinarIds.join(','),
-          timeFrame: timeFrame
+          timeFrame: timeFrame,
+          timezone: timezone
         })
         
         const response = await fetch(`/api/analytics/aggregate?${queryParams}`)
