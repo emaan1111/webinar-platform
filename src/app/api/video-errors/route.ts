@@ -5,7 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const errors = await prisma.$queryRaw`
       SELECT * FROM video_error_logs
-      ORDER BY "createdAt" DESC
+      ORDER BY created_at DESC
       LIMIT 500
     `;
 
@@ -64,16 +64,16 @@ export async function POST(request: NextRequest) {
     await prisma.$executeRaw`
       INSERT INTO video_error_logs (
         id,
-        "webinarId",
-        "registrationId",
-        "errorType",
-        "errorMessage",
-        "errorStack",
-        "userAgent",
-        "deviceInfo",
+        webinar_id,
+        registration_id,
+        error_type,
+        error_message,
+        error_stack,
+        user_agent,
+        device_info,
         viewer_name,
         viewer_email,
-        timestamp
+        created_at
       ) VALUES (
         ${errorId},
         ${webinarId},
