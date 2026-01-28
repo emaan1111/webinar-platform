@@ -1315,20 +1315,7 @@ export default function WebinarLiveClient({
       }
     }
 
-    // Check if any previously seen offer should be shown
-    // (user has seen it before, even if they rewound)
-    let displayOfferId = nextId;
-    if (!nextId && seenOfferIds.size > 0) {
-      // Find the most recent seen offer that we're past the timestamp of
-      const seenOffers = offersSorted.filter(offer => 
-        seenOfferIds.has(offer.id) && elapsedSeconds >= offer.videoTimestamp
-      );
-      if (seenOffers.length > 0) {
-        const mostRecent = seenOffers[seenOffers.length - 1];
-        displayOfferId = mostRecent.id;
-        console.log(`🔄 Showing previously seen offer: ${mostRecent.title}`);
-      }
-    }
+    const displayOfferId = nextId;
 
     if (displayOfferId !== activeOfferId) {
       setActiveOfferId(displayOfferId);
