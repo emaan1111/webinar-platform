@@ -2453,7 +2453,7 @@ export default function WebinarLiveClient({
                 <>
                   <iframe
                     key={iframeKey}
-                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}badge=0&autopause=0&player_id=0&autoplay=0&muted=1&controls=0&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=0&background=0&transparent=0&playsinline=1&dnt=1`}
+                    src={`${embedUrl}${embedUrl.includes('?') ? '&' : '?'}badge=0&autopause=0&player_id=0&autoplay=0&muted=1&title=0&byline=0&portrait=0&sidedock=0&texttrack=0&cc=0&loop=0&background=0&transparent=0&playsinline=1&dnt=1${isReplayMode ? '' : '&controls=0'}`}
                     className={styles.videoEmbed}
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                     allowFullScreen
