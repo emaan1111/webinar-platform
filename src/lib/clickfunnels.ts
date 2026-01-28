@@ -1,6 +1,8 @@
 // ClickFunnels 2.0 API Integration
 // Documentation: https://apidocs.myclickfunnels.com/
 
+import { prisma } from '@/lib/prisma';
+
 interface ClickFunnelsContact {
   email_address: string  // CF uses email_address not email
   first_name?: string
@@ -977,6 +979,53 @@ export async function syncAttendanceToClickFunnels(data: {
     return true
   } catch (error) {
     console.error('❌ Failed to sync attendance to ClickFunnels:', error)
+    return false
+  }
+}
+
+/**
+ * Schedule a delayed ClickFunnels tag application
+ */
+export async function scheduleDelayedClickFunnelsTag(data: {
+  registrationId: string
+  tagName: string
+  scheduledFor: Date
+}): Promise<boolean> {
+  try {
+    console.log(`⏰ Scheduling delayed tag "${data.tagName}" for ${data.scheduledFor.toISOString()}`)
+    
+    // Check if we already have this tag scheduled
+    const existing = await prisma.clickFunnelsReminderTag.findUnique({
+      where: {
+        registrationId_tagName: {
+          registrationId: data.registrationId,
+          tagName: data.tagName
+        }
+      }
+    });
+
+    if (existing) {
+       console.log(`ℹ️ Delayed tag "${data.tagName}" already scheduled (ID: ${existing.id})`);
+       return true;
+    }
+
+    await prisma.clickFunnelsReminderTag.create({
+      data: {
+        registrationId: data.registrationId,
+        tagName: data.tagName,
+        scheduledFor: data.scheduledFor,
+        status: 'PENDING'
+      }
+    })
+    
+    return true
+  } catch (error) {
+    // Handle unique constraint violation just in case race condition
+    if ((error as any).code === 'P2002') {
+      console.log(`ℹ️ Delayed tag "${data.tagName}" already scheduled for this registration`)
+      return true
+    }
+    console.error('❌ Failed to schedule delayed tag:', error)
     return false
   }
 }
