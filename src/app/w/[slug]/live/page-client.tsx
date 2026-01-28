@@ -252,7 +252,7 @@ async function logVideoError(
   }
 }
 
-function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false) {
+function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false, isReplay: boolean = false) {
   // Detect mobile if not passed in
   const isMobile = isMobileDevice || (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
   
@@ -260,8 +260,11 @@ function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false) {
   // Desktop: Start with higher quality
   const qualityParam = isMobile ? '540p' : '720p';
   
+  // Force controls for replay mode
+  const controlsParam = isReplay ? '&controls=1' : '&controls=0';
+  
   if (webinar.vimeoVideoId) {
-    return `https://player.vimeo.com/video/${webinar.vimeoVideoId}?quality=${qualityParam}`;
+    return `https://player.vimeo.com/video/${webinar.vimeoVideoId}?quality=${qualityParam}${controlsParam}`;
   }
 
   if (webinar.videoUrl) {
@@ -271,12 +274,14 @@ function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false) {
       /(?:youtube\.com\/watch\?v=|youtu\.be\/)([\w-]{11})/i
     );
     if (youtubeMatch) {
-      return `https://www.youtube.com/embed/${youtubeMatch[1]}?rel=0`;
+      // YouTube controls=1 is default, controls=0 is hidden
+      const ytControls = isReplay ? '&controls=1' : '&controls=0&showinfo=0&modestbranding=1';
+      return `https://www.youtube.com/embed/${youtubeMatch[1]}?rel=0${ytControls}`;
     }
 
     const vimeoUrlMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vimeoUrlMatch) {
-      return `https://player.vimeo.com/video/${vimeoUrlMatch[1]}?quality=${qualityParam}`;
+       return `https://player.vimeo.com/video/${vimeoUrlMatch[1]}?quality=${qualityParam}${controlsParam}`;
     }
 
     return url;
@@ -1917,7 +1922,7 @@ export default function WebinarLiveClient({
   );
 
   // Generate embed URL with mobile-optimized quality
-  const embedUrl = useMemo(() => deriveEmbedUrl(webinar, isMobile), [webinar, isMobile]);
+  const embedUrl = useMemo(() => deriveEmbedUrl(webinar, isMobile, isReplayMode), [webinar, isMobile, isReplayMode]);
 
   // Initialize Vimeo Player ONCE when broadcast starts
   useEffect(() => {
@@ -1997,7 +2002,7 @@ export default function WebinarLiveClient({
       
       // MOBILE FIX: Longer delay for iframe to be fully ready before initializing player
       const initDelay = isMobileDevice ? 1000 : 300;
-      setTimeout(() => {
+      setTimeout(async () => {
         try {
           // Detect if we're in a problematic browser environment (Facebook, Instagram, etc.)
           const isInAppBrowser = /FBAN|FBAV|Instagram/.test(navigator.userAgent);
@@ -2006,8 +2011,21 @@ export default function WebinarLiveClient({
         vimeoPlayerRef.current = player;
         
         let startTime = startTimeRef.current;
-        if (isReplay && viewer?.lastWatchedPosition && viewer.lastWatchedPosition > 0) {
-          startTime = viewer.lastWatchedPosition;
+        // SMART RESUME LOGIC:
+        // Only resume if we have a position AND it's not too close to the end (e.g. within 60 seconds)
+        // AND not at the very beginning
+        // RESTRICTED TO REPLAY MODE ONLY per user request
+        if (isReplayMode && viewer?.lastWatchedPosition && viewer.lastWatchedPosition > 10) {
+          const videoDuration = await player.getDuration();
+          const timeLeft = videoDuration - viewer.lastWatchedPosition;
+          
+          if (timeLeft > 60) {
+            console.log(`RESUMING at ${viewer.lastWatchedPosition}s (${timeLeft}s remaining)`);
+            startTime = viewer.lastWatchedPosition;
+          } else {
+             console.log('Skipping resume - user was near the end');
+             startTime = 0;
+          }
         }
         
         player.ready()
@@ -2684,8 +2702,8 @@ export default function WebinarLiveClient({
                   {statusLabel}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {/* Rewind/Forward buttons - only show in replay mode */}
-                  {isReplay && broadcastStarted && (
+                  {/* Rewind/Forward buttons - only show in replay mode (and not when native controls are active) */}
+                  {isReplay && broadcastStarted && !isReplayMode && (
                     <>
                       <button
                         type="button"
@@ -2730,12 +2748,12 @@ export default function WebinarLiveClient({
                       </button>
                     </>
                   )}
-                  {webinar.showElapsedTime !== false && (
+                  {webinar.showElapsedTime !== false && !isReplayMode && (
                     <div className={styles.videoTime}>
                       {formattedElapsed}
                     </div>
                   )}
-                  {broadcastStarted && (
+                  {broadcastStarted && !isReplayMode && (
                     <>
                       <button
                         type="button"
