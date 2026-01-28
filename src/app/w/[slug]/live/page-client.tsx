@@ -2464,7 +2464,7 @@ export default function WebinarLiveClient({
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
                     allowFullScreen
                     title={webinar.title}
-                    style={{ pointerEvents: 'none' }}
+                    style={{ pointerEvents: isReplayMode ? 'auto' : 'none' }}
                     loading="lazy"
                     suppressHydrationWarning
                     onError={(e) => {
@@ -2494,9 +2494,9 @@ export default function WebinarLiveClient({
                         console.log(`�📍 Target start position: ${formatTimeLabel(elapsedSeconds)} (${elapsedSeconds}s from scheduled start)`);
                         
                         // Store the elapsed time when user clicks start
-                        startTimeRef.current = elapsedSeconds;
-                        console.log(`💾 Stored start time in ref: ${startTimeRef.current}s`);
-                        console.log(`🔍 Ref value check: ${formatTimeLabel(startTimeRef.current)}`);
+                        // For REPLAY MODE, default to 0 (start) unless smart resume kicks in later
+                        // For LIVE MODE, sync to current elapsed time
+                        startTimeRef.current = isReplayMode ? 0 : elapsedSeconds;
                         
                         // Track when broadcast actually started (for reaction grace period)
                         broadcastStartTimeRef.current = Date.now();
