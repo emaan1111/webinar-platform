@@ -2026,10 +2026,7 @@ export default function WebinarLiveClient({
           .then(async () => {
             setPlayerReady(true);
             
-            player.on('ended', () => {
-              setWebinarEnded(true);
-              setBroadcastStarted(false);
-            });
+            // NOTE: Moved 'ended' listener to AFTER play() to avoid race conditions
             
             // CRITICAL: Set muted state FIRST, before ANY other operations
             try {
@@ -2062,6 +2059,28 @@ export default function WebinarLiveClient({
             try {
               const playPromise = player.play();
               await playPromise;
+              
+              // ATTACH ENDED LISTENER HERE - after playback has successfully started
+              player.on('ended', async () => {
+                 // Safety check: Ignore 'ended' event if we are clearly at the start of video
+                 // This handles glitches where player thinks it's at the end from previous session
+                 if (isReplayMode) {
+                   try {
+                     const current = await player.getCurrentTime();
+                     const duration = await player.getDuration();
+                     // If we are in the first 30 seconds AND video is longer than 2 mins, ignore ended
+                     if (current < 30 && duration > 120) {
+                       console.warn(`⚠️ Ignoring false 'ended' event at ${current}s`);
+                       return;
+                     }
+                   } catch (e) {
+                     // Ignore check errors
+                   }
+                 }
+                 
+                 setWebinarEnded(true);
+                 setBroadcastStarted(false);
+              });
               
               setIsMuted(true);
               clearTimeout(emergencyTimeout);
