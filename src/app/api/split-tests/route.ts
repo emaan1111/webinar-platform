@@ -46,8 +46,8 @@ export async function GET(req: Request) {
             }
         });
 
-        // 3. Calculate Unique Conversions
-        const uniqueConversionsGroups = await prisma.splitTestEvent.groupBy({
+        // 3. Calculate Unique Conversions (Webinar Registrations)
+        const uniqueRegistrationsGroups = await prisma.splitTestEvent.groupBy({
             by: ['visitorId'],
             where: {
                 variantId: variant.id,
@@ -55,10 +55,10 @@ export async function GET(req: Request) {
                 createdAt: { gte: fromDate }
             }
         });
-        const uniqueConversions = uniqueConversionsGroups.length;
+        const uniqueRegistrations = uniqueRegistrationsGroups.length;
 
-        // 4. Calculate Total Conversions
-        const totalConversions = await prisma.splitTestEvent.count({
+        // 4. Calculate Total Conversions (Webinar Registrations)
+        const totalRegistrations = await prisma.splitTestEvent.count({
             where: {
                 variantId: variant.id,
                 type: 'CONVERSION',
@@ -66,12 +66,36 @@ export async function GET(req: Request) {
             }
         });
 
+        // 5. Calculate Unique Form Submissions (Trial Leads)
+        const uniqueFormSubmissionsGroups = await prisma.splitTestEvent.groupBy({
+            by: ['visitorId'],
+            where: {
+                variantId: variant.id,
+                type: 'FORM_SUBMISSION',
+                createdAt: { gte: fromDate }
+            }
+        });
+        const uniqueFormSubmissions = uniqueFormSubmissionsGroups.length;
+
+        // 6. Calculate Total Form Submissions
+        const totalFormSubmissions = await prisma.splitTestEvent.count({
+            where: {
+                variantId: variant.id,
+                type: 'FORM_SUBMISSION',
+                createdAt: { gte: fromDate }
+            }
+        });
+
         return {
           ...variant,
-          views: totalViews,      // Total Page Loads
-          uniqueViews,            // Unique Visitors
-          conversions: totalConversions, // Total Actions
-          uniqueConversions       // Unique Users who acted
+          views: totalViews,
+          uniqueViews,
+          registrations: totalRegistrations,
+          uniqueRegistrations,
+          formSubmissions: totalFormSubmissions,
+          uniqueFormSubmissions,
+          conversions: totalRegistrations + totalFormSubmissions, // Combined for backward compat
+          uniqueConversions: uniqueRegistrations + uniqueFormSubmissions // Combined
         };
       }));
 

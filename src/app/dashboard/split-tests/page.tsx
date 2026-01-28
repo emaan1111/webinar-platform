@@ -117,13 +117,16 @@ export default function SplitTestsDashboard() {
     }
   };
 
-  const handleShowLeads = async (testId: string, variantId?: string, variantName?: string) => {
+  const handleShowLeads = async (testId: string, variantId?: string, variantName?: string, type?: 'webinar' | 'form') => {
       setLeadsModalOpen(true);
       setLeadsLoading(true);
       setSelectedVariantName(variantName || 'All Variants');
       setLeads([]);
       try {
-          const url = `/api/split-tests/${testId}/leads${variantId ? `?variantId=${variantId}` : ''}`;
+          let url = `/api/split-tests/${testId}/leads?`;
+          if (variantId) url += `variantId=${variantId}&`;
+          if (type) url += `type=${type}&`;
+          
           const res = await fetch(url);
           if (res.ok) {
               setLeads(await res.json());
@@ -247,45 +250,53 @@ export default function SplitTestsDashboard() {
 
               {/* Variants List */}
               <div className="space-y-4">
-                 <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase pb-2 border-b">
-                     <div className="col-span-4">Variant Page</div>
-                     <div className="col-span-2 text-center">Weight</div>
+                 <div className="grid grid-cols-12 text-xs font-bold text-gray-500 uppercase pb-2 border-b gap-1">
+                     <div className="col-span-3">Variant Page</div>
+                     <div className="col-span-1 text-center">Weight</div>
                      <div className="col-span-2 text-center">Visitors</div>
-                     <div className="col-span-2 text-center">Conversions</div>
+                     <div className="col-span-2 text-center text-blue-600">Webinar Reg</div>
+                     <div className="col-span-2 text-center text-purple-600">Trial Leads</div>
                      <div className="col-span-2 text-right">Conv. Rate</div>
                  </div>
                  
                  {test.variants.map((v: any) => {
                     // Conversion Rate based on UNIQUE views and UNIQUE conversions
                     const uniqueViews = v.uniqueViews || 0;
-                    const uniqueConversions = v.uniqueConversions || 0;
-                    const conversionRate = uniqueViews > 0 ? ((uniqueConversions / uniqueViews) * 100).toFixed(1) : 0;
+                    const uniqueTotalConversions = (v.uniqueRegistrations || 0) + (v.uniqueFormSubmissions || 0); // Use specific sums
+                    
+                    const conversionRate = uniqueViews > 0 ? ((uniqueTotalConversions / uniqueViews) * 100).toFixed(1) : 0;
                     
                     return (
-                        <div key={v.id} className="grid grid-cols-12 items-center text-sm py-2 border-b last:border-0 hover:bg-gray-50">
-                            <div className="col-span-4 font-medium flex items-center gap-2 overflow-hidden">
+                        <div key={v.id} className="grid grid-cols-12 items-center text-sm py-2 border-b last:border-0 hover:bg-gray-50 gap-1">
+                            <div className="col-span-3 font-medium flex items-center gap-2 overflow-hidden">
                                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${v.weight > 0 ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
                                 <span className="truncate" title={v.leadPage.name}>{v.leadPage.name}</span>
                             </div>
-                            <div className="col-span-2 text-center text-gray-500">
+                            <div className="col-span-1 text-center text-gray-500">
                                 {v.weight}%
                             </div>
                             <div className="col-span-2 text-center">
                                 <div className="flex flex-col">
                                     <span className="font-bold text-gray-900">{uniqueViews}</span>
                                     <span className="text-[10px] text-gray-400">Unique</span>
-                                    {/* Optional: Show total in tooltip or small text */}
-                                    <span className="text-[10px] text-gray-300">({v.views} Total)</span>
                                 </div>
                             </div>
                             <div className="col-span-2 text-center">
                                 <div 
                                     className="flex flex-col cursor-pointer hover:bg-blue-50 p-1 rounded transition group"
-                                    onClick={() => handleShowLeads(test.id, v.id, `${v.leadPage.name}`)}
+                                    onClick={() => handleShowLeads(test.id, v.id, `${v.leadPage.name} (Webinar)`, 'webinar')}
                                 >
-                                    <span className="font-bold text-gray-900 group-hover:text-blue-600 underline decoration-dotted underline-offset-2">{uniqueConversions}</span>
+                                    <span className="font-bold text-blue-600 group-hover:underline decoration-dotted">{v.uniqueRegistrations || 0}</span>
                                     <span className="text-[10px] text-gray-400">Unique</span>
-                                    <span className="text-[10px] text-gray-300">({v.conversions} Total)</span>
+                                </div>
+                            </div>
+                            <div className="col-span-2 text-center">
+                                <div 
+                                    className="flex flex-col cursor-pointer hover:bg-purple-50 p-1 rounded transition group"
+                                    onClick={() => handleShowLeads(test.id, v.id, `${v.leadPage.name} (Trial)`, 'form')}
+                                >
+                                    <span className="font-bold text-purple-600 group-hover:underline decoration-dotted">{v.uniqueFormSubmissions || 0}</span>
+                                    <span className="text-[10px] text-gray-400">Unique</span>
                                 </div>
                             </div>
                             <div className="col-span-2 text-right">
@@ -293,7 +304,7 @@ export default function SplitTestsDashboard() {
                                     <span className={`font-bold text-lg ${Number(conversionRate) > 20 ? 'text-green-600' : Number(conversionRate) > 10 ? 'text-blue-600' : 'text-gray-800'}`}>
                                         {conversionRate}%
                                     </span>
-                                    <span className="text-[10px] text-gray-400">from uniques</span>
+                                    <span className="text-[10px] text-gray-400">Total Conv.</span>
                                 </div>
                             </div>
                         </div>
@@ -303,22 +314,19 @@ export default function SplitTestsDashboard() {
                  {/* Total Row */}
                  {(() => {
                     const totalUniqueViews = test.variants.reduce((acc: number, v: any) => acc + (v.uniqueViews || 0), 0);
-                    const totalUniqueConversions = test.variants.reduce((acc: number, v: any) => acc + (v.uniqueConversions || 0), 0);
-                    const totalConversionRate = totalUniqueViews > 0 ? ((totalUniqueConversions / totalUniqueViews) * 100).toFixed(1) : '0.0';
+                    const totalUniqueRegistrations = test.variants.reduce((acc: number, v: any) => acc + (v.uniqueRegistrations || 0), 0);
+                    const totalUniqueFormSubmissions = test.variants.reduce((acc: number, v: any) => acc + (v.uniqueFormSubmissions || 0), 0);
+                    
+                    const totalConversions = totalUniqueRegistrations + totalUniqueFormSubmissions;
+                    const totalConversionRate = totalUniqueViews > 0 ? ((totalConversions / totalUniqueViews) * 100).toFixed(1) : '0.0';
                     
                     return (
-                        <div className="grid grid-cols-12 items-center text-sm py-3 border-t-2 border-gray-100 bg-gray-50/50 mt-1 font-medium">
-                            <div className="col-span-4 pl-8 text-gray-600 uppercase text-xs tracking-wider">Total / Average</div>
-                            <div className="col-span-2 text-center text-gray-400">-</div>
+                        <div className="grid grid-cols-12 items-center text-sm py-3 border-t-2 border-gray-100 bg-gray-50/50 mt-1 font-medium gap-1">
+                            <div className="col-span-3 pl-8 text-gray-600 uppercase text-xs tracking-wider">Totals</div>
+                            <div className="col-span-1 text-center text-gray-400">-</div>
                             <div className="col-span-2 text-center text-gray-900">{totalUniqueViews}</div>
-                            <div className="col-span-2 text-center">
-                                <div 
-                                    className="inline-flex flex-col cursor-pointer hover:bg-blue-100 px-2 py-0.5 rounded transition group"
-                                    onClick={() => handleShowLeads(test.id, undefined, 'All Variants')}
-                                >
-                                    <span className="text-gray-900 group-hover:text-blue-700 underline decoration-dotted">{totalUniqueConversions}</span>
-                                </div>
-                            </div>
+                            <div className="col-span-2 text-center text-blue-900 cursor-pointer hover:underline" onClick={() => handleShowLeads(test.id, undefined, 'All Variants (Webinars)', 'webinar')}>{totalUniqueRegistrations}</div>
+                            <div className="col-span-2 text-center text-purple-900 cursor-pointer hover:underline" onClick={() => handleShowLeads(test.id, undefined, 'All Variants (Trials)', 'form')}>{totalUniqueFormSubmissions}</div>
                             <div className="col-span-2 text-right">
                                 <span className="text-gray-900 mr-2">{totalConversionRate}%</span>
                             </div>

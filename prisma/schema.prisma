@@ -450,7 +450,7 @@ model OfferAnalytics {
   converted      Boolean      @default(false)
   convertedAt    DateTime?
   createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  updatedAt      DateTime     @default(now())
   registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@index([webinarId])
@@ -477,7 +477,7 @@ model WebinarSale {
   purchasedAt    DateTime?
   rawPayload     Json?
   createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @updatedAt
+  updatedAt      DateTime      @default(now())
   registration   Registration? @relation(fields: [registrationId], references: [id])
   webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
@@ -535,7 +535,7 @@ model Template {
   popupTheme  String   @default("purple")
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now())
 
   @@map("templates")
 }
@@ -548,7 +548,7 @@ model ThankYouTemplate {
   thumbnail   String?
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now())
 
   @@map("thank_you_templates")
 }
@@ -561,7 +561,7 @@ model CountdownTemplate {
   thumbnail   String?
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now())
 
   @@map("countdown_templates")
 }
@@ -615,7 +615,7 @@ model RegistrationPage {
   metaDescription    String?
   isSystem           Boolean    @default(false)
   createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  updatedAt          DateTime   @default(now())
   leadPages          LeadPage[]
 
   @@map("registration_pages")
@@ -663,7 +663,7 @@ model WebinarFaq {
   answer    String
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
   webinar   Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("webinar_faqs")
@@ -902,7 +902,7 @@ model SplitTest {
   name        String
   slug        String             @unique
   isActive    Boolean            @default(true)
-  views       Int                @default(0)
+  goal        SplitTestGoal      @default(WEBINAR)
   createdAt   DateTime           @default(now())
   updatedAt   DateTime           @default(now())
   conversions Int                @default(0)
@@ -964,7 +964,7 @@ model Event {
   confirmationEmailEnabled Boolean             @default(true)
   reminderEmailEnabled     Boolean             @default(true)
   createdAt                DateTime            @default(now())
-  updatedAt                DateTime            @updatedAt
+  updatedAt                DateTime            @default(now())
   registrations            EventRegistration[]
   schedules                EventSchedule[]
   bundledWebinar           Webinar?            @relation("BundledWebinars", fields: [bundledWebinarId], references: [id])
@@ -985,7 +985,7 @@ model EventSchedule {
   maxAttendees  Int?
   isActive      Boolean             @default(true)
   createdAt     DateTime            @default(now())
-  updatedAt     DateTime            @updatedAt
+  updatedAt     DateTime            @default(now())
   registrations EventRegistration[]
   event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
@@ -1010,7 +1010,7 @@ model EventRegistration {
   privacyConsent        Boolean       @default(false)
   marketingConsent      Boolean       @default(false)
   createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @updatedAt
+  updatedAt             DateTime      @default(now())
   event                 Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventSchedule         EventSchedule @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
 
@@ -1024,7 +1024,7 @@ model SMSSettings {
   id               String   @id @default("default")
   blockedTimezones String[] @default([])
   createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  updatedAt        DateTime @default(now())
 
   @@map("sms_settings")
 }
@@ -1062,4 +1062,9 @@ enum EventStatus {
   PUBLISHED
   CANCELLED
   COMPLETED
+}
+
+enum SplitTestGoal {
+  WEBINAR
+  LEAD_FORM
 }
