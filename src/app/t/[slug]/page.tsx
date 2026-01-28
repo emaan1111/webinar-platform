@@ -51,10 +51,6 @@ export default async function SplitTestPage({ params }: PageProps) {
   const trackView = async () => {
       try {
         await prisma.$transaction([
-            prisma.splitTest.update({
-                where: { id: splitTest.id },
-                data: { views: { increment: 1 } }
-            }),
             prisma.splitTestVariant.update({
                 where: { id: selectedVariant.id },
                 data: { views: { increment: 1 } }
