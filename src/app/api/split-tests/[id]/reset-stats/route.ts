@@ -29,7 +29,6 @@ export async function POST(
       await tx.splitTest.update({
         where: { id },
         data: {
-          views: 0,
           conversions: 0
         }
       });
