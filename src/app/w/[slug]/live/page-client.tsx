@@ -2012,31 +2012,19 @@ export default function WebinarLiveClient({
         
         let startTime = startTimeRef.current;
         
+        // SIMPLIFIED LOGIC:
+        // If Replay Mode, ALWAYS start at 0
+        // Live Mode uses the calculated elapsed time
+        if (isReplayMode) {
+           startTime = 0;
+           console.log('REPLAY MODE: Starting video at 0:00');
+        } else {
+           console.log(`LIVE MODE: Starting at synced time: ${startTime}s`);
+        }
+        
         player.ready()
           .then(async () => {
             setPlayerReady(true);
-            
-            // SMART RESUME LOGIC:
-            // Moved inside ready() to ensure video metadata is loaded
-            // Only resume if we have a position AND it's not too close to the end (e.g. within 60 seconds)
-            // AND not at the very beginning
-            if (isReplayMode && viewer?.lastWatchedPosition && viewer.lastWatchedPosition > 10) {
-              try {
-                const videoDuration = await player.getDuration();
-                const timeLeft = videoDuration - viewer.lastWatchedPosition;
-                
-                if (timeLeft > 60) {
-                  console.log(`RESUMING at ${viewer.lastWatchedPosition}s (${timeLeft}s remaining)`);
-                  startTime = viewer.lastWatchedPosition;
-                } else {
-                   console.log('Skipping resume - user was near the end');
-                   startTime = 0;
-                }
-              } catch (durErr) {
-                 console.warn('Could not get duration for smart resume check:', durErr);
-                 // Fallback: keep existing startTime (usually 0 for replay mode default)
-              }
-            }
             
             player.on('ended', () => {
               setWebinarEnded(true);
