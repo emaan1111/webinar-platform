@@ -855,6 +855,10 @@ model FormSubmission {
   lastSavedAt DateTime @default(now())
   status      String   @default("COMPLETED")
   form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
+  splitTestId         String?
+  splitTestVariantId  String?
+  splitTest           SplitTest?        @relation(fields: [splitTestId], references: [id])
+  splitTestVariant    SplitTestVariant? @relation(fields: [splitTestVariantId], references: [id])
 
   @@index([formId])
   @@map("form_submissions")
@@ -905,6 +909,7 @@ model SplitTest {
   events      SplitTestEvent[]
   variants    SplitTestVariant[]
   registrations Registration[]
+  formSubmissions FormSubmission[]
 
   @@map("split_tests")
 }
@@ -920,6 +925,7 @@ model SplitTestVariant {
   leadPage    LeadPage         @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
   splitTest   SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
   registrations Registration[]
+  formSubmissions FormSubmission[]
 
   @@map("split_test_variants")
 }

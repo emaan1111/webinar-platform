@@ -5,10 +5,12 @@ import { submitForm } from '@/app/actions/submitForm'
 import { Loader2, AlertCircle, CheckCircle2, XCircle, ArrowRight } from 'lucide-react'
 
 interface ClientFormProps {
-  form: any
+  form: any;
+  splitTestId?: string;
+  variantId?: string;
 }
 
-export default function ClientForm({ form }: ClientFormProps) {
+export default function ClientForm({ form, splitTestId, variantId }: ClientFormProps) {
   const [result, setResult] = useState<any>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -22,6 +24,9 @@ export default function ClientForm({ form }: ClientFormProps) {
     // Create FormData from the form element
     const formData = new FormData(event.currentTarget)
     
+    if (splitTestId) formData.append('splitTestId', splitTestId);
+    if (variantId) formData.append('splitTestVariantId', variantId);
+
     try {
       setLoading(true)
       setError(null)

@@ -100,6 +100,26 @@ export async function submitForm(formId: string, formData: FormData) {
     }
   }
 
+  const splitTestId = formData.get('splitTestId') as string | null
+  const splitTestVariantId = formData.get('splitTestVariantId') as string | null
+
+  // If this submission is part of a split test, log the event
+  if (splitTestId && splitTestVariantId) {
+      try {
+        await prisma.splitTestEvent.create({
+            data: {
+                splitTestId,
+                variantId: splitTestVariantId,
+                type: 'FORM_SUBMISSION', // Specialized type for this
+                visitorId: null // We don't have visitorId easily in server action unless passed or cookies
+            }
+        });
+        console.log(`✅ Logged Form Submission for Split Test ${splitTestId} variant ${splitTestVariantId}`);
+      } catch (e) {
+          console.error("Failed to log split test event", e);
+      }
+  }
+
   // Save submission
   const existingId = formData.get('submissionId') as string | null
 
@@ -117,7 +137,9 @@ export async function submitForm(formId: string, formData: FormData) {
           aiStatus,
           aiReason,
           status: 'COMPLETED',
-          lastSavedAt: new Date()
+          lastSavedAt: new Date(),
+          splitTestId,
+          splitTestVariantId
         }
       })
     } else {
@@ -129,7 +151,9 @@ export async function submitForm(formId: string, formData: FormData) {
               userAgent: 'server-action', 
               aiStatus,
               aiReason,
-              status: 'COMPLETED'
+              status: 'COMPLETED',
+              splitTestId,
+              splitTestVariantId
             }
         })
     }
@@ -141,7 +165,9 @@ export async function submitForm(formId: string, formData: FormData) {
         userAgent: 'server-action', 
         aiStatus,
         aiReason,
-        status: 'COMPLETED'
+        status: 'COMPLETED',
+        splitTestId,
+        splitTestVariantId
         }
     })
   }

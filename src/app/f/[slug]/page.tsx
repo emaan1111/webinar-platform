@@ -5,11 +5,12 @@ import ClientForm from './ClientForm'
 
 interface PageProps {
   params: { slug: string }
+  searchParams: { [key: string]: string | string[] | undefined }
 }
 
 export const dynamic = 'force-dynamic'
 
-export default async function PublicFormPage({ params }: PageProps) {
+export default async function PublicFormPage({ params, searchParams }: PageProps) {
   const form = await prisma.form.findUnique({
     where: { slug: params.slug },
     include: {
@@ -18,6 +19,9 @@ export default async function PublicFormPage({ params }: PageProps) {
       }
     }
   })
+
+  const splitTestId = typeof searchParams.splitTestId === 'string' ? searchParams.splitTestId : undefined;
+  const variantId = typeof searchParams.variantId === 'string' ? searchParams.variantId : undefined;
 
   // Check if form exists and is active
   if (!form || !form.isActive) {
@@ -56,7 +60,11 @@ export default async function PublicFormPage({ params }: PageProps) {
           )}
         </div>
 
-        <ClientForm form={form} />
+        <ClientForm 
+            form={form} 
+            splitTestId={splitTestId}
+            variantId={variantId}
+        />
 
         <div className="text-center text-xs text-gray-400 mt-8">
           Powered by WebinarPlatform
