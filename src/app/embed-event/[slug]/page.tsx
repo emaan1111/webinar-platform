@@ -61,6 +61,7 @@ export default async function EmbedEventPage({ params }: PageProps) {
     description: event.description ?? undefined,
     hostName: event.host.name ?? undefined,
     requirePhone: event.requirePhone,
+    smsReminderEnabled: event.smsReminderEnabled,
     maxAttendees: event.maxAttendees ?? undefined,
     bundleDescription: event.bundleDescription ?? undefined,
     webinarOptional: event.webinarOptional,

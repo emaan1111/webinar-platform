@@ -69,9 +69,12 @@ export default async function EventRegistrationPage({ params }: PageProps) {
     hostName: event.host.name ?? undefined,
     zoomLink: event.zoomLink ?? undefined,
     requirePhone: event.requirePhone,
+    smsReminderEnabled: event.smsReminderEnabled,
     maxAttendees: event.maxAttendees ?? undefined,
     bundleDescription: event.bundleDescription ?? undefined,
     webinarOptional: event.webinarOptional,
+    thankYouPageUrl: event.thankYouPageUrl ?? undefined,
+    thankYouTemplateId: event.thankYouTemplateId ?? undefined,
     schedules: event.schedules.map((s: any) => ({
       id: s.id,
       startTime: s.startTime.toISOString(),

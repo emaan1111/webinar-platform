@@ -233,10 +233,13 @@ export default function AttendeesPage() {
   }, [])
 
   const filteredAttendees = attendees.filter(attendee => {
-    const matchesSearch = 
-      attendee.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      attendee.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (attendee.phone && attendee.phone.toLowerCase().includes(searchQuery.toLowerCase()))
+    const normalizedQuery = searchQuery.trim().toLowerCase()
+    const matchesSearch = normalizedQuery.length === 0 || [
+      attendee.name,
+      attendee.email,
+      attendee.phone,
+      attendee.webinarTitle
+    ].some(value => String(value ?? '').toLowerCase().includes(normalizedQuery))
     
     const matchesAttendance = 
       attendanceFilter === 'all' ||

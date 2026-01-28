@@ -39,6 +39,7 @@ interface Event {
   description?: string;
   hostName?: string;
   requirePhone: boolean;
+  smsReminderEnabled: boolean;
   maxAttendees?: number;
   bundleDescription?: string;
   webinarOptional: boolean;
@@ -393,48 +394,48 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
         {/* Step 1: Event Schedule Selection */}
         {step === 1 && (
           <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-lg font-semibold mb-1">{event.title}</h2>
+            <h2 className="text-lg font-semibold mb-1 text-gray-900">{event.title}</h2>
             {event.hostName && <p className="text-gray-500 text-sm mb-4">Hosted by {event.hostName}</p>}
 
             <form onSubmit={handleStep1Submit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">Name *</label>
+                <label className="block text-sm font-medium mb-1 text-gray-900">Name *</label>
                 <input
                   type="text"
                   required
-                  className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
                   placeholder="Your name"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Email *</label>
+                <label className="block text-sm font-medium mb-1 text-gray-900">Email *</label>
                 <input
                   type="email"
                   required
-                  className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
                   placeholder="you@example.com"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
                 />
               </div>
-              {event.requirePhone && (
-                <div>
-                  <label className="block text-sm font-medium mb-1">Phone *</label>
-                  <input
-                    type="tel"
-                    required
-                    className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="+1 (555) 000-0000"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
-                </div>
-              )}
+              <div>
+                <label className="block text-sm font-medium mb-1 text-gray-900">
+                  Phone {(event.requirePhone || event.smsReminderEnabled) ? '*' : '(Optional)'}
+                </label>
+                <input
+                  type="tel"
+                  required={event.requirePhone || event.smsReminderEnabled}
+                  className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                  placeholder="+1 (555) 000-0000"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                />
+              </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Select Date & Time *</label>
+                <label className="block text-sm font-medium mb-2 text-gray-900">Select Date & Time *</label>
                 <div className="space-y-2 max-h-48 overflow-y-auto">
                   {event.schedules.map((schedule) => (
                     <label
@@ -459,7 +460,7 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
                             className="w-4 h-4 text-indigo-600"
                           />
                           <div>
-                            <div className="font-medium">{formatDate(schedule.startTime, schedule.timezone)}</div>
+                            <div className="font-medium text-gray-900">{formatDate(schedule.startTime, schedule.timezone)}</div>
                             <div className="text-xs text-gray-500">
                               {formatTime(schedule.startTime, schedule.timezone)}
                             </div>
@@ -528,7 +529,7 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
               <ArrowLeft className="w-4 h-4" /> Back
             </button>
 
-            <h2 className="text-lg font-semibold mb-1">Select Webinar Time</h2>
+            <h2 className="text-lg font-semibold mb-1 text-gray-900">Select Webinar Time</h2>
             <p className="text-gray-500 text-sm mb-4">{event.bundledWebinar.title}</p>
 
             <form onSubmit={handleStep2Submit} className="space-y-4">
@@ -555,12 +556,11 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
                         className="w-4 h-4 text-purple-600"
                       />
                       <div className="flex-1">
-                        <div className="font-medium">
+                        <div className="font-medium text-gray-900">
                           {slot.displayLabel || formatDateFromDate(slot.time)}
                         </div>
                         <div className="text-xs text-gray-500 flex items-center gap-1">
                           {formatTimeFromDate(slot.time)}
-                          {event.bundledWebinar?.duration && ` • ${event.bundledWebinar.duration} min`}
                           {slot.schedule.scheduleType === 'justInTime' && (
                             <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">
                               Starts Soon

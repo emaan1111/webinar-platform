@@ -49,6 +49,9 @@ interface Event {
   requirePhone: boolean;
   confirmationEmailEnabled: boolean;
   reminderEmailEnabled: boolean;
+  thankYouPageUrl?: string;
+  thankYouTemplateId?: string;
+  registrationTag?: string;
   bundledWebinar?: {
     id: string;
     title: string;
@@ -65,10 +68,17 @@ interface Webinar {
   slug: string;
 }
 
+interface ThankYouTemplate {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export default function EventDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const [event, setEvent] = useState<Event | null>(null);
   const [webinars, setWebinars] = useState<Webinar[]>([]);
+  const [templates, setTemplates] = useState<ThankYouTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'schedules' | 'registrations'>('details');
@@ -88,6 +98,11 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     requirePhone: false,
     confirmationEmailEnabled: true,
     reminderEmailEnabled: true,
+    smsReminderEnabled: false,
+    smsReminderBody: 'Reminder: Your event starts in 1 hour!',
+    thankYouPageUrl: '',
+    thankYouTemplateId: '',
+    registrationTag: '',
   });
 
   const [newSchedule, setNewSchedule] = useState({
@@ -100,6 +115,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
   useEffect(() => {
     fetchEvent();
     fetchWebinars();
+    fetchTemplates();
   }, [params.id]);
 
   const fetchEvent = async () => {
@@ -123,6 +139,11 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
           requirePhone: data.requirePhone ?? false,
           confirmationEmailEnabled: data.confirmationEmailEnabled ?? true,
           reminderEmailEnabled: data.reminderEmailEnabled ?? true,
+          smsReminderEnabled: data.smsReminderEnabled ?? false,
+          smsReminderBody: data.smsReminderBody || 'Reminder: Your event starts in 1 hour!',
+          thankYouPageUrl: data.thankYouPageUrl || '',
+          thankYouTemplateId: data.thankYouTemplateId || '',
+          registrationTag: data.registrationTag || '',
         });
       }
     } catch (error) {
@@ -141,6 +162,18 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
       }
     } catch (error) {
       console.error('Failed to fetch webinars:', error);
+    }
+  };
+
+  const fetchTemplates = async () => {
+    try {
+      const res = await fetch('/api/thank-you-templates');
+      if (res.ok) {
+        const data = await res.json();
+        setTemplates(Array.isArray(data) ? data : data.templates || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch templates:', error);
     }
   };
 
@@ -433,6 +466,71 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                     </label>
                   </>
                 )}
+              </div>
+            </Card>
+
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-4">ClickFunnels</h2>
+              <div className="space-y-2">
+                <label className="block text-sm font-medium mb-1">Registration Tag</label>
+                <input
+                  type="text"
+                  className="w-full p-2 border rounded-lg"
+                  placeholder="e.g. EVENT-REGISTERED"
+                  value={form.registrationTag}
+                  onChange={(e) => setForm({ ...form, registrationTag: e.target.value })}
+                />
+                <p className="text-xs text-gray-500">
+                  Applied in ClickFunnels when someone registers for this event.
+                </p>
+              </div>
+            </Card>
+
+            {/* Thank You Page Settings */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-4">Thank You Page</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Thank You Template</label>
+                  <select
+                    className="w-full p-2 border rounded-lg"
+                    value={form.thankYouTemplateId}
+                    onChange={(e) => setForm({ ...form, thankYouTemplateId: e.target.value })}
+                  >
+                    <option value="">Use default confirmation screen</option>
+                    {templates.map(t => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select a thank you template to display after registration.
+                  </p>
+                </div>
+                
+                <div className="border-t pt-4">
+                  <label className="block text-sm font-medium mb-1">Or: Custom Thank You Page URL</label>
+                  <input
+                    type="url"
+                    className="w-full p-2 border rounded-lg"
+                    value={form.thankYouPageUrl}
+                    onChange={(e) => setForm({ ...form, thankYouPageUrl: e.target.value })}
+                    placeholder="https://yoursite.com/thank-you"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Takes priority over template. Enter a full URL to redirect to an external page.
+                  </p>
+                </div>
+                
+                {/* Placeholder Reference */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <h4 className="font-medium text-blue-800 mb-2">Available Template Placeholders</h4>
+                  <div className="text-xs text-blue-700 space-y-1">
+                    <p><strong>Event:</strong> {`{{eventTitle}}, {{eventDate}}, {{eventTime}}, {{eventDateTime}}, {{eventZoomLink}}`}</p>
+                    <p><strong>Attendee:</strong> {`{{attendeeName}}, {{attendeeEmail}}, {{studentName}}, {{studentAge}}`}</p>
+                    <p><strong>Zoom:</strong> {`{{zoomLink}}, {{zoomMeetingId}}, {{zoomPassword}}`}</p>
+                    <p><strong>Calendar:</strong> {`{{googleCalendarLink}}, {{appleCalendarLink}}`}</p>
+                  </div>
+                </div>
               </div>
             </Card>
 

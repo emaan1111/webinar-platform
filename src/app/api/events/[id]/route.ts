@@ -86,6 +86,11 @@ export async function PUT(
       requirePhone,
       confirmationEmailEnabled,
       reminderEmailEnabled,
+      thankYouPageUrl,
+      thankYouTemplateId,
+      registrationTag,
+      smsReminderEnabled,
+      smsReminderBody,
     } = body;
 
     // Check slug uniqueness if changed
@@ -122,6 +127,11 @@ export async function PUT(
         requirePhone,
         confirmationEmailEnabled,
         reminderEmailEnabled,
+        thankYouPageUrl: thankYouPageUrl === '' ? null : thankYouPageUrl,
+        thankYouTemplateId: thankYouTemplateId === '' ? null : thankYouTemplateId,
+        registrationTag: registrationTag === '' ? null : registrationTag,
+        smsReminderEnabled,
+        smsReminderBody,
       },
       include: {
         schedules: true,

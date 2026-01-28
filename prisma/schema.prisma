@@ -549,6 +549,7 @@ model ThankYouTemplate {
   isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
+  events      Event[]
 
   @@map("thank_you_templates")
 }
@@ -844,21 +845,21 @@ model FormField {
 }
 
 model FormSubmission {
-  id          String   @id @default(cuid())
-  formId      String
-  data        String
-  userAgent   String?
-  referrer    String?
-  createdAt   DateTime @default(now())
-  aiReason    String?
-  aiStatus    String?
-  lastSavedAt DateTime @default(now())
-  status      String   @default("COMPLETED")
-  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
-  splitTestId         String?
-  splitTestVariantId  String?
-  splitTest           SplitTest?        @relation(fields: [splitTestId], references: [id])
-  splitTestVariant    SplitTestVariant? @relation(fields: [splitTestVariantId], references: [id])
+  id                 String            @id @default(cuid())
+  formId             String
+  data               String
+  userAgent          String?
+  referrer           String?
+  createdAt          DateTime          @default(now())
+  aiReason           String?
+  aiStatus           String?
+  lastSavedAt        DateTime          @default(now())
+  status             String            @default("COMPLETED")
+  form               Form              @relation(fields: [formId], references: [id], onDelete: Cascade)
+  splitTestId        String?
+  splitTestVariantId String?
+  splitTest          SplitTest?        @relation(fields: [splitTestId], references: [id])
+  splitTestVariant   SplitTestVariant? @relation(fields: [splitTestVariantId], references: [id])
 
   @@index([formId])
   @@map("form_submissions")
@@ -898,35 +899,35 @@ model LeadPage {
 }
 
 model SplitTest {
-  id          String             @id @default(cuid())
-  name        String
-  slug        String             @unique
-  isActive    Boolean            @default(true)
-  goal        SplitTestGoal      @default(WEBINAR)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @default(now())
-  conversions Int                @default(0)
-  events      SplitTestEvent[]
-  variants    SplitTestVariant[]
-  registrations Registration[]
-  formSubmissions FormSubmission[]
+  id                 String              @id @default(cuid())
+  name               String
+  slug               String              @unique
+  isActive           Boolean             @default(true)
+  goal               SplitTestGoal       @default(WEBINAR)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @default(now())
+  conversions        Int                 @default(0)
+  events             SplitTestEvent[]
+  variants           SplitTestVariant[]
+  registrations      Registration[]
+  formSubmissions    FormSubmission[]
   eventRegistrations EventRegistration[]
 
   @@map("split_tests")
 }
 
 model SplitTestVariant {
-  id          String           @id @default(cuid())
-  splitTestId String
-  leadPageId  String
-  weight      Int              @default(50)
-  views       Int              @default(0)
-  conversions Int              @default(0)
-  events      SplitTestEvent[]
-  leadPage    LeadPage         @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
-  splitTest   SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
-  registrations Registration[]
-  formSubmissions FormSubmission[]
+  id                 String              @id @default(cuid())
+  splitTestId        String
+  leadPageId         String
+  weight             Int                 @default(50)
+  views              Int                 @default(0)
+  conversions        Int                 @default(0)
+  events             SplitTestEvent[]
+  leadPage           LeadPage            @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
+  splitTest          SplitTest           @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
+  registrations      Registration[]
+  formSubmissions    FormSubmission[]
   eventRegistrations EventRegistration[]
 
   @@map("split_test_variants")
@@ -965,12 +966,18 @@ model Event {
   requirePhone             Boolean             @default(false)
   confirmationEmailEnabled Boolean             @default(true)
   reminderEmailEnabled     Boolean             @default(true)
+  thankYouPageUrl          String?
+  thankYouTemplateId       String?
+  registrationTag          String?
+  smsReminderEnabled       Boolean             @default(false)
+  smsReminderBody          String?
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @default(now())
   registrations            EventRegistration[]
   schedules                EventSchedule[]
   bundledWebinar           Webinar?            @relation("BundledWebinars", fields: [bundledWebinarId], references: [id])
   host                     User                @relation("HostedEvents", fields: [hostId], references: [id])
+  thankYouTemplate         ThankYouTemplate?   @relation(fields: [thankYouTemplateId], references: [id])
 
   @@map("events")
 }
@@ -996,29 +1003,32 @@ model EventSchedule {
 }
 
 model EventRegistration {
-  id                    String        @id @default(cuid())
+  id                    String              @id @default(cuid())
   eventId               String
   eventScheduleId       String
   name                  String
   email                 String
   phone                 String?
+  studentName           String?
+  studentAge            Int?
   timezone              String?
-  registeredAt          DateTime      @default(now())
-  attended              Boolean       @default(false)
+  registeredAt          DateTime            @default(now())
+  attended              Boolean             @default(false)
   joinedAt              DateTime?
   webinarRegistrationId String?
-  skippedWebinar        Boolean       @default(false)
-  gdprConsent           Boolean       @default(false)
-  privacyConsent        Boolean       @default(false)
-  marketingConsent      Boolean       @default(false)
-  createdAt             DateTime      @default(now())
-  updatedAt             DateTime      @default(now())
-  event                 Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventSchedule         EventSchedule @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
-  splitTest             SplitTest?    @relation(fields: [splitTestId], references: [id])
-  splitTestVariant      SplitTestVariant? @relation(fields: [splitTestVariantId], references: [id])
+  skippedWebinar        Boolean             @default(false)
+  gdprConsent           Boolean             @default(false)
+  privacyConsent        Boolean             @default(false)
+  marketingConsent      Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @default(now())
+  event                 Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSchedule         EventSchedule       @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
+  splitTest             SplitTest?          @relation(fields: [splitTestId], references: [id])
+  splitTestVariant      SplitTestVariant?   @relation(fields: [splitTestVariantId], references: [id])
   splitTestId           String?
   splitTestVariantId    String?
+  eventReminderSents    EventReminderSent[]
 
   @@unique([email, eventScheduleId])
   @@index([eventId])
@@ -1073,4 +1083,22 @@ enum EventStatus {
 enum SplitTestGoal {
   WEBINAR
   LEAD_FORM
+}
+
+model EventReminderSent {
+  id                  String            @id @default(cuid())
+  eventRegistrationId String
+  eventRegistration   EventRegistration @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
+  scheduledFor        DateTime
+  status              ReminderStatus    @default(PENDING)
+  channel             ReminderChannel   @default(SMS)
+  sentTo              String
+  message             String
+  sentAt              DateTime?
+  error               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now())
+
+  @@index([status, scheduledFor])
+  @@map("event_reminders_sent")
 }

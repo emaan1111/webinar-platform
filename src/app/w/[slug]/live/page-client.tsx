@@ -21,8 +21,8 @@ declare global {
         setMuted(muted: boolean): Promise<boolean>;
         setPlaybackRate(rate: number): Promise<number>;
         getPlaybackRate(): Promise<number>;
-        on(event: string, callback: () => void): void;
-        off(event: string, callback?: () => void): void;
+        on(event: string, callback: (data?: any) => void): void;
+        off(event: string, callback?: (data?: any) => void): void;
       };
     };
   }
@@ -263,8 +263,12 @@ function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false, i
   // Force controls for replay mode
   const controlsParam = isReplay ? '&controls=1' : '&controls=0';
   
+  // Hide Vimeo branding (title, byline, portrait, logo)
+  // Note: Hiding the Vimeo logo completely requires Vimeo Plus/Pro/Business account
+  const brandingParams = '&title=0&byline=0&portrait=0&badge=0';
+  
   if (webinar.vimeoVideoId) {
-    return `https://player.vimeo.com/video/${webinar.vimeoVideoId}?quality=${qualityParam}${controlsParam}`;
+    return `https://player.vimeo.com/video/${webinar.vimeoVideoId}?quality=${qualityParam}${controlsParam}${brandingParams}`;
   }
 
   if (webinar.videoUrl) {
@@ -281,7 +285,7 @@ function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false, i
 
     const vimeoUrlMatch = url.match(/vimeo\.com\/(\d+)/);
     if (vimeoUrlMatch) {
-       return `https://player.vimeo.com/video/${vimeoUrlMatch[1]}?quality=${qualityParam}${controlsParam}`;
+       return `https://player.vimeo.com/video/${vimeoUrlMatch[1]}?quality=${qualityParam}${controlsParam}${brandingParams}`;
     }
 
     return url;
@@ -802,9 +806,11 @@ export default function WebinarLiveClient({
     [offers]
   );
 
+  // For replay mode, start with no offer (video starts at 0:00)
+  // For live mode, find the offer that should be active at current elapsed time
   const initialActiveOffer = useMemo(
-    () => findOfferForElapsed(offersSorted, timing.initialElapsedSeconds),
-    [offersSorted, timing.initialElapsedSeconds]
+    () => isReplayMode ? null : findOfferForElapsed(offersSorted, timing.initialElapsedSeconds),
+    [offersSorted, timing.initialElapsedSeconds, isReplayMode]
   );
 
   const [activeOfferId, setActiveOfferId] = useState<string | null>(
@@ -815,8 +821,10 @@ export default function WebinarLiveClient({
     setActiveOfferId(initialActiveOffer?.id ?? null);
   }, [initialActiveOffer?.id]);
 
+  // For replay mode, elapsedSeconds starts at 0 and syncs with video playback
+  // For live mode, it starts at the calculated elapsed time
   const [elapsedSeconds, setElapsedSeconds] = useState<number>(
-    timing.initialElapsedSeconds
+    isReplayMode ? 0 : timing.initialElapsedSeconds
   );
   const [secondsUntilStart, setSecondsUntilStart] = useState<number>(() => {
     const diff = Math.ceil((startTimeMs - serverNowMs) / 1000);
@@ -1060,6 +1068,12 @@ export default function WebinarLiveClient({
   }, [elapsedSeconds, broadcastStarted, isReplayMode, isMobile]);
 
   useEffect(() => {
+    // REPLAY MODE: elapsedSeconds is synced with video time via timeupdate listener
+    // Don't use server-based elapsed time calculation for replay
+    if (isReplayMode) {
+      return;
+    }
+    
     const update = () => {
       // If tab is hidden, don't update elapsed time
       if (!isTabVisible && pausedTimeRef.current !== null) {
@@ -1087,7 +1101,7 @@ export default function WebinarLiveClient({
     update();
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
-  }, [startTimeMs, totalDuration, isTabVisible]);
+  }, [startTimeMs, totalDuration, isTabVisible, isReplayMode]);
 
   // Simulate dynamic live viewer count for realistic feel
   useEffect(() => {
@@ -2126,11 +2140,20 @@ export default function WebinarLiveClient({
                  setVideoLoading(false);
                  setVideoError(false);
                  player.off('play', handlePlaybackStarted);
-                 player.off('timeupdate', handlePlaybackStarted);
             };
             
             player.on('play', handlePlaybackStarted);
-            player.on('timeupdate', handlePlaybackStarted);
+            
+            // REPLAY MODE: Sync elapsedSeconds with actual video time for CTA/offer timing
+            if (isReplayMode) {
+              player.on('timeupdate', async (data: { seconds: number }) => {
+                const videoTime = Math.floor(data.seconds);
+                setElapsedSeconds(videoTime);
+              });
+            } else {
+              // Only use for overlay removal in live mode
+              player.on('timeupdate', handlePlaybackStarted);
+            }
             
             // Now try to play
             try {

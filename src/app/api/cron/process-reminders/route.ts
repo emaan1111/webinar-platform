@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { processPendingReminders } from '@/lib/reminders'
+import { processEventReminders } from '@/lib/event-reminders'
 import { processPendingClickFunnelsReminderTags } from '@/lib/clickfunnelsReminderTags'
 import { processEndedWebinarsForAttendanceTags } from '@/lib/clickfunnelsAttendanceTags'
 import { processEndedSessionsForPostSMS } from '@/lib/postSessionSmsAutomation'
@@ -18,8 +19,9 @@ export async function POST(request: NextRequest) {
 
     console.log('🔔 Cron job: Processing reminders + ClickFunnels tags + attendance tagging + post-session SMS...')
 
-    const [reminderStats, clickFunnelsTagStats, attendanceTagStats, postSessionSmsStats] = await Promise.all([
+    const [reminderStats, eventReminderStats, clickFunnelsTagStats, attendanceTagStats, postSessionSmsStats] = await Promise.all([
       processPendingReminders(),
+      processEventReminders(),
       processPendingClickFunnelsReminderTags(),
       processEndedWebinarsForAttendanceTags(),
       processEndedSessionsForPostSMS()
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       reminderStats,
+      eventReminderStats,
       clickFunnelsTagStats,
       attendanceTagStats,
       postSessionSmsStats,

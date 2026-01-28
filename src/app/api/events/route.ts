@@ -56,6 +56,7 @@ export async function POST(req: Request) {
       webinarOptional,
       maxAttendees,
       requirePhone,
+      registrationTag,
       schedules, // Array of { startTime, endTime, timezone, zoomLink?, maxAttendees? }
     } = body;
 
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
         webinarOptional: webinarOptional ?? true,
         maxAttendees,
         requirePhone: requirePhone ?? false,
+        registrationTag: registrationTag || null,
         schedules: schedules?.length > 0 ? {
           create: schedules.map((s: any) => ({
             startTime: new Date(s.startTime),

@@ -38,6 +38,7 @@ export default function NewEventPage() {
     webinarOptional: true,
     maxAttendees: '',
     requirePhone: false,
+    registrationTag: '',
   });
 
   const [schedules, setSchedules] = useState<Schedule[]>([
@@ -188,6 +189,23 @@ export default function NewEventPage() {
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
               </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <h2 className="text-lg font-semibold mb-4">ClickFunnels</h2>
+            <div className="space-y-2">
+              <label className="block text-sm font-medium mb-1">Registration Tag</label>
+              <input
+                type="text"
+                className="w-full p-2 border rounded-lg"
+                placeholder="e.g. EVENT-REGISTERED"
+                value={form.registrationTag}
+                onChange={(e) => setForm({ ...form, registrationTag: e.target.value })}
+              />
+              <p className="text-xs text-gray-500">
+                Applied in ClickFunnels when someone registers for this event.
+              </p>
             </div>
           </Card>
 
