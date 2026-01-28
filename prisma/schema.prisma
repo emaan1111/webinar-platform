@@ -1,6 +1,3 @@
-// This is your Prisma schema file
-// Learn more: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -10,42 +7,26 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  ADMIN
-  HOST
-  ATTENDEE
-}
-
-enum WebinarStatus {
-  DRAFT
-  SCHEDULED
-  LIVE
-  ENDED
-  CANCELLED
-}
-
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  name      String?
-  password  String
-  image     String?
-  role      Role     @default(ATTENDEE)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  hostedWebinars Webinar[]      @relation("HostedWebinars")
-  hostedEvents   Event[]        @relation("HostedEvents")
-  registrations  Registration[]
-  posts          Post[]
-  comments       Comment[]
-  analytics      Analytics[]
-  accounts       Account[]
-  sessions       Session[]
-  chatMessages   ChatMessage[]
+  id               String            @id @default(cuid())
+  email            String            @unique
+  name             String?
+  password         String
+  image            String?
+  role             Role              @default(ATTENDEE)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  accounts         Account[]
+  analytics        Analytics[]
   chatMessageLikes ChatMessageLike[]
-  reactions      Reaction[]
+  chatMessages     ChatMessage[]
+  comments         Comment[]
+  hostedEvents     Event[]           @relation("HostedEvents")
+  posts            Post[]
+  reactions        Reaction[]
+  registrations    Registration[]
+  sessions         Session[]
+  hostedWebinars   Webinar[]         @relation("HostedWebinars")
 
   @@map("users")
 }
@@ -56,15 +37,14 @@ model Account {
   type              String
   provider          String
   providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
+  refresh_token     String?
+  access_token      String?
   expires_at        Int?
   token_type        String?
   scope             String?
-  id_token          String? @db.Text
+  id_token          String?
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
@@ -81,149 +61,103 @@ model Session {
 }
 
 model Webinar {
-  id            String        @id @default(cuid())
-  slug          String?       @unique // For public registration URLs (user can customize)
-  internalName  String? // Private internal name for organization (not shown to attendees)
-  title         String
-  description   String        @db.Text
-  thumbnail     String?
-  duration      Int // in minutes
-  vimeoVideoId  String? // Vimeo video ID (e.g., "123456789")
-  videoUrl      String? // Full URL to video (YouTube or other)
-  videoDuration Int? // Actual video duration in seconds
-  status        WebinarStatus @default(DRAFT)
-  recordingUrl  String?
-  hostId        String
-
-  // Features Toggle
-  hasReplay       Boolean @default(true)
-  hasOffers       Boolean @default(true)
-  hasChat         Boolean @default(true)
-  hasReactions    Boolean @default(true)
-  showElapsedTime Boolean @default(true) // Display elapsed time on the live video
-
-  // Replay Settings
-  replayEnabled      Boolean   @default(true) // Master toggle for replay availability
-  replayDurationDays Int? // How many days after user's session the replay is available
-  replayExpiresAt    DateTime? // Absolute expiration date (optional override)
-
-  // Registration Settings
-  maxSchedulesToShow  Int     @default(3) // How many upcoming schedules to show on registration page
-  registrationPageId  String? // Reference to RegistrationPage table (replaces registrationTemplateId)
-  thankYouTemplateId  String? // Reference to ThankYouTemplate table
-  countdownTemplateId String? // Reference to CountdownTemplate table (same system as Thank You)
-  countdownPageId     String? // Reference to CountdownPage table (deprecated, use countdownTemplateId)
-  roundJITTo15Minutes Boolean @default(true) // Round Just-In-Time schedules to nearest 15-minute interval
-
-  // A/B Testing Configuration
-  enableABTesting     Boolean @default(false) // Master toggle for A/B testing
-  trafficSplitPercent Int     @default(50) // Percentage to variant A (50 = 50/50 split)
-
-  // Registration Page Testing
-  testRegistrationPage Boolean @default(false)
-  regPageAId           String? // Variant A registration page ID (replaces regTemplateAId)
-  regPageBId           String? // Variant B registration page ID (replaces regTemplateBId)
-
-  // Schedule Testing
-  testSchedule Boolean @default(false)
-  scheduleAIds String? // Comma-separated schedule IDs for variant A
-  scheduleBIds String? // Comma-separated schedule IDs for variant B
-
-  // Offer Testing
-  testOffer Boolean @default(false)
-  offerAId  String? // Variant A offer ID
-  offerBId  String? // Variant B offer ID
-
-  // Video Testing
-  testVideo Boolean @default(false)
-  videoAId  String? // Variant A video (Vimeo ID or URL)
-  videoBId  String? // Variant B video (Vimeo ID or URL)
-
-  // Social Share Messages (for Thank You & Countdown pages)
-  whatsappShareMessage String? @db.Text // Custom WhatsApp share message
-  facebookShareMessage String? @db.Text // Custom Facebook share message (if needed)
-
-  // Attendance Tagging Configuration
-  mostlyAttendedThreshold Int? // Timestamp in seconds - users who watch past this get MOSTLY_ATTENDED tag
-
-  // ClickFunnels Custom Tags (name + ID for performance)
-  registrationTag     String?
-  registrationTagId   Int? // Store the ID directly for performance
-  attendedTag         String?
-  attendedTagId       Int?
-  mostlyAttendedTag   String?
-  mostlyAttendedTagId Int?
-  partlyAttendedTag   String?
-  partlyAttendedTagId Int?
-  missedTag           String?
-  missedTagId         Int?
-  replayAttendedTag   String?
-  replayAttendedTagId Int?
-
-  // Post-Session SMS Automation
-  autoSendPostSessionSMS             Boolean @default(false) // Enable automatic post-session SMS
-  postSessionSMSMinutesAfter         Int     @default(0) // Minutes after session ends (0 = immediately)
-  postSessionSMSMinWatchedMinutes    Int? // Minimum minutes watched to qualify (null = no minimum)
-  postSessionSMSMinWatchedPercentage Int? // Minimum percentage watched (null = no minimum)
-  postSessionSMSBody                 String? @db.Text // SMS template with {name}, {webinar_title} placeholders
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  host           User              @relation("HostedWebinars", fields: [hostId], references: [id])
-  registrations  Registration[]
-  analytics      Analytics[]
-  offers         Offer[]
-  bonusResources BonusResource[]
-  chatMessages   ChatMessage[]
-  reactions      Reaction[]
-  schedules      WebinarSchedule[] // All schedules (specific, recurring, just-in-time)
-  faqs           WebinarFaq[] // FAQs shown during offer phase
-  sales          WebinarSale[]
-
-  // AI Assistant Relations
-  programDocuments ProgramDocument[] // Knowledge base for AI
-  aiChatConfig     AIChatConfig? // AI configuration
-
-  // Reminder System
-  reminderTemplates WebinarReminderTemplate[] // Reminder templates for this webinar
-
-  // Independent Lead Pages
-  leadPages LeadPage[]
-
-  // Event Bundles
-  bundledEvents Event[] @relation("BundledWebinars") // Events that include this webinar as a bundle
+  id                                 String                    @id @default(cuid())
+  slug                               String?                   @unique
+  internalName                       String?
+  title                              String
+  description                        String
+  thumbnail                          String?
+  duration                           Int
+  vimeoVideoId                       String?
+  videoUrl                           String?
+  videoDuration                      Int?
+  status                             WebinarStatus             @default(DRAFT)
+  recordingUrl                       String?
+  hostId                             String
+  hasReplay                          Boolean                   @default(true)
+  hasOffers                          Boolean                   @default(true)
+  hasChat                            Boolean                   @default(true)
+  hasReactions                       Boolean                   @default(true)
+  showElapsedTime                    Boolean                   @default(true)
+  maxSchedulesToShow                 Int                       @default(3)
+  registrationPageId                 String?
+  thankYouTemplateId                 String?
+  countdownTemplateId                String?
+  countdownPageId                    String?
+  enableABTesting                    Boolean                   @default(false)
+  trafficSplitPercent                Int                       @default(50)
+  testRegistrationPage               Boolean                   @default(false)
+  regPageAId                         String?
+  regPageBId                         String?
+  testSchedule                       Boolean                   @default(false)
+  scheduleAIds                       String?
+  scheduleBIds                       String?
+  testOffer                          Boolean                   @default(false)
+  offerAId                           String?
+  offerBId                           String?
+  testVideo                          Boolean                   @default(false)
+  videoAId                           String?
+  videoBId                           String?
+  whatsappShareMessage               String?
+  facebookShareMessage               String?
+  createdAt                          DateTime                  @default(now())
+  updatedAt                          DateTime                  @updatedAt
+  replayDurationDays                 Int?
+  replayEnabled                      Boolean                   @default(true)
+  replayExpiresAt                    DateTime?
+  mostlyAttendedThreshold            Int?
+  autoSendPostSessionSMS             Boolean                   @default(false)
+  postSessionSMSMinutesAfter         Int                       @default(0)
+  postSessionSMSMinWatchedMinutes    Int?
+  postSessionSMSMinWatchedPercentage Int?
+  postSessionSMSBody                 String?
+  roundJITTo15Minutes                Boolean                   @default(true)
+  registrationTag                    String?
+  attendedTag                        String?
+  mostlyAttendedTag                  String?
+  partlyAttendedTag                  String?
+  missedTag                          String?
+  replayAttendedTag                  String?
+  attendedTagId                      Int?
+  missedTagId                        Int?
+  mostlyAttendedTagId                Int?
+  partlyAttendedTagId                Int?
+  registrationTagId                  Int?
+  replayAttendedTagId                Int?
+  offers                             Offer[]
+  aiChatConfig                       AIChatConfig?
+  analytics                          Analytics[]
+  bonusResources                     BonusResource[]
+  chatMessages                       ChatMessage[]
+  bundledEvents                      Event[]                   @relation("BundledWebinars")
+  leadPages                          LeadPage[]
+  programDocuments                   ProgramDocument[]
+  reactions                          Reaction[]
+  registrations                      Registration[]
+  faqs                               WebinarFaq[]
+  reminderTemplates                  WebinarReminderTemplate[]
+  sales                              WebinarSale[]
+  schedules                          WebinarSchedule[]
+  host                               User                      @relation("HostedWebinars", fields: [hostId], references: [id])
 
   @@map("webinars")
 }
 
 model WebinarSchedule {
-  id        String  @id @default(cuid())
-  webinarId String
-  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-
-  // Schedule Type
-  scheduleType String // "specific", "justInTime", "recurring"
-
-  // For specific schedules
-  scheduledAt     DateTime?
-  timezone        String?
-  useUserTimezone Boolean   @default(false)
-
-  // For just-in-time schedules (X minutes from registration)
-  minutesFromReg Int? // Start X minutes after user registers
-
-  // For recurring schedules
-  recurringPattern String? // JSON: { interval: "daily"|"weekly"|"monthly", time: "14:00", daysOfWeek: [1,3,5] }
-
-  // Zoom Integration (for specific date schedules)
-  isZoomSession Boolean @default(false) // If true, this is a live Zoom session instead of simulated
-  zoomLink      String? // Zoom meeting link for live sessions
-
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String    @id @default(cuid())
+  webinarId        String
+  scheduleType     String
+  scheduledAt      DateTime?
+  timezone         String?
+  useUserTimezone  Boolean   @default(false)
+  minutesFromReg   Int?
+  recurringPattern String?
+  isActive         Boolean   @default(true)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  isZoomSession    Boolean   @default(false)
+  zoomLink         String?
+  webinar          Webinar   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("webinar_schedules")
 }
@@ -231,80 +165,72 @@ model WebinarSchedule {
 model Offer {
   id                String   @id @default(cuid())
   webinarId         String
-  webinar           Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   title             String
   description       String?
   price             Float
   originalPrice     Float?
   discountLabel     String?
-  countdownDuration Int? // Seconds for offer countdown badge
+  countdownDuration Int?
   bulletPoints      String[] @default([])
   ctaText           String   @default("Get This Offer")
   ctaUrl            String
-  videoTimestamp    Int // Seconds in video when offer appears
-  hideAfter         Int? // Seconds after appearing when offer disappears
+  videoTimestamp    Int
+  hideAfter         Int?
   isActive          Boolean  @default(true)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  webinar           Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 }
 
 model BonusResource {
   id          String   @id @default(cuid())
   webinarId   String
   title       String
-  description String?  @db.Text
-  fileUrl     String // URL to the file
-  fileType    String // pdf, video, doc, etc.
-  fileSize    Int? // in bytes
+  description String?
+  fileUrl     String
+  fileType    String
+  fileSize    Int?
   downloads   Int      @default(0)
-  isPublic    Boolean  @default(false) // If true, available to all attendees
+  isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
-  // Relations
-  webinar Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("bonus_resources")
 }
 
 model ChatMessage {
-  id             String        @id @default(cuid())
+  id             String            @id @default(cuid())
   webinarId      String
-  webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  userId         String? // Optional - for authenticated users
-  user           User?         @relation(fields: [userId], references: [id])
-  registrationId String? // Optional - for registered attendees without accounts
-  registration   Registration? @relation(fields: [registrationId], references: [id])
-  userName       String? // Store name from registration or user
+  userId         String?
+  registrationId String?
+  userName       String?
   message        String
-  isScripted     Boolean       @default(false) // True for pre-written scripted messages
-  isAI           Boolean       @default(false) // True for AI-generated responses
-  videoTimestamp Int? // Timestamp in seconds when message should appear (for scripted messages)
-  isHidden       Boolean       @default(false)
-  isApproved     Boolean       @default(false) // Admin approval for user messages
-  createdAt      DateTime      @default(now())
-
-  likes     ChatMessageLike[]
+  isScripted     Boolean           @default(false)
+  videoTimestamp Int?
+  isHidden       Boolean           @default(false)
+  isApproved     Boolean           @default(false)
+  createdAt      DateTime          @default(now())
+  isAI           Boolean           @default(false)
+  likes          ChatMessageLike[]
+  registration   Registration?     @relation(fields: [registrationId], references: [id])
+  user           User?             @relation(fields: [userId], references: [id])
+  webinar        Webinar           @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("chat_messages")
 }
 
 model ChatMessageLike {
-  id            String      @id @default(cuid())
-  chatMessageId String
-  chatMessage   ChatMessage @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
-  
-  // Who liked it?
-  userId         String? // Optional - for authenticated users
-  user           User?         @relation(fields: [userId], references: [id])
-  registrationId String? // Optional - for registered attendees
+  id             String        @id @default(cuid())
+  chatMessageId  String
+  userId         String?
+  registrationId String?
+  isSystem       Boolean       @default(false)
+  likerName      String?
+  createdAt      DateTime      @default(now())
+  chatMessage    ChatMessage   @relation(fields: [chatMessageId], references: [id], onDelete: Cascade)
   registration   Registration? @relation(fields: [registrationId], references: [id])
-  
-  // Or if it was the system (AI/Host bot)
-  isSystem     Boolean       @default(false)
-  likerName    String?       // "Naseera", "Host", etc.
-
-  createdAt    DateTime      @default(now())
+  user           User?         @relation(fields: [userId], references: [id])
 
   @@unique([chatMessageId, userId, registrationId, likerName])
   @@map("chat_message_likes")
@@ -313,93 +239,69 @@ model ChatMessageLike {
 model Reaction {
   id             String        @id @default(cuid())
   webinarId      String
-  webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  userId         String? // Optional - for authenticated users
-  user           User?         @relation(fields: [userId], references: [id])
-  registrationId String? // Optional - for registered attendees without accounts
-  registration   Registration? @relation(fields: [registrationId], references: [id])
-  userName       String? // Store name from registration or user
-  type           String // "heart", "clap", "thumbsUp"
-  isScripted     Boolean       @default(false) // True for pre-scripted reactions
-  videoTimestamp Int // Timestamp in seconds when reaction should appear
+  userId         String?
+  registrationId String?
+  userName       String?
+  type           String
+  isScripted     Boolean       @default(false)
+  videoTimestamp Int
   isHidden       Boolean       @default(false)
   createdAt      DateTime      @default(now())
+  registration   Registration? @relation(fields: [registrationId], references: [id])
+  user           User?         @relation(fields: [userId], references: [id])
+  webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@index([webinarId, videoTimestamp])
   @@map("reactions")
 }
 
 model Registration {
-  id         String  @id @default(cuid())
-  userId     String? // Make optional for public registrations
-  webinarId  String
-  scheduleId String? // Which schedule they registered for
-
-  // Contact Information
-  name  String
-  email String
-  phone String?
-
-  // Timezone and Location
-  timezone String? // User's timezone
-  country  String? // For GDPR compliance
-
-  // GDPR and Consent
-  gdprConsent      Boolean @default(false) // For EU residents
-  privacyConsent   Boolean @default(false) // Required for all
-  marketingConsent Boolean @default(false) // Optional marketing emails
-
-  // Registration Details
-  registeredAt       DateTime  @default(now())
-  scheduledStartTime DateTime? // The exact start time for this user's webinar session
-  attended           Boolean   @default(false)
-  joinedAt           DateTime? // Last time they joined (updates on refresh)
-  firstJoinedAt      DateTime? // First time they ever joined (never changes, for grace period)
-  leftAt             DateTime?
-
-  // Replay Tracking
-  watchedReplay       Boolean @default(false) // Has watched replay
-  replayWatchTime     Int     @default(0) // Total seconds watched in replay
-  lastWatchedPosition Int     @default(0) // Last video timestamp where user stopped (in seconds)
-  replayClickedCTA    Boolean @default(false) // Clicked CTA during replay
-  replayDevice        String? // Device used for replay: "mobile" | "desktop"
-  registrationDevice  String? // Device used during registration
-
-  // A/B Testing
-  testGroup String? // "A" or "B" - which test group they were in
-
-  // Sales Tracking
-  hasPurchased Boolean @default(false) // Set to true when they make a purchase
-
-  // Attendance Tagging
-  attendanceTagsApplied   Boolean   @default(false) // Whether attendance tags have been applied
-  attendanceTagsAppliedAt DateTime? // When attendance tags were applied
-
-  // Post-Session SMS Tracking
-  postSessionSmsSent   Boolean   @default(false) // Whether post-session SMS has been sent
-  postSessionSmsSentAt DateTime? // When post-session SMS was sent
-
-  // Referral System
-  referralCode   String?        @unique // Unique code for this person to share (e.g., "ABC123")
-  referredBy     String? // referralCode of the person who referred them
-  referredByUser Registration?  @relation("Referrals", fields: [referredBy], references: [referralCode], onDelete: SetNull)
-  referrals      Registration[] @relation("Referrals") // People this person referred
-
-  // Relations
-  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
-  webinar        Webinar           @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  testMetrics    ABTestMetric[]
-  sessions       AttendeeSession[]
-  pageVisits     PageVisit[]
-  chatMessages   ChatMessage[] // Chat messages sent by this registered attendee
-  chatMessageLikes ChatMessageLike[]
-  reactions      Reaction[] // Reactions sent by this registered attendee
-  sales          WebinarSale[]
-  offerAnalytics OfferAnalytics[] // Offer analytics for this registration
-
-  // Reminder System
-  reminders                WebinarReminderSent[] // Reminders sent to this registration
+  id                       String                    @id @default(cuid())
+  userId                   String?
+  webinarId                String
+  scheduleId               String?
+  name                     String
+  email                    String
+  phone                    String?
+  timezone                 String?
+  country                  String?
+  gdprConsent              Boolean                   @default(false)
+  privacyConsent           Boolean                   @default(false)
+  marketingConsent         Boolean                   @default(false)
+  registeredAt             DateTime                  @default(now())
+  scheduledStartTime       DateTime?
+  attended                 Boolean                   @default(false)
+  joinedAt                 DateTime?
+  firstJoinedAt            DateTime?
+  leftAt                   DateTime?
+  testGroup                String?
+  referralCode             String?                   @unique
+  referredBy               String?
+  registrationDevice       String?
+  replayClickedCTA         Boolean                   @default(false)
+  replayDevice             String?
+  replayWatchTime          Int                       @default(0)
+  watchedReplay            Boolean                   @default(false)
+  lastWatchedPosition      Int                       @default(0)
+  hasPurchased             Boolean                   @default(false)
+  attendanceTagsApplied    Boolean                   @default(false)
+  attendanceTagsAppliedAt  DateTime?
+  postSessionSmsSent       Boolean                   @default(false)
+  postSessionSmsSentAt     DateTime?
+  testMetrics              ABTestMetric[]
+  sessions                 AttendeeSession[]
+  chatMessageLikes         ChatMessageLike[]
+  chatMessages             ChatMessage[]
   clickFunnelsReminderTags ClickFunnelsReminderTag[]
+  offerAnalytics           OfferAnalytics[]
+  pageVisits               PageVisit[]
+  reactions                Reaction[]
+  referredByUser           Registration?             @relation("Referrals", fields: [referredBy], references: [referralCode])
+  referrals                Registration[]            @relation("Referrals")
+  user                     User?                     @relation(fields: [userId], references: [id])
+  webinar                  Webinar                   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  reminders                WebinarReminderSent[]
+  sales                    WebinarSale[]
 
   @@index([email])
   @@index([webinarId])
@@ -409,80 +311,56 @@ model Registration {
   @@map("registrations")
 }
 
-// A/B Testing Metrics
 model ABTestMetric {
-  id        String @id @default(cuid())
-  webinarId String
-  visitorId String // UUID from cookie
-  testGroup String // "A" or "B"
-
-  // What was tested
-  element      String // "registration" | "schedule" | "offer" | "video"
-  variantShown String // Which variant they saw (template ID, schedule IDs, offer ID, video ID)
-
-  // Tracking
-  pageView       DateTime @default(now())
-  converted      Boolean  @default(false)
-  registrationId String? // Link to Registration if converted
-
-  // Analytics
-  timeOnPage Int? // Seconds spent on page
-  clicks     Int     @default(0)
-  country    String? // Visitor country
-  referrer   String? // Traffic source
-  device     String? // "mobile" | "desktop" | "tablet"
-
-  createdAt DateTime @default(now())
-
-  // Relations
-  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  id             String        @id @default(cuid())
+  webinarId      String
+  visitorId      String
+  testGroup      String
+  element        String
+  variantShown   String
+  pageView       DateTime      @default(now())
+  converted      Boolean       @default(false)
+  registrationId String?
+  timeOnPage     Int?
+  clicks         Int           @default(0)
+  country        String?
+  referrer       String?
+  device         String?
+  createdAt      DateTime      @default(now())
+  registration   Registration? @relation(fields: [registrationId], references: [id])
 
   @@index([webinarId, element, testGroup])
   @@index([visitorId])
   @@map("ab_test_metrics")
 }
 
-// Attendee Session Tracking
 model AttendeeSession {
-  id             String  @id @default(cuid())
-  registrationId String
-  webinarId      String
-  scheduleId     String?
-
-  // Session Times
-  joinedAt   DateTime  @default(now())
-  leftAt     DateTime?
-  lastSeenAt DateTime  @default(now()) // For detecting inactive users
-
-  // Watch Duration
-  totalWatchTime Int     @default(0) // Total seconds watched
-  videoPosition  Int     @default(0) // Last known position in video (seconds)
-  isWatching     Boolean @default(true)
-  watchDuration  Int     @default(0) // Actual watch duration (for backward compatibility)
-
-  // Audio State Tracking
-  watchedMuted    Boolean  @default(true) // Started muted (most users do)
-  mutedDuration   Int      @default(0) // Seconds watched while muted
-  unmutedDuration Int      @default(0) // Seconds watched while unmuted
-  lastMuteState   Boolean? // Last known mute state
-
-  // Status
-  isActive  Boolean @default(true) // Currently in webinar
-  completed Boolean @default(false) // Watched to end
-
-  // Device & Browser
-  userAgent String?
-  device    String? // "mobile" | "desktop" | "tablet"
-  browser   String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  registration Registration      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-  videoEvents  VideoWatchEvent[]
-  engagements  EngagementEvent[]
-  pageVisits   PageVisit[]
+  id              String            @id @default(cuid())
+  registrationId  String
+  webinarId       String
+  scheduleId      String?
+  joinedAt        DateTime          @default(now())
+  leftAt          DateTime?
+  lastSeenAt      DateTime          @default(now())
+  totalWatchTime  Int               @default(0)
+  videoPosition   Int               @default(0)
+  isWatching      Boolean           @default(true)
+  isActive        Boolean           @default(true)
+  completed       Boolean           @default(false)
+  userAgent       String?
+  device          String?
+  browser         String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  lastMuteState   Boolean?
+  mutedDuration   Int               @default(0)
+  unmutedDuration Int               @default(0)
+  watchDuration   Int               @default(0)
+  watchedMuted    Boolean           @default(true)
+  registration    Registration      @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  engagements     EngagementEvent[]
+  pageVisits      PageVisit[]
+  videoEvents     VideoWatchEvent[]
 
   @@index([registrationId])
   @@index([webinarId, scheduleId])
@@ -491,43 +369,31 @@ model AttendeeSession {
   @@map("attendee_sessions")
 }
 
-// Video Watch Events - Track drop-off points
 model VideoWatchEvent {
-  id        String @id @default(cuid())
-  sessionId String
-  webinarId String
-
-  // Video Tracking
-  timestamp   Int // Position in video (seconds)
-  eventType   String // "play" | "pause" | "seek" | "ended" | "left"
-  watchedFrom Int? // For seek events
-  watchedTo   Int? // For seek events
-
-  createdAt DateTime @default(now())
-
-  // Relations
-  session AttendeeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  id          String          @id @default(cuid())
+  sessionId   String
+  webinarId   String
+  timestamp   Int
+  eventType   String
+  watchedFrom Int?
+  watchedTo   Int?
+  createdAt   DateTime        @default(now())
+  session     AttendeeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([webinarId, timestamp])
   @@map("video_watch_events")
 }
 
-// Engagement Events - Chat, Reactions, Offers
 model EngagementEvent {
-  id        String @id @default(cuid())
+  id        String          @id @default(cuid())
   sessionId String
   webinarId String
-
-  // Event Details
-  eventType String // "chat" | "reaction" | "question" | "poll" | "offer_view" | "offer_click"
-  eventData String? @db.Text // JSON data (reaction type, chat message length, etc)
-  timestamp Int // Position in video when event occurred (seconds)
-
-  createdAt DateTime @default(now())
-
-  // Relations
-  session AttendeeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  eventType String
+  eventData String?
+  timestamp Int
+  createdAt DateTime        @default(now())
+  session   AttendeeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId])
   @@index([webinarId, eventType])
@@ -535,38 +401,28 @@ model EngagementEvent {
   @@map("engagement_events")
 }
 
-// Page Visit Tracking
 model PageVisit {
-  id             String  @id @default(cuid())
-  sessionId      String? // Linked after registration
-  registrationId String? // Linked after registration
+  id             String           @id @default(cuid())
+  sessionId      String?
+  registrationId String?
   webinarId      String
-  visitorId      String // UUID from cookie (for pre-registration tracking)
-
-  // Page Details
-  pageType     String // "registration" | "countdown" | "webinar" | "thank_you" | "replay"
-  pageId       String? // For registration/countdown pages: which specific page was shown (for A/B testing tracking)
-  variantGroup String? // For A/B testing: "A" or "B" 
-  enteredAt    DateTime  @default(now())
-  leftAt       DateTime?
-  timeSpent    Int? // Seconds spent on page
-
-  // Referrer
-  referrer    String? @db.Text
-  utmSource   String?
-  utmMedium   String?
-  utmCampaign String?
-
-  // Device
-  device  String?
-  browser String?
-  country String?
-
-  createdAt DateTime @default(now())
-
-  // Relations
-  session      AttendeeSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  registration Registration?    @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  visitorId      String
+  pageType       String
+  pageId         String?
+  variantGroup   String?
+  enteredAt      DateTime         @default(now())
+  leftAt         DateTime?
+  timeSpent      Int?
+  referrer       String?
+  utmSource      String?
+  utmMedium      String?
+  utmCampaign    String?
+  device         String?
+  browser        String?
+  country        String?
+  createdAt      DateTime         @default(now())
+  registration   Registration?    @relation(fields: [registrationId], references: [id])
+  session        AttendeeSession? @relation(fields: [sessionId], references: [id])
 
   @@index([webinarId, pageType])
   @@index([webinarId, pageType, pageId])
@@ -576,32 +432,22 @@ model PageVisit {
   @@map("page_visits")
 }
 
-// Offer Analytics
 model OfferAnalytics {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
   webinarId      String
   registrationId String
-
-  // Offer Details
-  offerTitle String
-  offerUrl   String @db.Text
-
-  // Interaction
-  sawOffer       Boolean   @default(false)
+  offerTitle     String
+  offerUrl       String
+  sawOffer       Boolean      @default(false)
   sawOfferAt     DateTime?
-  clickedOffer   Boolean   @default(false)
+  clickedOffer   Boolean      @default(false)
   clickedOfferAt DateTime?
-  videoPosition  Int? // Where in video they saw/clicked offer
-
-  // Outcome
-  converted   Boolean   @default(false)
-  convertedAt DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  registration Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  videoPosition  Int?
+  converted      Boolean      @default(false)
+  convertedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@index([webinarId])
   @@index([registrationId])
@@ -612,30 +458,25 @@ model OfferAnalytics {
 }
 
 model WebinarSale {
-  id             String  @id @default(cuid())
+  id             String        @id @default(cuid())
   webinarId      String
   registrationId String?
   email          String
+  orderId        String        @unique
+  orderFormId    String?
+  orderFormName  String?
+  productName    String?
+  status         String?
+  amount         Float?
+  currency       String?       @default("USD")
+  contactId      String?
+  purchasedAt    DateTime?
+  rawPayload     Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  registration   Registration? @relation(fields: [registrationId], references: [id])
+  webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
-  // Order details
-  orderId       String
-  orderFormId   String?
-  orderFormName String?
-  productName   String?
-  status        String?
-  amount        Float?
-  currency      String?   @default("USD")
-  contactId     String?
-  purchasedAt   DateTime?
-  rawPayload    Json?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  webinar      Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-  registration Registration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
-
-  @@unique([orderId])
   @@index([webinarId])
   @@index([registrationId])
   @@index([email])
@@ -643,30 +484,26 @@ model WebinarSale {
 }
 
 model Post {
-  id        String   @id @default(cuid())
-  content   String   @db.Text
+  id        String    @id @default(cuid())
+  content   String
   authorId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  comments Comment[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  comments  Comment[]
+  author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@map("posts")
 }
 
 model Comment {
   id        String   @id @default(cuid())
-  content   String   @db.Text
+  content   String
   postId    String
   authorId  String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-
-  // Relations
-  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  author User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
   @@map("comments")
 }
@@ -675,397 +512,281 @@ model Analytics {
   id        String   @id @default(cuid())
   userId    String?
   webinarId String?
-  event     String // e.g., "page_view", "registration", "join", "leave", "chat_message"
-  metadata  Json? // Flexible storage for event-specific data
+  event     String
+  metadata  Json?
   createdAt DateTime @default(now())
-
-  // Relations
-  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
-  webinar Webinar? @relation(fields: [webinarId], references: [id], onDelete: SetNull)
+  user      User?    @relation(fields: [userId], references: [id])
+  webinar   Webinar? @relation(fields: [webinarId], references: [id])
 
   @@map("analytics")
 }
 
-// Registration Page Templates
 model Template {
   id          String   @id @default(cuid())
-  name        String   @unique // e.g., "Default", "Minimal", "Urgency", "Islamic Mothers"
-  description String?  @db.Text // Short description of the template
-  htmlCode    String   @db.Text // Complete HTML with embedded CSS and JS
-  thumbnail   String? // Screenshot or preview image URL
-  popupStyle  String   @default("center") // Popup style: center, slide-up, slide-right, fade
-  popupTheme  String   @default("purple") // Popup theme: purple, blue, green, red, orange, dark
-  isSystem    Boolean  @default(false) // System templates cannot be deleted
+  name        String   @unique
+  description String?
+  htmlCode    String
+  thumbnail   String?
+  popupStyle  String   @default("center")
+  popupTheme  String   @default("purple")
+  isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@map("templates")
 }
 
-// Thank You Page Templates
 model ThankYouTemplate {
   id          String   @id @default(cuid())
-  name        String   @unique // e.g., "Default", "Minimal", "Download Focus", "Calendar Add"
-  description String?  @db.Text // Short description of the template
-  htmlCode    String   @db.Text // Complete HTML with embedded CSS and JS
-  thumbnail   String? // Screenshot or preview image URL
-  isSystem    Boolean  @default(false) // System templates cannot be deleted
+  name        String   @unique
+  description String?
+  htmlCode    String
+  thumbnail   String?
+  isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@map("thank_you_templates")
 }
 
-// Countdown Page Templates (Legacy - kept for backward compatibility)
 model CountdownTemplate {
   id          String   @id @default(cuid())
-  name        String   @unique // e.g., "Default", "Bold", "Minimal"
-  description String?  @db.Text // Short description of the template
-  htmlCode    String   @db.Text // Complete HTML with embedded CSS and JS
-  thumbnail   String? // Screenshot or preview image URL
-  isSystem    Boolean  @default(false) // System templates cannot be deleted
+  name        String   @unique
+  description String?
+  htmlCode    String
+  thumbnail   String?
+  isSystem    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@map("countdown_templates")
 }
 
-// Registration Pages (Dynamic System - replaces Template system for registration pages)
 model RegistrationPage {
-  id          String  @id @default(cuid())
-  name        String  @unique // e.g., "Default", "Bold", "Minimal", "Video Hero"
-  description String? @db.Text // Short description of the registration page
-
-  // Page Content
-  htmlCode String @db.Text // Complete HTML with embedded CSS and JS
-
-  // Form Settings
-  collectPhone      Boolean @default(false)
-  collectCompany    Boolean @default(false)
-  collectCustom1    Boolean @default(false)
-  customField1Label String? // e.g., "Job Title", "Industry"
-  collectCustom2    Boolean @default(false)
-  customField2Label String? // e.g., "Company Size", "Role"
-
-  // Display Settings
-  showHostInfo     Boolean @default(true)
-  showBenefits     Boolean @default(true)
-  showTestimonials Boolean @default(false)
-  showCountdown    Boolean @default(true)
-  showSocialProof  Boolean @default(true) // "X people registered"
-
-  // Video Settings (for video-based registration pages)
-  showVideo     Boolean @default(false)
-  videoUrl      String? // YouTube, Vimeo, or other video URL
-  videoTitle    String? // Title shown above/below video
-  videoAutoplay Boolean @default(false)
-
-  // Testimonials (if showTestimonials is true)
-  testimonial1Text   String? @db.Text
+  id                 String     @id @default(cuid())
+  name               String     @unique
+  description        String?
+  htmlCode           String
+  collectPhone       Boolean    @default(false)
+  collectCompany     Boolean    @default(false)
+  collectCustom1     Boolean    @default(false)
+  customField1Label  String?
+  collectCustom2     Boolean    @default(false)
+  customField2Label  String?
+  showHostInfo       Boolean    @default(true)
+  showBenefits       Boolean    @default(true)
+  showTestimonials   Boolean    @default(false)
+  showCountdown      Boolean    @default(true)
+  showSocialProof    Boolean    @default(true)
+  showVideo          Boolean    @default(false)
+  videoUrl           String?
+  videoTitle         String?
+  videoAutoplay      Boolean    @default(false)
+  testimonial1Text   String?
   testimonial1Author String?
   testimonial1Image  String?
-  testimonial2Text   String? @db.Text
+  testimonial2Text   String?
   testimonial2Author String?
   testimonial2Image  String?
-  testimonial3Text   String? @db.Text
+  testimonial3Text   String?
   testimonial3Author String?
   testimonial3Image  String?
-
-  // Benefits/Features List (if showBenefits is true)
-  benefit1 String?
-  benefit2 String?
-  benefit3 String?
-  benefit4 String?
-  benefit5 String?
-
-  // Branding
-  logoUrl         String? // Header logo
-  primaryColor    String? @default("#4f46e5") // Main brand color (CTA buttons, etc.)
-  secondaryColor  String? @default("#8b5cf6") // Secondary/accent color
-  backgroundColor String? @default("#ffffff") // Page background
-  textColor       String? @default("#1f2937") // Main text color
-
-  // Call-to-Action
-  ctaButtonText  String? @default("Register Now")
-  ctaButtonStyle String? @default("solid") // "solid", "outline", "gradient"
-
-  // Footer
-  showFooter        Boolean @default(true)
-  footerText        String? @db.Text // Custom footer text
-  privacyPolicyUrl  String?
-  termsOfServiceUrl String?
-
-  // SEO & Preview
-  thumbnail       String? // Screenshot or preview image URL
-  metaDescription String? // For SEO
-
-  // System
-  isSystem  Boolean  @default(false) // System pages cannot be deleted
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  leadPages LeadPage[]
+  benefit1           String?
+  benefit2           String?
+  benefit3           String?
+  benefit4           String?
+  benefit5           String?
+  logoUrl            String?
+  primaryColor       String?    @default("#4f46e5")
+  secondaryColor     String?    @default("#8b5cf6")
+  backgroundColor    String?    @default("#ffffff")
+  textColor          String?    @default("#1f2937")
+  ctaButtonText      String?    @default("Register Now")
+  ctaButtonStyle     String?    @default("solid")
+  showFooter         Boolean    @default(true)
+  footerText         String?
+  privacyPolicyUrl   String?
+  termsOfServiceUrl  String?
+  thumbnail          String?
+  metaDescription    String?
+  isSystem           Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  leadPages          LeadPage[]
 
   @@map("registration_pages")
 }
 
-// Countdown Pages (New Dynamic System - Similar to Registration Pages)
 model CountdownPage {
-  id          String  @id @default(cuid())
-  name        String  @unique // e.g., "Islamic Mothers", "Default", "Minimal"
-  description String? @db.Text // Short description of the countdown page
-
-  // Page Content
-  htmlCode String @db.Text // Complete HTML with embedded CSS and JS
-
-  // Video Settings (optional)
-  showVideo        Boolean @default(false)
-  videoUrl         String? // YouTube, Vimeo, or other video URL
-  videoTitle       String? // Title shown above video
-  videoPlaceholder String? @default("Watch this important message")
-
-  // Bonus/Gift Settings (optional)
-  showBonus        Boolean @default(false)
-  bonusTitle       String? // e.g., "Stories of Great Mothers"
-  bonusDescription String? @db.Text
-  bonusImage       String? // URL to bonus image
-  bonusValue       String? // e.g., "$47" or "Free"
-  bonusBadge       String? // e.g., "FREE", "LIMITED"
-
-  // Call-to-Action Settings
-  showReminder  Boolean @default(true)
-  showWhatsApp  Boolean @default(true)
-  showFacebook  Boolean @default(true)
-  showCustomCTA Boolean @default(false)
-  customCTAText String?
-  customCTAUrl  String?
-
-  // Branding
-  organizationName String? // For footer
-  contactEmail     String? // For footer
-  websiteUrl       String? // For footer
-  logoUrl          String? // Header logo
-
-  // Design
-  thumbnail    String? // Screenshot or preview image URL
-  primaryColor String? @default("#4a3b6b") // Main brand color
-  accentColor  String? @default("#d53f8c") // Accent color
-
-  // System
-  isSystem  Boolean  @default(false) // System pages cannot be deleted
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id               String   @id @default(cuid())
+  name             String   @unique
+  description      String?
+  htmlCode         String
+  showVideo        Boolean  @default(false)
+  videoUrl         String?
+  videoTitle       String?
+  videoPlaceholder String?  @default("Watch this important message")
+  showBonus        Boolean  @default(false)
+  bonusTitle       String?
+  bonusDescription String?
+  bonusImage       String?
+  bonusValue       String?
+  bonusBadge       String?
+  showReminder     Boolean  @default(true)
+  showWhatsApp     Boolean  @default(true)
+  showFacebook     Boolean  @default(true)
+  showCustomCTA    Boolean  @default(false)
+  customCTAText    String?
+  customCTAUrl     String?
+  organizationName String?
+  contactEmail     String?
+  websiteUrl       String?
+  logoUrl          String?
+  thumbnail        String?
+  primaryColor     String?  @default("#4a3b6b")
+  accentColor      String?  @default("#d53f8c")
+  isSystem         Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now())
 
   @@map("countdown_pages")
 }
 
-// FAQs for Webinars (shown during offer phase in live room)
 model WebinarFaq {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   webinarId String
-  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-
-  question  String @db.Text // The FAQ question
-  answer    String @db.Text // The FAQ answer
-  sortOrder Int    @default(0) // Display order (lower = shown first)
-
+  question  String
+  answer    String
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  webinar   Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("webinar_faqs")
 }
 
-// AI Program Knowledge Base - Documents for AI to use after CTA
 model ProgramDocument {
-  id        String  @id @default(cuid())
+  id        String   @id @default(cuid())
   webinarId String
-  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-
-  title     String // e.g., "Program Overview", "Pricing", "FAQs"
-  content   String  @db.Text // The actual content AI will use
-  category  String  @default("general") // "overview", "pricing", "faq", "curriculum", "testimonials"
-  isActive  Boolean @default(true)
-  sortOrder Int     @default(0)
-
+  title     String
+  content   String
+  category  String   @default("general")
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
+  webinar   Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("program_documents")
 }
 
-// AI Chat Configuration per Webinar
 model AIChatConfig {
-  id        String  @id @default(cuid())
-  webinarId String  @unique
-  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-
-  enabled            Boolean @default(true)
-  activateAfterOffer Boolean @default(true) // Only respond after CTA/offer is shown
-  assistantName      String  @default("AI Assistant") // Display name for the AI
-
-  systemPrompt String? @db.Text // Custom instructions for AI
-  temperature  Float   @default(0.7) // OpenAI temperature (0-1)
-  maxTokens    Int     @default(500) // Max response length
-
-  // Response behavior
-  autoRespond     Boolean @default(true) // Automatically respond to questions
-  requireApproval Boolean @default(false) // Require host approval before sending
-
-  // Auto-Like Configuration
-  autoLikeEnabled Boolean @default(true) 
-  autoLikePrompt  String? @db.Text // Guidelines for when to like a message
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id                 String   @id @default(cuid())
+  webinarId          String   @unique
+  enabled            Boolean  @default(true)
+  activateAfterOffer Boolean  @default(true)
+  systemPrompt       String?
+  temperature        Float    @default(0.7)
+  maxTokens          Int      @default(500)
+  autoRespond        Boolean  @default(true)
+  requireApproval    Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now())
+  assistantName      String   @default("AI Assistant")
+  autoLikeEnabled    Boolean  @default(true)
+  autoLikePrompt     String?
+  webinar            Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("ai_chat_config")
 }
 
-// Image Library - Store uploaded images for use in pages
 model Image {
-  id           String @id @default(cuid())
-  filename     String // Unique filename on disk
-  originalName String // Original uploaded filename
-  url          String // Public URL to access image
-  size         Int // File size in bytes
-  mimeType     String // image/jpeg, image/png, etc.
-  width        Int? // Image width in pixels
-  height       Int? // Image height in pixels
-
-  // Metadata
-  uploadedBy  String? // User ID who uploaded
-  tags        String? // Comma-separated tags for organization
-  description String? @db.Text // Optional description
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id           String   @id @default(cuid())
+  filename     String
+  originalName String
+  url          String
+  size         Int
+  mimeType     String
+  width        Int?
+  height       Int?
+  uploadedBy   String?
+  tags         String?
+  description  String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now())
 
   @@index([uploadedBy])
   @@map("images")
 }
 
-// Webinar Reminder System
-enum ReminderStatus {
-  PENDING // Not sent yet
-  SENT // Successfully sent
-  FAILED // Failed to send
-  CANCELLED // Cancelled (e.g., user unregistered)
-  SKIPPED // Skipped because webinar time has passed
-}
-
-enum ReminderChannel {
-  EMAIL
-  SMS
-  BOTH
-}
-
-// Template for reminder timing (e.g., "24 hours before", "2 hours before")
 model WebinarReminderTemplate {
-  id        String  @id @default(cuid())
-  webinarId String
-  webinar   Webinar @relation(fields: [webinarId], references: [id], onDelete: Cascade)
-
-  // Type of reminder
-  type String @default("pre_webinar") // 'pre_webinar' or 'post_webinar'
-
-  // Timing - Pre-webinar
-  minutesBefore Int? // Minutes before webinar start (e.g., 1440 for 24 hours, 120 for 2 hours)
-
-  // Timing - Post-session
-  minutesAfter Int? // Minutes after session completion (e.g., 0 for immediate, 1440 for 1 day)
-
-  // Watch criteria for post-session
-  minWatchedMinutes    Int? // Minimum minutes watched (e.g., 30)
-  minWatchedPercentage Int? // Minimum percentage watched (e.g., 50)
-
-  // Channels
-  channel ReminderChannel @default(EMAIL)
-
-  // Email content
-  emailSubject String? // Optional when using SMS only
-  emailBody    String? @db.Text // Can use placeholders: {{name}}, {{webinarTitle}}, {{countdownLink}}, {{referralLink}}, {{webinarTime}}
-
-  // SMS content
-  smsBody String? @db.Text
-
-  // ClickFunnels Integration
-  clickFunnelsTag      String? // Tag to apply in ClickFunnels (e.g., "24HRREMINDER", "2HRREMINDER")
-  applyClickFunnelsTag Boolean @default(false) // Whether to apply ClickFunnels tag
-
-  // Status
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
-
-  // Relations
-  sentReminders WebinarReminderSent[]
+  id                   String                @id @default(cuid())
+  webinarId            String
+  minutesBefore        Int?
+  channel              ReminderChannel       @default(EMAIL)
+  emailSubject         String?
+  emailBody            String?
+  smsBody              String?
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @default(now())
+  clickFunnelsTag      String?
+  applyClickFunnelsTag Boolean               @default(false)
+  minWatchedMinutes    Int?
+  minWatchedPercentage Int?
+  minutesAfter         Int?
+  type                 String                @default("pre_webinar")
+  webinar              Webinar               @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  sentReminders        WebinarReminderSent[]
 
   @@index([webinarId])
   @@index([minutesBefore])
   @@map("webinar_reminder_templates")
 }
 
-// Individual reminder sent to a specific registration
 model WebinarReminderSent {
-  id String @id @default(cuid())
-
-  // Links to template and registration (template is optional for post-webinar reminders)
-  templateId String?
-  template   WebinarReminderTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
-
+  id             String                   @id @default(cuid())
+  templateId     String?
   registrationId String
-  registration   Registration @relation(fields: [registrationId], references: [id], onDelete: Cascade)
-
-  // Timing
-  scheduledFor DateTime? // When this reminder should be sent (optional for immediate sends)
-  sendAt       DateTime? // Alias for scheduledFor (for post-webinar reminders)
-  sentAt       DateTime? // When it was actually sent
-
-  // Status
-  status  ReminderStatus  @default(PENDING)
-  channel ReminderChannel @default(SMS)
-
-  // Type of reminder
-  type String @default("pre_webinar") // 'pre_webinar' or 'post_webinar'
-
-  // Direct message content (for post-webinar reminders without templates)
-  message String? @db.Text
-  phone   String? // Phone number for direct SMS
-
-  // Error tracking
-  errorMessage String?   @db.Text
-  error        String?   @db.Text // Alias for errorMessage
-  retryCount   Int       @default(0)
-  lastRetryAt  DateTime?
-
-  // Email/SMS details
-  emailSentTo String? // Email address it was sent to
-  smsSentTo   String? // Phone number it was sent to
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  status         ReminderStatus           @default(PENDING)
+  channel        ReminderChannel          @default(SMS)
+  errorMessage   String?
+  retryCount     Int                      @default(0)
+  lastRetryAt    DateTime?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @default(now())
+  emailSentTo    String?
+  smsSentTo      String?
+  error          String?
+  message        String?
+  phone          String?
+  sendAt         DateTime?
+  type           String                   @default("pre_webinar")
+  registration   Registration             @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  template       WebinarReminderTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
 
   @@index([registrationId])
   @@index([templateId])
   @@index([scheduledFor])
   @@index([status])
-  @@index([status, scheduledFor]) // For efficient querying of pending reminders
+  @@index([status, scheduledFor])
   @@map("webinar_reminders_sent")
 }
 
 model ClickFunnelsReminderTag {
   id             String         @id @default(cuid())
   registrationId String
-  registration   Registration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
   tagName        String
   scheduledFor   DateTime
   status         ReminderStatus @default(PENDING)
   appliedAt      DateTime?
   attempts       Int            @default(0)
-  errorMessage   String?        @db.Text
+  errorMessage   String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @default(now())
+  registration   Registration   @relation(fields: [registrationId], references: [id], onDelete: Cascade)
 
   @@unique([registrationId, tagName])
   @@index([registrationId])
@@ -1073,82 +794,63 @@ model ClickFunnelsReminderTag {
   @@map("clickfunnels_reminder_tags")
 }
 
-// Standalone Forms System
 model Form {
-  id          String  @id @default(cuid())
-  title       String
-  slug        String  @unique
-  description String? @db.Text
-  submitText  String  @default("Submit")
-  successMsg  String  @default("Thank you for your submission.")
-  isActive    Boolean @default(true)
-
-  // Design settings
-  primaryColor    String @default("#4f46e5") // Indigo-600
-  backgroundColor String @default("#ffffff")
-
-  // Post-submission behavior
-  redirectUrl String? // Optional URL to redirect to after success (or AI approval)
-  
-  fields      FormField[]
-  submissions FormSubmission[]
-  views       FormView[]
-
-  // AI Assessment Config
-  aiAssessmentEnabled Boolean @default(false)
-  aiPrompt            String? @db.Text // Custom instructions
-
-  // AI Responses (Popups)
-  aiApproveTitle String? @default("Application Approved")
-  aiApproveMsg   String? @default("Congratulations! Your application has been approved.")
-  aiRejectTitle  String? @default("Application Rejected")
-  aiRejectMsg    String? @default("Sorry, your application does not meet the criteria.")
-  aiReviewTitle  String? @default("Sent for Approval")
-  aiReviewMsg    String? @default("Your application is under review.")
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id                  String           @id @default(cuid())
+  title               String
+  slug                String           @unique
+  description         String?
+  submitText          String           @default("Submit")
+  successMsg          String           @default("Thank you for your submission.")
+  isActive            Boolean          @default(true)
+  primaryColor        String           @default("#4f46e5")
+  backgroundColor     String           @default("#ffffff")
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @default(now())
+  aiApproveMsg        String?          @default("Congratulations! Your application has been approved.")
+  aiApproveTitle      String?          @default("Application Approved")
+  aiAssessmentEnabled Boolean          @default(false)
+  aiPrompt            String?
+  aiRejectMsg         String?          @default("Sorry, your application does not meet the criteria.")
+  aiRejectTitle       String?          @default("Application Rejected")
+  aiReviewMsg         String?          @default("Your application is under review.")
+  aiReviewTitle       String?          @default("Sent for Approval")
+  redirectUrl         String?
+  fields              FormField[]
+  submissions         FormSubmission[]
+  views               FormView[]
 
   @@map("forms")
 }
 
 model FormField {
-  id     String @id @default(cuid())
-  formId String
-  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
-
-  type        String // "text", "email", "textarea", "number", "select", "checkbox", "radio"
+  id          String   @id @default(cuid())
+  formId      String
+  type        String
   label       String
   placeholder String?
-  required    Boolean @default(false)
-  options     String? @db.Text // JSON string or comma-separated options for select/radio
-  position    Int     @default(0) // Ordering
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  required    Boolean  @default(false)
+  options     String?
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
   @@map("form_fields")
 }
 
 model FormSubmission {
-  id     String @id @default(cuid())
-  formId String
-  form   Form   @relation(fields: [formId], references: [id], onDelete: Cascade)
-
-  data String @db.Text // JSON string of submitted data
-
-  aiStatus String? // "APPROVED", "REJECTED", "REVIEW"
-  aiReason String? @db.Text
-
-  userAgent String?
-  referrer  String?
-
-  // Submission status
-  status       String   @default("COMPLETED") // "COMPLETED", "PARTIAL"
-  lastSavedAt  DateTime @default(now())
-
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  formId      String
+  data        String
+  userAgent   String?
+  referrer    String?
+  createdAt   DateTime @default(now())
+  aiReason    String?
+  aiStatus    String?
+  lastSavedAt DateTime @default(now())
+  status      String   @default("COMPLETED")
+  form        Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
   @@map("form_submissions")
@@ -1157,225 +859,195 @@ model FormSubmission {
 model FormView {
   id        String   @id @default(cuid())
   formId    String
-  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
-  
-  // Tracking
-  visitorId String?  // Optional: cookie ID or similar
+  visitorId String?
   ip        String?
   userAgent String?
   referrer  String?
-  
   viewedAt  DateTime @default(now())
+  form      Form     @relation(fields: [formId], references: [id], onDelete: Cascade)
 
   @@index([formId])
   @@map("form_views")
 }
 
 model LeadPage {
-  id   String @id @default(cuid())
-  name String
-  slug String @unique
-
-  type String @default("TEMPLATE") // TEMPLATE, CUSTOM
-
-  // If TEMPLATE
-  templateId String?
-  template   RegistrationPage? @relation(fields: [templateId], references: [id])
-
-  // If CUSTOM
-  htmlContent String? @db.Text
-
-  // The webinar context (needed for templates)
-  webinarId String?
-  webinar   Webinar? @relation(fields: [webinarId], references: [id])
-
-  // Analytics
-  views       Int @default(0)
-  conversions Int @default(0)
-
+  id                String             @id @default(cuid())
+  name              String
+  slug              String             @unique
+  type              String             @default("TEMPLATE")
+  templateId        String?
+  htmlContent       String?
+  webinarId         String?
+  views             Int                @default(0)
+  conversions       Int                @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @default(now())
+  template          RegistrationPage?  @relation(fields: [templateId], references: [id])
+  webinar           Webinar?           @relation(fields: [webinarId], references: [id])
   splitTestVariants SplitTestVariant[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
 
   @@map("lead_pages")
 }
 
 model SplitTest {
-  id       String  @id @default(cuid())
-  name     String
-  slug     String  @unique
-  isActive Boolean @default(true)
-
-  variants SplitTestVariant[]
-  events   SplitTestEvent[]
-
-  views Int @default(0)
-  conversions Int @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now())
+  id          String             @id @default(cuid())
+  name        String
+  slug        String             @unique
+  isActive    Boolean            @default(true)
+  views       Int                @default(0)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @default(now())
+  conversions Int                @default(0)
+  events      SplitTestEvent[]
+  variants    SplitTestVariant[]
 
   @@map("split_tests")
 }
 
 model SplitTestVariant {
-  id          String    @id @default(cuid())
+  id          String           @id @default(cuid())
   splitTestId String
-  splitTest   SplitTest @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
-
-  leadPageId String
-  leadPage   LeadPage @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
-
-  weight Int @default(50)
-
-  views       Int @default(0)
-  conversions Int @default(0)
-
-  events SplitTestEvent[]
+  leadPageId  String
+  weight      Int              @default(50)
+  views       Int              @default(0)
+  conversions Int              @default(0)
+  events      SplitTestEvent[]
+  leadPage    LeadPage         @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
+  splitTest   SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
 
   @@map("split_test_variants")
 }
 
 model SplitTestEvent {
-  id          String   @id @default(cuid())
+  id          String           @id @default(cuid())
   splitTestId String
   variantId   String
-  type        String   // "VIEW" | "CONVERSION"
-  visitorId   String?  // For tracking unique visitors
-  createdAt   DateTime @default(now())
-
-  splitTest SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
-  variant   SplitTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  type        String
+  visitorId   String?
+  createdAt   DateTime         @default(now())
+  splitTest   SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
+  variant     SplitTestVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 
   @@index([splitTestId, createdAt])
   @@index([variantId, createdAt])
   @@map("split_test_events")
 }
 
-// ============================================
-// EVENTS SYSTEM (Zoom Events with Webinar Bundles)
-// ============================================
-
-enum EventStatus {
-  DRAFT
-  PUBLISHED
-  CANCELLED
-  COMPLETED
-}
-
 model Event {
-  id          String      @id @default(cuid())
-  slug        String      @unique // For public URLs
-  title       String
-  description String?     @db.Text
-  thumbnail   String?
-  hostId      String
-  status      EventStatus @default(DRAFT)
-
-  // Zoom Configuration
-  zoomLink      String? // Default Zoom link (can be overridden per schedule)
-  zoomMeetingId String?
-  zoomPassword  String?
-
-  // Bundle with Webinar (optional)
-  bundledWebinarId String? // If set, registration is a two-step process
-  bundleDescription String? @db.Text // Explain the bundle offer
-  webinarOptional Boolean @default(true) // Can they skip webinar registration?
-
-  // Registration Settings
-  maxAttendees Int? // Maximum per event schedule (null = unlimited)
-  requirePhone Boolean @default(false)
-
-  // Email/SMS Settings
-  confirmationEmailEnabled Boolean @default(true)
-  reminderEmailEnabled Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  host          User              @relation("HostedEvents", fields: [hostId], references: [id])
-  bundledWebinar Webinar?         @relation("BundledWebinars", fields: [bundledWebinarId], references: [id], onDelete: SetNull)
-  schedules     EventSchedule[]
-  registrations EventRegistration[]
+  id                       String              @id @default(cuid())
+  slug                     String              @unique
+  title                    String
+  description              String?
+  thumbnail                String?
+  hostId                   String
+  status                   EventStatus         @default(DRAFT)
+  zoomLink                 String?
+  zoomMeetingId            String?
+  zoomPassword             String?
+  bundledWebinarId         String?
+  bundleDescription        String?
+  webinarOptional          Boolean             @default(true)
+  maxAttendees             Int?
+  requirePhone             Boolean             @default(false)
+  confirmationEmailEnabled Boolean             @default(true)
+  reminderEmailEnabled     Boolean             @default(true)
+  createdAt                DateTime            @default(now())
+  updatedAt                DateTime            @updatedAt
+  registrations            EventRegistration[]
+  schedules                EventSchedule[]
+  bundledWebinar           Webinar?            @relation("BundledWebinars", fields: [bundledWebinarId], references: [id])
+  host                     User                @relation("HostedEvents", fields: [hostId], references: [id])
 
   @@map("events")
 }
 
 model EventSchedule {
-  id       String @id @default(cuid())
-  eventId  String
-  event    Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
-
-  // Schedule Details
-  startTime DateTime
-  endTime   DateTime?
-  timezone  String @default("America/New_York")
-
-  // Zoom Override (if different from event default)
+  id            String              @id @default(cuid())
+  eventId       String
+  startTime     DateTime
+  endTime       DateTime?
+  timezone      String              @default("America/New_York")
   zoomLink      String?
   zoomMeetingId String?
   zoomPassword  String?
-
-  // Capacity
-  maxAttendees Int? // Override event default
-  isActive     Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
+  maxAttendees  Int?
+  isActive      Boolean             @default(true)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
   registrations EventRegistration[]
+  event         Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
 
   @@index([eventId, startTime])
   @@map("event_schedules")
 }
 
 model EventRegistration {
-  id              String   @id @default(cuid())
-  eventId         String
-  eventScheduleId String
-  
-  // Contact Information
-  name            String
-  email           String
-  phone           String?
-  timezone        String?
-  
-  // Registration Status
-  registeredAt    DateTime @default(now())
-  attended        Boolean  @default(false)
-  joinedAt        DateTime?
-  
-  // Webinar Bundle (if event has bundled webinar)
-  webinarRegistrationId String? // Links to webinar Registration if they opted in
-  skippedWebinar        Boolean @default(false) // True if they chose to skip
+  id                    String        @id @default(cuid())
+  eventId               String
+  eventScheduleId       String
+  name                  String
+  email                 String
+  phone                 String?
+  timezone              String?
+  registeredAt          DateTime      @default(now())
+  attended              Boolean       @default(false)
+  joinedAt              DateTime?
+  webinarRegistrationId String?
+  skippedWebinar        Boolean       @default(false)
+  gdprConsent           Boolean       @default(false)
+  privacyConsent        Boolean       @default(false)
+  marketingConsent      Boolean       @default(false)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  event                 Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSchedule         EventSchedule @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
 
-  // Consent
-  gdprConsent      Boolean @default(false)
-  privacyConsent   Boolean @default(false)
-  marketingConsent Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  event         Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventSchedule EventSchedule @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
-
-  @@unique([email, eventScheduleId]) // One registration per email per schedule
+  @@unique([email, eventScheduleId])
   @@index([eventId])
   @@index([email])
   @@map("event_registrations")
 }
 
-// SMS Settings - single row configuration
 model SMSSettings {
-  id               String   @id @default("default") // Always "default" - single row pattern
-  blockedTimezones String[] @default([]) // Array of timezone identifiers to block
+  id               String   @id @default("default")
+  blockedTimezones String[] @default([])
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@map("sms_settings")
+}
+
+enum Role {
+  ADMIN
+  HOST
+  ATTENDEE
+}
+
+enum WebinarStatus {
+  DRAFT
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+  SKIPPED
+}
+
+enum ReminderChannel {
+  EMAIL
+  SMS
+  BOTH
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
 }
