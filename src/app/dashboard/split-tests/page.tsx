@@ -16,6 +16,12 @@ export default function SplitTestsDashboard() {
   const [editingTest, setEditingTest] = useState<string | null>(null);
   const [editForm, setEditForm] = useState({ name: '', slug: '' });
 
+  // Leads Modal State
+  const [leadsModalOpen, setLeadsModalOpen] = useState(false);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [selectedVariantName, setSelectedVariantName] = useState<string>('');
+
   useEffect(() => {
     fetchSplitTests();
   }, [timeRange]);
@@ -109,6 +115,24 @@ export default function SplitTestsDashboard() {
       console.error('Failed to update split test', error);
       alert('An error occurred while updating');
     }
+  };
+
+  const handleShowLeads = async (testId: string, variantId?: string, variantName?: string) => {
+      setLeadsModalOpen(true);
+      setLeadsLoading(true);
+      setSelectedVariantName(variantName || 'All Variants');
+      setLeads([]);
+      try {
+          const url = `/api/split-tests/${testId}/leads${variantId ? `?variantId=${variantId}` : ''}`;
+          const res = await fetch(url);
+          if (res.ok) {
+              setLeads(await res.json());
+          }
+      } catch (e) {
+          console.error(e);
+      } finally {
+          setLeadsLoading(false);
+      }
   };
 
   const copyToClipboard = (text: string) => {
@@ -255,8 +279,11 @@ export default function SplitTestsDashboard() {
                                 </div>
                             </div>
                             <div className="col-span-2 text-center">
-                                <div className="flex flex-col">
-                                    <span className="font-bold text-gray-900">{uniqueConversions}</span>
+                                <div 
+                                    className="flex flex-col cursor-pointer hover:bg-blue-50 p-1 rounded transition group"
+                                    onClick={() => handleShowLeads(test.id, v.id, `${v.leadPage.name}`)}
+                                >
+                                    <span className="font-bold text-gray-900 group-hover:text-blue-600 underline decoration-dotted underline-offset-2">{uniqueConversions}</span>
                                     <span className="text-[10px] text-gray-400">Unique</span>
                                     <span className="text-[10px] text-gray-300">({v.conversions} Total)</span>
                                 </div>
@@ -272,9 +299,84 @@ export default function SplitTestsDashboard() {
                         </div>
                     );
                  })}
+
+                 {/* Total Row */}
+                 {(() => {
+                    const totalUniqueViews = test.variants.reduce((acc: number, v: any) => acc + (v.uniqueViews || 0), 0);
+                    const totalUniqueConversions = test.variants.reduce((acc: number, v: any) => acc + (v.uniqueConversions || 0), 0);
+                    const totalConversionRate = totalUniqueViews > 0 ? ((totalUniqueConversions / totalUniqueViews) * 100).toFixed(1) : '0.0';
+                    
+                    return (
+                        <div className="grid grid-cols-12 items-center text-sm py-3 border-t-2 border-gray-100 bg-gray-50/50 mt-1 font-medium">
+                            <div className="col-span-4 pl-8 text-gray-600 uppercase text-xs tracking-wider">Total / Average</div>
+                            <div className="col-span-2 text-center text-gray-400">-</div>
+                            <div className="col-span-2 text-center text-gray-900">{totalUniqueViews}</div>
+                            <div className="col-span-2 text-center">
+                                <div 
+                                    className="inline-flex flex-col cursor-pointer hover:bg-blue-100 px-2 py-0.5 rounded transition group"
+                                    onClick={() => handleShowLeads(test.id, undefined, 'All Variants')}
+                                >
+                                    <span className="text-gray-900 group-hover:text-blue-700 underline decoration-dotted">{totalUniqueConversions}</span>
+                                </div>
+                            </div>
+                            <div className="col-span-2 text-right">
+                                <span className="text-gray-900 mr-2">{totalConversionRate}%</span>
+                            </div>
+                        </div>
+                    );
+                 })()}
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Leads Modal */}
+      {leadsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in zoom-in-95">
+            <div className="p-6 border-b flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold">Conversion Leads</h3>
+                <p className="text-sm text-gray-500">{selectedVariantName}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setLeadsModalOpen(false)}>Close</Button>
+            </div>
+            <div className="flex-1 overflow-auto p-0">
+              {leadsLoading ? (
+                <div className="p-8 text-center text-gray-500">Loading leads...</div>
+              ) : leads.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No leads records found for this variant.</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase text-xs">Name</th>
+                      <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase text-xs">Email</th>
+                      <th className="px-6 py-3 text-right font-medium text-gray-500 uppercase text-xs">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {leads.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-3 font-medium text-gray-900">{lead.name}</td>
+                        <td className="px-6 py-3 text-gray-600">{lead.email}</td>
+                        <td className="px-6 py-3 text-right text-gray-500">
+                          {new Date(lead.registeredAt).toLocaleDateString()}
+                          <span className="text-xs ml-1 text-gray-400">
+                             {new Date(lead.registeredAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="p-4 border-t bg-gray-50 text-right">
+               <span className="text-xs text-gray-500 mr-2">Total Records: {leads.length}</span>
+            </div>
+          </div>
         </div>
       )}
     </DashboardLayout>

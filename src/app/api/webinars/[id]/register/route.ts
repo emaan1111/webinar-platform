@@ -172,6 +172,8 @@ export async function POST(
         privacyConsent: privacyConsent || false,
         marketingConsent: marketingConsent || false,
         testGroup: testGroup, // Store test group for A/B testing
+        splitTestId: splitTestId || null,
+        splitTestVariantId: variantId || null,
         referralCode: uniqueReferralCode, // Their unique code to share
         referredBy: referredBy, // Who referred them
         registeredAt: new Date(),

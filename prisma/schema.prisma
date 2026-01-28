@@ -302,6 +302,10 @@ model Registration {
   webinar                  Webinar                   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   reminders                WebinarReminderSent[]
   sales                    WebinarSale[]
+  splitTestId              String?
+  splitTestVariantId       String?
+  splitTest                SplitTest?                @relation(fields: [splitTestId], references: [id])
+  splitTestVariant         SplitTestVariant?         @relation(fields: [splitTestVariantId], references: [id])
 
   @@index([email])
   @@index([webinarId])
@@ -900,6 +904,7 @@ model SplitTest {
   conversions Int                @default(0)
   events      SplitTestEvent[]
   variants    SplitTestVariant[]
+  registrations Registration[]
 
   @@map("split_tests")
 }
@@ -914,6 +919,7 @@ model SplitTestVariant {
   events      SplitTestEvent[]
   leadPage    LeadPage         @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
   splitTest   SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
+  registrations Registration[]
 
   @@map("split_test_variants")
 }
