@@ -398,6 +398,10 @@ export default function WebinarLiveClient({
   const [mounted, setMounted] = useState(false); // Track if component has mounted
   const [playerReady, setPlayerReady] = useState(false); // Track if Vimeo player is ready
   const [liveViewerCount, setLiveViewerCount] = useState(0); // Simulated live viewer count
+  
+  // Ref for managing the emergency video load timeout safely across re-renders/retries
+  const videoLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const playerInitInProgressRef = useRef<boolean>(false); // Prevent duplicate player init
   const [isTyping, setIsTyping] = useState(false); // Show "someone is typing" indicator
   const [isTabVisible, setIsTabVisible] = useState(true); // Track tab visibility
   const pausedTimeRef = useRef<number | null>(null); // Store elapsed time when tab becomes hidden
@@ -852,26 +856,20 @@ export default function WebinarLiveClient({
     
     // Tracker initialization moved to dedicated analytics effect below
     
-    // REMOVED: Auto-start for mobile - force users to tap "Start" button
-    // This ensures video starts UNMUTED (not muted for autoplay)
-    // Only auto-start on desktop for better UX
-    // 
-    // UPDATE: Disabling auto-start for everyone (including desktop) based on user request.
-    // Users must manually click to start the replay.
-    /*
-    if (isReplayMode && !showReplayPrompt && !webinarEnded && !isMobile) {
-      console.log('🎬 Auto-starting replay mode (desktop only)...');
+    // For replay mode: Skip the broadcast overlay entirely
+    // This allows users to use native Vimeo controls immediately
+    if (isReplayMode && !showReplayPrompt && !webinarEnded) {
+      console.log('🎬 Auto-starting replay mode - skipping broadcast overlay...');
       setBroadcastStarted(true);
       setVideoLoading(true);
       
-      // Store the initial elapsed time for video seeking
-      startTimeRef.current = timing.initialElapsedSeconds;
-      console.log(`📍 Initial replay position: ${timing.initialElapsedSeconds}s`);
+      // Start from 0 for replay mode
+      startTimeRef.current = 0;
+      console.log('📍 Replay starting from 0:00');
     }
-    */
     
     // No cleanup here - tracker is managed by analytics effect
-  }, [isReplayMode, timing.initialElapsedSeconds, showReplayPrompt, webinarEnded, isMobile]);
+  }, [isReplayMode, showReplayPrompt, webinarEnded]);
 
   // Load seen offers from localStorage on mount
   useEffect(() => {
@@ -1172,14 +1170,18 @@ export default function WebinarLiveClient({
   }, [broadcastStarted, elapsedSeconds, isTabVisible]);
 
   // Track when video ends
+  // NOTE: Only applies to LIVE mode - in Replay mode, the Vimeo player's 'ended' event handles this
   useEffect(() => {
     if (!trackerRef.current || !totalDuration) return;
+    
+    // Skip this for replay mode - the Vimeo player fires its own 'ended' event
+    if (isReplayMode) return;
 
     if (elapsedSeconds >= totalDuration - 5 && broadcastStarted) {
       // Track video ended
       trackerRef.current.trackVideoEvent('ended', elapsedSeconds);
     }
-  }, [elapsedSeconds, totalDuration, broadcastStarted]);
+  }, [elapsedSeconds, totalDuration, broadcastStarted, isReplayMode]);
 
   useEffect(() => {
     if (webinar.hasChat === false) {
@@ -1930,10 +1932,13 @@ export default function WebinarLiveClient({
       return;
     }
     
-    // Prevent re-initialization if player already exists
-    if (vimeoPlayerRef.current) {
+    // Prevent re-initialization if player already exists OR init is already in progress
+    if (vimeoPlayerRef.current || playerInitInProgressRef.current) {
       return;
     }
+    
+    // Mark init as in progress
+    playerInitInProgressRef.current = true;
     
     // Detect mobile early for better timeouts
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1941,8 +1946,25 @@ export default function WebinarLiveClient({
     const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     
     // MOBILE FIX: Longer timeout for mobile (60s vs 20s) and fewer, slower retries
-    const timeoutDuration = isSafariIOS ? 90000 : (isMobileDevice ? 60000 : 20000);
-    const emergencyTimeout = setTimeout(() => {
+    const timeoutDuration = isSafariIOS ? 90000 : (isMobileDevice ? 60000 : 30000);
+    
+    // Clear any existing timeout first
+    if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
+
+    videoLoadTimeoutRef.current = setTimeout(async () => {
+      // SAFETY CHECK: If video is playing, DO NOT show error
+      if (vimeoPlayerRef.current) {
+         try {
+           const paused = await vimeoPlayerRef.current.getPaused();
+           const currTime = await vimeoPlayerRef.current.getCurrentTime();
+           if (!paused || currTime > 0.1) {
+             console.log('✅ Emergency timeout fired but video is playing - ignoring error');
+             setVideoLoading(false);
+             return;
+           }
+         } catch (e) { /* ignore */ }
+      }
+
       const errorMsg = `Emergency timeout after ${timeoutDuration/1000}s - video failed to load`;
       console.log(`⚠️ ${errorMsg}`);
       logVideoError(webinar.id, viewer?.id, 'timeout', errorMsg, undefined, {
@@ -1971,7 +1993,7 @@ export default function WebinarLiveClient({
             name: viewer?.name,
             email: viewer?.email,
           });
-          clearTimeout(emergencyTimeout);
+          if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
           setVideoLoading(false);
           setVideoError(true);
           setBroadcastStarted(false);
@@ -1990,7 +2012,7 @@ export default function WebinarLiveClient({
             name: viewer?.name,
             email: viewer?.email,
           });
-          clearTimeout(emergencyTimeout);
+          if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
           setVideoLoading(false);
           setVideoError(true);
           setBroadcastStarted(false);
@@ -2002,6 +2024,10 @@ export default function WebinarLiveClient({
       
       // MOBILE FIX: Longer delay for iframe to be fully ready before initializing player
       const initDelay = isMobileDevice ? 1000 : 300;
+      
+      // Record when we START initializing the player - used to suppress ghost "ended" events
+      const playerInitTime = Date.now();
+      
       setTimeout(async () => {
         try {
           // Detect if we're in a problematic browser environment (Facebook, Instagram, etc.)
@@ -2026,7 +2052,44 @@ export default function WebinarLiveClient({
           .then(async () => {
             setPlayerReady(true);
             
-            // NOTE: Moved 'ended' listener to AFTER play() to avoid race conditions
+            // ATTACH 'ended' LISTENER IMMEDIATELY ON READY - but with aggressive suppression
+            // This is needed because Vimeo may fire 'ended' from previous session BEFORE play() returns
+            player.on('ended', async () => {
+               // AGGRESSIVE SUPPRESSION: Ignore 'ended' event if it happens within 10 seconds of player init
+               // This handles the "ghost ended" issue where Vimeo remembers the previous session
+               const timeSinceInit = Date.now() - playerInitTime;
+               if (isReplayMode && timeSinceInit < 10000) {
+                   console.warn(`⚠️ SUPPRESSED ghost 'ended' event (${timeSinceInit}ms after init)`);
+                   // Force seek back to start since video thinks it's finished
+                   try {
+                     await player.setCurrentTime(0);
+                     await player.play();
+                   } catch (e) {
+                     console.warn('Could not restart after suppressed ended:', e);
+                   }
+                   return;
+               }
+
+               // Secondary check: Are we actually at the end?
+               if (isReplayMode) {
+                 try {
+                   const current = await player.getCurrentTime();
+                   const duration = await player.getDuration();
+                   // If we are in the first 30 seconds AND video is longer than 2 mins
+                   if (current < 30 && duration > 120) {
+                     console.warn(`⚠️ Ignoring false 'ended' event at ${current}s`);
+                     await player.setCurrentTime(0);
+                     await player.play();
+                     return;
+                   }
+                 } catch (e) {
+                   // Ignore check errors
+                 }
+               }
+               
+               setWebinarEnded(true);
+               setBroadcastStarted(false);
+            });
             
             // CRITICAL: Set muted state FIRST, before ANY other operations
             try {
@@ -2054,37 +2117,45 @@ export default function WebinarLiveClient({
             } catch (e) {
               console.log('⚠️ Could not set time, starting from beginning...', e);
             }
+
+            // VISUAL FIX: Listen for ANY sign of playback to remove loading screen immediately
+            // This fixes the issue where video plays "behind" the loading overlay
+            const handlePlaybackStarted = () => {
+                 console.log('🎬 Playback detected via event listener - removing overlay');
+                 if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
+                 setVideoLoading(false);
+                 setVideoError(false);
+                 player.off('play', handlePlaybackStarted);
+                 player.off('timeupdate', handlePlaybackStarted);
+            };
+            
+            player.on('play', handlePlaybackStarted);
+            player.on('timeupdate', handlePlaybackStarted);
             
             // Now try to play
             try {
               const playPromise = player.play();
               await playPromise;
               
-              // ATTACH ENDED LISTENER HERE - after playback has successfully started
-              player.on('ended', async () => {
-                 // Safety check: Ignore 'ended' event if we are clearly at the start of video
-                 // This handles glitches where player thinks it's at the end from previous session
-                 if (isReplayMode) {
-                   try {
-                     const current = await player.getCurrentTime();
-                     const duration = await player.getDuration();
-                     // If we are in the first 30 seconds AND video is longer than 2 mins, ignore ended
-                     if (current < 30 && duration > 120) {
-                       console.warn(`⚠️ Ignoring false 'ended' event at ${current}s`);
-                       return;
-                     }
-                   } catch (e) {
-                     // Ignore check errors
-                   }
-                 }
-                 
-                 setWebinarEnded(true);
-                 setBroadcastStarted(false);
-              });
+              // Ensure loading is off if event didn't fire yet (redundant but safe)
+              handlePlaybackStarted();
+
+              // Force seek to start AGAIN after play (double safety for replay)
+              if (isReplayMode) {
+                 // Slight delay to ensure play command has processed
+                 setTimeout(() => {
+                    player.setCurrentTime(0).catch(console.warn);
+                 }, 100);
+              }
+              
+              // 'ended' listener is already attached above in player.ready()
               
               setIsMuted(true);
-              clearTimeout(emergencyTimeout);
+              if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
               setVideoLoading(false);
+              
+              // Mark init as complete
+              playerInitInProgressRef.current = false;
               
               // Start session tracking
               if (trackerRef.current) {
@@ -2117,7 +2188,7 @@ export default function WebinarLiveClient({
               );
               
               if (isPermissionError) {
-                clearTimeout(emergencyTimeout);
+                if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
                 setVideoLoading(false);
                 setNeedsUserGesture(true); // Show tap to play button
                 setVideoError(false); // Don't show generic error
@@ -2143,10 +2214,11 @@ export default function WebinarLiveClient({
               }
             );
             
-            clearTimeout(emergencyTimeout);
+            if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
             setVideoLoading(false);
             setVideoError(true);
             setBroadcastStarted(false);
+            playerInitInProgressRef.current = false;
             
             if (vimeoPlayerRef.current) {
               try {
@@ -2175,10 +2247,11 @@ export default function WebinarLiveClient({
           }
         );
 
-        clearTimeout(emergencyTimeout);
+        if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
         setVideoLoading(false);
         setVideoError(true);
         setBroadcastStarted(false);
+        playerInitInProgressRef.current = false;
         
         // Clean up on error
         if (vimeoPlayerRef.current) {
@@ -2212,7 +2285,7 @@ export default function WebinarLiveClient({
             email: viewer?.email,
           }
         );
-        clearTimeout(emergencyTimeout);
+        if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
         setVideoLoading(false);
         setVideoError(true);
         setBroadcastStarted(false);
@@ -2224,7 +2297,7 @@ export default function WebinarLiveClient({
     }
     
     return () => {
-      clearTimeout(emergencyTimeout);
+      if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
     };
   }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted, playbackRate]); 
 
@@ -2569,8 +2642,8 @@ export default function WebinarLiveClient({
                     </div>
                   )}
                   
-                  {/* Loading Spinner while video loads */}
-                  {videoLoading && (
+                  {/* Loading Spinner while video loads - Hidden in replay mode to allow native controls */}
+                  {videoLoading && !isReplayMode && (
                     <div className={styles.videoLoadingOverlay}>
                       <div className={styles.spinner}></div>
                       <p className={styles.loadingText}>Loading video...</p>
@@ -2669,8 +2742,8 @@ export default function WebinarLiveClient({
                     </div>
                   )}
                   
-                  {/* Unmute Hint - shows when video starts muted */}
-                  {showUnmuteHint && isMuted && broadcastStarted && (
+                  {/* Unmute Hint - shows when video starts muted (NOT for replay mode - use native controls) */}
+                  {showUnmuteHint && isMuted && broadcastStarted && !isReplayMode && (
                     <div 
                       className={styles.unmuteHint}
                       onClick={() => {
@@ -2709,6 +2782,8 @@ export default function WebinarLiveClient({
                 </div>
               )}
 
+              {/* Hide custom video controls bar in replay mode since native Vimeo controls are active */}
+              {!isReplayMode && (
               <div className={styles.videoControls}>
                 <div className={`${styles.statusBadge} ${statusClass}`}>
                   <span className={styles.statusDot} />
@@ -2797,6 +2872,7 @@ export default function WebinarLiveClient({
                   )}
                 </div>
               </div>
+              )}
 
               {/* Reaction buttons overlaid on video - DESKTOP ONLY */}
               {webinar.hasReactions !== false && broadcastStarted && !isMobile && (

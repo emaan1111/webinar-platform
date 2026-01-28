@@ -154,7 +154,7 @@ model WebinarSchedule {
   recurringPattern String?
   isActive         Boolean   @default(true)
   createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  updatedAt        DateTime  @default(now())
   isZoomSession    Boolean   @default(false)
   zoomLink         String?
   webinar          Webinar   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
@@ -193,7 +193,7 @@ model BonusResource {
   downloads   Int      @default(0)
   isPublic    Boolean  @default(false)
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt   DateTime @default(now())
   webinar     Webinar  @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
   @@map("bonus_resources")
@@ -355,7 +355,7 @@ model AttendeeSession {
   device          String?
   browser         String?
   createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  updatedAt       DateTime          @default(now())
   lastMuteState   Boolean?
   mutedDuration   Int               @default(0)
   unmutedDuration Int               @default(0)
@@ -492,7 +492,7 @@ model Post {
   content   String
   authorId  String
   createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  updatedAt DateTime  @default(now())
   comments  Comment[]
   author    User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
@@ -505,7 +505,7 @@ model Comment {
   postId    String
   authorId  String
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @default(now())
   author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
   post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
 
@@ -910,6 +910,7 @@ model SplitTest {
   variants    SplitTestVariant[]
   registrations Registration[]
   formSubmissions FormSubmission[]
+  eventRegistrations EventRegistration[]
 
   @@map("split_tests")
 }
@@ -926,6 +927,7 @@ model SplitTestVariant {
   splitTest   SplitTest        @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
   registrations Registration[]
   formSubmissions FormSubmission[]
+  eventRegistrations EventRegistration[]
 
   @@map("split_test_variants")
 }
@@ -1013,6 +1015,10 @@ model EventRegistration {
   updatedAt             DateTime      @default(now())
   event                 Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
   eventSchedule         EventSchedule @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
+  splitTest             SplitTest?    @relation(fields: [splitTestId], references: [id])
+  splitTestVariant      SplitTestVariant? @relation(fields: [splitTestVariantId], references: [id])
+  splitTestId           String?
+  splitTestVariantId    String?
 
   @@unique([email, eventScheduleId])
   @@index([eventId])

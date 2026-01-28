@@ -20,6 +20,9 @@ export async function POST(
       // Step 2 - Webinar bundle fields (optional)
       webinarScheduleId,
       skipWebinar,
+      // Landing Page / Split Test tracking
+      splitTestId,
+      splitTestVariantId,
     } = body;
 
     // Validate required fields
@@ -121,6 +124,8 @@ export async function POST(
         marketingConsent: marketingConsent ?? false,
         webinarRegistrationId,
         skippedWebinar: skipWebinar ?? false,
+        splitTestId: splitTestId || null,
+        splitTestVariantId: splitTestVariantId || null,
       },
       include: {
         event: {
@@ -129,6 +134,31 @@ export async function POST(
         eventSchedule: true,
       }
     });
+
+    // Handle Split Test Tracking
+    if (splitTestId && splitTestVariantId) {
+        try {
+            // Log Event
+            await prisma.splitTestEvent.create({
+                data: {
+                    splitTestId,
+                    variantId: splitTestVariantId,
+                    type: 'EVENT_REGISTRATION', // Specialized type for this (Trial Class)
+                    visitorId: null // or extract from cookie if available
+                }
+            });
+
+            // Increment conversions on Variant/Test
+            await prisma.splitTestVariant.update({
+                where: { id: splitTestVariantId },
+                data: { conversions: { increment: 1 } }
+            });
+
+            console.log(`✅ Logged Event Registration for Split Test ${splitTestId} variant ${splitTestVariantId}`);
+        } catch (e) {
+            console.error("Failed to log split test event", e);
+        }
+    }
 
     return NextResponse.json({
       success: true,

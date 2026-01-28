@@ -66,12 +66,13 @@ export async function GET(req: Request) {
             }
         });
 
-        // 5. Calculate Unique Form Submissions (Trial Leads)
+        // 5. Calculate Unique Form Submissions (Trial Leads / Event Registrations)
+        // We look for both FORM_SUBMISSION (legacy/forms) and EVENT_REGISTRATION (trial events)
         const uniqueFormSubmissionsGroups = await prisma.splitTestEvent.groupBy({
             by: ['visitorId'],
             where: {
                 variantId: variant.id,
-                type: 'FORM_SUBMISSION',
+                type: { in: ['FORM_SUBMISSION', 'EVENT_REGISTRATION'] },
                 createdAt: { gte: fromDate }
             }
         });
@@ -81,7 +82,7 @@ export async function GET(req: Request) {
         const totalFormSubmissions = await prisma.splitTestEvent.count({
             where: {
                 variantId: variant.id,
-                type: 'FORM_SUBMISSION',
+                type: { in: ['FORM_SUBMISSION', 'EVENT_REGISTRATION'] },
                 createdAt: { gte: fromDate }
             }
         });
