@@ -242,6 +242,11 @@ export async function POST(
         }
       }
       // --- END WEBINAR BUNDLE INTEGRATION ---
+      
+      // Add a small delay to ensure ClickFunnels processes the first update/tagging
+      // before we send the second one for the event itself.
+      // This prevents potential race conditions or locking issues on the CF side.
+      await new Promise(resolve => setTimeout(resolve, 2000));
     }
 
     // Determine referral code
@@ -453,7 +458,7 @@ export async function POST(
 
             console.log(`✅ Logged Event Registration for Split Test ${splitTestId} variant ${splitTestVariantId}`);
         } catch (e) {
-            console.error("Failed to log split test event", e);
+            console.error "Failed to log split test event", e);
         }
     }
 
