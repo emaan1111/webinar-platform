@@ -305,9 +305,11 @@ function processEventTemplate(html: string, data: any) {
   
   // Calculate referral link
   let referralLink = eventRegistrationLink
-  if (webinarRegistration?.referralCode) {
+  const referralCode = webinarRegistration?.referralCode || registration?.referralCode;
+  
+  if (referralCode) {
     const separator = referralLink.includes('?') ? '&' : '?'
-    referralLink = `${referralLink}${separator}ref=${webinarRegistration.referralCode}`
+    referralLink = `${referralLink}${separator}ref=${referralCode}`
   }
   // Replace referral link placeholder
   processed = processed.replace(/\{\{referralLink\}\}/g, escapeForJsString(referralLink))

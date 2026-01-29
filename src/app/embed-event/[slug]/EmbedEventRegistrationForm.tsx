@@ -196,6 +196,29 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
     setWebinarScheduleSlots(uniqueSlots.slice(0, maxSchedulesToShow));
   }, [event.bundledWebinar]);
 
+  // Default select first available event schedule
+  useEffect(() => {
+    if (event.schedules && event.schedules.length > 0 && !form.eventScheduleId) {
+      const firstAvailable = event.schedules.find(s => !s.isFull);
+      if (firstAvailable) {
+        setForm(prev => ({ ...prev, eventScheduleId: firstAvailable.id }));
+      }
+    }
+  }, [event.schedules]);
+
+  // Default select first available webinar schedule (when slots are generated)
+  useEffect(() => {
+    // Only auto-select if user is on step 2 (or prepared for it) and hasn't made a choice yet
+    if (webinarScheduleSlots.length > 0 && !form.webinarScheduleId && !form.skipWebinar) {
+      const first = webinarScheduleSlots[0];
+      setForm(prev => ({ 
+        ...prev, 
+        webinarScheduleId: first.id,
+        webinarScheduledTime: first.time.toISOString(),
+      }));
+    }
+  }, [webinarScheduleSlots]);
+
   // Get friendly timezone name
   const getTimezoneFriendlyName = (tz: string) => {
     const tzNames: Record<string, string> = {
@@ -286,17 +309,19 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
     e.preventDefault();
     setError('');
 
-    if (!form.skipWebinar && !form.webinarScheduleId) {
-      setError('Please select a webinar time or skip');
-      return;
-    }
+    // If skipWebinar is unchecked but no time selected, treat as skip (implicit skip)
+    // The user requested: "if someone doesn't select a webinar time and doesn't tick skip for now, consider it a skip"
+    const implicitSkip = !form.skipWebinar && !form.webinarScheduleId;
 
-    handleFinalSubmit();
+    handleFinalSubmit(implicitSkip);
   };
 
-  const handleFinalSubmit = async () => {
+  const handleFinalSubmit = async (forceSkipWebinar?: boolean) => {
     setSubmitting(true);
     setError('');
+
+    // Determine effective skip state
+    const effectiveSkipWebinar = forceSkipWebinar !== undefined ? forceSkipWebinar : form.skipWebinar;
 
     try {
       const res = await fetch(`/api/events/${event.id}/register`, {
@@ -308,9 +333,9 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
           phone: form.phone ? `${form.phoneCode} ${form.phone}` : undefined,
           studentName: form.studentName,
           eventScheduleId: form.eventScheduleId,
-          webinarScheduleId: form.skipWebinar ? undefined : form.webinarScheduleId,
-          webinarScheduledTime: form.skipWebinar ? undefined : form.webinarScheduledTime || undefined,
-          skipWebinar: form.skipWebinar,
+          webinarScheduleId: effectiveSkipWebinar ? undefined : form.webinarScheduleId,
+          webinarScheduledTime: effectiveSkipWebinar ? undefined : form.webinarScheduledTime || undefined,
+          skipWebinar: effectiveSkipWebinar,
           privacyConsent: form.privacyConsent,
           marketingConsent: form.marketingConsent,
           gdprConsent: form.gdprConsent,

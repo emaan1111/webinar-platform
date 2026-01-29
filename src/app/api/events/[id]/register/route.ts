@@ -244,6 +244,9 @@ export async function POST(
       // --- END WEBINAR BUNDLE INTEGRATION ---
     }
 
+    // Determine referral code
+    const eventReferralCode = existingRegistration?.referralCode || generateReferralCode();
+
     // Create or update event registration
     const registration = await prisma.eventRegistration.upsert({
       where: {
@@ -263,6 +266,7 @@ export async function POST(
         marketingConsent: marketingConsent ?? false,
         webinarRegistrationId, // Update this if they chose a webinar this time
         skippedWebinar: skipWebinar ?? false,
+        referralCode: eventReferralCode, // Ensure code is present
         // Don't update split test info on re-registration usually, but maybe we should?
         // Let's update it to track the latest source
         splitTestId: splitTestId || null,
@@ -283,6 +287,7 @@ export async function POST(
         marketingConsent: marketingConsent ?? false,
         webinarRegistrationId,
         skippedWebinar: skipWebinar ?? false,
+        referralCode: eventReferralCode, 
         splitTestId: splitTestId || null,
         splitTestVariantId: splitTestVariantId || null,
       },

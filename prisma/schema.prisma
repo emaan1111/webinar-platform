@@ -1021,6 +1021,8 @@ model EventRegistration {
   gdprConsent           Boolean             @default(false)
   privacyConsent        Boolean             @default(false)
   marketingConsent      Boolean             @default(false)
+  referralCode          String?             @unique
+  referredBy            String?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @default(now())
   event                 Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
@@ -1030,6 +1032,8 @@ model EventRegistration {
   splitTestId           String?
   splitTestVariantId    String?
   eventReminderSents    EventReminderSent[]
+  referredByUser        EventRegistration?  @relation("EventReferrals", fields: [referredBy], references: [referralCode])
+  referrals             EventRegistration[] @relation("EventReferrals")
 
   @@unique([email, eventScheduleId])
   @@index([eventId])
