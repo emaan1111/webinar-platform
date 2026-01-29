@@ -272,11 +272,11 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
   };
 
   const formatTimeFromDate = (date: Date) => {
-    return date.toLocaleTimeString('en-US', {
+    const timeStr = date.toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      timeZoneName: 'short',
     });
+    return `${timeStr} ${userTimezone}`;
   };
 
   const handleStep1Submit = (e: React.FormEvent) => {
@@ -700,21 +700,6 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
             {/* Form Content */}
             <div className="px-6 py-6">
               <form onSubmit={handleStep2Submit} className="space-y-4">
-                {/* Timezone Info */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 flex items-center gap-3">
-                  <div className="bg-blue-100 rounded-full p-1.5">
-                    <Globe className="w-4 h-4 text-blue-600" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-gray-800">
-                      Times shown in your timezone
-                    </p>
-                    <p className="text-[10px] text-gray-600">
-                      {userTimezone}
-                    </p>
-                  </div>
-                </div>
-
                 {/* Schedule Dropdown Selection */}
                 <div>
                   <label className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
