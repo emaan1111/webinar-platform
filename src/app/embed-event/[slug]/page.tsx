@@ -65,6 +65,8 @@ export default async function EmbedEventPage({ params }: PageProps) {
     maxAttendees: event.maxAttendees ?? undefined,
     bundleDescription: event.bundleDescription ?? undefined,
     webinarOptional: event.webinarOptional,
+    thankYouPageUrl: event.thankYouPageUrl ?? undefined,
+    thankYouTemplateId: event.thankYouTemplateId ?? undefined,
     schedules: event.schedules.map((s: any) => ({
       id: s.id,
       startTime: s.startTime.toISOString(),
