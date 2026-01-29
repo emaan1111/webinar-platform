@@ -968,6 +968,7 @@ model Event {
   reminderEmailEnabled     Boolean             @default(true)
   thankYouPageUrl          String?
   thankYouTemplateId       String?
+  registrationPageUrl      String?
   registrationTag          String?
   smsReminderEnabled       Boolean             @default(false)
   smsReminderBody          String?

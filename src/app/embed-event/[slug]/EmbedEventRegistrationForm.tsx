@@ -461,6 +461,51 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
 
             <form onSubmit={handleStep1Submit} className="space-y-4">
               <div>
+                <label className="block text-sm font-medium mb-2 text-gray-900">Select Date & Time *</label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {event.schedules.map((schedule) => (
+                    <label
+                      key={schedule.id}
+                      className={`block p-3 border-2 rounded-lg cursor-pointer transition-all text-sm ${
+                        form.eventScheduleId === schedule.id
+                          ? 'border-indigo-600 bg-indigo-50'
+                          : schedule.isFull
+                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
+                          : 'border-gray-200 hover:border-indigo-300'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="eventSchedule"
+                            value={schedule.id}
+                            checked={form.eventScheduleId === schedule.id}
+                            onChange={(e) => setForm({ ...form, eventScheduleId: e.target.value })}
+                            disabled={schedule.isFull}
+                            className="w-4 h-4 text-indigo-600"
+                          />
+                          <div>
+                            <div className="font-medium text-gray-900">{formatDate(schedule.startTime, userTimezone)}</div>
+                            <div className="text-xs text-gray-500">
+                              {formatTime(schedule.startTime, userTimezone)}
+                            </div>
+                          </div>
+                        </div>
+                        {schedule.spotsLeft !== null && (
+                          <span
+                            className={`text-xs ${schedule.isFull ? 'text-red-600' : 'text-gray-500'}`}
+                          >
+                            {schedule.isFull ? 'Full' : `${schedule.spotsLeft} spots`}
+                          </span>
+                        )}
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium mb-1 text-gray-900">Name *</label>
                 <input
                   type="text"
@@ -542,51 +587,6 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
                     />
                     <p className="text-xs text-amber-600 font-medium mt-1">⚠️ Class is for students aged 9-16 only</p>
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-900">Select Date & Time *</label>
-                <div className="space-y-2 max-h-48 overflow-y-auto">
-                  {event.schedules.map((schedule) => (
-                    <label
-                      key={schedule.id}
-                      className={`block p-3 border-2 rounded-lg cursor-pointer transition-all text-sm ${
-                        form.eventScheduleId === schedule.id
-                          ? 'border-indigo-600 bg-indigo-50'
-                          : schedule.isFull
-                          ? 'border-gray-200 bg-gray-50 opacity-50 cursor-not-allowed'
-                          : 'border-gray-200 hover:border-indigo-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="radio"
-                            name="eventSchedule"
-                            value={schedule.id}
-                            checked={form.eventScheduleId === schedule.id}
-                            onChange={(e) => setForm({ ...form, eventScheduleId: e.target.value })}
-                            disabled={schedule.isFull}
-                            className="w-4 h-4 text-indigo-600"
-                          />
-                          <div>
-                            <div className="font-medium text-gray-900">{formatDate(schedule.startTime, userTimezone)}</div>
-                            <div className="text-xs text-gray-500">
-                              {formatTime(schedule.startTime, userTimezone)}
-                            </div>
-                          </div>
-                        </div>
-                        {schedule.spotsLeft !== null && (
-                          <span
-                            className={`text-xs ${schedule.isFull ? 'text-red-600' : 'text-gray-500'}`}
-                          >
-                            {schedule.isFull ? 'Full' : `${schedule.spotsLeft} spots`}
-                          </span>
-                        )}
-                      </div>
-                    </label>
-                  ))}
                 </div>
               </div>
 
@@ -741,28 +741,19 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
 
                 {/* Skip Option */}
                 {event.webinarOptional && (
-                  <label
-                    className={`block p-3 border-2 rounded-xl cursor-pointer transition-all ${
-                      form.skipWebinar
-                        ? 'border-gray-400 bg-gray-100'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
+                  <div className="flex justify-center pt-1">
+                    <label className="inline-flex items-center gap-2 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={form.skipWebinar}
                         onChange={(e) => setForm({ ...form, skipWebinar: e.target.checked, webinarScheduleId: '' })}
-                        className="w-4 h-4 rounded"
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-gray-400 focus:ring-gray-400"
                       />
-                      <div>
-                        <div className="font-medium text-gray-600 text-sm">Skip webinar for now</div>
-                        <div className="text-xs text-gray-500">
-                          I'll register for the webinar later
-                        </div>
-                      </div>
-                    </div>
-                  </label>
+                      <span className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                        Skip webinar for now
+                      </span>
+                    </label>
+                  </div>
                 )}
 
                 {/* Action Buttons */}

@@ -298,12 +298,22 @@ function processEventTemplate(html: string, data: any) {
   }
   
   // ===== SOCIAL SHARING =====
-  const eventRegistrationLink = `${baseUrl}/event/${event.slug}`
+  const eventRegistrationLink = event.registrationPageUrl || `${baseUrl}/event/${event.slug}`
   processed = processed.replace(/\{\{eventRegistrationLink\}\}/g, escapeForJsString(eventRegistrationLink))
   
   const shareMessage = `I just registered for ${event.title}! Join me:`
-  const whatsappShareLink = `https://wa.me/?text=${encodeURIComponent(shareMessage + ' ' + eventRegistrationLink)}`
-  const facebookShareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(eventRegistrationLink)}`
+  
+  // Calculate referral link
+  let referralLink = eventRegistrationLink
+  if (webinarRegistration?.referralCode) {
+    const separator = referralLink.includes('?') ? '&' : '?'
+    referralLink = `${referralLink}${separator}ref=${webinarRegistration.referralCode}`
+  }
+  // Replace referral link placeholder
+  processed = processed.replace(/\{\{referralLink\}\}/g, escapeForJsString(referralLink))
+
+  const whatsappShareLink = `https://wa.me/?text=${encodeURIComponent(shareMessage + ' ' + referralLink)}`
+  const facebookShareLink = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`
   
   processed = processed.replace(/\{\{whatsappShareLink\}\}/g, escapeForJsString(whatsappShareLink))
   processed = processed.replace(/\{\{facebookShareLink\}\}/g, escapeForJsString(facebookShareLink))

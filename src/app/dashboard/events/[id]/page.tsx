@@ -51,6 +51,7 @@ interface Event {
   reminderEmailEnabled: boolean;
   thankYouPageUrl?: string;
   thankYouTemplateId?: string;
+  registrationPageUrl?: string;
   registrationTag?: string;
   bundledWebinar?: {
     id: string;
@@ -102,6 +103,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     smsReminderBody: 'Reminder: Your event starts in 1 hour!',
     thankYouPageUrl: '',
     thankYouTemplateId: '',
+    registrationPageUrl: '',
     registrationTag: '',
   });
 
@@ -143,6 +145,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
           smsReminderBody: data.smsReminderBody || 'Reminder: Your event starts in 1 hour!',
           thankYouPageUrl: data.thankYouPageUrl || '',
           thankYouTemplateId: data.thankYouTemplateId || '',
+          registrationPageUrl: data.registrationPageUrl || '',
           registrationTag: data.registrationTag || '',
         });
       }
@@ -366,6 +369,19 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                     value={form.slug}
                     onChange={(e) => setForm({ ...form, slug: e.target.value })}
                   />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Registration Page URL (Optional)</label>
+                  <input
+                    type="url"
+                    className="w-full p-2 border rounded-lg"
+                    placeholder="https://mysite.com/register"
+                    value={form.registrationPageUrl}
+                    onChange={(e) => setForm({ ...form, registrationPageUrl: e.target.value })}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    If set, referral links will redirect here instead of the default registration page.
+                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Status</label>
