@@ -458,7 +458,7 @@ export async function POST(
 
             console.log(`✅ Logged Event Registration for Split Test ${splitTestId} variant ${splitTestVariantId}`);
         } catch (e) {
-            console.error "Failed to log split test event", e);
+            console.error("Failed to log split test event", e);
         }
     }
 
