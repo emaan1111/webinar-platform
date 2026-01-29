@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Calendar, Clock, Users, Video, Check, ArrowRight, ArrowLeft, Loader2 } from 'lucide-react';
+import { Calendar, Clock, Users, Video, Check, ArrowRight, ArrowLeft, Loader2, Globe } from 'lucide-react';
+import { countryCodes } from '@/lib/country-codes'; // Import country codes
 
 interface EventSchedule {
   id: string;
@@ -43,6 +44,8 @@ interface Event {
   maxAttendees?: number;
   bundleDescription?: string;
   webinarOptional: boolean;
+  thankYouPageUrl?: string; // Added field
+  thankYouTemplateId?: string; // Added field
   schedules: EventSchedule[];
   bundledWebinar: BundledWebinar | null;
 }
@@ -122,11 +125,25 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
     name: '',
     email: '',
     phone: '',
+    phoneCode: '+1',
+    studentName: '',
+    studentAge: '',
     eventScheduleId: '',
     webinarScheduleId: '',
+    webinarScheduledTime: '',
     skipWebinar: false,
-    privacyConsent: false,
+    privacyConsent: true,
+    marketingConsent: false,
+    gdprConsent: false,
   });
+
+  const [userTimezone, setUserTimezone] = useState<string>('');
+
+  useEffect(() => {
+    // Detect user's timezone on mount
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+    setUserTimezone(tz);
+  }, []);
 
   const [registrationResult, setRegistrationResult] = useState<{
     eventTitle: string;
@@ -179,23 +196,46 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
     setWebinarScheduleSlots(uniqueSlots.slice(0, maxSchedulesToShow));
   }, [event.bundledWebinar]);
 
+  // Get friendly timezone name
+  const getTimezoneFriendlyName = (tz: string) => {
+    const tzNames: Record<string, string> = {
+      'America/New_York': 'Eastern Time',
+      'America/Chicago': 'Central Time',
+      'America/Denver': 'Mountain Time',
+      'America/Los_Angeles': 'Pacific Time',
+      'America/Toronto': 'Eastern Time',
+      'Europe/London': 'GMT',
+      'Europe/Paris': 'Central European Time',
+      'Asia/Dubai': 'Gulf Time',
+      'Asia/Karachi': 'Pakistan Time',
+      'Asia/Kolkata': 'India Time',
+      'Asia/Singapore': 'Singapore Time',
+      'Australia/Sydney': 'Australian Eastern Time',
+      'UTC': 'UTC',
+    };
+    return tzNames[tz] || tz.replace(/_/g, ' ').split('/').pop() || tz;
+  };
+
   const formatDate = (dateStr: string, tz?: string) => {
+    const timezone = tz && tz.trim() ? tz : (userTimezone && userTimezone.trim()) ? userTimezone : undefined;
     return new Date(dateStr).toLocaleDateString('en-US', {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
       year: 'numeric',
-      timeZone: tz,
+      timeZone: timezone,
     });
   };
 
   const formatTime = (dateStr: string, tz?: string) => {
-    return new Date(dateStr).toLocaleTimeString('en-US', {
+    const timezone = tz && tz.trim() ? tz : (userTimezone && userTimezone.trim()) ? userTimezone : undefined;
+    const timeStr = new Date(dateStr).toLocaleTimeString('en-US', {
       hour: 'numeric',
       minute: '2-digit',
-      timeZoneName: 'short',
-      timeZone: tz,
+      timeZone: timezone,
     });
+    const tzName = timezone ? getTimezoneFriendlyName(timezone) : '';
+    return tzName ? `${timeStr} (${tzName})` : timeStr;
   };
 
   // Format Date object directly (for generated slots)
@@ -265,16 +305,38 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
         body: JSON.stringify({
           name: form.name,
           email: form.email,
-          phone: form.phone || undefined,
+          phone: form.phone ? `${form.phoneCode} ${form.phone}` : undefined,
+          studentName: form.studentName,
           eventScheduleId: form.eventScheduleId,
           webinarScheduleId: form.skipWebinar ? undefined : form.webinarScheduleId,
+          webinarScheduledTime: form.skipWebinar ? undefined : form.webinarScheduledTime || undefined,
           skipWebinar: form.skipWebinar,
           privacyConsent: form.privacyConsent,
+          marketingConsent: form.marketingConsent,
+          gdprConsent: form.gdprConsent,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         }),
       });
 
       if (res.ok) {
+        const data = await res.json();
+        
+        // Priority 1: Redirect to custom thank you page URL if configured
+        if (event.thankYouPageUrl) {
+          const thankYouUrl = event.thankYouPageUrl.startsWith('http') 
+            ? event.thankYouPageUrl 
+            : event.thankYouPageUrl;
+          window.top!.location.href = thankYouUrl; // Use window.top for embed
+          return;
+        }
+        
+        // Priority 2: Redirect to thank you template page if template is configured
+        if (event.thankYouTemplateId) {
+          const templateUrl = `/event-thank-you/${event.slug}?r=${data.registration.id}&s=${form.eventScheduleId}`;
+          window.top!.location.href = templateUrl; // Use window.top for embed
+          return;
+        }
+
         const selectedEventSchedule = event.schedules.find((s) => s.id === form.eventScheduleId);
         const selectedWebinarSchedule = event.bundledWebinar?.schedules.find(
           (s) => s.id === form.webinarScheduleId
@@ -424,14 +486,63 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
                 <label className="block text-sm font-medium mb-1 text-gray-900">
                   Phone {(event.requirePhone || event.smsReminderEnabled) ? '*' : '(Optional)'}
                 </label>
-                <input
-                  type="tel"
-                  required={event.requirePhone || event.smsReminderEnabled}
-                  className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
-                  placeholder="+1 (555) 000-0000"
-                  value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                />
+                <div className="flex gap-2">
+                  <div className="w-1/3 min-w-[100px]">
+                    <select
+                      className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                      value={form.phoneCode}
+                      onChange={(e) => setForm({ ...form, phoneCode: e.target.value })}
+                    >
+                      {countryCodes.map((c, i) => (
+                        <option key={`${c.country}-${i}`} value={c.code}>
+                          {c.iso ? c.iso : c.country.substring(0, 3).toUpperCase()} {c.code}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="w-2/3">
+                    <input
+                      type="tel"
+                      required={event.requirePhone || event.smsReminderEnabled}
+                      className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                      placeholder="000-000-0000"
+                      value={form.phone}
+                      onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Student Information */}
+              <div className="pt-2 border-t border-gray-200 mt-2">
+                <h4 className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-1">Student Info</h4>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-900">Student Name *</label>
+                    <input
+                      type="text"
+                      required
+                      className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                      placeholder="Enter student's name"
+                      value={form.studentName}
+                      onChange={(e) => setForm({ ...form, studentName: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-gray-900">Student Age *</label>
+                    <input
+                      type="number"
+                      required
+                      min="9"
+                      max="16"
+                      className="w-full p-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900"
+                      placeholder="9-16 years"
+                      value={form.studentAge}
+                      onChange={(e) => setForm({ ...form, studentAge: e.target.value })}
+                    />
+                    <p className="text-xs text-amber-600 font-medium mt-1">⚠️ Class is for students aged 9-16 only</p>
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -460,9 +571,9 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
                             className="w-4 h-4 text-indigo-600"
                           />
                           <div>
-                            <div className="font-medium text-gray-900">{formatDate(schedule.startTime, schedule.timezone)}</div>
+                            <div className="font-medium text-gray-900">{formatDate(schedule.startTime, userTimezone)}</div>
                             <div className="text-xs text-gray-500">
-                              {formatTime(schedule.startTime, schedule.timezone)}
+                              {formatTime(schedule.startTime, userTimezone)}
                             </div>
                           </div>
                         </div>
@@ -479,24 +590,27 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
                 </div>
               </div>
 
-              <label className="flex items-start gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={form.privacyConsent}
-                  onChange={(e) => setForm({ ...form, privacyConsent: e.target.checked })}
-                  className="mt-0.5 rounded"
-                />
-                <span className="text-gray-600">I agree to the privacy policy</span>
-              </label>
-
               {event.bundledWebinar && (
-                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm">
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm mb-4">
                   <div className="flex items-center gap-1 text-purple-700 font-medium">
                     <Video className="w-4 h-4" />
                     Includes: {event.bundledWebinar.title}
                   </div>
                 </div>
               )}
+
+              <div className="relative z-10 flex items-start gap-3 py-3 my-2 bg-gray-50/50 rounded-lg px-3 border border-gray-100">
+                <input
+                  type="checkbox"
+                  id="privacyConsent"
+                  checked={form.privacyConsent}
+                  onChange={(e) => setForm({ ...form, privacyConsent: e.target.checked })}
+                  className="mt-0.5 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer"
+                />
+                <label htmlFor="privacyConsent" className="text-xs text-gray-600 leading-snug cursor-pointer select-none">
+                  I agree to the <a href="#" className="text-indigo-600 hover:text-indigo-800 font-medium underline">Privacy Policy</a> and <a href="#" className="text-indigo-600 hover:text-indigo-800 font-medium underline">Terms of Service</a>.
+                </label>
+              </div>
 
               <button
                 type="submit"
@@ -521,100 +635,163 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
 
         {/* Step 2: Webinar Schedule Selection */}
         {step === 2 && event.bundledWebinar && (
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <button
-              onClick={() => setStep(1)}
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 mb-4"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
+          <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
+            {/* Decorative Header with Gradient */}
+            <div className="bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-700 px-6 py-6 relative overflow-hidden">
+              {/* Decorative Elements */}
+              <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-32 -mt-32"></div>
+              <div className="absolute bottom-0 left-0 w-48 h-48 bg-black/10 rounded-full -ml-24 -mb-24"></div>
+              <div className="absolute top-1/2 right-1/4 w-2 h-2 bg-yellow-300 rounded-full animate-pulse"></div>
+              <div className="absolute top-1/3 right-1/3 w-1.5 h-1.5 bg-pink-300 rounded-full animate-pulse delay-150"></div>
+              
+              <div className="relative z-10 text-center">
+                {/* Bonus Text */}
+                <div className="inline-block bg-yellow-400 text-yellow-900 text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-3">
+                  🎁 BONUS: FREE CLASS FOR PARENTS
+                </div>
+                
+                {/* Webinar Title */}
+                <h2 className="text-xl font-extrabold text-white mb-2 leading-tight">
+                  {event.bundledWebinar.title}
+                </h2>
+                
+                {/* Instructor */}
+                <p className="text-purple-100 text-sm font-medium mb-3">
+                  Taught by <span className="text-white font-bold">Ustadha Ariba Farheen</span>
+                </p>
+                
+                {/* Webinar Description */}
+                {event.bundledWebinar.description && (
+                  <p className="text-purple-100 text-xs max-w-md mx-auto mb-3 line-clamp-2">
+                    {event.bundledWebinar.description}
+                  </p>
+                )}
+                
+                {/* Duration Badge */}
+                {/* Duration removed as requested */}
+              </div>
+            </div>
 
-            <h2 className="text-lg font-semibold mb-1 text-gray-900">Select Webinar Time</h2>
-            <p className="text-gray-500 text-sm mb-4">{event.bundledWebinar.title}</p>
+            {/* Form Content */}
+            <div className="px-6 py-6">
+              <form onSubmit={handleStep2Submit} className="space-y-4">
+                {/* Timezone Info */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-3 flex items-center gap-3">
+                  <div className="bg-blue-100 rounded-full p-1.5">
+                    <Globe className="w-4 h-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-gray-800">
+                      Times shown in your timezone
+                    </p>
+                    <p className="text-[10px] text-gray-600">
+                      {userTimezone}
+                    </p>
+                  </div>
+                </div>
 
-            <form onSubmit={handleStep2Submit} className="space-y-4">
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {/* Generated schedule slots (like RegistrationModal) */}
-                {webinarScheduleSlots.map((slot) => (
-                  <label
-                    key={slot.id}
-                    className={`block p-3 border-2 rounded-lg cursor-pointer transition-all text-sm ${
-                      form.webinarScheduleId === slot.id
-                        ? 'border-purple-600 bg-purple-50'
+                {/* Schedule Dropdown Selection */}
+                <div>
+                  <label className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
+                    <Calendar className="w-3.5 h-3.5 text-purple-600" />
+                    Select Your Preferred Time
+                  </label>
+                  <select
+                    value={form.webinarScheduleId}
+                    onChange={(e) => {
+                      const selectedSlot = webinarScheduleSlots.find(s => s.id === e.target.value);
+                      setForm({ 
+                        ...form, 
+                        webinarScheduleId: e.target.value,
+                        webinarScheduledTime: selectedSlot ? selectedSlot.time.toISOString() : '',
+                        skipWebinar: false 
+                      });
+                    }}
+                    className={`w-full px-3 py-3 border-2 rounded-xl text-sm font-medium transition-all appearance-none cursor-pointer bg-white ${
+                      form.webinarScheduleId 
+                        ? 'border-purple-500 bg-purple-50 text-purple-900' 
                         : 'border-gray-200 hover:border-purple-300'
                     }`}
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")`,
+                      backgroundPosition: 'right 0.75rem center',
+                      backgroundRepeat: 'no-repeat',
+                      backgroundSize: '1.25em 1.25em',
+                    }}
                   >
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="radio"
-                        name="webinarSchedule"
-                        value={slot.id}
-                        checked={form.webinarScheduleId === slot.id}
-                        onChange={(e) =>
-                          setForm({ ...form, webinarScheduleId: e.target.value, skipWebinar: false })
+                    <option value="">✨ Choose your preferred time...</option>
+                    {webinarScheduleSlots.map(slot => (
+                      <option key={slot.id} value={slot.id}>
+                        {slot.displayLabel 
+                          ? `${slot.displayLabel} - ${formatTimeFromDate(slot.time)}`
+                          : `${formatDateFromDate(slot.time)} at ${formatTimeFromDate(slot.time)}`
                         }
-                        className="w-4 h-4 text-purple-600"
+                        {slot.schedule.scheduleType === 'justInTime' ? ' ⚡ Starts Soon!' : ''}
+                      </option>
+                    ))}
+                  </select>
+
+                  {webinarScheduleSlots.length === 0 && (
+                    <div className="mt-4 text-center py-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                      <Video className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                      <p className="text-gray-500">No available webinar times at the moment</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Skip Option */}
+                {event.webinarOptional && (
+                  <label
+                    className={`block p-3 border-2 rounded-xl cursor-pointer transition-all ${
+                      form.skipWebinar
+                        ? 'border-gray-400 bg-gray-100'
+                        : 'border-gray-200 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={form.skipWebinar}
+                        onChange={(e) => setForm({ ...form, skipWebinar: e.target.checked, webinarScheduleId: '' })}
+                        className="w-4 h-4 rounded"
                       />
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900">
-                          {slot.displayLabel || formatDateFromDate(slot.time)}
-                        </div>
-                        <div className="text-xs text-gray-500 flex items-center gap-1">
-                          {formatTimeFromDate(slot.time)}
-                          {slot.schedule.scheduleType === 'justInTime' && (
-                            <span className="ml-1 px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">
-                              Starts Soon
-                            </span>
-                          )}
+                      <div>
+                        <div className="font-medium text-gray-600 text-sm">Skip webinar for now</div>
+                        <div className="text-xs text-gray-500">
+                          I'll register for the webinar later
                         </div>
                       </div>
                     </div>
                   </label>
-                ))}
-
-                {webinarScheduleSlots.length === 0 && (
-                  <div className="text-center py-6 text-gray-500 text-sm">
-                    No available webinar times
-                  </div>
                 )}
-              </div>
 
-              {/* Skip option if webinar is optional */}
-              {event.webinarOptional && (
-                <label
-                  className={`block p-3 border-2 rounded-lg cursor-pointer transition-all text-sm ${
-                    form.skipWebinar
-                      ? 'border-gray-600 bg-gray-50'
-                      : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="radio"
-                      name="webinarSchedule"
-                      checked={form.skipWebinar}
-                      onChange={() => setForm({ ...form, webinarScheduleId: '', skipWebinar: true })}
-                      className="w-4 h-4"
-                    />
-                    <span className="font-medium">Skip webinar for now</span>
-                  </div>
-                </label>
-              )}
-
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full bg-purple-600 text-white py-2.5 rounded-lg font-semibold hover:bg-purple-700 transition flex items-center justify-center gap-2 text-sm"
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" /> Registering...
-                  </>
-                ) : (
-                  'Complete Registration'
-                )}
-              </button>
-            </form>
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep(1)}
+                    className="flex-1 bg-gray-100 text-gray-700 py-3 rounded-xl font-semibold hover:bg-gray-200 transition flex items-center justify-center gap-2 text-sm"
+                  >
+                    <ArrowLeft className="w-4 h-4" /> Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 bg-gradient-to-r from-purple-600 to-indigo-600 text-white py-3 rounded-xl font-bold hover:from-purple-700 hover:to-indigo-700 transition shadow-lg hover:shadow-xl flex items-center justify-center gap-2 text-sm"
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" /> Registering...
+                      </>
+                    ) : (
+                      <>
+                        Complete <Check className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         )}
       </div>

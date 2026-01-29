@@ -710,8 +710,9 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                       <th className="text-left py-2 px-3">Name</th>
                       <th className="text-left py-2 px-3">Email</th>
                       <th className="text-left py-2 px-3">Schedule</th>
+                      <th className="text-left py-2 px-3">Registration Type</th>
                       <th className="text-left py-2 px-3">Webinar</th>
-                      <th className="text-left py-2 px-3">Registered</th>
+                      <th className="text-left py-2 px-3">Registered At</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -721,6 +722,15 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                         <td className="py-2 px-3">{reg.email}</td>
                         <td className="py-2 px-3 text-xs">
                           {formatDate(reg.eventSchedule.startTime, reg.eventSchedule.timezone)}
+                        </td>
+                        <td className="py-2 px-3 text-xs">
+                          {reg.webinarRegistrationId ? (
+                            <span className="text-green-700">Event + Webinar</span>
+                          ) : reg.skippedWebinar ? (
+                            <span className="text-gray-500">Event only (skipped webinar)</span>
+                          ) : (
+                            <span className="text-gray-500">Event only</span>
+                          )}
                         </td>
                         <td className="py-2 px-3">
                           {reg.webinarRegistrationId ? (
@@ -732,7 +742,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                           )}
                         </td>
                         <td className="py-2 px-3 text-xs text-gray-500">
-                          {new Date(reg.registeredAt).toLocaleDateString()}
+                          {formatDate(reg.registeredAt)}
                         </td>
                       </tr>
                     ))}

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Calendar, Clock, Users, Video, Check, ArrowRight, ArrowLeft, Globe } from 'lucide-react';
+import { countryCodes } from '@/lib/country-codes'; // Import country codes
 
 interface EventSchedule {
   id: string;
@@ -134,13 +135,16 @@ export default function EventRegistrationClient({ event }: Props) {
     name: '',
     email: '',
     phone: '',
+    phoneCode: '+1',
     studentName: '',
     studentAge: '',
     eventScheduleId: '',
     webinarScheduleId: '',
-    webinarScheduledTime: '', // The actual time for the selected webinar slot
+    webinarScheduledTime: '',
     skipWebinar: false,
-    privacyConsent: true, // Default to true - no checkbox needed
+    gdprConsent: false,
+    privacyConsent: false,
+    marketingConsent: false,
   });
 
   const [registrationResult, setRegistrationResult] = useState<{
@@ -329,7 +333,7 @@ export default function EventRegistrationClient({ event }: Props) {
         body: JSON.stringify({
           name: form.name,
           email: form.email,
-          phone: form.phone || undefined,
+          phone: form.phone ? `${form.phoneCode} ${form.phone}` : undefined,
           studentName: form.studentName,
           studentAge: form.studentAge,
           eventScheduleId: form.eventScheduleId,
@@ -461,14 +465,31 @@ export default function EventRegistrationClient({ event }: Props) {
                   <label className="block text-sm font-medium mb-1">
                     Phone Number {(event.requirePhone || event.smsReminderEnabled) ? '*' : '(Optional)'}
                   </label>
-                  <input
-                    type="tel"
-                    required={event.requirePhone || event.smsReminderEnabled}
-                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    placeholder="+1 (555) 000-0000"
-                    value={form.phone}
-                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  />
+                  <div className="flex gap-2">
+                    <div className="w-1/3 min-w-[100px]">
+                      <select
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                        value={form.phoneCode}
+                        onChange={(e) => setForm({ ...form, phoneCode: e.target.value })}
+                      >
+                        {countryCodes.map((c, i) => (
+                           <option key={`${c.country}-${i}`} value={c.code}>
+                             {c.code} {c.country.substring(0, 3).toUpperCase()}
+                           </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="w-2/3">
+                      <input
+                        type="tel"
+                        required={event.requirePhone || event.smsReminderEnabled}
+                        className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        placeholder="000-000-0000"
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                      />
+                    </div>
+                  </div>
                 </div>
                 
                 {/* Student Information */}

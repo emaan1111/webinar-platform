@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { generateReferralCode, buildReferralLink } from '@/lib/referral';
 import { 
   tagClickFunnelsContact, 
   syncWebinarRegistrationToClickFunnels,
@@ -124,6 +125,7 @@ export async function POST(
       }
       
       // Register for the webinar
+      const referralCode = generateReferralCode();
       const webinarRegistration = await prisma.registration.create({
         data: {
           webinarId: event.bundledWebinarId,
@@ -133,6 +135,7 @@ export async function POST(
           email,
           phone,
           timezone,
+          referralCode,
           gdprConsent: gdprConsent ?? false,
           privacyConsent: privacyConsent ?? false,
           marketingConsent: marketingConsent ?? false,
@@ -145,6 +148,7 @@ export async function POST(
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.NEXTAUTH_URL || 'https://emaanpowerclasses.com';
       const webSlug = event.bundledWebinar!.slug;
       const countdownLink = webSlug ? `${baseUrl}/countdown/${webSlug}?r=${webinarRegistration.id}` : null;
+      const referralLink = webSlug ? buildReferralLink(webSlug, referralCode, baseUrl) : null;
       
       // Calculate formatted times
       let formattedWebinarTime: string | null = null;
@@ -183,6 +187,7 @@ export async function POST(
            webinarTitle: event.bundledWebinar!.title,
            scheduledStartTime,
            countdownLink,
+           referralLink,
            formattedWebinarTime,
            formattedWebinarTimeLocal: formattedLocalWebinarTime,
            customTags: {
