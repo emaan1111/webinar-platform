@@ -100,6 +100,7 @@ export async function POST(
 
     // Create webinar registration if bundle is selected and not skipped
     let webinarRegistrationId: string | null = null;
+    let clickFunnelsContactId: number | undefined;
     
     if (event.bundledWebinarId && webinarScheduleId && !skipWebinar) {
       // Get the webinar schedule to get the scheduled time
@@ -178,7 +179,7 @@ export async function POST(
 
       // Sync Contact & Registration Tag
       try {
-         await syncWebinarRegistrationToClickFunnels({
+         const bundleSyncResult = await syncWebinarRegistrationToClickFunnels({
            name,
            email,
            phone,
@@ -199,6 +200,10 @@ export async function POST(
              replayAttendedTag: event.bundledWebinar!.replayAttendedTag,
            }
          });
+         
+         if (bundleSyncResult?.contactId) {
+            clickFunnelsContactId = bundleSyncResult.contactId;
+         }
       } catch (e) {
         console.error('Failed to sync bundled webinar registration to ClickFunnels', e);
       }
@@ -242,11 +247,7 @@ export async function POST(
         }
       }
       // --- END WEBINAR BUNDLE INTEGRATION ---
-      
-      // Add a small delay to ensure ClickFunnels processes the first update/tagging
-      // before we send the second one for the event itself.
-      // This prevents potential race conditions or locking issues on the CF side.
-      await new Promise(resolve => setTimeout(resolve, 2000));
+
     }
 
     // Determine referral code
@@ -349,6 +350,7 @@ export async function POST(
         email,
         phone,
         timezone,
+        existingContactId: clickFunnelsContactId, // Use the ID from the first sync if available
         webinarId: event.id,          // Using Event ID
         webinarTitle: event.title,    // Using Event Title
         scheduledStartTime: schedule.startTime,

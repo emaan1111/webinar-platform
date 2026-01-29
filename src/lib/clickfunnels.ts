@@ -353,7 +353,8 @@ export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<num
  * Send contact to ClickFunnels and tag them
  */
 export async function sendContactToClickFunnels(
-  contactData: ClickFunnelsContact
+  contactData: ClickFunnelsContact,
+  existingContactId?: number
 ): Promise<ClickFunnelsContactResponse | null> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
@@ -371,6 +372,11 @@ export async function sendContactToClickFunnels(
   }
 
   try {
+    if (existingContactId) {
+      console.log(`🔄 Known Contact ID ${existingContactId} provided - Direct Update Mode`)
+      return await updateClickFunnelsContact(normalizedContactData, existingContactId)
+    }
+
     console.log('📤 Sending contact to ClickFunnels:', normalizedContactData.email_address)
     console.log('   Workspace ID:', workspaceId)
     console.log('   API Key:', apiKey?.substring(0, 10) + '...')
@@ -497,7 +503,8 @@ async function applyTagsToContact(
  * Update existing contact in ClickFunnels
  */
 async function updateClickFunnelsContact(
-  contactData: ClickFunnelsContact
+  contactData: ClickFunnelsContact,
+  knownContactId?: number
 ): Promise<ClickFunnelsContactResponse | null> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
@@ -510,17 +517,21 @@ async function updateClickFunnelsContact(
 
   try {
     console.log('🔄 Updating existing contact in ClickFunnels:', normalizedEmail)
+    let contactId = knownContactId
 
-    // First, find the contact by email (with retry to allow CF sync)
-    const existingContact = await findContactByEmailWithRetry(
-      normalizedEmail,
-      apiKey,
-      workspaceId
-    )
+    if (!contactId) {
+      // First, find the contact by email (with retry to allow CF sync)
+      const existingContact = await findContactByEmailWithRetry(
+        normalizedEmail,
+        apiKey,
+        workspaceId
+      )
 
-    if (!existingContact) {
-      console.log('⚠️ Contact not found in ClickFunnels')
-      return null
+      if (!existingContact) {
+        console.log('⚠️ Contact not found in ClickFunnels')
+        return null
+      }
+      contactId = existingContact.id
     }
 
     const { tag_ids, ...contactFields } = contactData
@@ -532,7 +543,7 @@ async function updateClickFunnelsContact(
       contactPayload.custom_attributes_attributes = contactFields.custom_attributes
     }
 
-    const updateResponse = await fetch(`${CLICKFUNNELS_API_BASE}/contacts/${existingContact.id}`, {
+    const updateResponse = await fetch(`${CLICKFUNNELS_API_BASE}/contacts/${contactId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -553,8 +564,8 @@ async function updateClickFunnelsContact(
     const result = await updateResponse.json()
     console.log('✅ Contact updated in ClickFunnels - ID:', result?.id || 'Unknown')
 
-    if (tag_ids && tag_ids.length > 0) {
-      await applyTagsToContact(existingContact.id, tag_ids)
+    if (tag_ids && tag_ids.length > 0 && contactId) {
+      await applyTagsToContact(contactId, tag_ids)
     }
 
     return result
@@ -657,7 +668,8 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   zoomLink?: string | null // Zoom meeting link for live sessions
   isZoomSession?: boolean  // Whether this is a Zoom session
   customTags?: WebinarCustomTags
-}): Promise<boolean> {
+  existingContactId?: number // Optimization: pass contact ID if known to skip lookup
+}): Promise<{ success: boolean; contactId?: number }> {
   try {
     const registeredTagId = await resolveAttendanceTagId('registered', data.customTags)
 
@@ -724,11 +736,11 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
     })
 
     // Send to ClickFunnels
-    const result = await sendContactToClickFunnels(contactData)
+    const result = await sendContactToClickFunnels(contactData, data.existingContactId)
 
     if (!result) {
       console.log('⚠️ Contact not synced to ClickFunnels (API not configured or error)')
-      return false
+      return { success: false }
     }
 
     console.log('✅ Webinar registration synced to ClickFunnels:', {
@@ -737,10 +749,10 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
       tags: result.tags
     })
 
-    return true
+    return { success: true, contactId: result.id }
   } catch (error) {
     console.error('❌ Failed to sync registration to ClickFunnels:', error)
-    return false
+    return { success: false }
   }
 }
 
