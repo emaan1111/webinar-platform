@@ -353,8 +353,24 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
 
   // Effect to grab params from window.parent if available (same-origin fix)
   useEffect(() => {
-    // If we already have them from props or searchParams (iframe URL), skip
-    if (trackingParams.st && trackingParams.v) return;
+    // If we already have any tracking param from props or searchParams (iframe URL), skip
+    if (trackingParams.st || trackingParams.v || trackingParams.lp) return;
+
+    // Check for window.__WEBINAR_TRACKING__ (injected by lead pages)
+    try {
+      const webinarTracking = (window as any).__WEBINAR_TRACKING__;
+      if (webinarTracking && (webinarTracking.splitTestId || webinarTracking.leadPageId)) {
+        setTrackingParams(prev => ({
+          st: webinarTracking.splitTestId || prev.st,
+          v: webinarTracking.variantId || prev.v,
+          lp: webinarTracking.leadPageId || prev.lp
+        }));
+        console.log('🔗 [RegistrationModal] Captured tracking params from window.__WEBINAR_TRACKING__', webinarTracking);
+        return; // Found params, no need to check other sources
+      }
+    } catch (e) {
+      // Ignore errors
+    }
 
     try {
        // Check if we are in an iframe
@@ -373,10 +389,24 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
               lp: lp || prev.lp
             }));
             console.log('🔗 [RegistrationModal] Captured tracking params from parent window', { st, v, lp });
+            return; // Found params, no need to listen for postMessage
+          }
+          
+          // Also try parent.__WEBINAR_TRACKING__ (this could also fail with cross-origin error)
+          const parentTracking = (window.parent as any).__WEBINAR_TRACKING__;
+          if (parentTracking && (parentTracking.splitTestId || parentTracking.leadPageId)) {
+            setTrackingParams(prev => ({
+              st: parentTracking.splitTestId || prev.st,
+              v: parentTracking.variantId || prev.v,
+              lp: parentTracking.leadPageId || prev.lp
+            }));
+            console.log('🔗 [RegistrationModal] Captured tracking params from parent.__WEBINAR_TRACKING__', parentTracking);
+            return; // Found params
           }
        }
     } catch (e) {
       // Cross-origin access blocked - expected for external embeds
+      // Both window.parent.location.href and window.parent.__WEBINAR_TRACKING__ fail in cross-origin scenarios
       // In that case, we can't get the params unless passed via postMessage or src
       // console.log('Cross-origin parent access blocked');
     }

@@ -681,10 +681,28 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
   
   // Extract tracking parameters from the current page URL
   const pageParams = new URLSearchParams(window.location.search);
+  
+  // Check for tracking params in multiple sources (priority order):
+  // 1. URL search params (st, v, lp) - highest priority
+  // 2. window.__WEBINAR_TRACKING__ (injected by lead pages with custom HTML)
+  // 3. window.parent.__WEBINAR_TRACKING__ (for iframes with same-origin parent)
+  let webinarTracking = null;
+  try {
+    // First check current window
+    webinarTracking = window.__WEBINAR_TRACKING__;
+    
+    // If in iframe and not found in current window, check parent (only if same-origin)
+    if (!webinarTracking && window.self !== window.top) {
+      webinarTracking = window.parent.__WEBINAR_TRACKING__;
+    }
+  } catch (e) {
+    // Cross-origin access blocked - expected for external embeds from different domains
+  }
+  
   const TRACKING_PARAMS = {
-    splitTestId: pageParams.get('st') || null,
-    variantId: pageParams.get('v') || null,
-    leadPageId: pageParams.get('lp') || pageParams.get('leadPageId') || null
+    splitTestId: pageParams.get('st') || (webinarTracking?.splitTestId) || null,
+    variantId: pageParams.get('v') || (webinarTracking?.variantId) || null,
+    leadPageId: pageParams.get('lp') || pageParams.get('leadPageId') || (webinarTracking?.leadPageId) || null
   };
   
   console.log('🎯 Webinar Embed Script Loaded', {
@@ -692,7 +710,8 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     theme: THEME_NAME,
     webinarId: WEBINAR_DATA.id,
     readyState: document.readyState,
-    trackingParams: TRACKING_PARAMS
+    trackingParams: TRACKING_PARAMS,
+    trackingSource: pageParams.get('st') ? 'url' : (webinarTracking ? 'window.__WEBINAR_TRACKING__' : 'none')
   });
 
   // CSS Styles

@@ -4,6 +4,7 @@ import EventRegistrationClient from './page-client';
 
 interface PageProps {
   params: { slug: string };
+  searchParams: { [key: string]: string | string[] | undefined };
 }
 
 async function getEventData(slug: string) {
@@ -53,12 +54,17 @@ async function getEventData(slug: string) {
   return event;
 }
 
-export default async function EventRegistrationPage({ params }: PageProps) {
+export default async function EventRegistrationPage({ params, searchParams }: PageProps) {
   const event = await getEventData(params.slug);
 
   if (!event) {
     notFound();
   }
+
+  // Extract tracking parameters from URL
+  const splitTestId = typeof searchParams.st === 'string' ? searchParams.st : undefined;
+  const variantId = typeof searchParams.v === 'string' ? searchParams.v : undefined;
+  const leadPageId = typeof searchParams.lp === 'string' ? searchParams.lp : undefined;
 
   // Transform data for client component (convert null to undefined for optional fields)
   const eventData = {
@@ -102,7 +108,14 @@ export default async function EventRegistrationPage({ params }: PageProps) {
     } : null,
   };
 
-  return <EventRegistrationClient event={eventData} />;
+  return (
+    <EventRegistrationClient 
+      event={eventData} 
+      splitTestId={splitTestId}
+      variantId={variantId}
+      leadPageId={leadPageId}
+    />
+  );
 }
 
 export async function generateMetadata({ params }: PageProps) {
