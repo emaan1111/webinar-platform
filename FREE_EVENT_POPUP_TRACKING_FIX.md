@@ -1,7 +1,9 @@
-# Free Event Popup Registration Tracking Fix
+# Free Event Popup Registration Tracking Fix (WEBINAR TRACKING)
+
+> **Note**: This document covers the fix for WEBINAR popup tracking. For EVENT tracking, see `EVENT_TRACKING_FIX.md`.
 
 ## Problem Statement
-Split tests and lead pages with free event pop-ups were not tracking registrations properly. When users registered through popup modals on custom HTML lead pages, the tracking parameters (splitTestId, variantId, leadPageId) were being lost.
+Split tests and lead pages with free event pop-ups (referring to webinar registration popups) were not tracking registrations properly. When users registered through popup modals on custom HTML lead pages, the tracking parameters (splitTestId, variantId, leadPageId) were being lost.
 
 ## Root Cause
 The tracking parameters were only being read from URL search parameters (`?st=xxx&v=yyy&lp=zzz`), but when:
