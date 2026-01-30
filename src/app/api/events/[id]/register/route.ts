@@ -439,28 +439,47 @@ export async function POST(
       }
     }
 
-    // Handle Split Test Tracking
+    // Handle Split Test & Lead Page Tracking
     if (splitTestId && splitTestVariantId) {
         try {
-            // Log Event
-            await prisma.splitTestEvent.create({
-                data: {
-                    splitTestId,
-                    variantId: splitTestVariantId,
-                    type: 'EVENT_REGISTRATION', // Specialized type for this (Trial Class)
-                    visitorId: null // or extract from cookie if available
+            await prisma.$transaction(async (tx) => {
+                // 1. Update Variant and fetch leadPageId
+                const variant = await tx.splitTestVariant.update({
+                    where: { id: splitTestVariantId },
+                    data: { conversions: { increment: 1 } },
+                    select: { splitTestId: true, leadPageId: true }
+                });
+
+                // 2. Update Parent Split Test
+                if (splitTestId) {
+                    await tx.splitTest.update({
+                        where: { id: splitTestId },
+                        data: { conversions: { increment: 1 } }
+                    });
+                }
+
+                // 3. Log Event
+                await tx.splitTestEvent.create({
+                    data: {
+                        splitTestId: splitTestId || variant.splitTestId,
+                        variantId: splitTestVariantId,
+                        type: 'EVENT_REGISTRATION',
+                        visitorId: null // or extract from cookie if available
+                    }
+                });
+
+                // 4. Update Underlying Lead Page (if exists)
+                if (variant.leadPageId) {
+                    await tx.leadPage.update({
+                        where: { id: variant.leadPageId },
+                        data: { conversions: { increment: 1 } }
+                    });
                 }
             });
 
-            // Increment conversions on Variant/Test
-            await prisma.splitTestVariant.update({
-                where: { id: splitTestVariantId },
-                data: { conversions: { increment: 1 } }
-            });
-
-            console.log(`✅ Logged Event Registration for Split Test ${splitTestId} variant ${splitTestVariantId}`);
+            console.log(`✅ Event registration tracked for Split Test ${splitTestId}/${splitTestVariantId}`);
         } catch (e) {
-            console.error("Failed to log split test event", e);
+            console.error("Failed to track split test conversion for event registration:", e);
         }
     }
 
