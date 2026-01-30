@@ -1,14 +1,16 @@
 import { prisma } from '@/lib/prisma';
 import { notFound } from 'next/navigation';
+import { Suspense } from 'react';
 import EmbedEventRegistrationForm from './EmbedEventRegistrationForm';
 
 interface PageProps {
   params: {
     slug: string;
   };
+  searchParams: Record<string, string | string[] | undefined>;
 }
 
-export default async function EmbedEventPage({ params }: PageProps) {
+export default async function EmbedEventPage({ params, searchParams }: PageProps) {
   const { slug } = params;
 
   const event = await prisma.event.findUnique({
@@ -96,5 +98,20 @@ export default async function EmbedEventPage({ params }: PageProps) {
       : null,
   };
 
-  return <EmbedEventRegistrationForm event={JSON.parse(JSON.stringify(eventData))} />;
+  return (
+    <Suspense fallback={<div className="p-4 text-center">Loading...</div>}>
+      <EmbedEventRegistrationForm 
+        event={JSON.parse(JSON.stringify(eventData))} 
+        initialSplitTestId={typeof searchParams.st === 'string' ? searchParams.st : typeof searchParams.splitTestId === 'string' ? searchParams.splitTestId : undefined}
+        initialVariantId={typeof searchParams.v === 'string' ? searchParams.v : typeof searchParams.splitTestVariantId === 'string' ? searchParams.splitTestVariantId : undefined}
+        initialLeadPageId={
+          typeof searchParams.leadPageId === 'string' 
+            ? searchParams.leadPageId 
+            : typeof searchParams.lp === 'string' 
+              ? searchParams.lp 
+              : undefined
+        }
+      />
+    </Suspense>
+  );
 }

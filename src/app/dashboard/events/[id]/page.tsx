@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { 
   ArrowLeft, Plus, Trash2, Video, Calendar, Users, 
-  ExternalLink, Save, Clock, Mail 
+  ExternalLink, Save, Clock 
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -21,15 +21,25 @@ interface EventSchedule {
   _count?: { registrations: number };
 }
 
+interface WebinarRegistrationData {
+  id: string;
+  attended: boolean;
+  joinedAt?: string | null;
+  leftAt?: string | null;
+  country?: string | null;
+}
+
 interface EventRegistration {
   id: string;
   name: string;
   email: string;
   phone?: string;
+  studentAge?: number;
   registeredAt: string;
   attended: boolean;
   skippedWebinar: boolean;
   webinarRegistrationId?: string;
+  webinarRegistration?: WebinarRegistrationData;
   eventSchedule: EventSchedule;
 }
 
@@ -113,6 +123,12 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
     timezone: 'America/New_York',
     zoomLink: '',
   });
+
+  const [selectedRegistrations, setSelectedRegistrations] = useState<string[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterWebinarStatus, setFilterWebinarStatus] = useState<'all' | 'registered' | 'skipped' | 'none'>('all');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterDateRange, setFilterDateRange] = useState('all');
 
   useEffect(() => {
     fetchEvent();
@@ -255,6 +271,73 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
       console.error('Failed to delete schedule:', error);
     }
   };
+
+  const handleDeleteRegistration = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this registration?')) return;
+    try {
+      const res = await fetch(`/api/events/${event?.id}/registrations/${id}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setEvent(prev => prev ? ({
+          ...prev,
+          registrations: prev.registrations.filter(r => r.id !== id)
+        }) : null);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Failed to delete registration');
+    }
+  };
+
+  const calculateDuration = (start?: string | null, end?: string | null) => {
+    if (!start || !end) return '-';
+    const diff = new Date(end).getTime() - new Date(start).getTime();
+    if (diff < 0) return '-';
+    const minutes = Math.floor(diff / 1000 / 60);
+    return `${minutes} min`;
+  };
+
+  const filteredRegistrations = event?.registrations.filter(reg => {
+    // Search Filter
+    const searchLower = searchTerm.toLowerCase();
+    const matchSearch = 
+      reg.name.toLowerCase().includes(searchLower) || 
+      reg.email.toLowerCase().includes(searchLower);
+
+    // Webinar Status Filter
+    let matchWebinar = true;
+    if (filterWebinarStatus === 'registered') matchWebinar = !!reg.webinarRegistrationId;
+    if (filterWebinarStatus === 'skipped') matchWebinar = reg.skippedWebinar;
+    if (filterWebinarStatus === 'none') matchWebinar = !reg.webinarRegistrationId && !reg.skippedWebinar;
+
+    // Date Filter (Registered At)
+    let matchDate = true;
+    if (filterDateRange !== 'all') {
+      const regDate = new Date(reg.registeredAt);
+      const now = new Date();
+      
+      if (filterDateRange === 'today') {
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        matchDate = regDate >= startOfToday;
+      } else if (filterDateRange === 'yesterday') {
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfYesterday = new Date(startOfToday);
+        startOfYesterday.setDate(startOfToday.getDate() - 1);
+        matchDate = regDate >= startOfYesterday && regDate < startOfToday;
+      } else if (filterDateRange === 'last24h') {
+        const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        matchDate = regDate >= last24h;
+      } else if (filterDateRange === 'last1h') {
+        const last1h = new Date(now.getTime() - 60 * 60 * 1000);
+        matchDate = regDate >= last1h;
+      } else if (filterDateRange === 'custom' && filterDate) {
+        matchDate = reg.registeredAt.startsWith(filterDate);
+      }
+    }
+
+    return matchSearch && matchWebinar && matchDate;
+  }) || [];
 
   const formatDate = (dateStr: string, tz?: string) => {
     return new Date(dateStr).toLocaleString('en-US', {
@@ -580,12 +663,15 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                   </div>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Iframe Embed Code</label>
+                  <label className="block text-sm font-medium mb-1">Embed Code</label>
+                  <p className="text-xs text-gray-500 mb-2">Automatically includes Split Test tracking from the page URL</p>
                   <div className="relative">
                     <textarea
                       readOnly
                       className="w-full p-2 border rounded-lg bg-gray-50 text-sm font-mono h-24"
-                      value={`<iframe src="${typeof window !== 'undefined' ? window.location.origin : ''}/embed-event/${event.slug}" width="100%" height="600" frameborder="0" style="border:none;"></iframe>`}
+                      value={`<!-- Event Registration Embed -->
+<div id="event-embed-${event.slug}"></div>
+<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/api/embed-event/${event.slug}"></script>`}
                     />
                     <Button
                       type="button"
@@ -593,7 +679,7 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                       size="sm"
                       className="absolute top-2 right-2"
                       onClick={() => {
-                        const code = `<iframe src="${window.location.origin}/embed-event/${event.slug}" width="100%" height="600" frameborder="0" style="border:none;"></iframe>`;
+                        const code = `<!-- Event Registration Embed -->\n<div id="event-embed-${event.slug}"></div>\n<script src="${window.location.origin}/api/embed-event/${event.slug}"></script>`;
                         navigator.clipboard.writeText(code);
                         alert('Embed code copied to clipboard!');
                       }}
@@ -715,50 +801,106 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
         {/* Registrations Tab */}
         {activeTab === 'registrations' && (
           <Card className="p-6">
-            <h2 className="text-lg font-semibold mb-4">Registrations</h2>
-            {event.registrations.length === 0 ? (
-              <p className="text-gray-500 text-center py-8">No registrations yet</p>
+            <div className="flex justify-between items-center mb-4 flex-wrap gap-4">
+              <h2 className="text-lg font-semibold cursor-default">Registrations ({filteredRegistrations.length})</h2>
+              <div className="flex gap-2 flex-wrap">
+                <input 
+                  type="text" 
+                  placeholder="Search name or email..." 
+                  className="px-3 py-2 border rounded-md text-sm"
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+                <select 
+                  className="px-3 py-2 border rounded-md text-sm cursor-pointer"
+                  value={filterWebinarStatus}
+                  onChange={e => setFilterWebinarStatus(e.target.value as any)}
+                >
+                  <option value="all">All Types</option>
+                  <option value="registered">With Webinar</option>
+                  <option value="skipped">Skipped Webinar</option>
+                  <option value="none">Event Only</option>
+                </select>
+                <select 
+                  className="px-3 py-2 border rounded-md text-sm cursor-pointer"
+                  value={filterDateRange}
+                  onChange={e => setFilterDateRange(e.target.value)}
+                >
+                  <option value="all">All Time</option>
+                  <option value="today">Today</option>
+                  <option value="yesterday">Yesterday</option>
+                  <option value="last24h">Last 24 Hours</option>
+                  <option value="last1h">Last Hour</option>
+                  <option value="custom">Custom Date</option>
+                </select>
+                {filterDateRange === 'custom' && (
+                  <input 
+                    type="date" 
+                    className="px-3 py-2 border rounded-md text-sm cursor-pointer"
+                    value={filterDate}
+                    onChange={e => setFilterDate(e.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+
+            {filteredRegistrations.length === 0 ? (
+              <p className="text-gray-500 text-center py-8">No registrations found</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-2 px-3">Name</th>
+                      <th className="text-left py-2 px-3">Student Age</th>
+                      <th className="text-left py-2 px-3">Country</th>
                       <th className="text-left py-2 px-3">Email</th>
-                      <th className="text-left py-2 px-3">Schedule</th>
-                      <th className="text-left py-2 px-3">Registration Type</th>
-                      <th className="text-left py-2 px-3">Webinar</th>
-                      <th className="text-left py-2 px-3">Registered At</th>
+                      <th className="text-left py-2 px-3">Event Schedule</th>
+                      <th className="text-left py-2 px-3">Webinar Status</th>
+                      <th className="text-left py-2 px-3">Attended</th>
+                      <th className="text-left py-2 px-3">Time Watched</th>
+                      <th className="text-right py-2 px-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {event.registrations.map(reg => (
+                    {filteredRegistrations.map(reg => (
                       <tr key={reg.id} className="border-b hover:bg-gray-50">
-                        <td className="py-2 px-3">{reg.name}</td>
+                        <td className="py-2 px-3 font-medium">{reg.name}</td>
+                        <td className="py-2 px-3">{reg.studentAge || '-'}</td>
+                        <td className="py-2 px-3">{reg.webinarRegistration?.country || '-'}</td>
                         <td className="py-2 px-3">{reg.email}</td>
                         <td className="py-2 px-3 text-xs">
                           {formatDate(reg.eventSchedule.startTime, reg.eventSchedule.timezone)}
                         </td>
                         <td className="py-2 px-3 text-xs">
                           {reg.webinarRegistrationId ? (
-                            <span className="text-green-700">Event + Webinar</span>
+                            <span className="text-green-700 bg-green-50 px-2 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider">Registered</span>
                           ) : reg.skippedWebinar ? (
-                            <span className="text-gray-500">Event only (skipped webinar)</span>
+                            <span className="text-gray-500 text-[10px] uppercase font-bold tracking-wider">Skipped</span>
                           ) : (
-                            <span className="text-gray-500">Event only</span>
+                            <span className="text-gray-400 text-[10px] uppercase font-bold tracking-wider">N/A</span>
                           )}
                         </td>
                         <td className="py-2 px-3">
                           {reg.webinarRegistrationId ? (
-                            <span className="text-green-600 text-xs">✓ Registered</span>
-                          ) : reg.skippedWebinar ? (
-                            <span className="text-gray-400 text-xs">Skipped</span>
-                          ) : (
-                            <span className="text-gray-400 text-xs">N/A</span>
-                          )}
+                            reg.webinarRegistration?.attended ? 
+                              <span className="text-green-600 font-bold text-xs uppercase">Yes</span> : 
+                              <span className="text-gray-400 text-xs uppercase">No</span>
+                          ) : '-'}
                         </td>
-                        <td className="py-2 px-3 text-xs text-gray-500">
-                          {formatDate(reg.registeredAt)}
+                         <td className="py-2 px-3">
+                          {reg.webinarRegistrationId ? (
+                             calculateDuration(reg.webinarRegistration?.joinedAt, reg.webinarRegistration?.leftAt)
+                          ) : '-'}
+                        </td>
+                        <td className="py-2 px-3 text-right">
+                          <button 
+                            onClick={() => handleDeleteRegistration(reg.id)}
+                            className="text-red-500 hover:text-red-700 p-1 hover:bg-red-50 rounded"
+                            title="Delete Registration"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </td>
                       </tr>
                     ))}

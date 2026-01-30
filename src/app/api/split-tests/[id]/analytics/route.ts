@@ -117,7 +117,7 @@ export async function GET(
       
       if (event.type === 'VIEW') {
         timeBuckets[key][`${event.variantId}_views`] = (timeBuckets[key][`${event.variantId}_views`] || 0) + 1;
-      } else if (event.type === 'CONVERSION') {
+      } else if (event.type === 'CONVERSION' || event.type === 'EVENT_REGISTRATION' || event.type === 'FORM_SUBMISSION') {
         timeBuckets[key][`${event.variantId}_conversions`] = (timeBuckets[key][`${event.variantId}_conversions`] || 0) + 1;
       }
     });

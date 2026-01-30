@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Calendar, Clock, Users, Video, Check, ArrowRight, ArrowLeft, Loader2, Globe } from 'lucide-react';
 import { countryCodes } from '@/lib/country-codes'; // Import country codes
+import { useSearchParams } from 'next/navigation';
 
 interface EventSchedule {
   id: string;
@@ -52,6 +53,9 @@ interface Event {
 
 interface Props {
   event: Event;
+  initialSplitTestId?: string;
+  initialVariantId?: string;
+  initialLeadPageId?: string;
 }
 
 // Schedule slot for display
@@ -115,7 +119,114 @@ function generateRecurringSlots(schedule: WebinarSchedule, count: number = 5): {
   return slots;
 }
 
-export default function EmbedEventRegistrationForm({ event }: Props) {
+export default function EmbedEventRegistrationForm({ 
+  event, 
+  initialSplitTestId, 
+  initialVariantId, 
+  initialLeadPageId 
+}: Props) {
+  const searchParams = useSearchParams();
+  const [splitTestParams, setSplitTestParams] = useState({
+    id: initialSplitTestId || searchParams.get('splitTestId') || searchParams.get('st'),
+    variantId: initialVariantId || searchParams.get('splitTestVariantId') || searchParams.get('v'),
+    leadPageId: initialLeadPageId || searchParams.get('leadPageId') || searchParams.get('lp')
+  });
+
+  // Debug log initial state
+  useEffect(() => {
+    console.log('🎯 EmbedEventRegistrationForm Initial Tracking State:', {
+      initialSplitTestId,
+      initialVariantId,
+      initialLeadPageId,
+      fromSearchParams: {
+        st: searchParams.get('st'),
+        v: searchParams.get('v'),
+        lp: searchParams.get('lp')
+      },
+      currentState: splitTestParams
+    });
+  }, []);
+
+  // Aggressive tracking parameters recovery
+  useEffect(() => {
+    const updateParamsInState = (id: string | null, variantId: string | null, leadPageId: string | null) => {
+        if (id || variantId || leadPageId) {
+            console.log('🔄 Updating tracking params from recovery:', { id, variantId, leadPageId });
+            setSplitTestParams(prev => ({
+                id: id || prev.id,
+                variantId: variantId || prev.variantId,
+                leadPageId: leadPageId || prev.leadPageId
+            }));
+        }
+    };
+
+    // 1. Try Document Referrer (if in iframe)
+    if (typeof document !== 'undefined' && document.referrer) {
+      try {
+        const referrerUrl = new URL(document.referrer);
+        updateParamsInState(
+            referrerUrl.searchParams.get('splitTestId') || referrerUrl.searchParams.get('st'),
+            referrerUrl.searchParams.get('splitTestVariantId') || referrerUrl.searchParams.get('v'),
+            referrerUrl.searchParams.get('leadPageId') || referrerUrl.searchParams.get('lp')
+        );
+      } catch (e) {}
+    }
+
+    // 2. Try accessing window.parent (if same origin)
+    try {
+        if (window.parent !== window && window.parent.location) {
+             const parentParams = new URLSearchParams(window.parent.location.search);
+             const pSt = parentParams.get('splitTestId') || parentParams.get('st');
+             const pV = parentParams.get('splitTestVariantId') || parentParams.get('v');
+             const pLp = parentParams.get('leadPageId') || parentParams.get('lp');
+             
+             if (pSt || pV || pLp) {
+                 console.log('🔍 Tracking: Recovered params from parent window URL', { pSt, pV, pLp });
+                 updateParamsInState(pSt, pV, pLp);
+             }
+        }
+    } catch(e) {
+        // Cross-origin access blocked, ignore
+    }
+
+    // 3. Try accessing parent's __WEBINAR_TRACKING__ global (if same origin)
+    try {
+        if (window.parent !== window && (window.parent as any).__WEBINAR_TRACKING__) {
+             const tracking = (window.parent as any).__WEBINAR_TRACKING__;
+             const pSt = tracking.splitTestId;
+             const pV = tracking.variantId;
+             const pLp = tracking.leadPageId;
+             
+             if (pSt || pV || pLp) {
+                 console.log('🔍 Tracking: Recovered params from parent __WEBINAR_TRACKING__', { pSt, pV, pLp });
+                 updateParamsInState(pSt, pV, pLp);
+             }
+        }
+    } catch(e) {
+        // Cross-origin access blocked, ignore
+        console.log('🔍 Tracking: Cross-origin access to parent blocked, waiting for postMessage');
+    }
+
+    // 4. Listen for postMessage from parent (for srcDoc iframes with null origin)
+    const handleMessage = (event: MessageEvent) => {
+        if (event.data?.type === 'WEBINAR_TRACKING_PARAMS') {
+            const { splitTestId, variantId, leadPageId } = event.data;
+            if (splitTestId || variantId || leadPageId) {
+                console.log('🔍 Tracking: Received params via postMessage', { splitTestId, variantId, leadPageId });
+                updateParamsInState(splitTestId, variantId, leadPageId);
+            }
+        }
+    };
+    
+    window.addEventListener('message', handleMessage);
+    
+    // Cleanup
+    return () => {
+        window.removeEventListener('message', handleMessage);
+    };
+
+  }, [searchParams]);
+
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -323,6 +434,13 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
     // Determine effective skip state
     const effectiveSkipWebinar = forceSkipWebinar !== undefined ? forceSkipWebinar : form.skipWebinar;
 
+    // Debug: Log what we're sending
+    console.log('📤 Submitting registration with tracking:', {
+      splitTestId: splitTestParams.id,
+      splitTestVariantId: splitTestParams.variantId,
+      leadPageId: splitTestParams.leadPageId
+    });
+
     try {
       const res = await fetch(`/api/events/${event.id}/register`, {
         method: 'POST',
@@ -340,6 +458,9 @@ export default function EmbedEventRegistrationForm({ event }: Props) {
           marketingConsent: form.marketingConsent,
           gdprConsent: form.gdprConsent,
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          splitTestId: splitTestParams.id,
+          splitTestVariantId: splitTestParams.variantId,
+          leadPageId: splitTestParams.leadPageId,
         }),
       });
 

@@ -33,7 +33,11 @@ export async function POST(
       // Landing Page / Split Test tracking
       splitTestId,
       splitTestVariantId,
+      leadPageId,
     } = body;
+
+    // Debug: Log received tracking params
+    console.log('📊 Event Registration Tracking Params:', { splitTestId, splitTestVariantId, leadPageId, email });
 
     // Validate required fields
     if (!name || !email || !eventScheduleId) {
@@ -442,25 +446,54 @@ export async function POST(
     // Handle Split Test Tracking
     if (splitTestId && splitTestVariantId) {
         try {
-            // Log Event
-            await prisma.splitTestEvent.create({
-                data: {
-                    splitTestId,
-                    variantId: splitTestVariantId,
-                    type: 'EVENT_REGISTRATION', // Specialized type for this (Trial Class)
-                    visitorId: null // or extract from cookie if available
-                }
-            });
+            await prisma.$transaction(async (tx) => {
+              // 1. Log Event
+              await tx.splitTestEvent.create({
+                  data: {
+                      splitTestId,
+                      variantId: splitTestVariantId,
+                      type: 'EVENT_REGISTRATION', 
+                      visitorId: null 
+                  }
+              });
 
-            // Increment conversions on Variant/Test
-            await prisma.splitTestVariant.update({
-                where: { id: splitTestVariantId },
-                data: { conversions: { increment: 1 } }
+              // 2. Increment conversions on Variant
+              const variant = await tx.splitTestVariant.update({
+                  where: { id: splitTestVariantId },
+                  data: { conversions: { increment: 1 } },
+                  include: { leadPage: true }
+              });
+
+              // 3. Increment conversions on Split Test
+              await tx.splitTest.update({
+                  where: { id: splitTestId },
+                  data: { conversions: { increment: 1 } }
+              });
+
+              // 4. Increment conversions on Underlying Lead Page (if linked to variant)
+              if (variant.leadPageId) {
+                  await tx.leadPage.update({
+                      where: { id: variant.leadPageId },
+                      data: { conversions: { increment: 1 } }
+                  });
+              }
             });
 
             console.log(`✅ Logged Event Registration for Split Test ${splitTestId} variant ${splitTestVariantId}`);
         } catch (e) {
             console.error("Failed to log split test event", e);
+        }
+    } else if (leadPageId) {
+       // Only track standalone lead page if NOT part of a split test (avoid double counting)
+       // Or if simple conversion tracking is desired
+       try {
+            await prisma.leadPage.update({
+                where: { id: leadPageId },
+                data: { conversions: { increment: 1 } }
+            });
+            console.log(`✅ Logged Lead Page Conversion for ${leadPageId}`);
+        } catch (e) {
+            console.error("Failed to log lead page conversion", e);
         }
     }
 
