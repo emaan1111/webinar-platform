@@ -353,8 +353,8 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
 
   // Effect to grab params from window.parent if available (same-origin fix)
   useEffect(() => {
-    // If we already have them from props or searchParams (iframe URL), skip
-    if (trackingParams.st && trackingParams.v) return;
+    // If we already have any tracking param from props or searchParams (iframe URL), skip
+    if (trackingParams.st || trackingParams.v || trackingParams.lp) return;
 
     // Check for window.__WEBINAR_TRACKING__ (injected by lead pages)
     try {
@@ -392,7 +392,7 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
             return; // Found params, no need to listen for postMessage
           }
           
-          // Also try parent.__WEBINAR_TRACKING__
+          // Also try parent.__WEBINAR_TRACKING__ (this could also fail with cross-origin error)
           const parentTracking = (window.parent as any).__WEBINAR_TRACKING__;
           if (parentTracking && (parentTracking.splitTestId || parentTracking.leadPageId)) {
             setTrackingParams(prev => ({
@@ -406,6 +406,7 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
        }
     } catch (e) {
       // Cross-origin access blocked - expected for external embeds
+      // Both window.parent.location.href and window.parent.__WEBINAR_TRACKING__ fail in cross-origin scenarios
       // In that case, we can't get the params unless passed via postMessage or src
       // console.log('Cross-origin parent access blocked');
     }
