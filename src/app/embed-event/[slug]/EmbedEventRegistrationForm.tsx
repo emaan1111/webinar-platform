@@ -230,6 +230,7 @@ export default function EmbedEventRegistrationForm({
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [timeConflictError, setTimeConflictError] = useState('');
   const [webinarScheduleSlots, setWebinarScheduleSlots] = useState<ScheduleSlot[]>([]);
 
   const [form, setForm] = useState({
@@ -387,6 +388,24 @@ export default function EmbedEventRegistrationForm({
       minute: '2-digit',
     });
     return `${timeStr} ${userTimezone}`;
+  };
+
+  // Check if webinar time conflicts with selected event time
+  const checkTimeConflict = (webinarTime: Date): boolean => {
+    if (!form.eventScheduleId) return false;
+    const selectedEventSchedule = event.schedules.find(s => s.id === form.eventScheduleId);
+    if (!selectedEventSchedule) return false;
+    
+    const eventStart = new Date(selectedEventSchedule.startTime);
+    const eventEnd = selectedEventSchedule.endTime 
+      ? new Date(selectedEventSchedule.endTime) 
+      : new Date(eventStart.getTime() + 60 * 60 * 1000); // Default 1 hour if no end time
+    
+    const webinarDuration = event.bundledWebinar?.duration || 60; // Default 60 minutes
+    const webinarEnd = new Date(webinarTime.getTime() + webinarDuration * 60 * 1000);
+    
+    // Check if times overlap
+    return (webinarTime < eventEnd && webinarEnd > eventStart);
   };
 
   const handleStep1Submit = (e: React.FormEvent) => {
@@ -824,12 +843,14 @@ export default function EmbedEventRegistrationForm({
                 <div>
                   <label className="block text-sm font-bold text-gray-800 mb-2 flex items-center gap-2">
                     <Calendar className="w-3.5 h-3.5 text-purple-600" />
-                    Select Your Preferred Time
+                    Select Your Preferred Time For - Parents Bonus Webinar
                   </label>
                   <select
                     value={form.skipWebinar ? 'not-interested' : form.webinarScheduleId}
                     onChange={(e) => {
                       const value = e.target.value;
+                      setTimeConflictError(''); // Clear any previous conflict error
+                      
                       if (value === 'not-interested') {
                         setForm({ 
                           ...form, 
@@ -837,8 +858,20 @@ export default function EmbedEventRegistrationForm({
                           webinarScheduledTime: '',
                           skipWebinar: true 
                         });
+                      } else if (value === '') {
+                        setForm({ 
+                          ...form, 
+                          webinarScheduleId: '',
+                          webinarScheduledTime: '',
+                          skipWebinar: false 
+                        });
                       } else {
                         const selectedSlot = webinarScheduleSlots.find(s => s.id === value);
+                        if (selectedSlot && checkTimeConflict(selectedSlot.time)) {
+                          setTimeConflictError('You have scheduled the Kids class at this time, please select a different time for parents session');
+                          // Don't update the selection
+                          return;
+                        }
                         setForm({ 
                           ...form, 
                           webinarScheduleId: value,
@@ -872,6 +905,14 @@ export default function EmbedEventRegistrationForm({
                       I am not interested in learning myself how to help my kids develop courage and strength through emaan
                     </option>
                   </select>
+
+                  {timeConflictError && (
+                    <div className="mt-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                      <p className="text-amber-700 text-sm font-medium flex items-center gap-2">
+                        <span>⚠️</span> {timeConflictError}
+                      </p>
+                    </div>
+                  )}
 
                   {webinarScheduleSlots.length === 0 && (
                     <div className="mt-4 text-center py-6 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
