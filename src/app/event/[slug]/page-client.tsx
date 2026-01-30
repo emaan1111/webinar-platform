@@ -52,6 +52,9 @@ interface Event {
 
 interface Props {
   event: Event;
+  splitTestId?: string;
+  variantId?: string;
+  leadPageId?: string;
 }
 
 // Schedule slot for display
@@ -115,7 +118,7 @@ function generateRecurringSlots(schedule: WebinarSchedule, count: number = 5): {
   return slots;
 }
 
-export default function EventRegistrationClient({ event }: Props) {
+export default function EventRegistrationClient({ event, splitTestId, variantId, leadPageId }: Props) {
   const [step, setStep] = useState<1 | 2 | 3>(1); // 1: Event schedule, 2: Webinar schedule (if bundle), 3: Success
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -128,7 +131,14 @@ export default function EventRegistrationClient({ event }: Props) {
     // Detect user's timezone on mount
     const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
     setUserTimezone(tz);
-  }, []);
+    
+    // Log tracking params for debugging
+    console.log('🎯 [Event Registration] Tracking params:', {
+      splitTestId,
+      variantId,
+      leadPageId
+    });
+  }, [splitTestId, variantId, leadPageId]);
 
   // Form state
   const [form, setForm] = useState({
@@ -342,11 +352,62 @@ export default function EventRegistrationClient({ event }: Props) {
           skipWebinar: form.skipWebinar,
           privacyConsent: true, // Always true by default
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          // Add tracking parameters
+          splitTestId: splitTestId,
+          splitTestVariantId: variantId,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
+        
+        // Track Split Test conversion (client-side, fire-and-forget)
+        if (splitTestId && variantId && data.registration?.id) {
+          try {
+            const payload = JSON.stringify({
+              splitTestId: splitTestId,
+              variantId: variantId,
+              registrationId: data.registration.id,
+            });
+            
+            if (navigator.sendBeacon) {
+              const blob = new Blob([payload], { type: 'application/json' });
+              navigator.sendBeacon('/api/split-tests/track-conversion', blob);
+            } else {
+              fetch('/api/split-tests/track-conversion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+                keepalive: true
+              }).catch(() => {});
+            }
+          } catch (e) {
+            console.error('Failed to track split test conversion for event', e);
+          }
+        } 
+        // Track Standalone Lead Page conversion
+        else if (leadPageId && data.registration?.id) {
+          try {
+            const payload = JSON.stringify({
+              leadPageId: leadPageId,
+              registrationId: data.registration.id,
+            });
+            
+            if (navigator.sendBeacon) {
+              const blob = new Blob([payload], { type: 'application/json' });
+              navigator.sendBeacon('/api/lead-pages/track-conversion', blob);
+            } else {
+              fetch('/api/lead-pages/track-conversion', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: payload,
+                keepalive: true
+              }).catch(() => {});
+            }
+          } catch (e) {
+            console.error('Failed to track lead page conversion for event', e);
+          }
+        }
         
         // Priority 1: Redirect to custom thank you page URL if configured
         if (event.thankYouPageUrl) {
