@@ -356,6 +356,22 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
     // If we already have them from props or searchParams (iframe URL), skip
     if (trackingParams.st && trackingParams.v) return;
 
+    // Check for window.__WEBINAR_TRACKING__ (injected by lead pages)
+    try {
+      const webinarTracking = (window as any).__WEBINAR_TRACKING__;
+      if (webinarTracking && (webinarTracking.splitTestId || webinarTracking.leadPageId)) {
+        setTrackingParams(prev => ({
+          st: webinarTracking.splitTestId || prev.st,
+          v: webinarTracking.variantId || prev.v,
+          lp: webinarTracking.leadPageId || prev.lp
+        }));
+        console.log('🔗 [RegistrationModal] Captured tracking params from window.__WEBINAR_TRACKING__', webinarTracking);
+        return; // Found params, no need to check other sources
+      }
+    } catch (e) {
+      // Ignore errors
+    }
+
     try {
        // Check if we are in an iframe
        if (window.self !== window.top) {
@@ -373,6 +389,19 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
               lp: lp || prev.lp
             }));
             console.log('🔗 [RegistrationModal] Captured tracking params from parent window', { st, v, lp });
+            return; // Found params, no need to listen for postMessage
+          }
+          
+          // Also try parent.__WEBINAR_TRACKING__
+          const parentTracking = (window.parent as any).__WEBINAR_TRACKING__;
+          if (parentTracking && (parentTracking.splitTestId || parentTracking.leadPageId)) {
+            setTrackingParams(prev => ({
+              st: parentTracking.splitTestId || prev.st,
+              v: parentTracking.variantId || prev.v,
+              lp: parentTracking.leadPageId || prev.lp
+            }));
+            console.log('🔗 [RegistrationModal] Captured tracking params from parent.__WEBINAR_TRACKING__', parentTracking);
+            return; // Found params
           }
        }
     } catch (e) {

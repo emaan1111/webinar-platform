@@ -681,10 +681,22 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
   
   // Extract tracking parameters from the current page URL
   const pageParams = new URLSearchParams(window.location.search);
+  
+  // Check for tracking params in multiple sources (priority order):
+  // 1. URL search params (st, v, lp)
+  // 2. window.__WEBINAR_TRACKING__ (injected by lead pages with custom HTML)
+  // 3. window.parent.__WEBINAR_TRACKING__ (for iframes)
+  let webinarTracking = null;
+  try {
+    webinarTracking = window.__WEBINAR_TRACKING__ || (window.parent && window.parent.__WEBINAR_TRACKING__);
+  } catch (e) {
+    // Cross-origin access blocked - expected for external embeds
+  }
+  
   const TRACKING_PARAMS = {
-    splitTestId: pageParams.get('st') || null,
-    variantId: pageParams.get('v') || null,
-    leadPageId: pageParams.get('lp') || pageParams.get('leadPageId') || null
+    splitTestId: pageParams.get('st') || (webinarTracking && webinarTracking.splitTestId) || null,
+    variantId: pageParams.get('v') || (webinarTracking && webinarTracking.variantId) || null,
+    leadPageId: pageParams.get('lp') || pageParams.get('leadPageId') || (webinarTracking && webinarTracking.leadPageId) || null
   };
   
   console.log('🎯 Webinar Embed Script Loaded', {
@@ -692,7 +704,8 @@ function generateEmbedScript(webinar: any, type: string, theme: string, apiBase:
     theme: THEME_NAME,
     webinarId: WEBINAR_DATA.id,
     readyState: document.readyState,
-    trackingParams: TRACKING_PARAMS
+    trackingParams: TRACKING_PARAMS,
+    trackingSource: pageParams.get('st') ? 'url' : (webinarTracking ? 'window.__WEBINAR_TRACKING__' : 'none')
   });
 
   // CSS Styles
