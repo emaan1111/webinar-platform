@@ -853,7 +853,8 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                     <tr className="border-b">
                       <th className="text-left py-2 px-3">Name</th>
                       <th className="text-left py-2 px-3">Student Age</th>
-                      <th className="text-left py-2 px-3">Country</th>
+                      <th className="text-left py-2 px-3">Timezone</th>
+                      <th className="text-left py-2 px-3">Registered At</th>
                       <th className="text-left py-2 px-3">Email</th>
                       <th className="text-left py-2 px-3">Event Schedule</th>
                       <th className="text-left py-2 px-3">Webinar Status</th>
@@ -867,7 +868,16 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
                       <tr key={reg.id} className="border-b hover:bg-gray-50">
                         <td className="py-2 px-3 font-medium">{reg.name}</td>
                         <td className="py-2 px-3">{reg.studentAge || '-'}</td>
-                        <td className="py-2 px-3">{reg.webinarRegistration?.country || '-'}</td>
+                        <td className="py-2 px-3 text-xs">{reg.eventSchedule.timezone?.replace(/_/g, ' ') || '-'}</td>
+                        <td className="py-2 px-3 text-xs">
+                          {new Date(reg.registeredAt).toLocaleString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                            hour: 'numeric',
+                            minute: '2-digit',
+                          })}
+                        </td>
                         <td className="py-2 px-3">{reg.email}</td>
                         <td className="py-2 px-3 text-xs">
                           {formatDate(reg.eventSchedule.startTime, reg.eventSchedule.timezone)}
