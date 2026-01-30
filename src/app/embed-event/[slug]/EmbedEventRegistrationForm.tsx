@@ -286,8 +286,7 @@ export default function EmbedEventRegistrationForm({
           id: schedule.id, 
           time: finalJitTime, 
           schedule, 
-          isRecurring: false,
-          displayLabel: 'Watch Now'
+          isRecurring: false
         });
       } else if (schedule.scheduleType === 'recurring' && schedule.recurringPattern) {
         const slots = generateRecurringSlots(schedule, maxSchedulesToShow * 3);
@@ -828,19 +827,31 @@ export default function EmbedEventRegistrationForm({
                     Select Your Preferred Time
                   </label>
                   <select
-                    value={form.webinarScheduleId}
+                    value={form.skipWebinar ? 'not-interested' : form.webinarScheduleId}
                     onChange={(e) => {
-                      const selectedSlot = webinarScheduleSlots.find(s => s.id === e.target.value);
-                      setForm({ 
-                        ...form, 
-                        webinarScheduleId: e.target.value,
-                        webinarScheduledTime: selectedSlot ? selectedSlot.time.toISOString() : '',
-                        skipWebinar: false 
-                      });
+                      const value = e.target.value;
+                      if (value === 'not-interested') {
+                        setForm({ 
+                          ...form, 
+                          webinarScheduleId: '',
+                          webinarScheduledTime: '',
+                          skipWebinar: true 
+                        });
+                      } else {
+                        const selectedSlot = webinarScheduleSlots.find(s => s.id === value);
+                        setForm({ 
+                          ...form, 
+                          webinarScheduleId: value,
+                          webinarScheduledTime: selectedSlot ? selectedSlot.time.toISOString() : '',
+                          skipWebinar: false 
+                        });
+                      }
                     }}
                     className={`w-full px-3 py-3 border-2 rounded-xl text-sm font-medium transition-all appearance-none cursor-pointer bg-white ${
                       form.webinarScheduleId 
                         ? 'border-purple-500 bg-purple-50 text-purple-900' 
+                        : form.skipWebinar
+                        ? 'border-gray-400 bg-gray-50 text-gray-600'
                         : 'border-gray-200 hover:border-purple-300'
                     }`}
                     style={{
@@ -850,16 +861,16 @@ export default function EmbedEventRegistrationForm({
                       backgroundSize: '1.25em 1.25em',
                     }}
                   >
-                    <option value="">✨ Choose your preferred time...</option>
+                    <option value="">Choose a preferred time...</option>
                     {webinarScheduleSlots.map(slot => (
                       <option key={slot.id} value={slot.id}>
-                        {slot.displayLabel 
-                          ? `${slot.displayLabel} - ${formatTimeFromDate(slot.time)}`
-                          : `${formatDateFromDate(slot.time)} at ${formatTimeFromDate(slot.time)}`
-                        }
+                        {`${formatDateFromDate(slot.time)} at ${formatTimeFromDate(slot.time)}`}
                         {slot.schedule.scheduleType === 'justInTime' ? ' ⚡ Starts Soon!' : ''}
                       </option>
                     ))}
+                    <option value="not-interested" className="text-gray-500">
+                      I am not interested in learning myself how to help my kids develop courage and strength through emaan
+                    </option>
                   </select>
 
                   {webinarScheduleSlots.length === 0 && (
@@ -870,22 +881,7 @@ export default function EmbedEventRegistrationForm({
                   )}
                 </div>
 
-                {/* Skip Option */}
-                {event.webinarOptional && (
-                  <div className="flex justify-center pt-1">
-                    <label className="inline-flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.skipWebinar}
-                        onChange={(e) => setForm({ ...form, skipWebinar: e.target.checked, webinarScheduleId: '' })}
-                        className="w-3.5 h-3.5 rounded border-gray-300 text-gray-400 focus:ring-gray-400"
-                      />
-                      <span className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-                        Skip webinar for now
-                      </span>
-                    </label>
-                  </div>
-                )}
+
 
                 {/* Action Buttons */}
                 <div className="flex gap-3 pt-2">
