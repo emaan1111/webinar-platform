@@ -56,7 +56,8 @@ export async function GET(
       });
     }
 
-    const apiBase = new URL(request.url).origin;
+    // Use NEXT_PUBLIC_APP_URL for production, fallback to request origin for local dev
+    const apiBase = process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin;
     const embedScript = generateEventEmbedScript(event, type, apiBase);
 
     return new NextResponse(embedScript, {
