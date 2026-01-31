@@ -711,6 +711,12 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
       customAttributes['UM Webinar Link'] = data.countdownLink
       customAttributes.um_webinar_link = data.countdownLink
       customAttributes.is_zoom_session = false
+      
+      // Still store Zoom link in its own field if provided (for events with bundled webinars)
+      if (data.zoomLink) {
+        customAttributes['Zoom Link'] = data.zoomLink
+        customAttributes.zoom_link = data.zoomLink
+      }
     }
 
     if (data.referralLink) {

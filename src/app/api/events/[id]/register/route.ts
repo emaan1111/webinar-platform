@@ -346,7 +346,23 @@ export async function POST(
     // 2. Determine Zoom Link (Schedule override > Event default)
     const eventZoomLink = schedule.zoomLink || event.zoomLink;
 
-    // 3. Sync to ClickFunnels
+    // 3. Determine the UM Webinar Link
+    // Priority: Bundled webinar countdown link > Event page link
+    // If user registered for a bundled webinar, use the webinar countdown link
+    let umWebinarLink: string;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com';
+    
+    if (webinarRegistrationId && event.bundledWebinar?.slug) {
+      // Use webinar countdown link if they registered for the bundled webinar
+      umWebinarLink = `${baseUrl}/countdown/${event.bundledWebinar.slug}?r=${webinarRegistrationId}`;
+      console.log(`📋 Using bundled webinar countdown link for UM Webinar Link: ${umWebinarLink}`);
+    } else {
+      // Fallback to event page only if no webinar registration
+      umWebinarLink = `${baseUrl}/event/${event.slug}`;
+      console.log(`📋 Using event link for UM Webinar Link (no webinar registration): ${umWebinarLink}`);
+    }
+
+    // 4. Sync to ClickFunnels
     try {
       console.log(`🚀 Syncing EVENT registration to ClickFunnels for ${email}`);
       await syncWebinarRegistrationToClickFunnels({
@@ -358,13 +374,15 @@ export async function POST(
         webinarId: event.id,          // Using Event ID
         webinarTitle: event.title,    // Using Event Title
         scheduledStartTime: schedule.startTime,
-        // For events, we might not have a countdown link, or we use the event page itself
-        countdownLink: `${process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com'}/event/${event.slug}`, 
+        // Use webinar countdown link if bundled webinar was registered, otherwise event page
+        countdownLink: umWebinarLink,
         formattedWebinarTime: formattedEventTime,
         formattedWebinarTimeLocal: formattedLocalEventTime,
         attendeeTimezoneLabel: eventAttendeeTimezoneLabel,
+        // Pass Zoom link to be stored in Zoom Link field, but NOT in UM Webinar Link
         zoomLink: eventZoomLink || undefined,
-        isZoomSession: true, // Events are typically live Zoom sessions
+        // Set isZoomSession to false so UM Webinar Link uses countdown link, not Zoom link
+        isZoomSession: false,
         customTags: {
           registrationTag: event.registrationTag,
           // Events might not have these granular attendance tags yet, so we omit or pass null
