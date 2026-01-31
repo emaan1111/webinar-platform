@@ -288,6 +288,8 @@ model Registration {
   attendanceTagsAppliedAt  DateTime?
   postSessionSmsSent       Boolean                   @default(false)
   postSessionSmsSentAt     DateTime?
+  splitTestId              String?
+  splitTestVariantId       String?
   testMetrics              ABTestMetric[]
   sessions                 AttendeeSession[]
   chatMessageLikes         ChatMessageLike[]
@@ -298,14 +300,12 @@ model Registration {
   reactions                Reaction[]
   referredByUser           Registration?             @relation("Referrals", fields: [referredBy], references: [referralCode])
   referrals                Registration[]            @relation("Referrals")
+  splitTest                SplitTest?                @relation(fields: [splitTestId], references: [id])
+  splitTestVariant         SplitTestVariant?         @relation(fields: [splitTestVariantId], references: [id])
   user                     User?                     @relation(fields: [userId], references: [id])
   webinar                  Webinar                   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   reminders                WebinarReminderSent[]
   sales                    WebinarSale[]
-  splitTestId              String?
-  splitTestVariantId       String?
-  splitTest                SplitTest?                @relation(fields: [splitTestId], references: [id])
-  splitTestVariant         SplitTestVariant?         @relation(fields: [splitTestVariantId], references: [id])
 
   @@index([email])
   @@index([webinarId])
@@ -855,9 +855,9 @@ model FormSubmission {
   aiStatus           String?
   lastSavedAt        DateTime          @default(now())
   status             String            @default("COMPLETED")
-  form               Form              @relation(fields: [formId], references: [id], onDelete: Cascade)
   splitTestId        String?
   splitTestVariantId String?
+  form               Form              @relation(fields: [formId], references: [id], onDelete: Cascade)
   splitTest          SplitTest?        @relation(fields: [splitTestId], references: [id])
   splitTestVariant   SplitTestVariant? @relation(fields: [splitTestVariantId], references: [id])
 
@@ -903,15 +903,15 @@ model SplitTest {
   name               String
   slug               String              @unique
   isActive           Boolean             @default(true)
-  goal               SplitTestGoal       @default(WEBINAR)
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @default(now())
   conversions        Int                 @default(0)
+  goal               SplitTestGoal       @default(WEBINAR)
+  eventRegistrations EventRegistration[]
+  formSubmissions    FormSubmission[]
+  registrations      Registration[]
   events             SplitTestEvent[]
   variants           SplitTestVariant[]
-  registrations      Registration[]
-  formSubmissions    FormSubmission[]
-  eventRegistrations EventRegistration[]
 
   @@map("split_tests")
 }
@@ -923,12 +923,12 @@ model SplitTestVariant {
   weight             Int                 @default(50)
   views              Int                 @default(0)
   conversions        Int                 @default(0)
+  eventRegistrations EventRegistration[]
+  formSubmissions    FormSubmission[]
+  registrations      Registration[]
   events             SplitTestEvent[]
   leadPage           LeadPage            @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
   splitTest          SplitTest           @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
-  registrations      Registration[]
-  formSubmissions    FormSubmission[]
-  eventRegistrations EventRegistration[]
 
   @@map("split_test_variants")
 }
@@ -966,14 +966,14 @@ model Event {
   requirePhone             Boolean             @default(false)
   confirmationEmailEnabled Boolean             @default(true)
   reminderEmailEnabled     Boolean             @default(true)
-  thankYouPageUrl          String?
-  thankYouTemplateId       String?
-  registrationPageUrl      String?
-  registrationTag          String?
-  smsReminderEnabled       Boolean             @default(false)
-  smsReminderBody          String?
   createdAt                DateTime            @default(now())
   updatedAt                DateTime            @default(now())
+  thankYouPageUrl          String?
+  thankYouTemplateId       String?
+  registrationTag          String?
+  smsReminderBody          String?
+  smsReminderEnabled       Boolean             @default(false)
+  registrationPageUrl      String?
   registrations            EventRegistration[]
   schedules                EventSchedule[]
   bundledWebinar           Webinar?            @relation("BundledWebinars", fields: [bundledWebinarId], references: [id])
@@ -1010,8 +1010,6 @@ model EventRegistration {
   name                  String
   email                 String
   phone                 String?
-  studentName           String?
-  studentAge            Int?
   timezone              String?
   registeredAt          DateTime            @default(now())
   attended              Boolean             @default(false)
@@ -1021,19 +1019,21 @@ model EventRegistration {
   gdprConsent           Boolean             @default(false)
   privacyConsent        Boolean             @default(false)
   marketingConsent      Boolean             @default(false)
-  referralCode          String?             @unique
-  referredBy            String?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @default(now())
-  event                 Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventSchedule         EventSchedule       @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
-  splitTest             SplitTest?          @relation(fields: [splitTestId], references: [id])
-  splitTestVariant      SplitTestVariant?   @relation(fields: [splitTestVariantId], references: [id])
   splitTestId           String?
   splitTestVariantId    String?
-  eventReminderSents    EventReminderSent[]
+  studentAge            Int?
+  studentName           String?
+  referralCode          String?             @unique
+  referredBy            String?
+  event                 Event               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSchedule         EventSchedule       @relation(fields: [eventScheduleId], references: [id], onDelete: Cascade)
   referredByUser        EventRegistration?  @relation("EventReferrals", fields: [referredBy], references: [referralCode])
   referrals             EventRegistration[] @relation("EventReferrals")
+  splitTest             SplitTest?          @relation(fields: [splitTestId], references: [id])
+  splitTestVariant      SplitTestVariant?   @relation(fields: [splitTestVariantId], references: [id])
+  eventReminderSents    EventReminderSent[]
 
   @@unique([email, eventScheduleId])
   @@index([eventId])
@@ -1048,6 +1048,24 @@ model SMSSettings {
   updatedAt        DateTime @default(now())
 
   @@map("sms_settings")
+}
+
+model EventReminderSent {
+  id                  String            @id @default(cuid())
+  eventRegistrationId String
+  scheduledFor        DateTime
+  status              ReminderStatus    @default(PENDING)
+  channel             ReminderChannel   @default(SMS)
+  sentTo              String
+  message             String
+  sentAt              DateTime?
+  error               String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @default(now())
+  eventRegistration   EventRegistration @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledFor])
+  @@map("event_reminders_sent")
 }
 
 enum Role {
@@ -1088,22 +1106,4 @@ enum EventStatus {
 enum SplitTestGoal {
   WEBINAR
   LEAD_FORM
-}
-
-model EventReminderSent {
-  id                  String            @id @default(cuid())
-  eventRegistrationId String
-  eventRegistration   EventRegistration @relation(fields: [eventRegistrationId], references: [id], onDelete: Cascade)
-  scheduledFor        DateTime
-  status              ReminderStatus    @default(PENDING)
-  channel             ReminderChannel   @default(SMS)
-  sentTo              String
-  message             String
-  sentAt              DateTime?
-  error               String?
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @default(now())
-
-  @@index([status, scheduledFor])
-  @@map("event_reminders_sent")
 }

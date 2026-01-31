@@ -468,6 +468,7 @@ export default function EmbedEventRegistrationForm({
           email: form.email,
           phone: form.phone ? `${form.phoneCode} ${form.phone}` : undefined,
           studentName: form.studentName,
+          studentAge: form.studentAge,
           eventScheduleId: form.eventScheduleId,
           webinarScheduleId: effectiveSkipWebinar ? undefined : form.webinarScheduleId,
           webinarScheduledTime: effectiveSkipWebinar ? undefined : form.webinarScheduledTime || undefined,
