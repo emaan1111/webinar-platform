@@ -585,6 +585,40 @@ export default function EventDetailPage({ params }: { params: { id: string } }) 
               </div>
             </Card>
 
+            {/* SMS Reminder Settings */}
+            <Card className="p-6">
+              <h2 className="text-lg font-semibold mb-4">📱 SMS Reminders</h2>
+              <div className="space-y-4">
+                <label className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    checked={form.smsReminderEnabled}
+                    onChange={(e) => setForm({ ...form, smsReminderEnabled: e.target.checked })}
+                    className="rounded h-5 w-5"
+                  />
+                  <div>
+                    <span className="font-medium">Enable SMS Reminders</span>
+                    <p className="text-xs text-gray-500">Send SMS 1 hour before the event starts</p>
+                  </div>
+                </label>
+                
+                {form.smsReminderEnabled && (
+                  <div>
+                    <label className="block text-sm font-medium mb-1">SMS Message</label>
+                    <textarea
+                      className="w-full p-3 border rounded-lg h-24"
+                      placeholder="Reminder: Your event is starting in 1 hour!"
+                      value={form.smsReminderBody}
+                      onChange={(e) => setForm({ ...form, smsReminderBody: e.target.value })}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      This message will be sent to all registrants with a phone number, 1 hour before the event.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
             {/* Thank You Page Settings */}
             <Card className="p-6">
               <h2 className="text-lg font-semibold mb-4">Thank You Page</h2>
