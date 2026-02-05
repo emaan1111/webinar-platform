@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, GripVertical, Save, Check, ArrowUp, ArrowDown, Bot } from 'lucide-react'
+import { Plus, Trash2, GripVertical, Save, Check, ArrowUp, ArrowDown, Bot, Download } from 'lucide-react'
 import { addField, updateField, deleteField, updateFormSettings, reorderField, deleteSubmission, updateSubmissionStatus } from '@/app/actions/forms'
 
 interface EditorProps {
@@ -95,6 +95,51 @@ const [activeTab, setActiveTab] = useState<string>('build')
         setViewingSubmission({ ...viewingSubmission, aiStatus: previousStatus });
         alert('Failed to update status');
     }
+  }
+
+  const handleExportCSV = () => {
+    if (!form.submissions || form.submissions.length === 0) {
+      alert('No submissions to export');
+      return;
+    }
+
+    // Build CSV headers: Date, Status, AI Reason, then all field labels
+    const headers = ['Date', 'Status', 'AI Reason', ...form.fields.map((f: any) => f.label)];
+    
+    // Build CSV rows
+    const rows = form.submissions.map((sub: any) => {
+      const data = JSON.parse(sub.data);
+      const row = [
+        new Date(sub.createdAt).toLocaleString(),
+        sub.aiStatus || 'SUBMITTED',
+        sub.aiReason || '',
+        ...form.fields.map((f: any) => {
+          const value = data[f.id];
+          if (value === undefined || value === null) return '';
+          if (typeof value === 'object') return JSON.stringify(value);
+          // Escape quotes and handle newlines for CSV
+          return String(value).replace(/"/g, '""');
+        })
+      ];
+      return row;
+    });
+
+    // Convert to CSV string
+    const csvContent = [
+      headers.map(h => `"${h}"`).join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${form.title.replace(/[^a-z0-9]/gi, '_')}_submissions_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
   if (activeTab === 'ai') {
@@ -190,6 +235,21 @@ const [activeTab, setActiveTab] = useState<string>('build')
   if (activeTab === 'submissions') {
     return (
       <>
+        {/* Export Button Header */}
+        <div className="mb-4 flex justify-between items-center">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {form.submissions.length} Submission{form.submissions.length !== 1 ? 's' : ''}
+          </h2>
+          <button
+            onClick={handleExportCSV}
+            disabled={form.submissions.length === 0}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            <Download size={18} />
+            Export to CSV
+          </button>
+        </div>
+
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 border-b">
