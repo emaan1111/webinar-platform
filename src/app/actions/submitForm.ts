@@ -88,10 +88,15 @@ export async function submitForm(formId: string, formData: FormData) {
 
   // ClickFunnels Integration: Tag RH26-APPROVED if approved
   if (aiStatus === 'APPROVED') {
-    const emailField = form.fields.find(f => f.type === 'email')
+    // Find email field by type OR by label containing "email" (case-insensitive)
+    const emailField = form.fields.find(f => 
+      f.type === 'email' || 
+      f.label?.toLowerCase().includes('email')
+    )
     if (emailField) {
       const email = submissionData[emailField.id]
       if (email && typeof email === 'string') {
+        console.log('🏷️ AI Approval - tagging contact:', email, 'with RH26-APPROVED')
         // Run in background (fire and forget) to not slow down response
         tagClickFunnelsContact(email, ['RH26-APPROVED']).catch(err => 
           console.error('Failed to tag user in ClickFunnels:', err)

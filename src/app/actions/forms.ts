@@ -138,20 +138,29 @@ export async function updateSubmissionStatus(submissionId: string, status: strin
     })
 
     if (form) {
-      const emailField = form.fields.find(f => f.type === 'email')
+      // Find email field by type OR by label containing "email" (case-insensitive)
+      const emailField = form.fields.find(f => 
+        f.type === 'email' || 
+        f.label?.toLowerCase().includes('email')
+      )
       if (emailField) {
         try {
             const data = JSON.parse(submission.data as string)
             const email = data[emailField.id]
             if (email) {
+                console.log('🏷️ Form approval - tagging contact:', email, 'with RH26-APPROVED')
                 // Fire and forget, but log error
                 tagClickFunnelsContact(email, ['RH26-APPROVED']).catch(e => 
                     console.error('Manual approval tagging failed:', e)
                 )
+            } else {
+                console.log('⚠️ Form approval - no email value found in field:', emailField.id)
             }
         } catch (e) {
             console.error('Error parsing submission data for tagging:', e)
         }
+      } else {
+        console.log('⚠️ Form approval - no email field found in form:', formId)
       }
     }
   }
