@@ -127,7 +127,7 @@ const [activeTab, setActiveTab] = useState<string>('build')
     // Convert to CSV string
     const csvContent = [
       headers.map(h => `"${h}"`).join(','),
-      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+      ...rows.map((row: string[]) => row.map((cell: string) => `"${cell}"`).join(','))
     ].join('\n');
 
     // Create and download file
