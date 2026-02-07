@@ -416,6 +416,7 @@ export default function WebinarLiveClient({
   const [needsUserGesture, setNeedsUserGesture] = useState(false); // Track if we need fresh user interaction to play
   const [isMuted, setIsMuted] = useState(true); // Start muted for mobile compatibility
   const [showUnmuteHint, setShowUnmuteHint] = useState(false); // Show prominent unmute hint
+  const [showReplayUnmuteOverlay, setShowReplayUnmuteOverlay] = useState(false); // Show unmute overlay for replay mode
   const [replayTimeRemaining, setReplayTimeRemaining] = useState<string | null>(null); // Countdown display
   const [seenOfferIds, setSeenOfferIds] = useState<Set<string>>(new Set()); // Track offers user has seen
   const [webinarEnded, setWebinarEnded] = useState(false); // Track if live webinar has ended
@@ -903,13 +904,19 @@ export default function WebinarLiveClient({
     // Wait 3 seconds after video starts, then show banner if still muted
     const timer = setTimeout(() => {
       if (isMuted) {
-        setShowUnmuteHint(true);
-        console.log('🔇 Showing audio troubleshooting banner (video is muted)');
+        // For replay mode, show the big unmute overlay instead of small hint
+        if (isReplayMode) {
+          setShowReplayUnmuteOverlay(true);
+          console.log('🔇 Showing replay unmute overlay (video is muted)');
+        } else {
+          setShowUnmuteHint(true);
+          console.log('🔇 Showing audio troubleshooting banner (video is muted)');
+        }
       }
-    }, 3000);
+    }, 1000); // Faster for replay mode - show after 1 second
     
     return () => clearTimeout(timer);
-  }, [broadcastStarted, playerReady, isMuted]);
+  }, [broadcastStarted, playerReady, isMuted, isReplayMode]);
 
   // Auto-fullscreen on mobile landscape orientation
   useEffect(() => {
@@ -2144,6 +2151,19 @@ export default function WebinarLiveClient({
             
             player.on('play', handlePlaybackStarted);
             
+            // Listen for volume changes (user unmuting via native Vimeo controls)
+            player.on('volumechange', async (data: { volume: number }) => {
+              const isMutedNow = data.volume === 0;
+              setIsMuted(isMutedNow);
+              
+              // If user unmuted, hide the replay overlay
+              if (!isMutedNow) {
+                setShowReplayUnmuteOverlay(false);
+                setShowUnmuteHint(false);
+                console.log('🔊 User unmuted via Vimeo controls');
+              }
+            });
+            
             // REPLAY MODE: Sync elapsedSeconds with actual video time for CTA/offer timing
             if (isReplayMode) {
               player.on('timeupdate', async (data: { seconds: number }) => {
@@ -2189,7 +2209,14 @@ export default function WebinarLiveClient({
               }
               
               // ALWAYS show unmute hint since video starts muted (for ALL devices)
-              setTimeout(() => setShowUnmuteHint(true), 2000);
+              // For replay mode, show the big overlay instead
+              setTimeout(() => {
+                if (isReplayMode) {
+                  setShowReplayUnmuteOverlay(true);
+                } else {
+                  setShowUnmuteHint(true);
+                }
+              }, 1000);
             } catch (playErr) {
               const errorMsg = `Play failed: ${playErr instanceof Error ? playErr.message : String(playErr)}`;
               const isPermissionError = errorMsg.includes('not allowed') || 
@@ -2355,8 +2382,14 @@ export default function WebinarLiveClient({
         console.log(`📊 Session tracking started (${device}, muted)`);
       }
       
-      // Show unmute hint
-      setTimeout(() => setShowUnmuteHint(true), 2000);
+      // Show unmute hint - use big overlay for replay mode
+      setTimeout(() => {
+        if (isReplayMode) {
+          setShowReplayUnmuteOverlay(true);
+        } else {
+          setShowUnmuteHint(true);
+        }
+      }, 1000);
       
       logVideoError(
         webinar.id,
@@ -2795,6 +2828,62 @@ export default function WebinarLiveClient({
                       </div>
                       <div style={{ fontSize: '14px', opacity: 0.8 }}>
                         Video is playing without sound
+                      </div>
+                    </div>
+                  )}
+
+                  {/* BIG Unmute Overlay for Replay Mode - more prominent since users often miss the tiny Vimeo unmute button */}
+                  {showReplayUnmuteOverlay && isMuted && broadcastStarted && isReplayMode && (
+                    <div 
+                      onClick={async () => {
+                        try {
+                          await toggleMute();
+                          setShowReplayUnmuteOverlay(false);
+                          // Also ensure video is playing
+                          if (vimeoPlayerRef.current) {
+                            await vimeoPlayerRef.current.play();
+                          }
+                        } catch (err) {
+                          console.error('Error unmuting replay:', err);
+                        }
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0, 0, 0, 0.85)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        zIndex: 1000,
+                        transition: 'opacity 0.3s ease',
+                      }}
+                    >
+                      <div 
+                        style={{
+                          background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                          borderRadius: '50%',
+                          width: '120px',
+                          height: '120px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          marginBottom: '24px',
+                          boxShadow: '0 8px 32px rgba(16, 185, 129, 0.4)',
+                          animation: 'pulse 2s infinite',
+                        }}
+                      >
+                        <i className="fas fa-volume-up" style={{ fontSize: '48px', color: 'white' }} />
+                      </div>
+                      <div style={{ color: 'white', fontSize: '28px', fontWeight: 'bold', marginBottom: '12px', textAlign: 'center' }}>
+                        Tap to Unmute & Watch
+                      </div>
+                      <div style={{ color: 'rgba(255,255,255,0.8)', fontSize: '16px', textAlign: 'center', maxWidth: '300px' }}>
+                        Your replay is ready! Click anywhere to enable sound and start watching.
                       </div>
                     </div>
                   )}

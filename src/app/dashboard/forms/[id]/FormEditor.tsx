@@ -142,8 +142,39 @@ const [activeTab, setActiveTab] = useState<string>('build')
     document.body.removeChild(link);
   }
 
+  // Tab Navigation Component - rendered on all tabs
+  const TabNavigation = () => (
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-2 py-2 rounded-full shadow-lg flex gap-2 z-50">
+      <button 
+        onClick={() => setActiveTab('build')}
+        className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'build' ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
+      >
+        Build
+      </button>
+      <button 
+        onClick={() => setActiveTab('settings')}
+        className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'settings' ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
+      >
+        Settings
+      </button>
+      <button 
+        onClick={() => setActiveTab('ai')}
+        className={`flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'ai' ? 'bg-purple-600' : 'hover:bg-gray-800'}`}
+      >
+        <Bot size={14} /> AI
+      </button>
+      <button 
+        onClick={() => setActiveTab('submissions')}
+        className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'submissions' ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
+      >
+        Submissions ({form.submissions.length})
+      </button>
+    </div>
+  );
+
   if (activeTab === 'ai') {
     return (
+      <>
       <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-sm border">
         <div className="mb-6 border-b pb-4">
           <h2 className="text-xl font-semibold flex items-center gap-2">
@@ -229,6 +260,8 @@ const [activeTab, setActiveTab] = useState<string>('build')
           </button>
         </form>
       </div>
+      <TabNavigation />
+      </>
     )
   }
 
@@ -439,12 +472,14 @@ const [activeTab, setActiveTab] = useState<string>('build')
             </div>
           </div>
         )}
+        <TabNavigation />
       </>
     )
   }
 
   if (activeTab === 'settings') {
     return (
+      <>
       <div className="max-w-2xl mx-auto bg-white p-6 rounded-lg shadow-sm border">
         <form onSubmit={handleUpdateSettings} className="space-y-6">
           <div>
@@ -472,10 +507,13 @@ const [activeTab, setActiveTab] = useState<string>('build')
           </button>
         </form>
       </div>
+      <TabNavigation />
+      </>
     )
   }
 
   return (
+    <>
     <div className="grid grid-cols-[300px_1fr] gap-8">
       {/* Sidebar Controls */}
       <div className="space-y-6">
@@ -600,34 +638,8 @@ const [activeTab, setActiveTab] = useState<string>('build')
              </div>
         )}
       </div>
-      
-      {/* Tab Navigation (Top - rendered via Portal or just sticky) */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-2 py-2 rounded-full shadow-lg flex gap-2 z-50">
-        <button 
-          onClick={() => setActiveTab('build')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'build' ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
-        >
-          Build
-        </button>
-        <button 
-          onClick={() => setActiveTab('settings')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'settings' ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
-        >
-          Settings
-        </button>
-        <button 
-          onClick={() => setActiveTab('ai')}
-          className={`flex items-center gap-1 px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'ai' ? 'bg-purple-600' : 'hover:bg-gray-800'}`}
-        >
-          <Bot size={14} /> AI
-        </button>
-        <button 
-          onClick={() => setActiveTab('submissions')}
-          className={`px-4 py-1.5 rounded-full text-sm font-medium transition ${activeTab === 'submissions' ? 'bg-gray-700' : 'hover:bg-gray-800'}`}
-        >
-          Submissions ({form.submissions.length})
-        </button>
-      </div>
     </div>
+    <TabNavigation />
+    </>
   )
 }
