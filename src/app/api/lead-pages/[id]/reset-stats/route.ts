@@ -6,13 +6,13 @@ import { authOptions } from '@/lib/auth';
 // POST /api/lead-pages/[id]/reset-stats - Reset stats for a lead page
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    const { id } = params;
+    const { id } = await params;
 
     // Verify lead page exists
     const leadPage = await prisma.leadPage.findUnique({

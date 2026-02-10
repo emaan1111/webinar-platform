@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
@@ -8,7 +8,8 @@ import { Button } from '@/components/ui/Button';
 import { ChevronRight, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
-export default function EditLeadPage({ params }: { params: { id: string } }) {
+export default function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -31,7 +32,7 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
     const fetchData = async () => {
       try {
         const [pageRes, wRes, tRes] = await Promise.all([
-          fetch(`/api/lead-pages/${params.id}`),
+          fetch(`/api/lead-pages/${id}`),
           fetch('/api/webinars'),
           fetch('/api/registration-pages')
         ]);
@@ -60,12 +61,12 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
       }
     };
     fetchData();
-  }, [params.id]);
+  }, [id]);
 
   const handleSave = async () => {
     setSaving(true);
     try {
-      const res = await fetch(`/api/lead-pages/${params.id}`, {
+      const res = await fetch(`/api/lead-pages/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form)
@@ -89,7 +90,7 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
     
     setDeleting(true);
     try {
-        const res = await fetch(`/api/lead-pages/${params.id}`, {
+        const res = await fetch(`/api/lead-pages/${id}`, {
             method: 'DELETE'
         });
         
@@ -111,7 +112,7 @@ export default function EditLeadPage({ params }: { params: { id: string } }) {
     
     setResettingStats(true);
     try {
-        const res = await fetch(`/api/lead-pages/${params.id}/reset-stats`, {
+        const res = await fetch(`/api/lead-pages/${id}/reset-stats`, {
             method: 'POST'
         });
         
