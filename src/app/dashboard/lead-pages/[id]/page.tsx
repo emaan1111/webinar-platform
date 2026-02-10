@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ChevronRight, Loader2, Trash2, RotateCcw } from 'lucide-react';
 import Link from 'next/link';
 
-export default function EditLeadPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = use(params);
+export default function EditLeadPage() {
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
