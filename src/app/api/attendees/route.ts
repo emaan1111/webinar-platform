@@ -37,6 +37,13 @@ export async function GET(request: Request) {
       whereClause.attended = status === 'attended'
     }
 
+    // Get all lead pages upfront for efficient lookup
+    const leadPagesMap = new Map<string, string>()
+    const leadPages = await prisma.leadPage.findMany({
+      select: { id: true, name: true }
+    })
+    leadPages.forEach(lp => leadPagesMap.set(lp.id, lp.name))
+
     // Get registrations with detailed analytics
     const registrations = await prisma.registration.findMany({
       where: whereClause,
@@ -54,6 +61,18 @@ export async function GET(request: Request) {
             title: true,
             duration: true,
             status: true
+          }
+        },
+        pageVisits: {
+          where: {
+            pageType: 'registration'
+          },
+          orderBy: {
+            enteredAt: 'asc'
+          },
+          take: 1,
+          select: {
+            pageId: true
           }
         },
         sessions: {
@@ -183,6 +202,12 @@ export async function GET(request: Request) {
       const viewedOffer = (reg.offerAnalytics || []).some((o: any) => o.viewedOffer)
       const clickedOffer = (reg.offerAnalytics || []).some((o: any) => o.clickedOffer)
 
+      // Get lead page name from the first registration page visit
+      const registrationPageVisit = reg.pageVisits?.[0]
+      const leadPageName = registrationPageVisit?.pageId 
+        ? leadPagesMap.get(registrationPageVisit.pageId) || null
+        : null
+
       // Format watch time
       const formatWatchTime = (seconds: number) => {
         const hours = Math.floor(seconds / 3600)
@@ -238,6 +263,7 @@ export async function GET(request: Request) {
         marketingConsent: reg.marketingConsent,
         // New analytics fields
         registrationDevice: reg.registrationDevice || 'unknown',
+        leadPageName: leadPageName,
         watchedReplay: reg.watchedReplay || false,
         replayWatchTime: reg.replayWatchTime || 0,
         replayWatchTimeFormatted: formatWatchTime(reg.replayWatchTime || 0),

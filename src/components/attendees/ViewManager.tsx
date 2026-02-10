@@ -33,6 +33,7 @@ export const defaultColumns: ColumnConfig[] = [
   { key: 'email', label: 'Email', enabled: true, category: 'basic' },
   { key: 'phone', label: 'Phone', enabled: false, category: 'basic' },
   { key: 'webinarTitle', label: 'Webinar', enabled: true, category: 'basic' },
+  { key: 'leadPageName', label: 'Lead Page', enabled: false, category: 'basic' },
   { key: 'registeredAt', label: 'Registered', enabled: true, category: 'basic' },
   { key: 'scheduledAt', label: 'Scheduled At', enabled: false, category: 'basic' },
   { key: 'webinarStatus', label: 'Webinar Status', enabled: true, category: 'basic' },

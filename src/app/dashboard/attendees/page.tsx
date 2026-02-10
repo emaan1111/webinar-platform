@@ -87,6 +87,8 @@ interface Attendee {
   lastPurchaseProduct?: string | null
   totalPurchaseAmount?: number
   purchaseCurrency?: string | null
+  // Lead page source
+  leadPageName?: string | null
   // Sessions array
   sessions?: AttendeeSession[]
 }
@@ -760,6 +762,13 @@ export default function AttendeesPage() {
       
       case 'webinarTitle':
         return <div className="text-sm text-gray-900">{value}</div>
+      
+      case 'leadPageName':
+        return value ? (
+          <div className="text-sm text-purple-600 font-medium">{value}</div>
+        ) : (
+          <div className="text-sm text-gray-400">Direct / Default</div>
+        )
       
       case 'country':
       case 'timezone':

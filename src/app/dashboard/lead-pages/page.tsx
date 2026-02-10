@@ -5,13 +5,19 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Plus, Edit, Trash2, ExternalLink, Copy } from 'lucide-react';
+import { Plus, Edit, Trash2, ExternalLink, Copy, Users } from 'lucide-react';
 import Link from 'next/link';
 
 export default function LeadPagesDashboard() {
   const router = useRouter();
   const [leadPages, setLeadPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Leads Modal State
+  const [leadsModalOpen, setLeadsModalOpen] = useState(false);
+  const [leads, setLeads] = useState<any[]>([]);
+  const [leadsLoading, setLeadsLoading] = useState(false);
+  const [selectedPageName, setSelectedPageName] = useState('');
 
   useEffect(() => {
     fetchLeadPages();
@@ -27,6 +33,24 @@ export default function LeadPagesDashboard() {
       console.error('Failed to fetch lead pages', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleShowLeads = async (pageId: string, pageName: string) => {
+    setLeadsModalOpen(true);
+    setLeadsLoading(true);
+    setSelectedPageName(pageName);
+    setLeads([]);
+    
+    try {
+      const res = await fetch(`/api/lead-pages/${pageId}/leads`);
+      if (res.ok) {
+        setLeads(await res.json());
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLeadsLoading(false);
     }
   };
 
@@ -106,7 +130,16 @@ export default function LeadPagesDashboard() {
                 </div>
                 <div className="flex justify-between pt-2 border-t mt-2">
                   <span>Views / Conv:</span>
-                  <span className="font-bold text-gray-900">{page.views} / {page.conversions}</span>
+                  <span className="font-bold text-gray-900">
+                    {page.views} / 
+                    <button 
+                      onClick={() => handleShowLeads(page.id, page.name)}
+                      className="text-purple-600 hover:text-purple-800 hover:underline ml-1 cursor-pointer"
+                      title="Click to view leads"
+                    >
+                      {page.conversions}
+                    </button>
+                  </span>
                 </div>
               </div>
 
@@ -138,6 +171,74 @@ export default function LeadPagesDashboard() {
               </div>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* Leads Modal */}
+      {leadsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col animate-in zoom-in-95">
+            <div className="p-6 border-b flex justify-between items-center">
+              <div>
+                <h3 className="text-lg font-bold flex items-center gap-2">
+                  <Users className="w-5 h-5 text-purple-600" />
+                  Conversion Leads
+                </h3>
+                <p className="text-sm text-gray-500">{selectedPageName}</p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setLeadsModalOpen(false)}>Close</Button>
+            </div>
+            <div className="flex-1 overflow-auto p-0">
+              {leadsLoading ? (
+                <div className="p-8 text-center text-gray-500">Loading leads...</div>
+              ) : leads.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">
+                  <Users className="w-12 h-12 mx-auto text-gray-300 mb-2" />
+                  <p>No leads found for this page yet.</p>
+                  <p className="text-xs mt-1">Leads will appear here when people register through this page.</p>
+                </div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0">
+                    <tr>
+                      <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase text-xs">Name</th>
+                      <th className="px-6 py-3 text-left font-medium text-gray-500 uppercase text-xs">Email</th>
+                      <th className="px-6 py-3 text-center font-medium text-gray-500 uppercase text-xs">Attended</th>
+                      <th className="px-6 py-3 text-right font-medium text-gray-500 uppercase text-xs">Registered</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {leads.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-3 font-medium text-gray-900">{lead.name}</td>
+                        <td className="px-6 py-3 text-gray-600">{lead.email}</td>
+                        <td className="px-6 py-3 text-center">
+                          {lead.attended ? (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                              Yes
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-600">
+                              No
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-6 py-3 text-right text-gray-500">
+                          {new Date(lead.registeredAt).toLocaleDateString()}
+                          <span className="text-xs ml-1 text-gray-400">
+                            {new Date(lead.registeredAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <div className="p-4 border-t bg-gray-50 text-right">
+              <span className="text-xs text-gray-500 mr-2">Total Leads: {leads.length}</span>
+            </div>
+          </div>
         </div>
       )}
     </DashboardLayout>
