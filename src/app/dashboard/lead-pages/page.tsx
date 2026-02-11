@@ -5,13 +5,31 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Plus, Edit, Trash2, ExternalLink, Copy, Users } from 'lucide-react';
+import { Plus, Edit, Trash2, ExternalLink, Copy, Users, Calendar, Clock, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
+
+type DateFilterType = 'all' | 'last1h' | 'last24h' | 'today' | 'last7d' | 'last30d' | 'custom';
+
+const dateFilterOptions: { value: DateFilterType; label: string }[] = [
+  { value: 'all', label: 'All Time' },
+  { value: 'last1h', label: 'Last Hour' },
+  { value: 'last24h', label: 'Last 24 Hours' },
+  { value: 'today', label: 'Today' },
+  { value: 'last7d', label: 'Last 7 Days' },
+  { value: 'last30d', label: 'Last 30 Days' },
+  { value: 'custom', label: 'Custom Range' },
+];
 
 export default function LeadPagesDashboard() {
   const router = useRouter();
   const [leadPages, setLeadPages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // Date Filter State
+  const [dateFilter, setDateFilter] = useState<DateFilterType>('all');
+  const [showDateDropdown, setShowDateDropdown] = useState(false);
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
   
   // Leads Modal State
   const [leadsModalOpen, setLeadsModalOpen] = useState(false);
@@ -21,11 +39,27 @@ export default function LeadPagesDashboard() {
 
   useEffect(() => {
     fetchLeadPages();
-  }, []);
+  }, [dateFilter, customStartDate, customEndDate]);
 
   const fetchLeadPages = async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/lead-pages');
+      let url = '/api/lead-pages';
+      const params = new URLSearchParams();
+      
+      if (dateFilter !== 'all') {
+        params.set('dateFilter', dateFilter);
+        if (dateFilter === 'custom') {
+          if (customStartDate) params.set('startDate', customStartDate);
+          if (customEndDate) params.set('endDate', customEndDate);
+        }
+      }
+      
+      if (params.toString()) {
+        url += '?' + params.toString();
+      }
+      
+      const res = await fetch(url);
       if (res.ok) {
         setLeadPages(await res.json());
       }
@@ -34,6 +68,28 @@ export default function LeadPagesDashboard() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDateFilterChange = (filter: DateFilterType) => {
+    setDateFilter(filter);
+    if (filter !== 'custom') {
+      setShowDateDropdown(false);
+    }
+  };
+
+  const getDisplayStats = (page: any) => {
+    // If date filter is applied and we have filtered stats, use those
+    if (dateFilter !== 'all' && page.filteredViews !== undefined) {
+      return {
+        views: page.filteredViews,
+        conversions: page.filteredConversions
+      };
+    }
+    // Otherwise use the stored totals
+    return {
+      views: page.views,
+      conversions: page.conversions
+    };
   };
 
   const handleShowLeads = async (pageId: string, pageName: string) => {
@@ -94,8 +150,70 @@ export default function LeadPagesDashboard() {
         </Link>
       </div>
 
+      {/* Date Filter */}
+      <div className="mb-6 flex items-center gap-4 flex-wrap">
+        <div className="relative">
+          <button
+            onClick={() => setShowDateDropdown(!showDateDropdown)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Calendar className="w-4 h-4 text-purple-600" />
+            <span className="text-sm font-medium">
+              {dateFilterOptions.find(o => o.value === dateFilter)?.label}
+            </span>
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          </button>
+          
+          {showDateDropdown && (
+            <div className="absolute z-20 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+              {dateFilterOptions.map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => handleDateFilterChange(option.value)}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 ${
+                    dateFilter === option.value ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {dateFilter === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input
+              type="date"
+              value={customStartDate}
+              onChange={(e) => setCustomStartDate(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+            <span className="text-gray-400">to</span>
+            <input
+              type="date"
+              value={customEndDate}
+              onChange={(e) => setCustomEndDate(e.target.value)}
+              className="px-3 py-2 border border-gray-200 rounded-lg text-sm"
+            />
+          </div>
+        )}
+
+        {dateFilter !== 'all' && (
+          <button
+            onClick={() => setDateFilter('all')}
+            className="text-sm text-gray-500 hover:text-gray-700 underline"
+          >
+            Clear filter
+          </button>
+        )}
+      </div>
+
       {loading ? (
-        <div>Loading...</div>
+        <div className="flex items-center justify-center py-12">
+          <Clock className="w-6 h-6 animate-spin text-purple-600" />
+          <span className="ml-2 text-gray-600">Loading...</span>
+        </div>
       ) : leadPages.length === 0 ? (
         <Card className="p-8 text-center">
           <p className="text-gray-500 mb-4">No lead pages found. Create your first one!</p>
@@ -131,14 +249,17 @@ export default function LeadPagesDashboard() {
                 <div className="flex justify-between pt-2 border-t mt-2">
                   <span>Views / Conv:</span>
                   <span className="font-bold text-gray-900">
-                    {page.views} / 
+                    {getDisplayStats(page).views} / 
                     <button 
                       onClick={() => handleShowLeads(page.id, page.name)}
                       className="text-purple-600 hover:text-purple-800 hover:underline ml-1 cursor-pointer"
                       title="Click to view leads"
                     >
-                      {page.conversions}
+                      {getDisplayStats(page).conversions}
                     </button>
+                    {dateFilter !== 'all' && (
+                      <span className="text-xs text-gray-400 ml-1">(filtered)</span>
+                    )}
                   </span>
                 </div>
               </div>
