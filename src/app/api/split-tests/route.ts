@@ -26,16 +26,33 @@ export async function GET(req: Request) {
 
     const testsWithStats = await Promise.all(splitTests.map(async (test: any) => {
       const variantsWithStats = await Promise.all(test.variants.map(async (variant: any) => {
-        // 1. Calculate Unique Views (Group by VisitorID)
-        const uniqueViewsGroups = await prisma.splitTestEvent.groupBy({
-            by: ['visitorId'],
-            where: {
+        const countUniqueEventsWithNullFallback = async (typeFilter: any) => {
+          const [nonNullGroups, nullVisitorCount] = await Promise.all([
+            prisma.splitTestEvent.groupBy({
+              by: ['visitorId'],
+              where: {
                 variantId: variant.id,
-                type: 'VIEW',
+                type: typeFilter,
+                visitorId: { not: null },
                 createdAt: { gte: fromDate }
-            }
-        });
-        const uniqueViews = uniqueViewsGroups.length;
+              }
+            }),
+            prisma.splitTestEvent.count({
+              where: {
+                variantId: variant.id,
+                type: typeFilter,
+                visitorId: null,
+                createdAt: { gte: fromDate }
+              }
+            })
+          ]);
+
+          // Null visitorIds cannot be deduped reliably, so count each as its own unique.
+          return nonNullGroups.length + nullVisitorCount;
+        };
+
+        // 1. Calculate Unique Views (Group by VisitorID)
+        const uniqueViews = await countUniqueEventsWithNullFallback('VIEW');
 
         // 2. Calculate Total Views (Count all VIEW events)
         const totalViews = await prisma.splitTestEvent.count({
@@ -47,15 +64,7 @@ export async function GET(req: Request) {
         });
 
         // 3. Calculate Unique Conversions (Webinar Registrations)
-        const uniqueRegistrationsGroups = await prisma.splitTestEvent.groupBy({
-            by: ['visitorId'],
-            where: {
-                variantId: variant.id,
-                type: 'CONVERSION',
-                createdAt: { gte: fromDate }
-            }
-        });
-        const uniqueRegistrations = uniqueRegistrationsGroups.length;
+        const uniqueRegistrations = await countUniqueEventsWithNullFallback('CONVERSION');
 
         // 4. Calculate Total Conversions (Webinar Registrations)
         const totalRegistrations = await prisma.splitTestEvent.count({
@@ -68,15 +77,9 @@ export async function GET(req: Request) {
 
         // 5. Calculate Unique Form Submissions (Trial Leads / Event Registrations)
         // We look for both FORM_SUBMISSION (legacy/forms) and EVENT_REGISTRATION (trial events)
-        const uniqueFormSubmissionsGroups = await prisma.splitTestEvent.groupBy({
-            by: ['visitorId'],
-            where: {
-                variantId: variant.id,
-                type: { in: ['FORM_SUBMISSION', 'EVENT_REGISTRATION'] },
-                createdAt: { gte: fromDate }
-            }
+        const uniqueFormSubmissions = await countUniqueEventsWithNullFallback({
+          in: ['FORM_SUBMISSION', 'EVENT_REGISTRATION']
         });
-        const uniqueFormSubmissions = uniqueFormSubmissionsGroups.length;
 
         // 6. Calculate Total Form Submissions
         const totalFormSubmissions = await prisma.splitTestEvent.count({

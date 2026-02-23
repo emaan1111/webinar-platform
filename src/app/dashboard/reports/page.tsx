@@ -478,7 +478,8 @@ export default function ReportsPage() {
         const response = await fetch('/api/webinars')
         if (response.ok) {
           const data = await response.json()
-          setWebinars(data.map((w: any) => ({ id: w.id, title: w.title })))
+          const list = data.webinars ?? data
+          setWebinars(Array.isArray(list) ? list.map((w: any) => ({ id: w.id, title: w.internalName || w.title })) : [])
         }
       } catch (error) {
         console.error('Error fetching webinars:', error)

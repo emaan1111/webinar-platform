@@ -13,26 +13,32 @@ export async function GET(
   const { searchParams } = new URL(req.url);
   const variantId = searchParams.get('variantId');
   const type = searchParams.get('type'); // 'webinar', 'form', or null (all)
+  const from = searchParams.get('from');
 
   if (!params.id) {
      return NextResponse.json({ error: 'Split Test ID required' }, { status: 400 });
   }
 
   try {
-    const whereClause: any = {
+    const baseWhereClause: any = {
         splitTestId: params.id
     };
 
     if (variantId) {
-        whereClause.splitTestVariantId = variantId;
+        baseWhereClause.splitTestVariantId = variantId;
     }
+
+    const fromDate = from ? new Date(from) : null;
 
     let results: any[] = [];
 
     // Fetch Registrations (Webinar)
     if (!type || type === 'webinar') {
         const registrations = await prisma.registration.findMany({
-            where: whereClause,
+            where: {
+              ...baseWhereClause,
+              ...(fromDate ? { registeredAt: { gte: fromDate } } : {})
+            },
             select: {
                 id: true,
                 name: true,
@@ -59,7 +65,10 @@ export async function GET(
     // Fetch Form Submissions & Event Registrations (Trial Leads)
     if (!type || type === 'form') {
         const submissions = await prisma.formSubmission.findMany({
-            where: whereClause,
+            where: {
+              ...baseWhereClause,
+              ...(fromDate ? { createdAt: { gte: fromDate } } : {})
+            },
             select: {
                 id: true,
                 data: true, 
@@ -74,7 +83,10 @@ export async function GET(
         });
 
         const eventRegistrations = await prisma.eventRegistration.findMany({
-            where: whereClause,
+            where: {
+              ...baseWhereClause,
+              ...(fromDate ? { registeredAt: { gte: fromDate } } : {})
+            },
             select: {
                 id: true,
                 name: true,

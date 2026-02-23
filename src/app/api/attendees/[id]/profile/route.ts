@@ -30,6 +30,26 @@ export async function GET(
             hostId: true
           }
         },
+        splitTest: {
+          select: {
+            id: true,
+            name: true,
+            slug: true
+          }
+        },
+        splitTestVariant: {
+          select: {
+            id: true,
+            weight: true,
+            leadPage: {
+              select: {
+                id: true,
+                name: true,
+                slug: true
+              }
+            }
+          }
+        },
         chatMessages: {
           select: {
             id: true,
@@ -87,7 +107,9 @@ export async function GET(
           select: {
             id: true,
             enteredAt: true,
-            timeSpent: true
+            timeSpent: true,
+            pageType: true,
+            pageId: true
           },
           orderBy: { enteredAt: 'asc' }
         },
@@ -193,6 +215,23 @@ export async function GET(
         }
       })
       referrerInfo = referrer
+    }
+
+    // Get lead page source (from PageVisit with pageType 'registration')
+    let leadPageSource = null
+    const registrationVisit = registration.pageVisits.find((v: any) => v.pageType === 'registration' && v.pageId)
+    if (registrationVisit?.pageId) {
+      const leadPage = await prisma.leadPage.findUnique({
+        where: { id: registrationVisit.pageId },
+        select: {
+          id: true,
+          name: true,
+          slug: true
+        }
+      })
+      if (leadPage) {
+        leadPageSource = leadPage
+      }
     }
 
     // Calculate total watch time
@@ -337,7 +376,30 @@ export async function GET(
 
       referralCode: registration.referralCode,
       referredBy: registration.referredBy,
-      referrerName: referrerInfo?.name || null
+      referrerName: referrerInfo?.name || null,
+
+      // Registration source (lead page or split test)
+      registrationSource: {
+        splitTest: registration.splitTest ? {
+          id: registration.splitTest.id,
+          name: registration.splitTest.name,
+          slug: registration.splitTest.slug
+        } : null,
+        splitTestVariant: registration.splitTestVariant ? {
+          id: registration.splitTestVariant.id,
+          weight: registration.splitTestVariant.weight,
+          leadPage: registration.splitTestVariant.leadPage ? {
+            id: registration.splitTestVariant.leadPage.id,
+            name: registration.splitTestVariant.leadPage.name,
+            slug: registration.splitTestVariant.leadPage.slug
+          } : null
+        } : null,
+        leadPage: leadPageSource ? {
+          id: leadPageSource.id,
+          name: leadPageSource.name,
+          slug: leadPageSource.slug
+        } : null
+      }
     }
 
     console.log('[Attendee Profile API] Profile data prepared successfully')

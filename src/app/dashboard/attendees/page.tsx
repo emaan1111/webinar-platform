@@ -220,7 +220,7 @@ export default function AttendeesPage() {
     localStorage.setItem(VIEWS_STORAGE_KEY, JSON.stringify(updatedViews))
   }
 
-  // Fetch attendees from API
+  // Fetch attendees and webinars from API
   useEffect(() => {
     fetch('/api/attendees')
       .then(res => res.json())
@@ -232,6 +232,18 @@ export default function AttendeesPage() {
         console.error('Failed to fetch attendees:', error)
         setLoading(false)
       })
+  }, [])
+
+  useEffect(() => {
+    fetch('/api/webinars')
+      .then(res => res.json())
+      .then(data => {
+        const list = data.webinars ?? data
+        if (Array.isArray(list)) {
+          setWebinars(list.map((w: any) => ({ id: w.id, title: w.internalName || w.title })))
+        }
+      })
+      .catch(error => console.error('Failed to fetch webinars:', error))
   }, [])
 
   const filteredAttendees = attendees.filter(attendee => {
@@ -251,7 +263,7 @@ export default function AttendeesPage() {
     
     const matchesWebinar = 
       webinarFilter === 'all' ||
-      attendee.webinarTitle === webinarFilter
+      attendee.webinarId === webinarFilter
 
     // Country multi-select filter
     const matchesCountry = 
@@ -1071,8 +1083,10 @@ export default function AttendeesPage() {
                   className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all bg-white"
                 >
                   <option value="all">All Webinars</option>
-                  {Array.from(new Set(attendees.map(a => a.webinarTitle))).map(title => (
-                    <option key={title} value={title}>{title}</option>
+                  {(webinars.length > 0 ? webinars : Array.from(
+                    new Map(attendees.map(a => [a.webinarId, { id: a.webinarId, title: a.webinarTitle }])).values()
+                  )).map(w => (
+                    <option key={w.id} value={w.id}>{w.title}</option>
                   ))}
                 </select>
               </div>

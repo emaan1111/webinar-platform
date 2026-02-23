@@ -92,6 +92,12 @@ export default function LeadPagesDashboard() {
     };
   };
 
+  const getConversionRate = (page: any) => {
+    const { views, conversions } = getDisplayStats(page);
+    if (!views) return '0%';
+    return `${((conversions / views) * 100).toFixed(1)}%`;
+  };
+
   const handleShowLeads = async (pageId: string, pageName: string) => {
     setLeadsModalOpen(true);
     setLeadsLoading(true);
@@ -222,77 +228,94 @@ export default function LeadPagesDashboard() {
           </Link>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {leadPages.map((page) => (
-            <Card key={page.id} className="p-6 hover:shadow-lg transition-shadow">
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <h3 className="font-bold text-lg">{page.name}</h3>
-                  <div className="text-xs font-mono bg-gray-100 px-2 py-1 rounded mt-1 inline-block text-purple-600">
-                    /p/{page.slug}
-                  </div>
-                </div>
-                <div className="flex gap-1">
-                   {/* Delete button logic needed */}
-                </div>
-              </div>
+        <Card className="p-0 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Page</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Slug</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Linked Webinar</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500 uppercase text-xs">Template</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Views</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Conv</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Conv %</th>
+                  <th className="px-4 py-3 text-right font-medium text-gray-500 uppercase text-xs">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {leadPages.map((page) => {
+                  const stats = getDisplayStats(page);
 
-              <div className="space-y-2 text-sm text-gray-600 mb-6">
-                <div className="flex justify-between">
-                  <span>Linked Webinar:</span>
-                  <span className="font-medium text-gray-900 truncate max-w-[150px]">{page.webinar?.title || 'None'}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Template:</span>
-                  <span className="font-medium text-gray-900">{page.template?.name || 'Custom HTML'}</span>
-                </div>
-                <div className="flex justify-between pt-2 border-t mt-2">
-                  <span>Views / Conv:</span>
-                  <span className="font-bold text-gray-900">
-                    {getDisplayStats(page).views} / 
-                    <button 
-                      onClick={() => handleShowLeads(page.id, page.name)}
-                      className="text-purple-600 hover:text-purple-800 hover:underline ml-1 cursor-pointer"
-                      title="Click to view leads"
-                    >
-                      {getDisplayStats(page).conversions}
-                    </button>
-                    {dateFilter !== 'all' && (
-                      <span className="text-xs text-gray-400 ml-1">(filtered)</span>
-                    )}
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <Button 
-                   variant="outline" 
-                   size="sm" 
-                   className="flex-1"
-                   onClick={() => copyToClipboard(`${window.location.origin}/p/${page.slug}`)}
-                >
-                  <Copy className="w-4 h-4 mr-2" /> Copy Link
-                </Button>
-                <a 
-                  href={`/p/${page.slug}`} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="p-2 border rounded-md hover:bg-gray-50 text-gray-600"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                </a>
-                <Link href={`/dashboard/lead-pages/${page.id}`}>
-                    <Button variant="secondary" size="sm">
-                        <Edit className="w-4 h-4" />
-                    </Button>
-                </Link>
-                <Button variant="danger" size="sm" onClick={() => handleDelete(page.id, page.name)}>
-                    <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            </Card>
-          ))}
-        </div>
+                  return (
+                    <tr key={page.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        <div className="font-medium text-gray-900">{page.name}</div>
+                        {dateFilter !== 'all' && (
+                          <div className="text-xs text-gray-400 mt-1">Filtered stats applied</div>
+                        )}
+                      </td>
+                      <td className="px-4 py-4">
+                        <code className="text-xs font-mono bg-gray-100 px-2 py-1 rounded text-purple-600">
+                          /p/{page.slug}
+                        </code>
+                      </td>
+                      <td className="px-4 py-4 text-gray-700 max-w-[220px] truncate">
+                        {page.webinar?.title || 'None'}
+                      </td>
+                      <td className="px-4 py-4 text-gray-700">
+                        {page.template?.name || 'Custom HTML'}
+                      </td>
+                      <td className="px-4 py-4 text-right font-medium text-gray-900">
+                        {stats.views}
+                      </td>
+                      <td className="px-4 py-4 text-right font-medium">
+                        <button
+                          onClick={() => handleShowLeads(page.id, page.name)}
+                          className="text-purple-600 hover:text-purple-800 hover:underline cursor-pointer"
+                          title="Click to view leads"
+                        >
+                          {stats.conversions}
+                        </button>
+                      </td>
+                      <td className="px-4 py-4 text-right font-medium text-gray-900">
+                        {getConversionRate(page)}
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => copyToClipboard(`${window.location.origin}/p/${page.slug}`)}
+                          >
+                            <Copy className="w-4 h-4 mr-2" /> Copy
+                          </Button>
+                          <a
+                            href={`/p/${page.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 border rounded-md hover:bg-gray-50 text-gray-600"
+                            title="Open page"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                          </a>
+                          <Link href={`/dashboard/lead-pages/${page.id}`}>
+                            <Button variant="secondary" size="sm">
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                          </Link>
+                          <Button variant="danger" size="sm" onClick={() => handleDelete(page.id, page.name)}>
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       )}
 
       {/* Leads Modal */}

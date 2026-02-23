@@ -146,6 +146,29 @@ interface AttendeeProfile {
   referralCode: string | null
   referredBy: string | null
   referrerName: string | null
+  
+  // Registration source
+  registrationSource: {
+    splitTest: {
+      id: string
+      name: string
+      slug: string
+    } | null
+    splitTestVariant: {
+      id: string
+      weight: number
+      leadPage: {
+        id: string
+        name: string
+        slug: string
+      } | null
+    } | null
+    leadPage: {
+      id: string
+      name: string
+      slug: string
+    } | null
+  }
 }
 
 export default function AttendeeProfilePage() {
@@ -511,6 +534,58 @@ export default function AttendeeProfilePage() {
             )}
           </div>
         </div>
+
+        {/* Registration Source */}
+        {(profile.registrationSource?.splitTest || profile.registrationSource?.leadPage) && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Tag className="w-5 h-5 text-purple-600" />
+              Registration Source
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {profile.registrationSource.splitTest && (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-purple-50 rounded-lg">
+                    <Activity className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Split Test</p>
+                    <p className="text-sm font-medium text-gray-900">{profile.registrationSource.splitTest.name}</p>
+                    <p className="text-xs text-gray-400">/{profile.registrationSource.splitTest.slug}</p>
+                  </div>
+                </div>
+              )}
+              {profile.registrationSource.splitTestVariant && (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-indigo-50 rounded-lg">
+                    <TrendingUp className="w-5 h-5 text-indigo-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Variant Page</p>
+                    <p className="text-sm font-medium text-gray-900">
+                      {profile.registrationSource.splitTestVariant.leadPage?.name || 'Unknown'}
+                    </p>
+                    <p className="text-xs text-gray-400">
+                      Weight: {profile.registrationSource.splitTestVariant.weight}%
+                    </p>
+                  </div>
+                </div>
+              )}
+              {profile.registrationSource.leadPage && !profile.registrationSource.splitTest && (
+                <div className="flex items-center gap-3">
+                  <div className="p-2 bg-blue-50 rounded-lg">
+                    <Eye className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Lead Page</p>
+                    <p className="text-sm font-medium text-gray-900">{profile.registrationSource.leadPage.name}</p>
+                    <p className="text-xs text-gray-400">/{profile.registrationSource.leadPage.slug}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">

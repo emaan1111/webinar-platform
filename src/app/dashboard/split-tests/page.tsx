@@ -22,6 +22,49 @@ export default function SplitTestsDashboard() {
   const [leadsLoading, setLeadsLoading] = useState(false);
   const [selectedVariantName, setSelectedVariantName] = useState<string>('');
 
+  const getFromDateISOString = () => {
+    if (timeRange === 'all') return null;
+
+    const now = new Date();
+    const fromDate = new Date();
+
+    switch (timeRange) {
+      case '1h':
+        fromDate.setHours(now.getHours() - 1);
+        break;
+      case '24h':
+        fromDate.setDate(now.getDate() - 1);
+        break;
+      case '7d':
+        fromDate.setDate(now.getDate() - 7);
+        break;
+      case '30d':
+        fromDate.setDate(now.getDate() - 30);
+        break;
+      default:
+        return null;
+    }
+
+    return fromDate.toISOString();
+  };
+
+  const dedupeLeadsForDisplay = (rows: any[]) => {
+    const seen = new Set<string>();
+    const unique: any[] = [];
+
+    for (const row of rows) {
+      const email = typeof row.email === 'string' ? row.email.trim().toLowerCase() : '';
+      const name = typeof row.name === 'string' ? row.name.trim().toLowerCase() : '';
+      const dedupeKey = email || `${name}:${row.type || 'unknown'}:${row.id}`;
+
+      if (seen.has(dedupeKey)) continue;
+      seen.add(dedupeKey);
+      unique.push(row);
+    }
+
+    return unique;
+  };
+
   useEffect(() => {
     fetchSplitTests();
   }, [timeRange]);
@@ -31,27 +74,8 @@ export default function SplitTestsDashboard() {
     try {
       let url = '/api/split-tests';
       
-      if (timeRange !== 'all') {
-        const now = new Date();
-        let fromDate = new Date();
-        
-        switch(timeRange) {
-          case '1h':
-            fromDate.setHours(now.getHours() - 1);
-            break;
-          case '24h':
-            fromDate.setDate(now.getDate() - 1);
-            break;
-          case '7d':
-            fromDate.setDate(now.getDate() - 7);
-            break;
-          case '30d':
-            fromDate.setDate(now.getDate() - 30);
-            break;
-        }
-        
-        url += `?from=${fromDate.toISOString()}`;
-      }
+      const from = getFromDateISOString();
+      if (from) url += `?from=${encodeURIComponent(from)}`;
       
       const res = await fetch(url);
       if (res.ok) {
@@ -123,13 +147,17 @@ export default function SplitTestsDashboard() {
       setSelectedVariantName(variantName || 'All Variants');
       setLeads([]);
       try {
-          let url = `/api/split-tests/${testId}/leads?`;
-          if (variantId) url += `variantId=${variantId}&`;
-          if (type) url += `type=${type}&`;
+          const params = new URLSearchParams();
+          if (variantId) params.set('variantId', variantId);
+          if (type) params.set('type', type);
+          const from = getFromDateISOString();
+          if (from) params.set('from', from);
+          const url = `/api/split-tests/${testId}/leads?${params.toString()}`;
           
           const res = await fetch(url);
           if (res.ok) {
-              setLeads(await res.json());
+              const data = await res.json();
+              setLeads(dedupeLeadsForDisplay(data));
           }
       } catch (e) {
           console.error(e);
@@ -382,7 +410,7 @@ export default function SplitTestsDashboard() {
               )}
             </div>
             <div className="p-4 border-t bg-gray-50 text-right">
-               <span className="text-xs text-gray-500 mr-2">Total Records: {leads.length}</span>
+               <span className="text-xs text-gray-500 mr-2">Unique Leads Shown: {leads.length}</span>
             </div>
           </div>
         </div>

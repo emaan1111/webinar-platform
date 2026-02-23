@@ -1,19 +1,82 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2, GripVertical, Save, Check, ArrowUp, ArrowDown, Bot, Download } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, Trash2, GripVertical, Save, Check, ArrowUp, ArrowDown, Bot, Download, User } from 'lucide-react'
 import { addField, updateField, deleteField, updateFormSettings, reorderField, deleteSubmission, updateSubmissionStatus } from '@/app/actions/forms'
 
 interface EditorProps {
   form: any
 }
 
+// Map to store email -> registrationId lookups
+const emailToRegistrationCache: Record<string, string | null> = {}
+
 export default function FormEditor({ form }: EditorProps) {
 const [activeTab, setActiveTab] = useState<string>('build')
   const [saving, setSaving] = useState(false)
   const [reordering, setReordering] = useState<string | null>(null)
   const [viewingSubmission, setViewingSubmission] = useState<any>(null)
+  const [emailLookups, setEmailLookups] = useState<Record<string, string | null>>({})
+  
+  // Fetch registration IDs for emails on mount
+  useEffect(() => {
+    const fetchEmailLookups = async () => {
+      // Collect unique emails from submissions
+      const emails = new Set<string>()
+      form.submissions.forEach((sub: any) => {
+        const data = JSON.parse(sub.data)
+        Object.values(data).forEach((val: any) => {
+          if (typeof val === 'string' && val.includes('@') && val.includes('.')) {
+            emails.add(val.toLowerCase().trim())
+          }
+        })
+      })
+      
+      if (emails.size === 0) return
+
+      // Check cache first
+      const uncachedEmails: string[] = []
+      const cached: Record<string, string | null> = {}
+      emails.forEach(email => {
+        if (email in emailToRegistrationCache) {
+          cached[email] = emailToRegistrationCache[email]
+        } else {
+          uncachedEmails.push(email)
+        }
+      })
+      
+      if (Object.keys(cached).length > 0) {
+        setEmailLookups(prev => ({ ...prev, ...cached }))
+      }
+
+      if (uncachedEmails.length === 0) return
+
+      // Fetch uncached emails
+      try {
+        const res = await fetch('/api/registrations/lookup-by-emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emails: uncachedEmails })
+        })
+        if (res.ok) {
+          const data = await res.json()
+          // Cache results
+          Object.entries(data.lookups).forEach(([email, regId]) => {
+            emailToRegistrationCache[email] = regId as string | null
+          })
+          setEmailLookups(prev => ({ ...prev, ...data.lookups }))
+        }
+      } catch (e) {
+        console.error('Failed to lookup emails:', e)
+      }
+    }
+
+    if (activeTab === 'submissions') {
+      fetchEmailLookups()
+    }
+  }, [activeTab, form.submissions])
   
   // Field Types
   const fieldTypes = [
@@ -322,13 +385,30 @@ const [activeTab, setActiveTab] = useState<string>('build')
                         )}
                       </div>
                     </td>
-                    {form.fields.map((f: any) => (
-                      <td key={f.id} className="px-4 py-3 bg-white group-hover:bg-blue-50 align-top">
-                        <div className="truncate max-w-xs">
-                          {typeof data[f.id] === 'object' ? JSON.stringify(data[f.id]) : data[f.id]}
-                        </div>
-                      </td>
-                    ))}
+                    {form.fields.map((f: any) => {
+                      const value = data[f.id]
+                      const isEmail = f.type === 'email' || (typeof value === 'string' && value.includes('@') && value.includes('.'))
+                      const emailKey = isEmail && typeof value === 'string' ? value.toLowerCase().trim() : null
+                      const registrationId = emailKey ? emailLookups[emailKey] : null
+                      
+                      return (
+                        <td key={f.id} className="px-4 py-3 bg-white group-hover:bg-blue-50 align-top">
+                          <div className="truncate max-w-xs flex items-center gap-2">
+                            {typeof value === 'object' ? JSON.stringify(value) : value}
+                            {registrationId && (
+                              <Link
+                                href={`/dashboard/attendees/${registrationId}`}
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-blue-600 hover:text-blue-800 transition flex-shrink-0"
+                                title="View attendee profile"
+                              >
+                                <User size={14} />
+                              </Link>
+                            )}
+                          </div>
+                        </td>
+                      )
+                    })}
                     <td className="px-4 py-3 text-right align-top">
                       <button 
                         onClick={(e) => {
