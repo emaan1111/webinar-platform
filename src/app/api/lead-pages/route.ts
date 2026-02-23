@@ -12,6 +12,7 @@ export async function GET(req: Request) {
     const dateFilter = searchParams.get('dateFilter'); // 'today', 'last24h', 'last1h', 'last7d', 'last30d', 'custom'
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
+    const webinarId = searchParams.get('webinarId'); // optional webinar filter
 
     // Calculate date range
     let dateFrom: Date | null = null;
@@ -41,15 +42,18 @@ export async function GET(req: Request) {
     }
 
     const leadPages = await prisma.leadPage.findMany({
+      where: {
+        ...(webinarId ? { webinarId } : {})
+      },
       include: {
         webinar: {
-          select: { title: true }
+          select: { id: true, title: true, internalName: true }
         },
         template: {
           select: { name: true }
         }
       },
-      orderBy: { updatedAt: 'desc' }
+      orderBy: [{ folder: 'asc' as const }, { updatedAt: 'desc' as const }] as any
     });
 
     // If date filter is applied, calculate filtered views/conversions

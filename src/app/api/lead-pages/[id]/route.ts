@@ -31,7 +31,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, slug, type, webinarId, templateId, htmlContent } = body;
+    const { name, slug, type, webinarId, templateId, htmlContent, folder } = body;
 
     const leadPage = await prisma.leadPage.update({
       where: { id },
@@ -43,13 +43,37 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         templateId: type === 'TEMPLATE' ? (templateId || null) : null,
         htmlContent: type === 'CUSTOM' ? (htmlContent || null) : null,
         updatedAt: new Date(),
-      }
+        ...(folder !== undefined ? { folder: folder || null } : {}),
+      } as any
     });
 
     return NextResponse.json(leadPage);
   } catch (error) {
     console.error('Failed to update lead page:', error);
     return NextResponse.json({ error: 'Failed to update lead page' }, { status: 500 });
+  }
+}
+
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  try {
+    const { id } = await params;
+    const body = await req.json();
+
+    const leadPage = await prisma.leadPage.update({
+      where: { id },
+      data: {
+        ...body,
+        updatedAt: new Date(),
+      }
+    });
+
+    return NextResponse.json(leadPage);
+  } catch (error) {
+    console.error('Failed to patch lead page:', error);
+    return NextResponse.json({ error: 'Failed to patch lead page' }, { status: 500 });
   }
 }
 
