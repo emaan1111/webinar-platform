@@ -180,17 +180,6 @@ export default function ContentPublicPage() {
       {/* Main container */}
       <div className="max-w-md lg:max-w-5xl w-full mx-auto bg-white min-h-screen lg:min-h-[calc(100vh-4rem)] lg:my-8 lg:rounded-3xl shadow-xl overflow-hidden relative border-x lg:border border-slate-200 flex flex-col">
 
-        {/* Header */}
-        <header className="px-5 lg:px-8 pt-8 lg:pt-10 pb-4 lg:pb-6 bg-gradient-to-b from-indigo-50 to-white border-b border-slate-100 relative shrink-0">
-          <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl lg:w-64 lg:h-64 lg:-right-10 lg:-top-10" />
-          <h1 className="text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight relative z-10">
-            {page.title}
-          </h1>
-          {page.description && (
-            <p className="mt-1 text-slate-500 text-sm lg:text-base relative z-10">{page.description}</p>
-          )}
-        </header>
-
         {/* Responsive grid */}
         <div className="flex-1 flex flex-col lg:flex-row">
 
