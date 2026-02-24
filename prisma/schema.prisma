@@ -1108,3 +1108,32 @@ enum SplitTestGoal {
   WEBINAR
   LEAD_FORM
 }
+
+model ContentPage {
+  id          String           @id @default(cuid())
+  title       String
+  slug        String           @unique
+  description String?
+  htmlContent String           @db.Text
+  status      String           @default("draft")
+  views       Int              @default(0)
+  fireCount   Int              @default(0)
+  heartCount  Int              @default(0)
+  starCount   Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @default(now())
+  comments    ContentComment[]
+
+  @@map("content_pages")
+}
+
+model ContentComment {
+  id            String      @id @default(cuid())
+  contentPageId String
+  name          String
+  text          String
+  createdAt     DateTime    @default(now())
+  contentPage   ContentPage @relation(fields: [contentPageId], references: [id], onDelete: Cascade)
+
+  @@map("content_comments")
+}
