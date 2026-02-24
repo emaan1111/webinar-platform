@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
-import { Button } from '@/components/ui/button';
+import { Button } from '@/components/ui/Button';
 import { Plus, ExternalLink, Edit, Trash2, Eye, Flame, Heart, Star } from 'lucide-react';
 import Link from 'next/link';
 
