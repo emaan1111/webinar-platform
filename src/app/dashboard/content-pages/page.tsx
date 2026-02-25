@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Button } from '@/components/ui/Button';
-import { Plus, ExternalLink, Edit, Trash2, Eye, Flame, Heart, Star } from 'lucide-react';
+import { Plus, ExternalLink, Edit, Trash2, Eye, Flame, Heart, Star, Copy } from 'lucide-react';
 import Link from 'next/link';
 
 interface ContentPage {
@@ -24,6 +24,7 @@ export default function ContentPagesPage() {
   const [pages, setPages] = useState<ContentPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [duplicating, setDuplicating] = useState<string | null>(null);
 
   const fetchPages = async () => {
     try {
@@ -35,6 +36,20 @@ export default function ContentPagesPage() {
   };
 
   useEffect(() => { fetchPages(); }, []);
+
+  const handleDuplicate = async (id: string, title: string) => {
+    if (!confirm(`Duplicate "${title}"? A draft copy will be created.`)) return;
+    setDuplicating(id);
+    try {
+      const res = await fetch(`/api/content-pages/${id}/duplicate`, { method: 'POST' });
+      if (res.ok) {
+        const newPage = await res.json();
+        setPages(p => [newPage, ...p]);
+      }
+    } finally {
+      setDuplicating(null);
+    }
+  };
 
   const handleDelete = async (id: string, title: string) => {
     if (!confirm(`Delete "${title}"? This cannot be undone.`)) return;
@@ -130,6 +145,14 @@ export default function ContentPagesPage() {
                         >
                           <Edit className="h-4 w-4" />
                         </Link>
+                        <button
+                          onClick={() => handleDuplicate(page.id, page.title)}
+                          disabled={duplicating === page.id}
+                          className="p-1.5 rounded hover:bg-slate-600 text-slate-400 hover:text-indigo-400 transition-colors disabled:opacity-40"
+                          title="Duplicate"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => handleDelete(page.id, page.title)}
                           disabled={deleting === page.id}
