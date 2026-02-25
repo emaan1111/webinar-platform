@@ -11,12 +11,6 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
-    // Verify the comment belongs to this page before deleting
-    const comment = await (prisma as any).contentComment.findFirst({
-      where: { id: params.commentId, contentPageId: params.id },
-    });
-    if (!comment) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
     await (prisma as any).contentComment.delete({
       where: { id: params.commentId },
     });
