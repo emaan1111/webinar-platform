@@ -21,21 +21,45 @@ function rewritePageIdInHtml(html: string, newPageId: string): string {
   return html;
 }
 
-export async function POST(_req: Request, { params }: { params: { id: string } }) {
+function normalizeSlug(input: string): string {
+  return input
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+export async function POST(req: Request, { params }: { params: { id: string } }) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   try {
+    const body = await req.json().catch(() => ({}));
+    const requestedSlug = typeof body?.slug === 'string' ? normalizeSlug(body.slug) : '';
+
     const original = await (prisma as any).contentPage.findUnique({
       where: { id: params.id },
     });
     if (!original) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
     // Build a unique slug: base-copy, base-copy-2, base-copy-3, …
-    const baseSlug = original.slug.replace(/-copy(-\d+)?$/, '') + '-copy';
+    const baseSlug = requestedSlug || (original.slug.replace(/-copy(-\d+)?$/, '') + '-copy');
+    if (!baseSlug) {
+      return NextResponse.json({ error: 'Invalid slug' }, { status: 400 });
+    }
+
     let slug = baseSlug;
+    if (requestedSlug) {
+      const existing = await (prisma as any).contentPage.findUnique({ where: { slug } });
+      if (existing) {
+        return NextResponse.json({ error: 'Slug already in use' }, { status: 409 });
+      }
+    }
+
     let i = 2;
-    while (await (prisma as any).contentPage.findUnique({ where: { slug } })) {
+    while (!requestedSlug && (await (prisma as any).contentPage.findUnique({ where: { slug } }))) {
       slug = `${baseSlug}-${i++}`;
     }
 

@@ -20,6 +20,20 @@ interface ContentPage {
   _count?: { comments: number };
 }
 
+function slugify(str: string) {
+  return str
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function suggestedCopySlug(slug: string) {
+  return slug.replace(/-copy(-\d+)?$/, '') + '-copy';
+}
+
 export default function ContentPagesPage() {
   const [pages, setPages] = useState<ContentPage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,14 +51,32 @@ export default function ContentPagesPage() {
 
   useEffect(() => { fetchPages(); }, []);
 
-  const handleDuplicate = async (id: string, title: string) => {
+  const handleDuplicate = async (id: string, title: string, currentSlug: string) => {
     if (!confirm(`Duplicate "${title}"? A draft copy will be created.`)) return;
+
+    const suggested = suggestedCopySlug(currentSlug);
+    const entered = prompt('Optional: enter slug for the duplicate page (leave blank for auto)', suggested);
+    if (entered === null) return;
+
+    const cleanedSlug = slugify(entered);
+    if (entered.trim() && !cleanedSlug) {
+      alert('Invalid slug. Use letters, numbers, spaces, or hyphens.');
+      return;
+    }
+
     setDuplicating(id);
     try {
-      const res = await fetch(`/api/content-pages/${id}/duplicate`, { method: 'POST' });
+      const res = await fetch(`/api/content-pages/${id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ slug: cleanedSlug || undefined }),
+      });
       if (res.ok) {
         const newPage = await res.json();
         setPages(p => [newPage, ...p]);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Could not duplicate page');
       }
     } finally {
       setDuplicating(null);
@@ -146,7 +178,7 @@ export default function ContentPagesPage() {
                           <Edit className="h-4 w-4" />
                         </Link>
                         <button
-                          onClick={() => handleDuplicate(page.id, page.title)}
+                          onClick={() => handleDuplicate(page.id, page.title, page.slug)}
                           disabled={duplicating === page.id}
                           className="p-1.5 rounded hover:bg-slate-600 text-slate-400 hover:text-indigo-400 transition-colors disabled:opacity-40"
                           title="Duplicate"
