@@ -253,7 +253,7 @@ export async function processEndedSessionsForAttendanceTagging(): Promise<{
           }
         }
       },
-      take: 100 // Process 100 at a time
+      take: 500 // Process 500 at a time
     })
 
     console.log(`📋 Found ${registrations.length} registrations to check`)
@@ -506,7 +506,7 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
           }
         }
       },
-      take: 100 // Process in batches
+      take: 500 // Process in batches
     })
 
     if (registrations.length === 0) {

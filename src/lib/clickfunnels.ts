@@ -490,6 +490,7 @@ async function applyTagsToContact(
       }
 
       console.error(`   ❌ Failed to apply tag ${tagId}:`, response.status, errorText)
+      return false
     }
 
     return true
