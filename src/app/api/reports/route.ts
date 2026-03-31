@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
+import { requestFacebookInsights } from '@/lib/facebookAds';
 
 /**
  * GET /api/reports
@@ -44,6 +45,11 @@ export async function GET(request: NextRequest) {
     let fbWarning: string | null = null;
 
     if (accessToken) {
+      const buildFbUrl = (sinceDate: string, untilDate: string) => {
+        const timeRange = encodeURIComponent(JSON.stringify({ since: sinceDate, until: untilDate }));
+        return `https://graph.facebook.com/v22.0/${adAccountId}/insights?fields=spend,impressions,clicks,ctr&time_range=${timeRange}&time_increment=1&access_token=${accessToken.trim()}`;
+      };
+
       try {
         // Calculate if we need to split the request
         const daysDiff = Math.ceil((toDate.getTime() - fromDate.getTime()) / (1000 * 60 * 60 * 24));
@@ -57,9 +63,8 @@ export async function GET(request: NextRequest) {
           
           console.log('📊 Facebook API Request (Historical):', { from, to: historicalTo, adAccountId });
           
-          const historicalUrl = `https://graph.facebook.com/v22.0/${adAccountId}/insights?fields=spend,impressions,clicks,ctr&time_range={"since":"${from}","until":"${historicalTo}"}&time_increment=1&access_token=${accessToken}`;
-          const historicalResponse = await fetch(historicalUrl);
-          const historicalData = await historicalResponse.json();
+          const historicalResponse = await requestFacebookInsights(buildFbUrl(from, historicalTo));
+          const historicalData = historicalResponse.data;
 
           if (historicalResponse.ok && historicalData.data) {
             console.log(`✅ Facebook returned ${historicalData.data.length} historical days`);
@@ -87,9 +92,8 @@ export async function GET(request: NextRequest) {
           
           console.log('📊 Facebook API Request (Recent 7 days):', { from: recentFrom, to, adAccountId });
           
-          const recentUrl = `https://graph.facebook.com/v22.0/${adAccountId}/insights?fields=spend,impressions,clicks,ctr&time_range={"since":"${recentFrom}","until":"${to}"}&time_increment=1&access_token=${accessToken}`;
-          const recentResponse = await fetch(recentUrl);
-          const recentData = await recentResponse.json();
+          const recentResponse = await requestFacebookInsights(buildFbUrl(recentFrom, to));
+          const recentData = recentResponse.data;
 
           if (recentResponse.ok && recentData.data) {
             console.log(`✅ Facebook returned ${recentData.data.length} recent days`);
@@ -112,9 +116,8 @@ export async function GET(request: NextRequest) {
           // For date ranges <= 7 days, single request works fine
           console.log('📊 Facebook API Request:', { from, to, adAccountId });
           
-          const url = `https://graph.facebook.com/v22.0/${adAccountId}/insights?fields=spend,impressions,clicks,ctr&time_range={"since":"${from}","until":"${to}"}&time_increment=1&access_token=${accessToken}`;
-          const response = await fetch(url);
-          const data = await response.json();
+          const response = await requestFacebookInsights(buildFbUrl(from, to));
+          const data = response.data;
 
           if (response.ok && data.data) {
             console.log(`✅ Facebook returned ${data.data.length} days of data`);

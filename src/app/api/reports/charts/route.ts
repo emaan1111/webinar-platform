@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requestFacebookInsights } from '@/lib/facebookAds'
 
 const generateMockMetrics = (from: string, to: string, engagementThreshold: number) => {
   const startDate = new Date(from)
@@ -153,16 +154,13 @@ export async function GET(request: NextRequest) {
     
     if (accessToken) {
       try {
-        const url = `https://graph.facebook.com/v22.0/${adAccountId}/insights?fields=spend&time_range={"since":"${from}","until":"${to}"}&time_increment=1&access_token=${accessToken}`
+        const timeRange = encodeURIComponent(JSON.stringify({ since: from, until: to }))
+        const url = `https://graph.facebook.com/v22.0/${adAccountId}/insights?fields=spend&time_range=${timeRange}&time_increment=1&access_token=${accessToken.trim()}`
         
-        const controller = new AbortController()
-        const timeoutId = setTimeout(() => controller.abort(), 10000)
-        
-        const response = await fetch(url, { signal: controller.signal })
-        clearTimeout(timeoutId)
+        const response = await requestFacebookInsights(url)
         
         if (response.ok) {
-          const data = await response.json()
+          const data = response.data
           data.data?.forEach((day: any) => {
             fbSpendByDate[day.date_start] = parseFloat(day.spend || 0)
           })
