@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/Button'
-import { X, Save, Plus, Eye, Edit2, Trash2 } from 'lucide-react'
+import { X, Save, Plus, Eye, Edit2, Trash2, ChevronUp, ChevronDown } from 'lucide-react'
 
 export interface ColumnConfig {
   key: string
@@ -111,6 +111,22 @@ export default function ViewManager({
       setEditingView(null)
       setShowColumnSelector(false)
     }
+  }
+
+  const moveColumn = (columnKey: string, direction: 'up' | 'down') => {
+    if (!editingView) return
+
+    const currentIndex = editingView.columns.findIndex((col) => col.key === columnKey)
+    if (currentIndex === -1) return
+
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1
+    if (targetIndex < 0 || targetIndex >= editingView.columns.length) return
+
+    const updatedColumns = [...editingView.columns]
+    const [movedColumn] = updatedColumns.splice(currentIndex, 1)
+    updatedColumns.splice(targetIndex, 0, movedColumn)
+
+    setEditingView({ ...editingView, columns: updatedColumns })
   }
 
   const handleEditView = (view: CustomView) => {
@@ -257,6 +273,42 @@ export default function ViewManager({
 
             {/* Columns by Category */}
             <div className="flex-1 overflow-y-auto p-6">
+              <div className="mb-6 rounded-lg border border-gray-200 p-4">
+                <h3 className="text-sm font-semibold text-gray-900 mb-3">Column Order</h3>
+                <div className="space-y-2">
+                  {editingView.columns.map((column, index) => (
+                    <div key={column.key} className="flex items-center justify-between rounded-lg border border-gray-200 px-3 py-2">
+                      <div>
+                        <p className="text-sm text-gray-800">{column.label}</p>
+                        <p className="text-xs text-gray-500">
+                          {column.enabled ? 'Visible' : 'Hidden'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveColumn(column.key, 'up')}
+                          disabled={index === 0}
+                          className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                          title="Move column up"
+                        >
+                          <ChevronUp className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveColumn(column.key, 'down')}
+                          disabled={index === editingView.columns.length - 1}
+                          className="rounded p-1 text-gray-500 hover:bg-gray-100 disabled:opacity-30"
+                          title="Move column down"
+                        >
+                          <ChevronDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="space-y-6">
                 {categories.map(category => {
                   const categoryColumns = editingView.columns.filter(col => col.category === category.key)

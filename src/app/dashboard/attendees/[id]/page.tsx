@@ -26,7 +26,9 @@ import {
   Tag,
   Send,
   AlertCircle,
-  Plus
+  Plus,
+  Edit2,
+  Trash2
 } from 'lucide-react'
 
 interface AttendeeProfile {
@@ -187,6 +189,8 @@ export default function AttendeeProfilePage() {
     useState('Manual Purchase')
   const [purchaseError, setPurchaseError] = useState('')
   const [savingPurchase, setSavingPurchase] = useState(false)
+  const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null)
+  const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
 
   useEffect(() => {
     if (params.id) {
@@ -304,12 +308,143 @@ export default function AttendeeProfilePage() {
 
       setShowPurchaseForm(false)
       setPurchaseAmount('')
+      setPurchaseCurrency('USD')
+      setPurchaseProductName('Manual Purchase')
+      setEditingPurchaseId(null)
     } catch (err) {
       setPurchaseError(
         err instanceof Error ? err.message : 'Failed to record purchase'
       )
     } finally {
       setSavingPurchase(false)
+    }
+  }
+
+  const startEditPurchase = (purchase: AttendeeProfile['purchases'][number]) => {
+    setPurchaseError('')
+    setEditingPurchaseId(purchase.id)
+    setPurchaseAmount(String(purchase.amount))
+    setPurchaseCurrency(purchase.currency || 'USD')
+    setPurchaseProductName(purchase.productName || 'Manual Purchase')
+    setPurchaseDate(new Date(purchase.purchasedAt).toISOString().slice(0, 16))
+    setShowPurchaseForm(true)
+  }
+
+  const resetPurchaseForm = () => {
+    setShowPurchaseForm(false)
+    setEditingPurchaseId(null)
+    setPurchaseError('')
+    setPurchaseAmount('')
+    setPurchaseCurrency('USD')
+    setPurchaseDate(new Date().toISOString().slice(0, 16))
+    setPurchaseProductName('Manual Purchase')
+  }
+
+  const handleSavePurchase = async () => {
+    if (!profile) return
+
+    if (editingPurchaseId) {
+      const amountValue = parseFloat(purchaseAmount)
+      if (isNaN(amountValue) || amountValue <= 0) {
+        setPurchaseError('Enter a valid amount greater than zero.')
+        return
+      }
+
+      const dateValue = purchaseDate ? new Date(purchaseDate) : new Date()
+      if (isNaN(dateValue.getTime())) {
+        setPurchaseError('Enter a valid purchase date.')
+        return
+      }
+
+      setSavingPurchase(true)
+      setPurchaseError('')
+
+      try {
+        const existingPurchase = profile.purchases.find((purchase) => purchase.id === editingPurchaseId)
+        const response = await fetch(`/api/attendees/${profile.id}/purchase/${editingPurchaseId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            amount: amountValue,
+            currency: purchaseCurrency || 'USD',
+            productName: purchaseProductName || 'Manual Purchase',
+            purchasedAt: dateValue.toISOString(),
+            orderId: existingPurchase?.orderId
+          })
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || errorData.details || 'Failed to update purchase')
+        }
+
+        const data = await response.json()
+        const updatedPurchase = data.purchase
+
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                purchases: prev.purchases.map((purchase) =>
+                  purchase.id === editingPurchaseId
+                    ? {
+                        ...purchase,
+                        productName: updatedPurchase.productName || purchaseProductName,
+                        amount: updatedPurchase.amount ?? amountValue,
+                        currency: updatedPurchase.currency || purchaseCurrency,
+                        orderId: updatedPurchase.orderId || purchase.orderId,
+                        purchasedAt: updatedPurchase.purchasedAt || dateValue.toISOString()
+                      }
+                    : purchase
+                )
+              }
+            : prev
+        )
+
+        resetPurchaseForm()
+      } catch (err) {
+        setPurchaseError(err instanceof Error ? err.message : 'Failed to update purchase')
+      } finally {
+        setSavingPurchase(false)
+      }
+
+      return
+    }
+
+    await handleAddPurchase()
+  }
+
+  const handleDeletePurchase = async (purchaseId: string) => {
+    if (!profile) return
+    const confirmed = window.confirm('Delete this purchase? This cannot be undone.')
+    if (!confirmed) return
+
+    setDeletingPurchaseId(purchaseId)
+    setPurchaseError('')
+
+    try {
+      const response = await fetch(`/api/attendees/${profile.id}/purchase/${purchaseId}`, {
+        method: 'DELETE'
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || errorData.details || 'Failed to delete purchase')
+      }
+
+      setProfile((prev) => {
+        if (!prev) return prev
+        const remainingPurchases = prev.purchases.filter((purchase) => purchase.id !== purchaseId)
+        return {
+          ...prev,
+          hasPurchased: remainingPurchases.length > 0,
+          purchases: remainingPurchases
+        }
+      })
+    } catch (err) {
+      setPurchaseError(err instanceof Error ? err.message : 'Failed to delete purchase')
+    } finally {
+      setDeletingPurchaseId(null)
     }
   }
 
@@ -385,6 +520,7 @@ export default function AttendeeProfilePage() {
               onClick={() => {
                 setPurchaseError('')
                 setPurchaseDate(new Date().toISOString().slice(0, 16))
+                setEditingPurchaseId(null)
                 setShowPurchaseForm(true)
               }}
             >
@@ -412,6 +548,7 @@ export default function AttendeeProfilePage() {
               onClick={() => {
                 setPurchaseError('')
                 setPurchaseDate(new Date().toISOString().slice(0, 16))
+                setEditingPurchaseId(null)
                 setShowPurchaseForm((open) => !open)
               }}
             >
@@ -479,12 +616,12 @@ export default function AttendeeProfilePage() {
               )}
 
               <div className="flex items-center gap-3">
-                <Button onClick={handleAddPurchase} disabled={savingPurchase}>
-                  {savingPurchase ? 'Saving...' : 'Save Purchase'}
+                <Button onClick={handleSavePurchase} disabled={savingPurchase}>
+                  {savingPurchase ? 'Saving...' : editingPurchaseId ? 'Update Purchase' : 'Save Purchase'}
                 </Button>
                 <Button
                   variant="secondary"
-                  onClick={() => setShowPurchaseForm(false)}
+                  onClick={resetPurchaseForm}
                   disabled={savingPurchase}
                 >
                   Cancel
@@ -880,10 +1017,31 @@ export default function AttendeeProfilePage() {
                     <p className="text-xs text-gray-600 mt-1">Order ID: {purchase.orderId}</p>
                     <p className="text-xs text-gray-500 mt-1">{formatDateTime(purchase.purchasedAt)}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-green-700">
-                      {purchase.currency} {purchase.amount.toFixed(2)}
-                    </p>
+                  <div className="flex items-center gap-4">
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-green-700">
+                        {purchase.currency} {purchase.amount.toFixed(2)}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => startEditPurchase(purchase)}
+                        className="rounded p-2 text-blue-600 hover:bg-blue-100"
+                        title="Edit purchase"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePurchase(purchase.id)}
+                        disabled={deletingPurchaseId === purchase.id}
+                        className="rounded p-2 text-red-600 hover:bg-red-100 disabled:opacity-50"
+                        title="Delete purchase"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

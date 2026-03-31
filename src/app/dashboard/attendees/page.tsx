@@ -1390,6 +1390,9 @@ export default function AttendeesPage() {
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
                     />
                   </th>
+                  <th scope="col" className="px-6 py-3.5 text-right text-xs font-semibold text-gray-600">
+                    Actions
+                  </th>
                   {enabledColumns.map(column => (
                     <th
                       key={column.key}
@@ -1411,21 +1414,18 @@ export default function AttendeesPage() {
                       </div>
                     </th>
                   ))}
-                  <th scope="col" className="px-6 py-3.5 text-right text-xs font-semibold text-gray-600">
-                    Actions
-                  </th>
                 </tr>
                 
                 {/* Filter Row */}
                 {showFilters && (
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-6 py-2"></th>
+                    <th className="px-6 py-2"></th>
                     {enabledColumns.map(column => (
                       <th key={column.key} className="px-6 py-2">
                         {renderFilterInput(column)}
                       </th>
                     ))}
-                    <th className="px-6 py-2"></th>
                   </tr>
                 )}
               </thead>
@@ -1456,11 +1456,6 @@ export default function AttendeesPage() {
                           )}
                         </div>
                       </td>
-                      {enabledColumns.map(column => (
-                        <td key={column.key} className="px-6 py-4 whitespace-nowrap">
-                          {renderCellValue(attendee, column)}
-                        </td>
-                      ))}
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
                           <button
@@ -1486,6 +1481,11 @@ export default function AttendeesPage() {
                           </button>
                         </div>
                       </td>
+                      {enabledColumns.map(column => (
+                        <td key={column.key} className="px-6 py-4 whitespace-nowrap">
+                          {renderCellValue(attendee, column)}
+                        </td>
+                      ))}
                     </tr>
                     
                     {/* Expandable Sessions Row */}
