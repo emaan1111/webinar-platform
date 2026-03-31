@@ -29,7 +29,8 @@ import {
   Calendar,
   Globe,
   X,
-  Trash2
+  Trash2,
+  DollarSign
 } from 'lucide-react'
 
 interface AttendeeSession {
@@ -104,6 +105,14 @@ type FilterConfig = {
   [key: string]: string | boolean | number | null
 }
 
+type SaleFormData = {
+  amount: string
+  currency: string
+  productName: string
+  purchasedAt: string
+  orderId: string
+}
+
 export default function AttendeesPage() {
   const router = useRouter()
   const [attendees, setAttendees] = useState<Attendee[]>([])
@@ -151,6 +160,19 @@ export default function AttendeesPage() {
   const [deleteMode, setDeleteMode] = useState<'single' | 'selected' | 'all'>('single')
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
+
+  // Manual sale entry from attendee list
+  const [showSaleModal, setShowSaleModal] = useState(false)
+  const [saleTarget, setSaleTarget] = useState<Attendee | null>(null)
+  const [isSubmittingSale, setIsSubmittingSale] = useState(false)
+  const [saleError, setSaleError] = useState<string | null>(null)
+  const [saleForm, setSaleForm] = useState<SaleFormData>({
+    amount: '',
+    currency: 'USD',
+    productName: '',
+    purchasedAt: '',
+    orderId: ''
+  })
   
   // Expandable sessions rows
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
@@ -745,6 +767,89 @@ export default function AttendeesPage() {
       alert('Failed to delete attendees')
     } finally {
       setIsDeleting(false)
+    }
+  }
+
+  const getDefaultSaleDateTime = () => {
+    const now = new Date()
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset())
+    return now.toISOString().slice(0, 16)
+  }
+
+  const openSaleModal = (attendee: Attendee) => {
+    setSaleTarget(attendee)
+    setSaleError(null)
+    setSaleForm({
+      amount: '',
+      currency: attendee.lastPurchaseCurrency || attendee.purchaseCurrency || 'USD',
+      productName: attendee.lastPurchaseProduct || '',
+      purchasedAt: getDefaultSaleDateTime(),
+      orderId: ''
+    })
+    setShowSaleModal(true)
+  }
+
+  const handleSaveSale = async () => {
+    if (!saleTarget) return
+
+    const parsedAmount = Number(saleForm.amount)
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      setSaleError('Please enter a valid amount greater than zero.')
+      return
+    }
+
+    setIsSubmittingSale(true)
+    setSaleError(null)
+
+    try {
+      const response = await fetch(`/api/attendees/${saleTarget.id}/purchase`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          amount: parsedAmount,
+          currency: saleForm.currency.trim().toUpperCase() || 'USD',
+          productName: saleForm.productName.trim() || 'Manual Purchase',
+          purchasedAt: saleForm.purchasedAt ? new Date(saleForm.purchasedAt).toISOString() : undefined,
+          orderId: saleForm.orderId.trim() || undefined
+        })
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to save sale')
+      }
+
+      const normalizedCurrency = saleForm.currency.trim().toUpperCase() || 'USD'
+      const purchaseTimestamp = saleForm.purchasedAt
+        ? new Date(saleForm.purchasedAt).toISOString()
+        : new Date().toISOString()
+
+      setAttendees((prev) =>
+        prev.map((attendee) => {
+          if (attendee.id !== saleTarget.id) return attendee
+
+          return {
+            ...attendee,
+            hasPurchased: true,
+            purchaseCount: (attendee.purchaseCount || 0) + 1,
+            lastPurchaseAt: purchaseTimestamp,
+            lastPurchaseAmount: parsedAmount,
+            lastPurchaseCurrency: normalizedCurrency,
+            lastPurchaseProduct: saleForm.productName.trim() || 'Manual Purchase',
+            totalPurchaseAmount: (attendee.totalPurchaseAmount || 0) + parsedAmount,
+            purchaseCurrency: normalizedCurrency
+          }
+        })
+      )
+
+      setShowSaleModal(false)
+      setSaleTarget(null)
+    } catch (error) {
+      setSaleError(error instanceof Error ? error.message : 'Failed to save sale')
+    } finally {
+      setIsSubmittingSale(false)
     }
   }
 
@@ -1358,6 +1463,13 @@ export default function AttendeesPage() {
                       ))}
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => openSaleModal(attendee)}
+                            className="text-emerald-600 hover:text-emerald-800"
+                            title={attendee.hasPurchased ? 'Add another sale' : 'Mark sale completed'}
+                          >
+                            <DollarSign className="w-4 h-4" />
+                          </button>
                           <button 
                             onClick={() => handleDeleteClick('single', attendee.id)}
                             className="text-red-600 hover:text-red-900"
@@ -1504,6 +1616,97 @@ export default function AttendeesPage() {
       </div>
 
       {/* Delete Confirmation Modal */}
+      {showSaleModal && saleTarget && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-lg w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900">Mark Sale Completed</h3>
+            <p className="text-sm text-gray-500 mt-1">
+              {saleTarget.name} ({saleTarget.email})
+            </p>
+
+            <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Amount</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={saleForm.amount}
+                  onChange={(e) => setSaleForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="e.g. 97"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+                <input
+                  type="text"
+                  value={saleForm.currency}
+                  onChange={(e) => setSaleForm((prev) => ({ ...prev, currency: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="USD"
+                  maxLength={5}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product Name</label>
+                <input
+                  type="text"
+                  value={saleForm.productName}
+                  onChange={(e) => setSaleForm((prev) => ({ ...prev, productName: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Manual Purchase"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Date & Time</label>
+                <input
+                  type="datetime-local"
+                  value={saleForm.purchasedAt}
+                  onChange={(e) => setSaleForm((prev) => ({ ...prev, purchasedAt: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Order ID (optional)</label>
+              <input
+                type="text"
+                value={saleForm.orderId}
+                onChange={(e) => setSaleForm((prev) => ({ ...prev, orderId: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="Leave blank to auto-generate"
+              />
+            </div>
+
+            {saleError && (
+              <p className="mt-4 text-sm text-red-600">{saleError}</p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setShowSaleModal(false)
+                  setSaleTarget(null)
+                  setSaleError(null)
+                }}
+                disabled={isSubmittingSale}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSaveSale}
+                disabled={isSubmittingSale}
+              >
+                {isSubmittingSale ? 'Saving...' : 'Save Sale'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
