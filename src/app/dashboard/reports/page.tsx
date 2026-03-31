@@ -434,7 +434,11 @@ export default function ReportsPage() {
       case 'averageOrderValue':
         return `$${(report.averageOrderValue || 0).toFixed(2)}`
       case 'profit':
-        return `$${report.profit.toFixed(2)}`
+        return (
+          <span className={report.profit > 0 ? 'text-green-600' : report.profit < 0 ? 'text-red-600' : 'text-gray-900'}>
+            ${report.profit.toFixed(2)}
+          </span>
+        )
       case 'roi':
         return `${report.roi.toFixed(2)}%`
       default:
@@ -585,6 +589,9 @@ export default function ReportsPage() {
 
     const totals = reports.reduce((acc, r) => ({
       spend: acc.spend + r.fbResults.spend,
+      revenue: acc.revenue + r.revenue,
+      liveRevenue: acc.liveRevenue + (r.liveRevenue || 0),
+      replayRevenue: acc.replayRevenue + (r.replayRevenue || 0),
       visitors: acc.visitors + r.visitors,
       registrations: acc.registrations + r.registrations,
       totalAttendees: acc.totalAttendees + r.totalAttendees,
@@ -600,6 +607,9 @@ export default function ReportsPage() {
       salesReplay: acc.salesReplay + r.salesReplay
     }), {
       spend: 0,
+      revenue: 0,
+      liveRevenue: 0,
+      replayRevenue: 0,
       visitors: 0,
       registrations: 0,
       totalAttendees: 0,
@@ -617,13 +627,18 @@ export default function ReportsPage() {
 
     return {
       ...totals,
+      profit: totals.revenue - totals.spend,
+      roi: totals.spend > 0 ? ((totals.revenue - totals.spend) / totals.spend) * 100 : 0,
+      averageOrderValue: totals.salesTotal > 0 ? totals.revenue / totals.salesTotal : 0,
       registrationRate: totals.visitors > 0 ? (totals.registrations / totals.visitors) * 100 : 0,
       attendanceRate: totals.registrations > 0 ? (totals.totalAttendees / totals.registrations) * 100 : 0,
       realAttendanceRate: totals.pastRegistrationCount > 0 ? (totals.pastAttendees / totals.pastRegistrationCount) * 100 : 0,
       engagedPerVisitor: totals.visitors > 0 ? (totals.engagedTotal / totals.visitors) * 100 : 0,
       engagedPerRegistered: totals.registrations > 0 ? (totals.engagedTotal / totals.registrations) * 100 : 0,
+      engagementRateTotal: totals.totalAttendees > 0 ? (totals.engagedTotal / totals.totalAttendees) * 100 : 0,
       engagementRateLive: totals.liveAttendees > 0 ? (totals.engagedLive / totals.liveAttendees) * 100 : 0,
-      costPerReg: totals.registrations > 0 ? totals.spend / totals.registrations : 0
+      costPerReg: totals.registrations > 0 ? totals.spend / totals.registrations : 0,
+      costPerSale: totals.salesTotal > 0 ? totals.spend / totals.salesTotal : 0
     }
   }
 
@@ -1290,8 +1305,16 @@ export default function ReportsPage() {
                         else if (columnId === 'realAttendanceRate') totalValue = <PercentageCell value={totals.realAttendanceRate} />
                         else if (columnId === 'engagedPerVisitor') totalValue = <PercentageCell value={totals.engagedPerVisitor} />
                         else if (columnId === 'engagedPerRegistered') totalValue = <PercentageCell value={totals.engagedPerRegistered} />
+                        else if (columnId === 'engagementRateTotal') totalValue = <PercentageCell value={totals.engagementRateTotal} />
                         else if (columnId === 'engagementRateLive') totalValue = <PercentageCell value={totals.engagementRateLive} />
                         else if (columnId === 'costPerRegistration') totalValue = `$${totals.costPerReg.toFixed(2)}`
+                        else if (columnId === 'costPerSale') totalValue = `$${totals.costPerSale.toFixed(2)}`
+                        else if (columnId === 'revenue') totalValue = `$${totals.revenue.toFixed(2)}`
+                        else if (columnId === 'liveRevenue') totalValue = `$${totals.liveRevenue.toFixed(2)}`
+                        else if (columnId === 'replayRevenue') totalValue = `$${totals.replayRevenue.toFixed(2)}`
+                        else if (columnId === 'averageOrderValue') totalValue = `$${totals.averageOrderValue.toFixed(2)}`
+                        else if (columnId === 'profit') totalValue = <span className={totals.profit > 0 ? 'text-green-600' : totals.profit < 0 ? 'text-red-600' : 'text-gray-900'}>${totals.profit.toFixed(2)}</span>
+                        else if (columnId === 'roi') totalValue = `${totals.roi.toFixed(2)}%`
                         
                         return (
                           <td 
