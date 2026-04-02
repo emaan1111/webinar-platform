@@ -313,6 +313,10 @@ function formatCountdown(seconds: number) {
   return `${minutes}m ${secs.toString().padStart(2, '0')}s`;
 }
 
+function isInstagramInAppBrowser(userAgent: string) {
+  return /Instagram|FBAN|FBAV|FB_IAB|FB4A|FBMD/i.test(userAgent);
+}
+
 function findOfferForElapsed(offers: LiveOffer[], elapsedSeconds: number) {
   let candidate: LiveOffer | null = null;
   for (const offer of offers) {
@@ -396,6 +400,8 @@ export default function WebinarLiveClient({
   const [chatInput, setChatInput] = useState('');
   const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
+  const [isInstagramInApp, setIsInstagramInApp] = useState(false);
+  const [showInAppBrowserWarning, setShowInAppBrowserWarning] = useState(false);
   // Initialize to false to avoid hydration mismatch, then update in useEffect
   const [broadcastStarted, setBroadcastStarted] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false); // Show loading state
@@ -1082,11 +1088,10 @@ export default function WebinarLiveClient({
     }
     
     const update = () => {
-      // If tab is hidden, don't update elapsed time
-      if (!isTabVisible && pausedTimeRef.current !== null) {
-        setElapsedSeconds(pausedTimeRef.current);
-        return;
-      }
+      // Keep elapsed time advancing even when tab is hidden so that
+      // CTA offers and attendance tracking stay accurate.  The video is
+      // paused separately — elapsed time reflects the live broadcast
+      // position, not the local playback position.
 
       const approxServerNow = Date.now() - serverOffsetRef.current;
       const diff = approxServerNow - startTimeMs;
@@ -1182,8 +1187,12 @@ export default function WebinarLiveClient({
     if (!trackerRef.current || !broadcastStarted) return;
 
     const interval = setInterval(() => {
-      if (trackerRef.current && broadcastStarted && isTabVisible) {
-        trackerRef.current.updateWatchTime(elapsedSeconds, true);
+      if (trackerRef.current && broadcastStarted) {
+        // Always update position even when tab is hidden — on mobile,
+        // tab-hidden kills tracking entirely, causing 0 watchTime and
+        // missed CTA triggers.  Use server-derived elapsedSeconds so the
+        // position stays accurate regardless of tab visibility.
+        trackerRef.current.updateWatchTime(elapsedSeconds, isTabVisible);
       }
     }, 1000); // Update every 1 second
 
@@ -2569,8 +2578,97 @@ export default function WebinarLiveClient({
     return `${rate}x`;
   };
 
+  useEffect(() => {
+    const ua = navigator.userAgent || '';
+    const inApp = isInstagramInAppBrowser(ua);
+    setIsInstagramInApp(inApp);
+
+    if (!inApp) {
+      return;
+    }
+
+    const dismissedKey = 'igInAppLiveWarningDismissed';
+    if (sessionStorage.getItem(dismissedKey) === '1') {
+      return;
+    }
+
+    setShowInAppBrowserWarning(true);
+  }, []);
+
+  const handleDismissInAppWarning = () => {
+    sessionStorage.setItem('igInAppLiveWarningDismissed', '1');
+    setShowInAppBrowserWarning(false);
+  };
+
+  const handleCopyLiveLink = async () => {
+    if (!navigator.clipboard) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+    } catch {
+      // Ignore clipboard failures in restricted webviews.
+    }
+  };
+
   return (
     <div className={styles.root}>
+      {isInstagramInApp && showInAppBrowserWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            top: '12px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 1200,
+            width: 'calc(100% - 24px)',
+            maxWidth: '920px',
+            borderRadius: '10px',
+            border: '1px solid #fdba74',
+            background: '#fff7ed',
+            color: '#7c2d12',
+            padding: '12px 14px',
+            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
+          }}
+        >
+          <div style={{ fontWeight: 700, marginBottom: '4px' }}>Instagram in-app browser detected</div>
+          <div style={{ fontSize: '14px', lineHeight: 1.4 }}>
+            Audio/video can fail inside Instagram/Facebook browser. For best playback, open this page in Safari or Chrome.
+          </div>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={handleCopyLiveLink}
+              style={{
+                padding: '7px 10px',
+                borderRadius: '7px',
+                border: '1px solid #f97316',
+                background: '#fff',
+                color: '#9a3412',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Copy Link
+            </button>
+            <button
+              type="button"
+              onClick={handleDismissInAppWarning}
+              style={{
+                padding: '7px 10px',
+                borderRadius: '7px',
+                border: '1px solid #fdba74',
+                background: '#ffedd5',
+                color: '#9a3412',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              Continue Here
+            </button>
+          </div>
+        </div>
+      )}
       {/* Preconnect to Vimeo for faster loading */}
       <link rel="preconnect" href="https://player.vimeo.com" />
       <link rel="preconnect" href="https://i.vimeocdn.com" />
