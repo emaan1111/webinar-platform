@@ -178,12 +178,10 @@ const countryCodes = [
   { code: '+224', country: 'Guinea', pattern: /^\d{9}$/ },
   { code: '+245', country: 'Guinea-Bissau', pattern: /^\d{7}$/ },
   { code: '+220', country: 'Gambia', pattern: /^\d{7}$/ },
-  
+]
 
-  function isInstagramInAppBrowser(userAgent: string) {
-    return /Instagram|FBAN|FBAV|FB_IAB|FB4A|FBMD/i.test(userAgent)
-  }
-  // Africa - Eastern
+// Africa - Eastern
+const africaEasternCodes = [
   { code: '+254', country: 'Kenya', pattern: /^\d{10}$/ },
   { code: '+255', country: 'Tanzania', pattern: /^\d{9}$/ },
   { code: '+256', country: 'Uganda', pattern: /^\d{9}$/ },
@@ -410,32 +408,6 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
     countryCode: '+1',
     privacyConsent: true
   })
-
-  // Instagram/Facebook in-app browsers often block or break media autoplay/audio.
-  // Prompt once per session so attendees can reopen in Safari/Chrome before joining.
-  useEffect(() => {
-    const ua = navigator.userAgent || ''
-    if (!isInstagramInAppBrowser(ua)) {
-      return
-    }
-
-    const warningKey = 'igInAppRegistrationWarningShown'
-    if (sessionStorage.getItem(warningKey) === '1') {
-      return
-    }
-
-    sessionStorage.setItem(warningKey, '1')
-
-    const shouldCopyLink = window.confirm(
-      'You are opening this webinar from Instagram/Facebook in-app browser. For reliable audio/video, open this page in Safari or Chrome. Tap OK to copy this link now.'
-    )
-
-    if (shouldCopyLink && navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href).catch(() => {
-        // Ignore clipboard failures (e.g. permission denied).
-      })
-    }
-  }, [])
 
   useEffect(() => {
     // Client-side A/B Test Tracking

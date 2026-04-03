@@ -401,7 +401,9 @@ export default function WebinarLiveClient({
   const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
   const [isInstagramInApp, setIsInstagramInApp] = useState(false);
-  const [showInAppBrowserWarning, setShowInAppBrowserWarning] = useState(false);
+  const [inAppVerifiedEmail, setInAppVerifiedEmail] = useState<string | null>(null);
+  const [inAppEmailInput, setInAppEmailInput] = useState('');
+  const [inAppEmailError, setInAppEmailError] = useState('');
   // Initialize to false to avoid hydration mismatch, then update in useEffect
   const [broadcastStarted, setBroadcastStarted] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false); // Show loading state
@@ -2587,17 +2589,37 @@ export default function WebinarLiveClient({
       return;
     }
 
-    const dismissedKey = 'igInAppLiveWarningDismissed';
-    if (sessionStorage.getItem(dismissedKey) === '1') {
+    // Check if user has already verified email for this session
+    const verifiedEmail = sessionStorage.getItem('igInAppVerifiedEmail');
+    if (verifiedEmail) {
+      setInAppVerifiedEmail(verifiedEmail);
+    }
+  }, []);
+
+  const handleVerifyEmail = () => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const trimmedEmail = inAppEmailInput.trim().toLowerCase();
+
+    if (!trimmedEmail) {
+      setInAppEmailError('Please enter your email address');
       return;
     }
 
-    setShowInAppBrowserWarning(true);
-  }, []);
+    if (!emailRegex.test(trimmedEmail)) {
+      setInAppEmailError('Please enter a valid email address');
+      return;
+    }
 
-  const handleDismissInAppWarning = () => {
-    sessionStorage.setItem('igInAppLiveWarningDismissed', '1');
-    setShowInAppBrowserWarning(false);
+    // Check if email matches the viewer's email (from props)
+    if (viewer?.email?.toLowerCase() !== trimmedEmail) {
+      setInAppEmailError('Email does not match your registration');
+      return;
+    }
+
+    // Verified - store in session and allow access
+    sessionStorage.setItem('igInAppVerifiedEmail', trimmedEmail);
+    setInAppVerifiedEmail(trimmedEmail);
+    setInAppEmailError('');
   };
 
   const handleCopyLiveLink = async () => {
@@ -2613,62 +2635,221 @@ export default function WebinarLiveClient({
 
   return (
     <div className={styles.root}>
-      {isInstagramInApp && showInAppBrowserWarning && (
+      {isInstagramInApp && !inAppVerifiedEmail && (
         <div
           style={{
             position: 'fixed',
-            top: '12px',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            zIndex: 1200,
-            width: 'calc(100% - 24px)',
-            maxWidth: '920px',
-            borderRadius: '10px',
-            border: '1px solid #fdba74',
-            background: '#fff7ed',
-            color: '#7c2d12',
-            padding: '12px 14px',
-            boxShadow: '0 10px 30px rgba(0, 0, 0, 0.12)',
+            inset: 0,
+            zIndex: 2000,
+            background: '#fff',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            overflow: 'auto',
           }}
         >
-          <div style={{ fontWeight: 700, marginBottom: '4px' }}>Instagram in-app browser detected</div>
-          <div style={{ fontSize: '14px', lineHeight: 1.4 }}>
-            Audio/video can fail inside Instagram/Facebook browser. For best playback, open this page in Safari or Chrome.
-          </div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+          <div
+            style={{
+              maxWidth: '480px',
+              width: '100%',
+              textAlign: 'center',
+            }}
+          >
+            <div
+              style={{
+                width: '60px',
+                height: '60px',
+                background: '#f97316',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 20px',
+                fontSize: '28px',
+              }}
+            >
+              ⚠️
+            </div>
+
+            <h1
+              style={{
+                fontSize: '24px',
+                fontWeight: 700,
+                marginBottom: '12px',
+                color: '#1f2937',
+              }}
+            >
+              Browser Compatibility Issue
+            </h1>
+
+            <p
+              style={{
+                fontSize: '16px',
+                color: '#6b7280',
+                lineHeight: 1.6,
+                marginBottom: '24px',
+              }}
+            >
+              We detected you're using Instagram or Facebook in-app browser. Unfortunately, audio and video often fail in this environment.
+            </p>
+
+            <div
+              style={{
+                background: '#fef3c7',
+                border: '1px solid #fcd34d',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '24px',
+                textAlign: 'left',
+                fontSize: '14px',
+                color: '#92400e',
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>✓ Option 1: Open in External Browser</strong>
+              <p style={{ margin: '8px 0 0 0' }}>
+                Copy the link below and open it in Safari, Chrome, or your phone's default browser for reliable playback.
+              </p>
+            </div>
+
             <button
               type="button"
               onClick={handleCopyLiveLink}
               style={{
-                padding: '7px 10px',
-                borderRadius: '7px',
-                border: '1px solid #f97316',
-                background: '#fff',
+                width: '100%',
+                padding: '14px 20px',
+                marginBottom: '12px',
+                borderRadius: '8px',
+                border: '2px solid #f97316',
+                background: '#fff7ed',
                 color: '#9a3412',
-                fontWeight: 600,
+                fontWeight: 700,
+                fontSize: '16px',
                 cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#fed7aa';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = '#fff7ed';
               }}
             >
-              Copy Link
+              📋 Copy Link to Open in Browser
             </button>
+
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                margin: '20px 0',
+                gap: '12px',
+              }}
+            >
+              <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }}></div>
+              <span style={{ color: '#9ca3af', fontSize: '14px' }}>OR</span>
+              <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }}></div>
+            </div>
+
+            <div
+              style={{
+                background: '#eff6ff',
+                border: '1px solid #93c5fd',
+                borderRadius: '8px',
+                padding: '16px',
+                marginBottom: '24px',
+                textAlign: 'left',
+                fontSize: '14px',
+                color: '#1e40af',
+                lineHeight: 1.6,
+              }}
+            >
+              <strong>✓ Option 2: Verify Email to Continue</strong>
+              <p style={{ margin: '8px 0 0 0' }}>
+                Enter the email address you registered with to access the webinar (confirms you're accessing from outside Instagram).
+              </p>
+            </div>
+
+            <input
+              type="email"
+              placeholder="Enter your registered email..."
+              value={inAppEmailInput}
+              onChange={(e) => {
+                setInAppEmailInput(e.target.value);
+                setInAppEmailError('');
+              }}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                marginBottom: '8px',
+                borderRadius: '8px',
+                border: '2px solid #e5e7eb',
+                fontSize: '16px',
+                fontFamily: 'inherit',
+                boxSizing: 'border-box',
+              }}
+              onKeyPress={(e) => {
+                if (e.key === 'Enter') {
+                  handleVerifyEmail();
+                }
+              }}
+            />
+
+            {inAppEmailError && (
+              <p
+                style={{
+                  fontSize: '14px',
+                  color: '#dc2626',
+                  marginBottom: '12px',
+                  textAlign: 'left',
+                }}
+              >
+                ❌ {inAppEmailError}
+              </p>
+            )}
+
             <button
               type="button"
-              onClick={handleDismissInAppWarning}
+              onClick={handleVerifyEmail}
               style={{
-                padding: '7px 10px',
-                borderRadius: '7px',
-                border: '1px solid #fdba74',
-                background: '#ffedd5',
-                color: '#9a3412',
-                fontWeight: 600,
+                width: '100%',
+                padding: '14px 20px',
+                borderRadius: '8px',
+                border: 'none',
+                background: '#3b82f6',
+                color: '#fff',
+                fontWeight: 700,
+                fontSize: '16px',
                 cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.background = '#2563eb';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.background = '#3b82f6';
               }}
             >
-              Continue Here
+              ✓ Verify & Access Webinar
             </button>
+
+            <p
+              style={{
+                fontSize: '12px',
+                color: '#9ca3af',
+                marginTop: '16px',
+              }}
+            >
+              We recommend opening in an external browser for the best experience.
+            </p>
           </div>
         </div>
       )}
+
+      {(!isInstagramInApp || inAppVerifiedEmail) && (
+        <>
       {/* Preconnect to Vimeo for faster loading */}
       <link rel="preconnect" href="https://player.vimeo.com" />
       <link rel="preconnect" href="https://i.vimeocdn.com" />
@@ -3505,6 +3686,8 @@ export default function WebinarLiveClient({
               </button>
             </div>
           </aside>
+        </>
+      )}
         </>
       )}
     </div>
