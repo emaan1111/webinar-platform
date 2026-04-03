@@ -401,9 +401,6 @@ export default function WebinarLiveClient({
   const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
   const [isInstagramInApp, setIsInstagramInApp] = useState(false);
-  const [inAppVerifiedEmail, setInAppVerifiedEmail] = useState<string | null>(null);
-  const [inAppEmailInput, setInAppEmailInput] = useState('');
-  const [inAppEmailError, setInAppEmailError] = useState('');
   // Initialize to false to avoid hydration mismatch, then update in useEffect
   const [broadcastStarted, setBroadcastStarted] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false); // Show loading state
@@ -2584,43 +2581,7 @@ export default function WebinarLiveClient({
     const ua = navigator.userAgent || '';
     const inApp = isInstagramInAppBrowser(ua);
     setIsInstagramInApp(inApp);
-
-    if (!inApp) {
-      return;
-    }
-
-    // Check if user has already verified email for this session
-    const verifiedEmail = sessionStorage.getItem('igInAppVerifiedEmail');
-    if (verifiedEmail) {
-      setInAppVerifiedEmail(verifiedEmail);
-    }
   }, []);
-
-  const handleVerifyEmail = () => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const trimmedEmail = inAppEmailInput.trim().toLowerCase();
-
-    if (!trimmedEmail) {
-      setInAppEmailError('Please enter your email address');
-      return;
-    }
-
-    if (!emailRegex.test(trimmedEmail)) {
-      setInAppEmailError('Please enter a valid email address');
-      return;
-    }
-
-    // Check if email matches the viewer's email (from props)
-    if (viewer?.email?.toLowerCase() !== trimmedEmail) {
-      setInAppEmailError('Email does not match your registration');
-      return;
-    }
-
-    // Verified - store in session and allow access
-    sessionStorage.setItem('igInAppVerifiedEmail', trimmedEmail);
-    setInAppVerifiedEmail(trimmedEmail);
-    setInAppEmailError('');
-  };
 
   const handleCopyLiveLink = async () => {
     if (!navigator.clipboard) {
@@ -2633,9 +2594,28 @@ export default function WebinarLiveClient({
     }
   };
 
+  const handleOpenInExternalBrowser = async () => {
+    const currentUrl = window.location.href;
+    const ua = navigator.userAgent || '';
+
+    // Best effort on Android: try intent handoff to Chrome.
+    if (/Android/i.test(ua)) {
+      const withoutScheme = currentUrl.replace(/^https?:\/\//i, '');
+      window.location.href = `intent://${withoutScheme}#Intent;scheme=https;package=com.android.chrome;end`;
+      setTimeout(() => {
+        handleCopyLiveLink();
+      }, 1200);
+      return;
+    }
+
+    // iOS and other webviews cannot be reliably forced to open externally.
+    await handleCopyLiveLink();
+    window.alert('Link copied. In Instagram/Facebook, tap the menu (⋯) and choose Open in Browser, then paste this link into Safari or Chrome.');
+  };
+
   return (
     <div className={styles.root}>
-      {isInstagramInApp && !inAppVerifiedEmail && (
+      {isInstagramInApp && (
         <div
           style={{
             position: 'fixed',
@@ -2708,15 +2688,18 @@ export default function WebinarLiveClient({
                 lineHeight: 1.6,
               }}
             >
-              <strong>✓ Option 1: Open in External Browser</strong>
+              <strong>Open in External Browser Required</strong>
               <p style={{ margin: '8px 0 0 0' }}>
-                Copy the link below and open it in Safari, Chrome, or your phone's default browser for reliable playback.
+                This webinar room is blocked inside Instagram/Facebook in-app browser because audio/video playback is unreliable there.
+              </p>
+              <p style={{ margin: '8px 0 0 0' }}>
+                If this feels difficult, open the webinar link we sent to your email. It will open in your normal browser.
               </p>
             </div>
 
             <button
               type="button"
-              onClick={handleCopyLiveLink}
+              onClick={handleOpenInExternalBrowser}
               style={{
                 width: '100%',
                 padding: '14px 20px',
@@ -2737,102 +2720,7 @@ export default function WebinarLiveClient({
                 e.currentTarget.style.background = '#fff7ed';
               }}
             >
-              📋 Copy Link to Open in Browser
-            </button>
-
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                margin: '20px 0',
-                gap: '12px',
-              }}
-            >
-              <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }}></div>
-              <span style={{ color: '#9ca3af', fontSize: '14px' }}>OR</span>
-              <div style={{ flex: 1, height: '1px', background: '#e5e7eb' }}></div>
-            </div>
-
-            <div
-              style={{
-                background: '#eff6ff',
-                border: '1px solid #93c5fd',
-                borderRadius: '8px',
-                padding: '16px',
-                marginBottom: '24px',
-                textAlign: 'left',
-                fontSize: '14px',
-                color: '#1e40af',
-                lineHeight: 1.6,
-              }}
-            >
-              <strong>✓ Option 2: Verify Email to Continue</strong>
-              <p style={{ margin: '8px 0 0 0' }}>
-                Enter the email address you registered with to access the webinar (confirms you're accessing from outside Instagram).
-              </p>
-            </div>
-
-            <input
-              type="email"
-              placeholder="Enter your registered email..."
-              value={inAppEmailInput}
-              onChange={(e) => {
-                setInAppEmailInput(e.target.value);
-                setInAppEmailError('');
-              }}
-              style={{
-                width: '100%',
-                padding: '12px 14px',
-                marginBottom: '8px',
-                borderRadius: '8px',
-                border: '2px solid #e5e7eb',
-                fontSize: '16px',
-                fontFamily: 'inherit',
-                boxSizing: 'border-box',
-              }}
-              onKeyPress={(e) => {
-                if (e.key === 'Enter') {
-                  handleVerifyEmail();
-                }
-              }}
-            />
-
-            {inAppEmailError && (
-              <p
-                style={{
-                  fontSize: '14px',
-                  color: '#dc2626',
-                  marginBottom: '12px',
-                  textAlign: 'left',
-                }}
-              >
-                ❌ {inAppEmailError}
-              </p>
-            )}
-
-            <button
-              type="button"
-              onClick={handleVerifyEmail}
-              style={{
-                width: '100%',
-                padding: '14px 20px',
-                borderRadius: '8px',
-                border: 'none',
-                background: '#3b82f6',
-                color: '#fff',
-                fontWeight: 700,
-                fontSize: '16px',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.background = '#2563eb';
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.background = '#3b82f6';
-              }}
-            >
-              ✓ Verify & Access Webinar
+              Open In Browser
             </button>
 
             <p
@@ -2842,13 +2730,13 @@ export default function WebinarLiveClient({
                 marginTop: '16px',
               }}
             >
-              We recommend opening in an external browser for the best experience.
+              If nothing opens automatically, use Instagram/Facebook menu (⋯) and tap Open in Browser, or open the webinar link from your email.
             </p>
           </div>
         </div>
       )}
 
-      {(!isInstagramInApp || inAppVerifiedEmail) && (
+      {!isInstagramInApp && (
         <>
       {/* Preconnect to Vimeo for faster loading */}
       <link rel="preconnect" href="https://player.vimeo.com" />
@@ -3686,8 +3574,6 @@ export default function WebinarLiveClient({
               </button>
             </div>
           </aside>
-        </>
-      )}
         </>
       )}
     </div>

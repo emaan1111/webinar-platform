@@ -274,6 +274,8 @@ const africaEasternCodes = [
   { code: '+690', country: 'Tokelau', pattern: /^\d{4}$/ },
 ]
 
+const allCountryCodes = [...countryCodes, ...africaEasternCodes]
+
 const euCountries = [
   'AT', 'BE', 'BG', 'HR', 'CY', 'CZ', 'DK', 'EE', 'FI', 'FR',
   'DE', 'GR', 'HU', 'IE', 'IT', 'LV', 'LT', 'LU', 'MT', 'NL',
@@ -1305,7 +1307,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
                         className="px-3 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium hover:border-gray-300 bg-white"
                         style={{ width: '130px' }}
                       >
-                        {countryCodes.map((cc) => (
+                        {allCountryCodes.map((cc) => (
                           <option key={cc.code} value={cc.code}>
                             {cc.code} {cc.country}
                           </option>
@@ -1680,7 +1682,7 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
                         className="px-3 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all font-medium hover:border-gray-300 bg-white"
                         style={{ width: '130px' }}
                       >
-                        {countryCodes.map((cc) => (
+                        {allCountryCodes.map((cc) => (
                           <option key={cc.code} value={cc.code}>
                             {cc.code} {cc.country}
                           </option>
