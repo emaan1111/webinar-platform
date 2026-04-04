@@ -63,17 +63,21 @@ export async function GET(req: Request) {
             }
         });
 
-        // 3. Calculate Unique Conversions (Webinar Registrations)
-        const uniqueRegistrations = await countUniqueEventsWithNullFallback('CONVERSION');
-
-        // 4. Calculate Total Conversions (Webinar Registrations)
-        const totalRegistrations = await prisma.splitTestEvent.count({
-            where: {
-                variantId: variant.id,
-                type: 'CONVERSION',
-                createdAt: { gte: fromDate }
-            }
+        // 3 & 4. Calculate Webinar Registrations directly from the Registration table
+        // so the count always matches the leads modal (which also reads Registration).
+        const registrationRows = await prisma.registration.findMany({
+          where: {
+            splitTestId: test.id,
+            splitTestVariantId: variant.id,
+            ...(fromDate > new Date(0) ? { registeredAt: { gte: fromDate } } : {})
+          },
+          select: { email: true }
         });
+
+        // Unique = distinct emails (same dedup logic as the leads modal frontend)
+        const uniqueEmails = new Set(registrationRows.map((r: any) => r.email?.toLowerCase()).filter(Boolean));
+        const uniqueRegistrations = uniqueEmails.size;
+        const totalRegistrations = registrationRows.length;
 
         // 5. Calculate Unique Form Submissions (Trial Leads / Event Registrations)
         // We look for both FORM_SUBMISSION (legacy/forms) and EVENT_REGISTRATION (trial events)
