@@ -7,8 +7,6 @@ export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export async function GET(req: Request) {
-  console.log('[SPLIT-TEST-API] Version: 2026-04-05-fix-uniqueRegistrations');
-  
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
@@ -83,9 +81,6 @@ export async function GET(req: Request) {
         const uniqueEmails = new Set(registrationRows.map((r: any) => r.email?.toLowerCase()).filter(Boolean));
         const uniqueRegistrations = uniqueEmails.size;
         const totalRegistrations = registrationRows.length;
-
-        // Debug log to verify server-side computation
-        console.log(`[SPLIT-TEST-DEBUG] Variant ${variant.leadPage?.name || variant.id}: uniqueRegistrations=${uniqueRegistrations}, totalRows=${totalRegistrations}`);
 
         // 5. Calculate Unique Form Submissions (Trial Leads / Event Registrations)
         // We look for both FORM_SUBMISSION (legacy/forms) and EVENT_REGISTRATION (trial events)
