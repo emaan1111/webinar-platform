@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/attendees - Get all attendees for user's webinars
 export async function GET(request: Request) {
   try {
@@ -310,7 +313,11 @@ export async function GET(request: Request) {
       }
     })
 
-    return NextResponse.json({ attendees })
+    return NextResponse.json({ attendees }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    })
   } catch (error) {
     console.error('Error fetching attendees:', error)
     return NextResponse.json(

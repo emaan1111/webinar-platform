@@ -4,6 +4,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/analytics/aggregate - Get aggregated analytics for multiple webinars
 export async function GET(request: NextRequest) {
   try {
@@ -514,6 +517,10 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
   } catch (error) {
     console.error('Aggregate analytics error:', error);

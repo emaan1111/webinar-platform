@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/analytics - Get analytics data for user's webinars
 export async function GET(request: Request) {
   try {
@@ -164,6 +167,10 @@ export async function GET(request: Request) {
         { name: 'Reactions', value: engagementData.reactions, color: '#8b5cf6' },
       ],
       peakViewingTimes
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     })
   } catch (error) {
     console.error('Error fetching analytics:', error)

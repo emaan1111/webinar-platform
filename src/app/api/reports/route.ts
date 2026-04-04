@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { requestFacebookInsights } from '@/lib/facebookAds';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/reports
  * Generate comprehensive webinar reports combining Facebook Ads and webinar metrics
@@ -437,6 +440,10 @@ export async function GET(request: NextRequest) {
       engagementMinutes,
       timestamp: new Date().toISOString(),
       warning: fbWarning
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     });
 
   } catch (error) {

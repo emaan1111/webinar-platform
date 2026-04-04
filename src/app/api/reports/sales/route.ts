@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 /**
  * GET /api/reports/sales
  * 
@@ -173,7 +176,11 @@ export async function GET(request: NextRequest) {
       totalRevenue: result.reduce((sum, day) => sum + day.revenue, 0),
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (error) {
     console.error('❌ Error fetching sales data:', error);
     return NextResponse.json(

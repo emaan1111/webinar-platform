@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requestFacebookInsights } from '@/lib/facebookAds'
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 const generateMockMetrics = (from: string, to: string, engagementThreshold: number) => {
   const startDate = new Date(from)
   const endDate = new Date(to)
@@ -255,6 +258,10 @@ export async function GET(request: NextRequest) {
       engagementThreshold,
       timestamp: new Date().toISOString(),
       processingTime: totalTime
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
     })
 
   } catch (error) {
