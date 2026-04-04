@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -93,10 +96,18 @@ export async function GET(req: Request) {
         })
       );
 
-      return NextResponse.json(leadPagesWithFilteredStats);
+      return NextResponse.json(leadPagesWithFilteredStats, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+        }
+      });
     }
 
-    return NextResponse.json(leadPages);
+    return NextResponse.json(leadPages, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (error) {
     console.error('Failed to fetch lead pages:', error);
     return NextResponse.json({ error: 'Failed to fetch lead pages' }, { status: 500 });

@@ -3,6 +3,9 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 // GET /api/lead-pages/[id]/leads - Get all registrations that came from this lead page
 export async function GET(
   request: NextRequest,
@@ -26,8 +29,7 @@ export async function GET(
       return NextResponse.json({ error: 'Lead page not found' }, { status: 404 });
     }
 
-    // Find registrations that came from this lead page
-    // We look at PageVisit records where the visit resulted in a registration
+    // Strategy 1: Find registrations via PageVisit records
     const pageVisitsWithRegistrations = await prisma.pageVisit.findMany({
       where: {
         pageId: id,
@@ -50,13 +52,37 @@ export async function GET(
       orderBy: { createdAt: 'desc' }
     });
 
-    // Also try to get registrations that may not have page visit records
-    // by looking at registrations for the same webinar created recently after page visits
-    // This is a fallback for edge cases
+    // Strategy 2: Find registrations via SplitTestVariant that references this lead page
+    const splitTestVariants = await prisma.splitTestVariant.findMany({
+      where: { leadPageId: id },
+      select: { id: true }
+    });
+    
+    const variantIds = splitTestVariants.map(v => v.id);
+    
+    let registrationsFromVariants: any[] = [];
+    if (variantIds.length > 0) {
+      registrationsFromVariants = await prisma.registration.findMany({
+        where: {
+          splitTestVariantId: { in: variantIds }
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          registeredAt: true,
+          attended: true,
+          hasPurchased: true
+        },
+        orderBy: { registeredAt: 'desc' }
+      });
+    }
 
-    // Dedupe by registration ID and format the response
+    // Combine and dedupe by registration ID
     const registrationMap = new Map<string, any>();
     
+    // Add from page visits
     for (const visit of pageVisitsWithRegistrations) {
       if (visit.registration && !registrationMap.has(visit.registration.id)) {
         registrationMap.set(visit.registration.id, {
@@ -70,10 +96,22 @@ export async function GET(
         });
       }
     }
+    
+    // Add from split test variants
+    for (const reg of registrationsFromVariants) {
+      if (!registrationMap.has(reg.id)) {
+        registrationMap.set(reg.id, reg);
+      }
+    }
 
-    const leads = Array.from(registrationMap.values());
+    const leads = Array.from(registrationMap.values())
+      .sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
 
-    return NextResponse.json(leads);
+    return NextResponse.json(leads, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (error) {
     console.error('Error fetching lead page leads:', error);
     return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
