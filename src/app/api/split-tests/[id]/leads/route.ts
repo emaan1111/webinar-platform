@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(
   req: Request,
   { params }: { params: { id: string } }
@@ -140,7 +143,11 @@ export async function GET(
     // Sort combined results by date desc
     results.sort((a, b) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime());
 
-    return NextResponse.json(results);
+        return NextResponse.json(results, {
+            headers: {
+                'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+            }
+        });
   } catch (error) {
     console.error('Failed to fetch lead details', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

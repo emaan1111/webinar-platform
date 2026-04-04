@@ -77,7 +77,7 @@ export default function SplitTestsDashboard() {
       const from = getFromDateISOString();
       if (from) url += `?from=${encodeURIComponent(from)}`;
       
-      const res = await fetch(url);
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         setSplitTests(await res.json());
       }
@@ -154,7 +154,7 @@ export default function SplitTestsDashboard() {
           if (from) params.set('from', from);
           const url = `/api/split-tests/${testId}/leads?${params.toString()}`;
           
-          const res = await fetch(url);
+          const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
               const data = await res.json();
               setLeads(dedupeLeadsForDisplay(data));

@@ -3,6 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -113,7 +116,11 @@ export async function GET(req: Request) {
       };
     }));
 
-    return NextResponse.json(testsWithStats);
+    return NextResponse.json(testsWithStats, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+      }
+    });
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch split tests' }, { status: 500 });
   }
