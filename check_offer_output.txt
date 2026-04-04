@@ -1,0 +1,40 @@
+Fetching offer data for webinar cmidlu9u700sxnx0fxdmvk4hp...
+Webinar Offers: [
+  {
+    "id": "cmlz3z3og0m0lle0fuo22sc59",
+    "webinarId": "cmidlu9u700sxnx0fxdmvk4hp",
+    "title": "Take the next step up to becoming the heart coach that your child needs today (Copy) (Copy)",
+    "description": "Shepherds Coaching Roadmap",
+    "price": 197,
+    "originalPrice": 2354,
+    "discountLabel": null,
+    "countdownDuration": null,
+    "bulletPoints": [],
+    "ctaText": "Click here to start now",
+    "ctaUrl": "https://www.unshakeablemuslims.com/roadmap",
+    "videoTimestamp": 4300,
+    "hideAfter": null,
+    "isActive": true,
+    "createdAt": "2026-02-23T11:43:51.904Z",
+    "updatedAt": "2026-02-23T11:43:51.904Z"
+  }
+]
+Fetching OfferAnalytics for registration cmn2if5932qlzn80fev7sq514...
+User Offer Analytics: [
+  {
+    "id": "cmn2lbsh52r1xn80fahl7uqiv",
+    "webinarId": "cmidlu9u700sxnx0fxdmvk4hp",
+    "registrationId": "cmn2if5932qlzn80fev7sq514",
+    "offerTitle": "Take the next step up to becoming the heart coach that your child needs today (Copy) (Copy)",
+    "offerUrl": "https://www.unshakeablemuslims.com/roadmap",
+    "sawOffer": true,
+    "sawOfferAt": "2026-03-23T02:52:38.254Z",
+    "clickedOffer": false,
+    "clickedOfferAt": null,
+    "videoPosition": 4826,
+    "converted": false,
+    "convertedAt": null,
+    "createdAt": "2026-03-23T02:52:38.249Z",
+    "updatedAt": "2026-03-23T02:52:38.249Z"
+  }
+]

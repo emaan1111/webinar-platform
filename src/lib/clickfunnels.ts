@@ -131,7 +131,7 @@ const parseReminderTagEnvId = (tagName: ReminderTagName): number | null => {
 const ATTENDANCE_TAG_DEFAULT_NAMES: Record<AttendanceTagKey, string> = {
   registered: configuredWebinarTagName,
   attended: 'UM-Webinar-Attended',
-  mostlyAttended: 'UM-Webinar-MostlyAttended',
+  mostlyAttended: 'UM-WebinarMostlyAttended',
   partlyAttended: 'UM-Webinar-PartlyAttended',
   missed: 'UM-Webinar-Missed',
   replayAttended: 'UM-Webinar-ReplayAttended',
@@ -150,6 +150,24 @@ for (const reminderTagName of REMINDER_TAG_NAMES) {
   }
 }
 
+const ATTENDANCE_TAG_ENV_KEYS: Record<Exclude<AttendanceTagKey, 'registered'>, string> = {
+  attended: 'CLICKFUNNELS_TAG_ATTENDED',
+  mostlyAttended: 'CLICKFUNNELS_TAG_MOSTLY_ATTENDED',
+  partlyAttended: 'CLICKFUNNELS_TAG_PARTLY_ATTENDED',
+  missed: 'CLICKFUNNELS_TAG_MISSED',
+  replayAttended: 'CLICKFUNNELS_TAG_REPLAY_ATTENDED',
+}
+
+for (const [key, envKey] of Object.entries(ATTENDANCE_TAG_ENV_KEYS)) {
+  const configuredId = parseTagId(process.env[envKey])
+  if (!configuredId) continue
+
+  const defaultTagName = ATTENDANCE_TAG_DEFAULT_NAMES[key as AttendanceTagKey]
+  if (defaultTagName) {
+    clickFunnelsTagCache.set(defaultTagName, configuredId)
+  }
+}
+
 export interface WebinarCustomTags {
   registrationTag?: string | null
   attendedTag?: string | null
@@ -159,19 +177,58 @@ export interface WebinarCustomTags {
   replayAttendedTag?: string | null
 }
 
+function normalizeAttendanceTagAlias(tagName: string): string {
+  // Backward-compatible fix for historic hyphenated variant.
+  if (tagName === 'UM-Webinar-MostlyAttended') {
+    return 'UM-WebinarMostlyAttended'
+  }
+  return tagName
+}
+
 function getAttendanceTagName(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): string | null {
   if (customTags) {
-    if (tagKey === 'registered' && customTags.registrationTag) return customTags.registrationTag
-    if (tagKey === 'attended' && customTags.attendedTag) return customTags.attendedTag
-    if (tagKey === 'mostlyAttended' && customTags.mostlyAttendedTag) return customTags.mostlyAttendedTag
-    if (tagKey === 'partlyAttended' && customTags.partlyAttendedTag) return customTags.partlyAttendedTag
-    if (tagKey === 'missed' && customTags.missedTag) return customTags.missedTag
-    if (tagKey === 'replayAttended' && customTags.replayAttendedTag) return customTags.replayAttendedTag
+    if (tagKey === 'registered' && customTags.registrationTag) return normalizeAttendanceTagAlias(customTags.registrationTag)
+    if (tagKey === 'attended' && customTags.attendedTag) return normalizeAttendanceTagAlias(customTags.attendedTag)
+    if (tagKey === 'mostlyAttended' && customTags.mostlyAttendedTag) return normalizeAttendanceTagAlias(customTags.mostlyAttendedTag)
+    if (tagKey === 'partlyAttended' && customTags.partlyAttendedTag) return normalizeAttendanceTagAlias(customTags.partlyAttendedTag)
+    if (tagKey === 'missed' && customTags.missedTag) return normalizeAttendanceTagAlias(customTags.missedTag)
+    if (tagKey === 'replayAttended' && customTags.replayAttendedTag) return normalizeAttendanceTagAlias(customTags.replayAttendedTag)
   }
-  return ATTENDANCE_TAG_DEFAULT_NAMES[tagKey] || null
+  const defaultTag = ATTENDANCE_TAG_DEFAULT_NAMES[tagKey]
+  return defaultTag ? normalizeAttendanceTagAlias(defaultTag) : null
+}
+
+function hasCustomAttendanceTag(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): boolean {
+  if (!customTags) return false
+  if (tagKey === 'registered') return !!customTags.registrationTag
+  if (tagKey === 'attended') return !!customTags.attendedTag
+  if (tagKey === 'mostlyAttended') return !!customTags.mostlyAttendedTag
+  if (tagKey === 'partlyAttended') return !!customTags.partlyAttendedTag
+  if (tagKey === 'missed') return !!customTags.missedTag
+  if (tagKey === 'replayAttended') return !!customTags.replayAttendedTag
+  return false
+}
+
+function getConfiguredAttendanceTagId(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): number | null {
+  // Per-webinar custom tag names should always take precedence over global env IDs.
+  if (hasCustomAttendanceTag(tagKey, customTags)) {
+    return null
+  }
+
+  if (tagKey === 'registered') {
+    return configuredWebinarTagId
+  }
+
+  const envKey = ATTENDANCE_TAG_ENV_KEYS[tagKey as Exclude<AttendanceTagKey, 'registered'>]
+  return parseTagId(process.env[envKey])
 }
 
 async function resolveAttendanceTagId(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): Promise<number | null> {
+  const configuredTagId = getConfiguredAttendanceTagId(tagKey, customTags)
+  if (configuredTagId) {
+    return configuredTagId
+  }
+
   const tagName = getAttendanceTagName(tagKey, customTags)
   if (!tagName) {
     return null
@@ -185,6 +242,12 @@ async function resolveAttendanceTagIds(tagKeys: AttendanceTagKey[], customTags?:
   const resolvedIds: number[] = []
 
   for (const key of uniqueKeys) {
+    const configuredTagId = getConfiguredAttendanceTagId(key, customTags)
+    if (configuredTagId) {
+      resolvedIds.push(configuredTagId)
+      continue
+    }
+
     const tagName = getAttendanceTagName(key, customTags)
     if (!tagName) {
       continue

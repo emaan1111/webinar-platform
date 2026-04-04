@@ -11,7 +11,7 @@ const CLICKFUNNELS_WORKSPACE_ID = process.env.CLICKFUNNELS_WORKSPACE_ID;
 const TAGS_TO_CREATE = [
   { name: 'UM-Webinar-Registered', color: '#3B82F6', description: 'User registered for webinar' },
   { name: 'UM-Webinar-Attended', color: '#10B981', description: 'User attended webinar' },
-  { name: 'UM-Webinar-MostlyAttended', color: '#8B5CF6', description: 'User watched until offer/CTA' },
+  { name: 'UM-WebinarMostlyAttended', color: '#8B5CF6', description: 'User watched until offer/CTA' },
   { name: 'UM-Webinar-PartlyAttended', color: '#F59E0B', description: 'User watched 40+ minutes' },
   { name: 'UM-Webinar-Missed', color: '#EF4444', description: 'User did not attend' },
   { name: 'UM-Webinar-ReplayAttended', color: '#6366F1', description: 'User watched replay' },
@@ -126,7 +126,7 @@ async function main() {
     console.log('# ClickFunnels Tag IDs');
     console.log(`CLICKFUNNELS_TAG_REGISTERED="${tagMapping['UM-Webinar-Registered'] || ''}"`);
     console.log(`CLICKFUNNELS_TAG_ATTENDED="${tagMapping['UM-Webinar-Attended'] || ''}"`);
-    console.log(`CLICKFUNNELS_TAG_MOSTLY_ATTENDED="${tagMapping['UM-Webinar-MostlyAttended'] || ''}"`);
+    console.log(`CLICKFUNNELS_TAG_MOSTLY_ATTENDED="${tagMapping['UM-WebinarMostlyAttended'] || ''}"`);
     console.log(`CLICKFUNNELS_TAG_PARTLY_ATTENDED="${tagMapping['UM-Webinar-PartlyAttended'] || ''}"`);
     console.log(`CLICKFUNNELS_TAG_MISSED="${tagMapping['UM-Webinar-Missed'] || ''}"`);
     console.log(`CLICKFUNNELS_TAG_REPLAY_ATTENDED="${tagMapping['UM-Webinar-ReplayAttended'] || ''}"`);

@@ -75,7 +75,11 @@ export default function SplitTestsDashboard() {
       let url = '/api/split-tests';
       
       const from = getFromDateISOString();
-      if (from) url += `?from=${encodeURIComponent(from)}`;
+      // Add cache buster to force fresh data from API
+      const params = new URLSearchParams();
+      if (from) params.set('from', from);
+      params.set('_t', Date.now().toString());
+      url += `?${params.toString()}`;
       
       const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
@@ -152,6 +156,7 @@ export default function SplitTestsDashboard() {
           if (type) params.set('type', type);
           const from = getFromDateISOString();
           if (from) params.set('from', from);
+          params.set('_t', Date.now().toString()); // Cache buster
           const url = `/api/split-tests/${testId}/leads?${params.toString()}`;
           
           const res = await fetch(url, { cache: 'no-store' });

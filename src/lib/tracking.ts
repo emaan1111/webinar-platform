@@ -142,8 +142,12 @@ export class WebinarTracker {
     const now = Date.now();
     const timeDiff = (now - this.lastUpdateTime) / 1000;
     
-    if (isPlaying && timeDiff > 0 && timeDiff < 60) {
-      this.watchTime += timeDiff;
+    if (isPlaying && timeDiff > 0) {
+      // Cap individual increments to 30s to avoid huge jumps, but allow
+      // longer gaps (e.g. mobile tab-hidden) to still accumulate time
+      // by capping rather than discarding the entire update.
+      const increment = Math.min(timeDiff, 30);
+      this.watchTime += increment;
       this.updateMuteTime(); // Update muted/unmuted duration
     }
     
