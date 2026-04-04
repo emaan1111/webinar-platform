@@ -3576,6 +3576,8 @@ export default function WebinarLiveClient({
           </aside>
         </>
       )}
+        </>
+      )}
     </div>
   );
 }
