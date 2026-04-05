@@ -10,15 +10,18 @@ import { sendFacebookRegistration } from '@/lib/facebook'
 import {
   isWebinarJamConfigured,
   getWebinarRegistrants,
+  getWebinarDetails,
   getRegistrantFullName,
   getRegistrantPhone,
   parseWatchTime,
   parseRegistrationDate,
   getAttendanceCategory,
   WebinarJamRegistrant,
+  WebinarJamSchedule,
 } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { sendClickSendSMS } from '@/lib/clicksend'
+import { fromZonedTime } from 'date-fns-tz'
 
 export interface WebinarJamSyncStats {
   webinarsProcessed: number
@@ -142,10 +145,29 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
 }> {
   const platform = extWebinar.platform as 'webinarjam' | 'everwebinar'
   
-  // Fetch all registrants from WebinarJam
+  // Fetch webinar details to get schedules (with timezone info for JIT/scheduled sessions)
+  const webinarDetails = await getWebinarDetails(extWebinar.externalWebinarId, platform)
+  const schedules = webinarDetails?.schedules || []
+  
+  // Build schedule ID → end time (UTC) map
+  // This handles JIT schedules correctly - each has date + time + timezone
+  const scheduleEndTimes = new Map<string, Date>()
+  const webinarDuration = extWebinar.webinarDurationMinutes || 60
+  
+  for (const schedule of schedules) {
+    const scheduleId = String(schedule.schedule)
+    const scheduledStartUTC = parseScheduleToUTC(schedule)
+    if (scheduledStartUTC) {
+      // Calculate when this session ends: start + duration
+      const endTime = new Date(scheduledStartUTC.getTime() + (webinarDuration * 60 * 1000))
+      scheduleEndTimes.set(scheduleId, endTime)
+    }
+  }
+  
+  // Fetch all registrants from WebinarJam (last 30 days)
   const { registrants } = await getWebinarRegistrants(
     extWebinar.externalWebinarId,
-    { platform, dateRange: 8 } // Last 30 days
+    { platform, dateRange: 8 }
   )
 
   if (registrants.length === 0) {
@@ -166,8 +188,8 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       attended: true, 
       watchTimeMinutes: true, 
       attendanceTagsApplied: true, 
-      postSessionSmsSent: true, 
-      registeredAt: true 
+      postSessionSmsSent: true,
+      appliedTag: true
     }
   })
   const existingEmails = new Map(existingRegs.map(r => [r.email.toLowerCase(), r]))
@@ -223,19 +245,36 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         attendanceUpdated++
       }
 
-      // Apply attendance tags if not already applied and enough time has passed
-      const delayHours = extWebinar.attendanceTagDelayHours ?? 24
-      const registeredAt = existing.registeredAt || new Date(0)
-      const hoursSinceRegistration = (Date.now() - new Date(registeredAt).getTime()) / (1000 * 60 * 60)
-      const canTagNow = hoursSinceRegistration >= delayHours
+      // Determine when this registrant's session ended
+      // Different logic for attended vs missed
+      let sessionEndTime: Date | null = null
       
-      if (!existing.attendanceTagsApplied && canTagNow) {
+      if (registrant.date_live) {
+        // They attended live - use actual join time + duration
+        // date_live is when they joined, so session ends at date_live + duration
+        const liveDate = new Date(registrant.date_live)
+        sessionEndTime = new Date(liveDate.getTime() + (webinarDuration * 60 * 1000))
+      } else if (registrant.date_replay) {
+        // They watched replay - use replay start time + duration
+        const replayDate = new Date(registrant.date_replay)
+        sessionEndTime = new Date(replayDate.getTime() + (webinarDuration * 60 * 1000))
+      } else {
+        // MISSED: They registered but never watched
+        // Use their scheduled session time (with proper timezone) + duration
+        const registrantScheduleId = String(registrant.schedule)
+        sessionEndTime = scheduleEndTimes.get(registrantScheduleId) || null
+      }
+      
+      const sessionHasEnded = sessionEndTime ? Date.now() > sessionEndTime.getTime() : false
+      
+      // Apply attendance tags if session has ended and not already tagged
+      if (!existing.attendanceTagsApplied && sessionHasEnded) {
         const tagResult = await applyAttendanceTags(extWebinar, email, watchTimeMinutes)
         if (tagResult) tagsApplied++
       }
 
-      // Send post-session SMS if enabled and not sent
-      if (extWebinar.autoSendPostSessionSMS && !existing.postSessionSmsSent && attended) {
+      // Send post-session SMS if enabled, session ended, and attended (not for missed)
+      if (extWebinar.autoSendPostSessionSMS && !existing.postSessionSmsSent && sessionHasEnded && attended) {
         const smsResult = await sendPostSessionSMS(extWebinar, email, registrant)
         if (smsResult) smsSent++
       }
@@ -249,6 +288,39 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     facebookSent: fbSentCount,
     tagsApplied,
     smsSent,
+  }
+}
+
+/**
+ * Parse a WebinarJam schedule (date + time + timezone) to UTC Date
+ * 
+ * WebinarJam schedule format:
+ * - date: "2026-04-05" (YYYY-MM-DD)
+ * - time: "21:00" (HH:MM in 24hr format)  
+ * - timezone: "America/New_York" or "EST" etc.
+ * 
+ * Uses date-fns-tz for proper timezone handling
+ */
+function parseScheduleToUTC(schedule: WebinarJamSchedule): Date | null {
+  try {
+    if (!schedule.date || !schedule.time) return null
+    
+    // Parse date parts
+    const [year, month, day] = schedule.date.split('-').map(Number)
+    const [hour, minute] = schedule.time.split(':').map(Number)
+    
+    if (schedule.timezone) {
+      // Use date-fns-tz to convert from the schedule's timezone to UTC
+      // fromZonedTime: converts a date that is in a specific timezone to UTC
+      const localDate = new Date(year, month - 1, day, hour, minute, 0, 0)
+      return fromZonedTime(localDate, schedule.timezone)
+    }
+    
+    // No timezone specified, treat as UTC
+    return new Date(Date.UTC(year, month - 1, day, hour, minute, 0, 0))
+  } catch (error) {
+    console.error('Failed to parse schedule to UTC:', schedule, error)
+    return null
   }
 }
 
