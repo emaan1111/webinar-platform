@@ -29,6 +29,16 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
           roundJITTo15Minutes: true,
           enableABTesting: true,
         }
+      },
+      externalWebinar: {
+        select: {
+          id: true,
+          name: true,
+          platform: true,
+          externalWebinarId: true,
+          externalWebinarName: true,
+          sendToFacebookCAPI: true,
+        }
       }
     }
   });
@@ -684,6 +694,11 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
 
   // If TEMPLATE
   if (leadPage.type === 'TEMPLATE') {
+     // External webinars should use CUSTOM type with embedded WebinarJam popup
+     if (leadPage.externalWebinar && !leadPage.webinar) {
+        return <div className="p-8 text-center">Configuration Error: External webinars should use Custom HTML with WebinarJam popup embedded.</div>;
+     }
+     
      if (!leadPage.webinar) {
         return <div>Configuration Error: No linked webinar found for this template page.</div>;
     }

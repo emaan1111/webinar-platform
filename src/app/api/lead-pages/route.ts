@@ -120,14 +120,15 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { name, slug, type, webinarId, templateId, htmlContent } = body;
+    const { name, slug, type, webinarId, externalWebinarId, templateId, htmlContent } = body;
 
     const leadPage = await prisma.leadPage.create({
       data: {
         name,
         slug,
         type,
-        webinarId,
+        webinarId: webinarId || undefined,
+        externalWebinarId: externalWebinarId || undefined,
         templateId: type === 'TEMPLATE' ? templateId : undefined,
         htmlContent: type === 'CUSTOM' ? htmlContent : undefined,
       }

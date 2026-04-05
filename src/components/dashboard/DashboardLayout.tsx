@@ -28,6 +28,7 @@ import {
   LayoutList,
   GitFork,
   Calendar,
+  ExternalLink,
   BookOpen
 } from 'lucide-react'
 
@@ -38,6 +39,7 @@ interface DashboardLayoutProps {
 const navigation = [
   { name: 'Overview', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Webinars', href: '/dashboard/webinars', icon: Video },
+  { name: 'External Webinars', href: '/dashboard/external-webinars', icon: ExternalLink },
   { name: 'Events', href: '/dashboard/events', icon: Calendar },
   { name: 'Lead Pages', href: '/dashboard/lead-pages', icon: LayoutList },
   { name: 'Content Pages', href: '/dashboard/content-pages', icon: BookOpen },

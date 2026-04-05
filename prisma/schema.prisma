@@ -880,21 +880,23 @@ model FormView {
 }
 
 model LeadPage {
-  id                String             @id @default(cuid())
-  name              String
-  slug              String             @unique
-  type              String             @default("TEMPLATE")
-  templateId        String?
-  htmlContent       String?
-  webinarId         String?
-  folder            String?
-  views             Int                @default(0)
-  conversions       Int                @default(0)
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @default(now())
-  template          RegistrationPage?  @relation(fields: [templateId], references: [id])
-  webinar           Webinar?           @relation(fields: [webinarId], references: [id])
-  splitTestVariants SplitTestVariant[]
+  id                  String             @id @default(cuid())
+  name                String
+  slug                String             @unique
+  type                String             @default("TEMPLATE")
+  templateId          String?
+  htmlContent         String?
+  webinarId           String?
+  externalWebinarId   String?            // NEW: Link to external webinar
+  folder              String?
+  views               Int                @default(0)
+  conversions         Int                @default(0)
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @default(now())
+  template            RegistrationPage?  @relation(fields: [templateId], references: [id])
+  webinar             Webinar?           @relation(fields: [webinarId], references: [id])
+  externalWebinar     ExternalWebinar?   @relation(fields: [externalWebinarId], references: [id])
+  splitTestVariants   SplitTestVariant[]
 
   @@map("lead_pages")
 }
@@ -1136,4 +1138,163 @@ model ContentComment {
   contentPage   ContentPage @relation(fields: [contentPageId], references: [id], onDelete: Cascade)
 
   @@map("content_comments")
+}
+
+// WebinarJam Integration - tracks processed registrations to avoid duplicate Facebook CAPI events
+model WebinarJamProcessedRegistration {
+  id                   String    @id @default(cuid())
+  webinarjamWebinarId  String
+  webinarjamUserId     String
+  email                String
+  name                 String?
+  phone                String?
+  webinarName          String?
+  scheduleDate         DateTime?
+  registeredAt         DateTime
+  facebookSent         Boolean   @default(false)
+  facebookSentAt       DateTime?
+  createdAt            DateTime  @default(now())
+
+  @@unique([webinarjamWebinarId, webinarjamUserId])
+  @@index([webinarjamWebinarId])
+  @@index([email])
+  @@index([registeredAt])
+  @@index([facebookSent])
+  @@map("webinarjam_processed_registrations")
+}
+
+// External Webinar Integration (WebinarJam/EverWebinar)
+// Allows using external platforms while keeping all CRM functionality in this app
+model ExternalWebinar {
+  id                      String                    @id @default(cuid())
+  name                    String                    // Internal name for this connection
+  platform                String                    @default("webinarjam") // "webinarjam" or "everwebinar"
+  externalWebinarId       String                    // The ID from WebinarJam/EverWebinar
+  externalWebinarName     String?                   // Name from the external platform
+  apiKey                  String?                   // Optional: webinar-specific API key
+  isActive                Boolean                   @default(true)
+  
+  // Sync settings
+  syncAttendance          Boolean                   @default(true)
+  lastSyncAt              DateTime?
+  
+  // Tag settings (same as internal webinars)
+  registrationTag         String?
+  registrationTagId       Int?
+  attendedTag             String?
+  attendedTagId           Int?
+  mostlyAttendedTag       String?
+  mostlyAttendedTagId     Int?
+  partlyAttendedTag       String?
+  partlyAttendedTagId     Int?
+  missedTag               String?
+  missedTagId             Int?
+  replayAttendedTag       String?
+  replayAttendedTagId     Int?
+  mostlyAttendedThreshold Int?                      @default(70) // % watched to be "mostly attended"
+  attendanceTagDelayHours Int                       @default(24) // Hours to wait after registration before tagging
+  webinarDurationMinutes  Int                       @default(60) // Expected webinar length for % calculations
+  
+  // SMS settings
+  autoSendPostSessionSMS         Boolean            @default(false)
+  postSessionSMSMinutesAfter     Int                @default(0)
+  postSessionSMSMinWatchedMinutes Int?
+  postSessionSMSBody             String?
+  
+  // Facebook CAPI
+  sendToFacebookCAPI      Boolean                   @default(true)
+  
+  createdAt               DateTime                  @default(now())
+  updatedAt               DateTime                  @default(now())
+  
+  // Relations
+  leadPages               LeadPage[]
+  registrations           ExternalWebinarRegistration[]
+  schedules               ExternalWebinarSchedule[]
+
+  @@unique([platform, externalWebinarId])
+  @@index([isActive])
+  @@map("external_webinars")
+}
+
+// Schedules for external webinars
+model ExternalWebinarSchedule {
+  id                  String          @id @default(cuid())
+  externalWebinarId   String
+  externalScheduleId  String?         // Schedule ID from WebinarJam
+  scheduledAt         DateTime
+  timezone            String?
+  comment             String?
+  isActive            Boolean         @default(true)
+  createdAt           DateTime        @default(now())
+  
+  externalWebinar     ExternalWebinar @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  registrations       ExternalWebinarRegistration[]
+
+  @@index([externalWebinarId])
+  @@index([scheduledAt])
+  @@map("external_webinar_schedules")
+}
+
+// Registration records for external webinars (mirrors Registration model)
+model ExternalWebinarRegistration {
+  id                       String                    @id @default(cuid())
+  externalWebinarId        String
+  scheduleId               String?
+  
+  // Registrant info
+  name                     String
+  email                    String
+  phone                    String?
+  timezone                 String?
+  country                  String?
+  
+  // External platform IDs
+  externalUserId           String?                   // User ID from WebinarJam
+  externalRegistrationId   String?                   // Registration ID from WebinarJam
+  
+  // Registration tracking
+  registeredAt             DateTime                  @default(now())
+  scheduledStartTime       DateTime?
+  registrationSource       String                    @default("lead_page") // "lead_page", "api_sync", "manual"
+  leadPageId               String?
+  
+  // Attendance tracking (synced from external platform)
+  attended                 Boolean                   @default(false)
+  joinedAt                 DateTime?
+  leftAt                   DateTime?
+  watchTimeMinutes         Int                       @default(0)
+  watchTimePercentage      Int                       @default(0)
+  
+  // Tagging status
+  attendanceTagsApplied    Boolean                   @default(false)
+  attendanceTagsAppliedAt  DateTime?
+  appliedTag               String?                   // Which attendance tag was applied
+  
+  // SMS status
+  postSessionSmsSent       Boolean                   @default(false)
+  postSessionSmsSentAt     DateTime?
+  
+  // Facebook CAPI status
+  facebookCapiSent         Boolean                   @default(false)
+  facebookCapiSentAt       DateTime?
+  
+  // Consent
+  privacyConsent           Boolean                   @default(true)
+  marketingConsent         Boolean                   @default(false)
+  
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @default(now())
+  
+  // Relations
+  externalWebinar          ExternalWebinar           @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  schedule                 ExternalWebinarSchedule?  @relation(fields: [scheduleId], references: [id])
+
+  @@unique([externalWebinarId, email])
+  @@index([externalWebinarId])
+  @@index([email])
+  @@index([registeredAt])
+  @@index([attended])
+  @@index([attendanceTagsApplied])
+  @@map("external_webinar_registrations")
 }

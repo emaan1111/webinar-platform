@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
 
 export default function NewLeadPage() {
@@ -16,25 +16,33 @@ export default function NewLeadPage() {
     slug: '',
     type: 'TEMPLATE', // TEMPLATE or CUSTOM
     webinarId: '',
+    externalWebinarId: '',
     templateId: '',
     htmlContent: '',
+    webinarType: 'internal' as 'internal' | 'external', // NEW: internal or external webinar
   });
   
   const [webinars, setWebinars] = useState<any[]>([]);
+  const [externalWebinars, setExternalWebinars] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    // Fetch webinars and templates for dropdowns
+    // Fetch webinars, external webinars, and templates for dropdowns
     const fetchResources = async () => {
       try {
-        const [wRes, tRes] = await Promise.all([
-          fetch('/api/webinars'), // You might need a simplified list endpoint
+        const [wRes, ewRes, tRes] = await Promise.all([
+          fetch('/api/webinars'),
+          fetch('/api/external-webinars'),
           fetch('/api/registration-pages')
         ]);
         if (wRes.ok) {
            const data = await wRes.json();
            setWebinars(Array.isArray(data) ? data : (data.webinars || []));
+        }
+        if (ewRes.ok) {
+           const data = await ewRes.json();
+           setExternalWebinars(Array.isArray(data) ? data : []);
         }
         if (tRes.ok) setTemplates(await tRes.json());
       } catch (e) {
@@ -47,10 +55,15 @@ export default function NewLeadPage() {
   const handleSubmit = async () => {
     setLoading(true);
     try {
+      const submitData = {
+        ...form,
+        webinarId: form.webinarType === 'internal' ? form.webinarId : null,
+        externalWebinarId: form.webinarType === 'external' ? form.externalWebinarId : null,
+      };
       const res = await fetch('/api/lead-pages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify(submitData)
       });
       
       if (res.ok) {
@@ -64,6 +77,8 @@ export default function NewLeadPage() {
       setLoading(false);
     }
   };
+
+  const hasSelectedWebinar = form.webinarType === 'internal' ? !!form.webinarId : !!form.externalWebinarId;
 
   return (
     <DashboardLayout>
@@ -125,20 +140,90 @@ export default function NewLeadPage() {
           </div>
 
           <div className="space-y-4 pt-4 border-t">
+              {/* Webinar Type Selection */}
               <div>
-                <label className="block text-sm font-medium mb-1">Linked Webinar</label>
-                <select 
-                   className="w-full p-2 border rounded-md"
-                   value={form.webinarId}
-                   onChange={e => setForm({...form, webinarId: e.target.value})}
-                >
-                    <option value="">Select a webinar...</option>
-                    {webinars.map(w => (
-                        <option key={w.id} value={w.id}>{w.title}</option>
-                    ))}
-                </select>
-                <p className="text-xs text-gray-500 mt-1">Registrations will be sent to this webinar</p>
+                <label className="block text-sm font-medium mb-2">Webinar Type</label>
+                <div className="flex gap-4 mb-4">
+                  <button
+                    className={`flex-1 p-3 border rounded-lg text-left transition-colors ${
+                      form.webinarType === 'internal' 
+                        ? 'border-purple-600 bg-purple-50 ring-1 ring-purple-600' 
+                        : 'hover:border-gray-400'
+                    }`}
+                    onClick={() => setForm({...form, webinarType: 'internal', externalWebinarId: ''})}
+                    type="button"
+                  >
+                    <div className="font-medium">Internal Webinar</div>
+                    <div className="text-xs text-gray-500">Webinars created in this app</div>
+                  </button>
+                  <button
+                    className={`flex-1 p-3 border rounded-lg text-left transition-colors ${
+                      form.webinarType === 'external' 
+                        ? 'border-purple-600 bg-purple-50 ring-1 ring-purple-600' 
+                        : 'hover:border-gray-400'
+                    }`}
+                    onClick={() => setForm({...form, webinarType: 'external', webinarId: ''})}
+                    type="button"
+                  >
+                    <div className="font-medium flex items-center gap-1">
+                      <ExternalLink className="w-4 h-4" /> External Webinar
+                    </div>
+                    <div className="text-xs text-gray-500">WebinarJam / EverWebinar</div>
+                  </button>
+                </div>
               </div>
+
+              {/* Internal Webinar Selection */}
+              {form.webinarType === 'internal' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Linked Webinar</label>
+                  <select 
+                     className="w-full p-2 border rounded-md"
+                     value={form.webinarId}
+                     onChange={e => setForm({...form, webinarId: e.target.value})}
+                  >
+                      <option value="">Select a webinar...</option>
+                      {webinars.map(w => (
+                          <option key={w.id} value={w.id}>{w.title}</option>
+                      ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">Registrations will be sent to this webinar</p>
+                </div>
+              )}
+
+              {/* External Webinar Selection */}
+              {form.webinarType === 'external' && (
+                <div>
+                  <label className="block text-sm font-medium mb-1">Linked External Webinar</label>
+                  <select 
+                     className="w-full p-2 border rounded-md"
+                     value={form.externalWebinarId}
+                     onChange={e => setForm({...form, externalWebinarId: e.target.value})}
+                  >
+                      <option value="">Select an external webinar...</option>
+                      {externalWebinars.map(w => (
+                          <option key={w.id} value={w.id}>
+                            {w.name} ({w.platform === 'everwebinar' ? 'EverWebinar' : 'WebinarJam'})
+                          </option>
+                      ))}
+                  </select>
+                  <div className="mt-3 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+                    <strong>How it works:</strong>
+                    <ul className="list-disc pl-5 mt-1 space-y-1">
+                      <li>Use <strong>Custom HTML</strong> and embed WebinarJam's registration popup</li>
+                      <li>Registrations sync automatically via cron job</li>
+                      <li>Facebook CAPI, tags, and SMS are applied during sync</li>
+                    </ul>
+                  </div>
+                  {externalWebinars.length === 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      <Link href="/dashboard/external-webinars" className="text-purple-600 hover:underline">
+                        Connect an external webinar first →
+                      </Link>
+                    </p>
+                  )}
+                </div>
+              )}
 
               {form.type === 'TEMPLATE' && (
                   <div>
@@ -177,7 +262,7 @@ export default function NewLeadPage() {
           </div>
 
           <div className="pt-6">
-            <Button className="w-full" onClick={handleSubmit} disabled={loading || !form.name || !form.slug || !form.webinarId}>
+            <Button className="w-full" onClick={handleSubmit} disabled={loading || !form.name || !form.slug || !hasSelectedWebinar}>
                 {loading ? 'Creating...' : 'Create Lead Page'}
             </Button>
           </div>
