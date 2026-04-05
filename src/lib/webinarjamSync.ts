@@ -246,23 +246,22 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       }
 
       // Determine when this registrant's session ended
-      // Different logic for attended vs missed
+      // Use SCHEDULE time for live/missed (webinar ends same time for everyone)
+      // Use date_replay for replay watchers (they can watch anytime)
+      const registrantScheduleId = String(registrant.schedule)
+      const scheduledEndTime = scheduleEndTimes.get(registrantScheduleId) || null
+      
       let sessionEndTime: Date | null = null
       
-      if (registrant.date_live) {
-        // They attended live - use actual join time + duration
-        // date_live is when they joined, so session ends at date_live + duration
-        const liveDate = new Date(registrant.date_live)
-        sessionEndTime = new Date(liveDate.getTime() + (webinarDuration * 60 * 1000))
+      if (registrant.attended_live === 1 || !registrant.date_replay) {
+        // LIVE or MISSED: Use scheduled session end time
+        // The live webinar ends at the same time for everyone regardless of when they joined
+        sessionEndTime = scheduledEndTime
       } else if (registrant.date_replay) {
-        // They watched replay - use replay start time + duration
+        // REPLAY: Use when they started replay + duration
+        // (They can watch replay days later, so we wait until they've had time to finish)
         const replayDate = new Date(registrant.date_replay)
         sessionEndTime = new Date(replayDate.getTime() + (webinarDuration * 60 * 1000))
-      } else {
-        // MISSED: They registered but never watched
-        // Use their scheduled session time (with proper timezone) + duration
-        const registrantScheduleId = String(registrant.schedule)
-        sessionEndTime = scheduleEndTimes.get(registrantScheduleId) || null
       }
       
       const sessionHasEnded = sessionEndTime ? Date.now() > sessionEndTime.getTime() : false
