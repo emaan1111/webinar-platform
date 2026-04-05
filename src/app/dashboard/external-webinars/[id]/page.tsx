@@ -17,7 +17,10 @@ import {
   RefreshCw,
   BarChart3,
   Calendar,
-  Trash2
+  Trash2,
+  Code,
+  Copy,
+  Check
 } from 'lucide-react'
 
 interface ExternalWebinar {
@@ -55,6 +58,7 @@ export default function ExternalWebinarDetailPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [copiedEmbed, setCopiedEmbed] = useState(false)
 
   const [formData, setFormData] = useState({
     name: '',
@@ -439,6 +443,74 @@ export default function ExternalWebinarDetailPage() {
                 </p>
               </div>
             )}
+          </CardBody>
+        </Card>
+
+        {/* Embed Code */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Code className="w-5 h-5" /> Embed Registration Form
+            </h2>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Add this registration form to any external page (ClickFunnels, WordPress, etc.). 
+              The form automatically detects the visitor's timezone and shows available sessions in their local time.
+            </p>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Inline Form (shows directly in page)</label>
+              <div className="relative">
+                <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap break-all">
+{`<div id="webinar-registration" 
+     data-webinar-id="${id}"
+     data-api-base="${typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'}">
+</div>
+<script src="${typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'}/embed/webinar-registration.js"></script>`}
+                </pre>
+                <button
+                  onClick={() => {
+                    const code = `<div id="webinar-registration" 
+     data-webinar-id="${id}"
+     data-api-base="${window.location.origin}">
+</div>
+<script src="${window.location.origin}/embed/webinar-registration.js"></script>`;
+                    navigator.clipboard.writeText(code);
+                    setCopiedEmbed(true);
+                    setTimeout(() => setCopiedEmbed(false), 2000);
+                  }}
+                  className="absolute top-2 right-2 p-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition-colors"
+                  title="Copy to clipboard"
+                >
+                  {copiedEmbed ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Popup Modal (with backdrop overlay)</label>
+              <div className="relative">
+                <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-sm overflow-x-auto whitespace-pre-wrap break-all">
+{`<div id="webinar-registration" 
+     data-webinar-id="${id}"
+     data-api-base="${typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'}"
+     data-popup="true">
+</div>
+<script src="${typeof window !== 'undefined' ? window.location.origin : 'https://yourapp.com'}/embed/webinar-registration.js"></script>`}
+                </pre>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-medium text-blue-900 mb-2">Available Options</h4>
+              <ul className="text-sm text-blue-800 space-y-1">
+                <li><code className="bg-blue-100 px-1 rounded">data-button-text="Reserve My Spot"</code> - Custom button text</li>
+                <li><code className="bg-blue-100 px-1 rounded">data-show-phone="false"</code> - Hide phone field</li>
+                <li><code className="bg-blue-100 px-1 rounded">data-redirect-url="https://..."</code> - Redirect after registration</li>
+                <li><code className="bg-blue-100 px-1 rounded">data-lead-page-id="..."</code> - Track which lead page converted</li>
+              </ul>
+            </div>
           </CardBody>
         </Card>
 
