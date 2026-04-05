@@ -4,6 +4,7 @@ import { processEventReminders } from '@/lib/event-reminders'
 import { processPendingClickFunnelsReminderTags } from '@/lib/clickfunnelsReminderTags'
 import { processEndedWebinarsForAttendanceTags } from '@/lib/clickfunnelsAttendanceTags'
 import { processEndedSessionsForPostSMS } from '@/lib/postSessionSmsAutomation'
+import { syncWebinarJamRegistrations } from '@/lib/webinarjamSync'
 
 // POST /api/cron/process-reminders - Process pending reminders
 // This should be called by a cron job every 5-10 minutes
@@ -17,14 +18,22 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('🔔 Cron job: Processing reminders + ClickFunnels tags + attendance tagging + post-session SMS...')
+    console.log('🔔 Cron job: Processing reminders + ClickFunnels tags + attendance tagging + post-session SMS + WebinarJam sync...')
 
-    const [reminderStats, eventReminderStats, clickFunnelsTagStats, attendanceTagStats, postSessionSmsStats] = await Promise.all([
+    const [
+      reminderStats, 
+      eventReminderStats, 
+      clickFunnelsTagStats, 
+      attendanceTagStats, 
+      postSessionSmsStats,
+      webinarJamSyncStats
+    ] = await Promise.all([
       processPendingReminders(),
       processEventReminders(),
       processPendingClickFunnelsReminderTags(),
       processEndedWebinarsForAttendanceTags(),
-      processEndedSessionsForPostSMS()
+      processEndedSessionsForPostSMS(),
+      syncWebinarJamRegistrations()
     ])
 
     return NextResponse.json({
@@ -34,6 +43,7 @@ export async function POST(request: NextRequest) {
       clickFunnelsTagStats,
       attendanceTagStats,
       postSessionSmsStats,
+      webinarJamSyncStats,
       timestamp: new Date().toISOString()
     })
   } catch (error: any) {
