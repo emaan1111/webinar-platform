@@ -187,11 +187,13 @@ export async function applyAttendanceTagOnSessionEnd(
     // Apply tag in ClickFunnels
     const tagToApply = tagInfo.tagId || tagInfo.tagName
     
-    console.log(`📋 Applying ${tagInfo.tagKey} tag (${tagToApply}) to ${registration.email}`, {
+    console.log(`📋 Applying ${tagInfo.tagKey} tag to ${registration.email}`, {
       registrationId,
       reason: tagInfo.reason,
       tagName: tagInfo.tagName,
-      tagId: tagInfo.tagId
+      tagId: tagInfo.tagId,
+      tagToApply,
+      tagToApplyType: typeof tagToApply
     })
 
     const success = await tagClickFunnelsContact(

@@ -328,39 +328,52 @@ export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<num
   console.log(`🔍 Searching for tag: ${searchUrl}`)
 
   const findExistingTag = async (): Promise<number | null> => {
-    const response = await fetch(searchUrl, {
-      method: 'GET',
-      headers
-    })
+    try {
+      const response = await fetch(searchUrl, {
+        method: 'GET',
+        headers
+      })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('❌ Failed to search ClickFunnels tags:', response.status, errorText)
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('❌ Failed to search ClickFunnels tags:', response.status, errorText)
+        return null
+      }
+
+      const searchResult = await response.json()
+      console.log(`📋 Tag search results for "${tagName}":`, JSON.stringify(searchResult, null, 2))
+      
+      const tags = Array.isArray(searchResult)
+        ? searchResult
+        : Array.isArray(searchResult?.data)
+          ? searchResult.data
+          : []
+
+      // Find exact match (ClickFunnels filter might do partial matching)
+      const exactMatch = tags.find((tag: any) => tag.name === tagName)
+      const existingTag = exactMatch || tags[0]
+      
+      if (exactMatch) {
+        console.log(`🏷️ Found exact match tag:`, existingTag)
+      } else if (tags[0]) {
+        console.log(`🏷️ No exact match, using first result:`, existingTag)
+      }
+
+      if (existingTag?.id) {
+        const tagId = typeof existingTag.id === 'string' ? parseInt(existingTag.id, 10) : existingTag.id
+        if (!Number.isNaN(tagId)) {
+          console.log(`✅ Caching tag "${tagName}" with ID: ${tagId}`)
+          clickFunnelsTagCache.set(tagName, tagId)
+          return tagId
+        }
+      }
+
+      console.log(`⚠️ Tag "${tagName}" not found in search results`)
+      return null
+    } catch (error) {
+      console.error(`❌ Error searching for tag "${tagName}":`, error)
       return null
     }
-
-    const searchResult = await response.json()
-    console.log(`📋 Tag search results for "${tagName}":`, JSON.stringify(searchResult, null, 2))
-    
-    const tags = Array.isArray(searchResult)
-      ? searchResult
-      : Array.isArray(searchResult?.data)
-        ? searchResult.data
-        : []
-
-    const existingTag = tags[0]
-    console.log(`🏷️ Found existing tag:`, existingTag)
-
-    if (existingTag?.id) {
-      const tagId = Number(existingTag.id)
-      if (!Number.isNaN(tagId)) {
-        console.log(`✅ Caching tag "${tagName}" with ID: ${tagId}`)
-        clickFunnelsTagCache.set(tagName, tagId)
-        return tagId
-      }
-    }
-
-    return null
   }
 
   try {
@@ -382,11 +395,14 @@ export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<num
       })
     })
 
+    const responseText = await createResponse.text()
+    console.log(`📝 Tag creation response (${createResponse.status}):`, responseText)
+
     if (!createResponse.ok) {
-      const errorText = await createResponse.text()
-      console.error('❌ Failed to create ClickFunnels tag:', createResponse.status, errorText)
+      console.error('❌ Failed to create ClickFunnels tag:', createResponse.status, responseText)
 
       if (createResponse.status === 422) {
+        console.log('🔄 422 error - tag may already exist, retrying lookup...')
         const fallbackId = await findExistingTag()
         if (fallbackId) {
           return fallbackId
@@ -396,14 +412,22 @@ export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<num
       return null
     }
 
-    const createdTag = await createResponse.json()
-    const newTagId = Number(createdTag?.id)
+    let createdTag
+    try {
+      createdTag = JSON.parse(responseText)
+    } catch {
+      console.error('❌ Failed to parse tag creation response as JSON:', responseText)
+      return null
+    }
+    
+    const newTagId = typeof createdTag?.id === 'string' ? parseInt(createdTag.id, 10) : createdTag?.id
 
-    if (Number.isNaN(newTagId)) {
+    if (!newTagId || Number.isNaN(newTagId)) {
       console.error('❌ Created ClickFunnels tag but response did not include a numeric ID', createdTag)
       return null
     }
 
+    console.log(`✅ Created new tag "${tagName}" with ID: ${newTagId}`)
     clickFunnelsTagCache.set(tagName, newTagId)
     return newTagId
   } catch (error) {
@@ -521,8 +545,23 @@ async function applyTagsToContact(
     return false
   }
 
+  if (!contactId || isNaN(contactId)) {
+    console.error('❌ Invalid contact ID provided:', contactId)
+    return false
+  }
+
+  if (!tagIds || tagIds.length === 0) {
+    console.error('❌ No tag IDs provided')
+    return false
+  }
+
   try {
     for (const tagId of tagIds) {
+      if (!tagId || isNaN(tagId)) {
+        console.error(`❌ Invalid tag ID: ${tagId}, skipping`)
+        continue
+      }
+      
       console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
 
       const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
@@ -688,6 +727,14 @@ export async function tagClickFunnelsContact(
       }
     }
 
+    // Ensure contact ID is a number
+    const contactId = typeof contact.id === 'string' ? parseInt(contact.id, 10) : contact.id
+    if (!contactId || isNaN(contactId)) {
+      console.error('❌ Invalid contact ID:', contact.id, 'for email:', normalizedEmail)
+      return false
+    }
+    console.log('📇 Found contact ID:', contactId, 'for email:', normalizedEmail)
+
     const tagIds: number[] = []
 
     for (const tag of tags) {
@@ -700,10 +747,13 @@ export async function tagClickFunnelsContact(
 
       // Handle string tags (names)
       const tagName = String(tag)
+      console.log(`🔍 Looking up tag by name: "${tagName}"`)
       const tagId = await getOrCreateClickFunnelsTagId(tagName)
       if (tagId) {
         console.log(`📌 Resolved tag "${tagName}" to ID: ${tagId}`)
         tagIds.push(tagId)
+      } else {
+        console.error(`❌ Failed to resolve tag "${tagName}" - tag lookup/creation returned null`)
       }
     }
 
@@ -713,10 +763,11 @@ export async function tagClickFunnelsContact(
       return false
     }
 
-    const applied = await applyTagsToContact(contact.id, tagIds)
+    console.log(`🏷️ Applying ${tagIds.length} tag(s) to contact ${contactId}:`, tagIds)
+    const applied = await applyTagsToContact(contactId, tagIds)
     
     if (!applied) {
-      console.error('❌ Failed to apply tags to contact', { contactId: contact.id, tagIds })
+      console.error('❌ Failed to apply tags to contact', { contactId, tagIds })
       return false
     }
 
