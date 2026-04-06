@@ -78,6 +78,25 @@ async function getAttendanceTag(
   }
 
   const w = registration.webinar
+  
+  console.log(`🔍 getAttendanceTag - Webinar tag config for registration:`, {
+    attended: registration.attended,
+    watchTime: {
+      lastWatchedPosition: registration.lastWatchedPosition,
+      replayWatchTime: registration.replayWatchTime,
+    },
+    webinarTags: {
+      attendedTag: w.attendedTag,
+      attendedTagId: w.attendedTagId,
+      mostlyAttendedTag: w.mostlyAttendedTag,
+      mostlyAttendedTagId: w.mostlyAttendedTagId,
+      partlyAttendedTag: w.partlyAttendedTag,
+      partlyAttendedTagId: w.partlyAttendedTagId,
+      missedTag: w.missedTag,
+      missedTagId: w.missedTagId,
+    },
+    threshold: w.mostlyAttendedThreshold
+  })
 
   // Helper to get tagId - only use env fallback if NO custom tag name is set
   // This prevents applying wrong global tag when per-webinar tag name is configured
@@ -186,8 +205,11 @@ export async function applyAttendanceTagOnSessionEnd(
 
     // Get the appropriate tag
     const tagInfo = await getAttendanceTag(registrationId)
+    
+    console.log(`🔎 Tag info for ${registration.email}:`, JSON.stringify(tagInfo, null, 2))
 
     if (!tagInfo.tagName) {
+      console.log(`⚠️ No tag name found for ${registration.email}, tagKey: ${tagInfo.tagKey}`)
       return { 
         success: false, 
         error: `No tag configured for ${tagInfo.tagKey}`,
@@ -196,6 +218,7 @@ export async function applyAttendanceTagOnSessionEnd(
     }
 
     // Apply tag in ClickFunnels
+    // If tagId is a number, use it; otherwise use the tag name for lookup
     const tagToApply = tagInfo.tagId || tagInfo.tagName
     
     console.log(`📋 Applying ${tagInfo.tagKey} tag to ${registration.email}`, {
@@ -204,13 +227,18 @@ export async function applyAttendanceTagOnSessionEnd(
       tagName: tagInfo.tagName,
       tagId: tagInfo.tagId,
       tagToApply,
-      tagToApplyType: typeof tagToApply
+      tagToApplyType: typeof tagToApply,
+      willLookupByName: !tagInfo.tagId
     })
 
+    console.log(`🚀 Calling tagClickFunnelsContact for ${registration.email} with tag:`, tagToApply)
+    
     const success = await tagClickFunnelsContact(
       registration.email,
       [tagToApply]
     )
+    
+    console.log(`📬 tagClickFunnelsContact result for ${registration.email}:`, success)
 
     if (!success) {
       return {

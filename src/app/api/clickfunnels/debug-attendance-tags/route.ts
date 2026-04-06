@@ -6,6 +6,7 @@ import {
   tagClickFunnelsContact,
   getOrCreateClickFunnelsTagId 
 } from '@/lib/clickfunnels'
+import { applyAttendanceTagOnSessionEnd } from '@/lib/clickfunnelsAttendanceTags'
 
 /**
  * POST /api/clickfunnels/debug-attendance-tags
@@ -15,6 +16,7 @@ import {
  * Body options:
  * - { email: 'test@example.com', tagName: 'UM-Webinar-Attended' } - Test specific tag
  * - { registrationId: 'xxx' } - Debug a specific registration
+ * - { registrationId: 'xxx', apply: true } - Actually apply tags to a registration
  * - { listTags: true } - List all tags in the system
  */
 export async function POST(req: NextRequest) {
@@ -30,7 +32,21 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { email, tagName, registrationId, listTags, testLookup } = body
+    const { email, tagName, registrationId, listTags, testLookup, apply } = body
+
+    // Actually apply attendance tags to a registration
+    if (registrationId && apply) {
+      console.log(`🧪 DEBUG: Manually applying attendance tags for registration ${registrationId}`)
+      
+      const result = await applyAttendanceTagOnSessionEnd({ registrationId })
+      
+      return NextResponse.json({
+        message: result.success 
+          ? `Successfully applied tag: ${result.tag}` 
+          : `Failed: ${result.error}`,
+        ...result
+      })
+    }
 
     // Test tag lookup only
     if (testLookup && tagName) {
@@ -217,7 +233,8 @@ export async function POST(req: NextRequest) {
         usage: {
           'Test tag lookup': { testLookup: true, tagName: 'UM-Webinar-Attended' },
           'Test tag application': { email: 'test@example.com', tagName: 'UM-Webinar-Attended' },
-          'Debug registration': { registrationId: 'xxx' }
+          'Debug registration': { registrationId: 'xxx' },
+          'Apply tags to registration': { registrationId: 'xxx', apply: true }
         }
       },
       { status: 400 }
