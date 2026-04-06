@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       email,
       contactFound: result.success,
-      contactId: result.contactId,
+      contactId: result.contact?.id,
       tagsCount: result.tags?.length || 0,
       tags: result.tags?.map((t: any) => t.tag?.name || t.name || 'Unknown') || [],
       applyResult,
