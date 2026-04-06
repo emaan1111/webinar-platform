@@ -517,6 +517,7 @@ async function applyTagsToContact(
   const apiKey = process.env.CLICKFUNNELS_API_KEY
 
   if (!apiKey) {
+    console.error('❌ CLICKFUNNELS_API_KEY not set')
     return false
   }
 
@@ -552,13 +553,23 @@ async function applyTagsToContact(
         continue
       }
 
-      console.error(`   ❌ Failed to apply tag ${tagId}:`, response.status, errorText)
+      console.error(`   ❌ Failed to apply tag ${tagId}:`, {
+        status: response.status,
+        statusText: response.statusText,
+        error: errorText,
+        contactId,
+        url
+      })
       return false
     }
 
     return true
   } catch (error) {
-    console.error('❌ Failed to apply tags:', error)
+    console.error('❌ Failed to apply tags (exception):', {
+      error: error instanceof Error ? error.message : error,
+      contactId,
+      tagIds
+    })
     return false
   }
 }
@@ -698,13 +709,14 @@ export async function tagClickFunnelsContact(
 
     if (tagIds.length === 0) {
       console.log('⚠️ No valid ClickFunnels tag IDs resolved - skipping tagging')
+      console.log('⚠️ Original tags were:', tags)
       return false
     }
 
     const applied = await applyTagsToContact(contact.id, tagIds)
     
     if (!applied) {
-      console.error('❌ Failed to apply tags to contact')
+      console.error('❌ Failed to apply tags to contact', { contactId: contact.id, tagIds })
       return false
     }
 
