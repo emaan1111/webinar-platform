@@ -302,6 +302,70 @@ async function findContactByEmailWithRetry(
   return null
 }
 
+/**
+ * Get contact details from ClickFunnels including their tags
+ * Useful for debugging tag application
+ */
+export async function getClickFunnelsContactTags(
+  email: string
+): Promise<{ success: boolean; contact?: any; tags?: Array<{ id: number; name: string }>; error?: string }> {
+  const apiKey = process.env.CLICKFUNNELS_API_KEY
+  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
+  const normalizedEmail = email.trim().toLowerCase()
+
+  if (!apiKey || !workspaceId) {
+    return { success: false, error: 'ClickFunnels API not configured' }
+  }
+
+  try {
+    const contact = await findContactByEmailWithRetry(normalizedEmail, apiKey, workspaceId)
+    
+    if (!contact) {
+      return { success: false, error: 'Contact not found in ClickFunnels' }
+    }
+
+    // Get full contact details with tags
+    const contactId = typeof contact.id === 'string' ? parseInt(contact.id, 10) : contact.id
+    const detailUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contactId}`
+    
+    const response = await fetch(detailUrl, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Accept': 'application/json',
+      }
+    })
+
+    if (!response.ok) {
+      return { 
+        success: true, 
+        contact: { id: contactId, email: normalizedEmail },
+        tags: contact.tags || [],
+        error: 'Could not fetch full contact details'
+      }
+    }
+
+    const fullContact = await response.json()
+    const tags = fullContact.tags || fullContact.data?.tags || contact.tags || []
+    
+    return {
+      success: true,
+      contact: {
+        id: contactId,
+        email: fullContact.email_address || normalizedEmail,
+        first_name: fullContact.first_name,
+        last_name: fullContact.last_name
+      },
+      tags: tags.map((t: any) => ({ id: t.id, name: t.name }))
+    }
+  } catch (error) {
+    return { 
+      success: false, 
+      error: error instanceof Error ? error.message : 'Unknown error' 
+    }
+  }
+}
+
 export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
   const cachedId = clickFunnelsTagCache.get(tagName)
   if (cachedId) {

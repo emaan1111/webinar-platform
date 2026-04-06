@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { 
   tagClickFunnelsContact,
-  getOrCreateClickFunnelsTagId 
+  getOrCreateClickFunnelsTagId,
+  getClickFunnelsContactTags
 } from '@/lib/clickfunnels'
 import { applyAttendanceTagOnSessionEnd } from '@/lib/clickfunnelsAttendanceTags'
 
@@ -17,6 +18,7 @@ import { applyAttendanceTagOnSessionEnd } from '@/lib/clickfunnelsAttendanceTags
  * - { email: 'test@example.com', tagName: 'UM-Webinar-Attended' } - Test specific tag
  * - { registrationId: 'xxx' } - Debug a specific registration
  * - { registrationId: 'xxx', apply: true } - Actually apply tags to a registration
+ * - { checkContact: 'email@example.com' } - Check current tags for a contact
  * - { listTags: true } - List all tags in the system
  */
 export async function POST(req: NextRequest) {
@@ -32,7 +34,19 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { email, tagName, registrationId, listTags, testLookup, apply } = body
+    const { email, tagName, registrationId, listTags, testLookup, apply, checkContact } = body
+
+    // Check current tags for a contact in ClickFunnels
+    if (checkContact) {
+      console.log(`🔍 Checking ClickFunnels tags for: ${checkContact}`)
+      const result = await getClickFunnelsContactTags(checkContact)
+      return NextResponse.json({
+        message: result.success 
+          ? `Found ${result.tags?.length || 0} tags for ${checkContact}`
+          : `Failed: ${result.error}`,
+        ...result
+      })
+    }
 
     // Actually apply attendance tags to a registration
     if (registrationId && apply) {
