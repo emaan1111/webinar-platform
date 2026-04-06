@@ -79,11 +79,22 @@ async function getAttendanceTag(
 
   const w = registration.webinar
 
+  // Helper to get tagId - only use env fallback if NO custom tag name is set
+  // This prevents applying wrong global tag when per-webinar tag name is configured
+  const getTagId = (customTagName: string | null | undefined, customTagId: number | null | undefined, envKey: string): number | null => {
+    // If webinar has a custom tag ID, use it
+    if (customTagId) return customTagId
+    // If webinar has a custom tag NAME (but no ID), don't fall back to env - let it resolve by name
+    if (customTagName) return null
+    // No custom tag configured, use env var
+    return getTagIdFromEnv(envKey)
+  }
+
   // If never attended, tag as MISSED
   if (!registration.attended) {
     return {
       tagName: normalizeAttendanceTagAlias(w.missedTag || 'UM-Webinar-Missed'),
-      tagId: w.missedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_MISSED'),
+      tagId: getTagId(w.missedTag, w.missedTagId, 'CLICKFUNNELS_TAG_MISSED'),
       tagKey: 'MISSED',
       reason: 'Never attended'
     }
@@ -111,7 +122,7 @@ async function getAttendanceTag(
     // Watched past the threshold - MOSTLY_ATTENDED
     return {
       tagName: normalizeAttendanceTagAlias(w.mostlyAttendedTag || 'UM-WebinarMostlyAttended'),
-      tagId: w.mostlyAttendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_MOSTLY_ATTENDED'),
+      tagId: getTagId(w.mostlyAttendedTag, w.mostlyAttendedTagId, 'CLICKFUNNELS_TAG_MOSTLY_ATTENDED'),
       tagKey: 'MOSTLY_ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, past threshold ${threshold}s`
     }
@@ -119,7 +130,7 @@ async function getAttendanceTag(
     // Attended but didn't reach threshold - PARTLY_ATTENDED
     return {
       tagName: normalizeAttendanceTagAlias(w.partlyAttendedTag || 'UM-Webinar-PartlyAttended'),
-      tagId: w.partlyAttendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_PARTLY_ATTENDED'),
+      tagId: getTagId(w.partlyAttendedTag, w.partlyAttendedTagId, 'CLICKFUNNELS_TAG_PARTLY_ATTENDED'),
       tagKey: 'PARTLY_ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, before threshold ${threshold}s`
     }
@@ -127,7 +138,7 @@ async function getAttendanceTag(
     // No threshold configured, just mark as ATTENDED
     return {
       tagName: normalizeAttendanceTagAlias(w.attendedTag || 'UM-Webinar-Attended'),
-      tagId: w.attendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_ATTENDED'),
+      tagId: getTagId(w.attendedTag, w.attendedTagId, 'CLICKFUNNELS_TAG_ATTENDED'),
       tagKey: 'ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, no threshold configured`
     }
@@ -675,12 +686,19 @@ export async function reapplyAttendanceTagsAfterReplay(
 
     const tagsToApply: (string|number)[] = []
 
+    // Helper to get tagId - only use env fallback if NO custom tag name is set
+    const getReplayTagId = (customTagName: string | null | undefined, customTagId: number | null | undefined, envKey: string): number | null => {
+      if (customTagId) return customTagId
+      if (customTagName) return null // Custom name set, don't use env
+      return getTagIdFromEnv(envKey)
+    }
+
     // If they were previously tagged as MISSED, we should remove that tag
     // Note: ClickFunnels doesn't have a remove tag API, but we can skip re-applying it
     
     // ATTENDED - Always tag replay viewers as attended
     const attendedTag = normalizeAttendanceTagAlias(registration.webinar.attendedTag || 'UM-Webinar-Attended')
-    const attendedTagId = registration.webinar.attendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_ATTENDED')
+    const attendedTagId = getReplayTagId(registration.webinar.attendedTag, registration.webinar.attendedTagId, 'CLICKFUNNELS_TAG_ATTENDED')
     
     await tagClickFunnelsContact(registration.email, [attendedTagId || attendedTag])
     tagsToApply.push(attendedTagId || attendedTag)
@@ -688,7 +706,7 @@ export async function reapplyAttendanceTagsAfterReplay(
 
     // REPLAY_ATTENDED - Special tag for replay viewers
     const replayTag = normalizeAttendanceTagAlias(registration.webinar.replayAttendedTag || 'UM-Webinar-ReplayAttended')
-    const replayTagId = registration.webinar.replayAttendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_REPLAY_ATTENDED')
+    const replayTagId = getReplayTagId(registration.webinar.replayAttendedTag, registration.webinar.replayAttendedTagId, 'CLICKFUNNELS_TAG_REPLAY_ATTENDED')
     
     await tagClickFunnelsContact(registration.email, [replayTagId || replayTag])
     tagsToApply.push(replayTagId || replayTag)
@@ -698,7 +716,7 @@ export async function reapplyAttendanceTagsAfterReplay(
     if (threshold && replayWatchTime >= threshold) {
       // Watched past the threshold
       const mostlyTag = normalizeAttendanceTagAlias(registration.webinar.mostlyAttendedTag || 'UM-WebinarMostlyAttended')
-      const mostlyTagId = registration.webinar.mostlyAttendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_MOSTLY_ATTENDED')
+      const mostlyTagId = getReplayTagId(registration.webinar.mostlyAttendedTag, registration.webinar.mostlyAttendedTagId, 'CLICKFUNNELS_TAG_MOSTLY_ATTENDED')
 
       await tagClickFunnelsContact(registration.email, [mostlyTagId || mostlyTag])
       tagsToApply.push(mostlyTagId || mostlyTag)
@@ -706,7 +724,7 @@ export async function reapplyAttendanceTagsAfterReplay(
     } else if (replayWatchTime >= 2400) {
       // Watched at least 40 minutes but didn't reach threshold
       const partlyTag = normalizeAttendanceTagAlias(registration.webinar.partlyAttendedTag || 'UM-Webinar-PartlyAttended')
-      const partlyTagId = registration.webinar.partlyAttendedTagId || getTagIdFromEnv('CLICKFUNNELS_TAG_PARTLY_ATTENDED')
+      const partlyTagId = getReplayTagId(registration.webinar.partlyAttendedTag, registration.webinar.partlyAttendedTagId, 'CLICKFUNNELS_TAG_PARTLY_ATTENDED')
       
       await tagClickFunnelsContact(registration.email, [partlyTagId || partlyTag])
       tagsToApply.push(partlyTagId || partlyTag)
