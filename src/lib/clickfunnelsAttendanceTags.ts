@@ -203,6 +203,13 @@ export async function applyAttendanceTagOnSessionEnd(
       return { success: false, error: 'No email address' }
     }
 
+    console.log('🎟️ Attendance tagging candidate', {
+      registrationId: registration.id,
+      webinarId: registration.webinarId,
+      email: registration.email,
+      alreadyTagged: registration.attendanceTagsApplied,
+    })
+
     // Get the appropriate tag
     const tagInfo = await getAttendanceTag(registrationId)
     
@@ -248,15 +255,27 @@ export async function applyAttendanceTagOnSessionEnd(
     }
 
     // Mark as tagged
+    const taggedAt = new Date()
+
     await prisma.registration.update({
       where: { id: registrationId },
       data: {
         attendanceTagsApplied: true,
-        attendanceTagsAppliedAt: new Date()
+        attendanceTagsAppliedAt: taggedAt
       }
     })
 
-    console.log(`✅ Successfully applied ${tagInfo.tagKey} tag to ${registration.email}`)
+    console.log('✅ Attendance tag pipeline complete', {
+      registrationId,
+      webinarId: registration.webinarId,
+      email: registration.email,
+      tagKey: tagInfo.tagKey,
+      tagName: tagInfo.tagName,
+      tagId: tagInfo.tagId ?? null,
+      tagToApply,
+      reason: tagInfo.reason,
+      attendanceTagsAppliedAt: taggedAt.toISOString(),
+    })
 
     return {
       success: true,
@@ -602,6 +621,14 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
     }
 
     console.log(`📋 Found ${endedSessions.length} ended sessions that need attendance tagging`)
+    console.log('📦 Attendance tagging batch', endedSessions.map((registration: any) => ({
+      registrationId: registration.id,
+      webinarId: registration.webinar.id,
+      webinarTitle: registration.webinar.title,
+      email: registration.email,
+      attended: registration.attended,
+      scheduledStartTime: registration.scheduledStartTime?.toISOString?.() ?? registration.scheduledStartTime,
+    })))
 
     let totalTagged = 0
     let totalErrors = 0

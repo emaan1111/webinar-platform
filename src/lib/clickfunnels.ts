@@ -836,7 +836,12 @@ export async function tagClickFunnelsContact(
       return false
     }
 
-    console.log('✅ Contact tagged successfully:', tagIds)
+    console.log('✅ Contact tagged successfully', {
+      email: normalizedEmail,
+      contactId,
+      originalTags: tags,
+      resolvedTagIds: tagIds,
+    })
     return true
   } catch (error) {
     console.error('❌ Failed to tag contact:', error)
