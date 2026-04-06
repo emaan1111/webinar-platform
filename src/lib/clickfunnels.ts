@@ -603,9 +603,10 @@ async function applyTagsToContact(
   tagIds: number[]
 ): Promise<boolean> {
   const apiKey = process.env.CLICKFUNNELS_API_KEY
+  const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
 
-  if (!apiKey) {
-    console.error('❌ CLICKFUNNELS_API_KEY not set')
+  if (!apiKey || !workspaceId) {
+    console.error('❌ CLICKFUNNELS_API_KEY or CLICKFUNNELS_WORKSPACE_ID not set')
     return false
   }
 
@@ -628,7 +629,7 @@ async function applyTagsToContact(
       
       console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
 
-      const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
+      const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contactId}/applied_tags`
 
       const response = await fetch(url, {
         method: 'POST',
