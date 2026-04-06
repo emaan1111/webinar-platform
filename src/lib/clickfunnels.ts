@@ -701,7 +701,12 @@ export async function tagClickFunnelsContact(
       return false
     }
 
-    await applyTagsToContact(contact.id, tagIds)
+    const applied = await applyTagsToContact(contact.id, tagIds)
+    
+    if (!applied) {
+      console.error('❌ Failed to apply tags to contact')
+      return false
+    }
 
     console.log('✅ Contact tagged successfully:', tagIds)
     return true
