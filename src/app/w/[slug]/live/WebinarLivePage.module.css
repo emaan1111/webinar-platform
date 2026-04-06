@@ -37,26 +37,27 @@
 .container {
   max-width: 1800px;
   margin: 0 auto;
-  padding: 20px 40px;
-  transition: margin-right 0.3s ease, padding-right 0.3s ease;
+  padding: 20px;
+  padding-left: 40px;
+  padding-right: 40px;
+  transition: margin-right 0.3s ease, padding 0.3s ease;
 }
 
 .chatOpen {
   margin-right: var(--sidebar-width);
-  padding-right: 20px;
+  margin-left: 0;
+  padding-left: 30px;
 }
 
 .webinarLayout {
   display: flex;
   gap: 30px;
   flex-wrap: wrap;
-  justify-content: center;
 }
 
 .mainContent {
   flex: 1;
-  min-width: 500px;
-  max-width: 1000px;
+  min-width: 300px;
 }
 
 .videoContainer {
@@ -690,7 +691,7 @@
 }
 
 .sidebar {
-  width: 380px;
+  width: 340px;
   display: flex;
   flex-direction: column;
   gap: 25px;
@@ -1274,11 +1275,6 @@
 }
 
 @media (max-width: 1024px) {
-  .mainContent {
-    min-width: 300px;
-    max-width: none;
-  }
-
   .sidebar {
     width: 100%;
     flex-direction: row;

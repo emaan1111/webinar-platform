@@ -2,6 +2,7 @@
 // Documentation: https://apidocs.myclickfunnels.com/
 
 import { prisma } from '@/lib/prisma';
+import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 
 interface ClickFunnelsContact {
   email_address: string  // CF uses email_address not email
@@ -28,7 +29,21 @@ interface ClickFunnelsContactResponse {
   }>
 }
 
-const CLICKFUNNELS_API_BASE = 'https://api.myclickfunnels.com/api/v2'
+function getClickFunnelsApiBase(): string {
+  const configuredBase = process.env.CLICKFUNNELS_API_BASE?.trim()
+  if (configuredBase) {
+    return configuredBase.replace(/\/$/, '')
+  }
+
+  const configuredSubdomain = process.env.CLICKFUNNELS_SUBDOMAIN?.trim()
+  if (configuredSubdomain) {
+    return `https://${configuredSubdomain}.myclickfunnels.com/api/v2`
+  }
+
+  return 'https://api.myclickfunnels.com/api/v2'
+}
+
+const CLICKFUNNELS_API_BASE = getClickFunnelsApiBase()
 const DEFAULT_WEBINAR_TAG_NAME = 'UM-Webinar-Registered'
 
 /**
@@ -764,10 +779,21 @@ export async function tagClickFunnelsContact(
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
   const normalizedEmail = email.trim().toLowerCase()
+  const mauticTagNames = Array.from(
+    new Set(
+      tags
+        .map(tag => String(tag).trim())
+        .filter(tag => tag.length > 0 && !/^\d+$/.test(tag))
+    )
+  )
 
   if (!apiKey || !workspaceId) {
     console.log('⚠️ ClickFunnels API not configured - skipping tagging')
-    return false
+    if (mauticTagNames.length === 0) {
+      return false
+    }
+
+    return await tagMauticContact(normalizedEmail, mauticTagNames)
   }
 
   try {
@@ -832,6 +858,22 @@ export async function tagClickFunnelsContact(
     const applied = await applyTagsToContact(contactId, tagIds)
     
     if (!applied) {
+      const existingTagsResult = await getClickFunnelsContactTags(normalizedEmail)
+      const existingTagIds = new Set((existingTagsResult.tags || []).map((tag) => Number(tag.id)))
+      const alreadyTagged =
+        existingTagsResult.success &&
+        tagIds.every((tagId) => existingTagIds.has(tagId))
+
+      if (alreadyTagged) {
+        console.log('ℹ️ Contact already has requested ClickFunnels tag(s); treating as success', {
+          email: normalizedEmail,
+          contactId,
+          requestedTagIds: tagIds,
+          existingTags: existingTagsResult.tags,
+        })
+        return true
+      }
+
       console.error('❌ Failed to apply tags to contact', { contactId, tagIds })
       return false
     }
@@ -842,6 +884,11 @@ export async function tagClickFunnelsContact(
       originalTags: tags,
       resolvedTagIds: tagIds,
     })
+
+    if (mauticTagNames.length > 0) {
+      await tagMauticContact(normalizedEmail, mauticTagNames)
+    }
+
     return true
   } catch (error) {
     console.error('❌ Failed to tag contact:', error)
@@ -874,11 +921,22 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
 }): Promise<{ success: boolean; contactId?: number }> {
   try {
     const registeredTagId = await resolveAttendanceTagId('registered', data.customTags)
+    const registrationTagName = getAttendanceTagName('registered', data.customTags)
 
     // Split name into first and last
     const nameParts = data.name.trim().split(' ')
     const firstName = nameParts[0]
     const lastName = nameParts.slice(1).join(' ') || ''
+
+    const mauticResult = await syncContactToMautic({
+      email: data.email,
+      firstName,
+      lastName,
+      phone: data.phone,
+      country: data.country,
+      timezone: data.timezone,
+      tags: registrationTagName ? [registrationTagName] : undefined,
+    })
 
     // Prepare contact data
     const contactData: ClickFunnelsContact = {
@@ -948,7 +1006,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
 
     if (!result) {
       console.log('⚠️ Contact not synced to ClickFunnels (API not configured or error)')
-      return { success: false }
+      return { success: mauticResult.success }
     }
 
     console.log('✅ Webinar registration synced to ClickFunnels:', {

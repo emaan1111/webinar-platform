@@ -12,6 +12,7 @@ import {
   WebinarJamRegistrant,
 } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
+import { syncContactToMautic } from '@/lib/mautic'
 import { sendClickSendSMS } from '@/lib/clicksend'
 
 /**
@@ -215,6 +216,15 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
           const sent = await sendToFacebookCAPI(extWebinar, registrant)
           if (sent) fbSentCount++
         }
+
+        const registrantFullName = getRegistrantFullName(registrant)
+        const [derivedFirstName, ...derivedLastNameParts] = registrantFullName.split(' ')
+        await syncContactToMautic({
+          email,
+          firstName: registrant.first_name || derivedFirstName || null,
+          lastName: registrant.last_name || derivedLastNameParts.join(' ') || null,
+          phone: getRegistrantPhone(registrant),
+        })
 
         // Apply registration tag
         if (extWebinar.registrationTag) {

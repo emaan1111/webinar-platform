@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
 import { registerUserToWebinar, isWebinarJamConfigured } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
+import { syncContactToMautic } from '@/lib/mautic'
 
 /**
  * External Webinar Registration API
@@ -200,6 +201,16 @@ export async function POST(
     }
 
     // Apply ClickFunnels registration tag if configured
+    syncContactToMautic({
+      email: email.toLowerCase(),
+      firstName,
+      lastName,
+      phone,
+      timezone,
+    }).catch(err => {
+      console.error('Mautic contact sync error:', err)
+    })
+
     if (externalWebinar.registrationTag) {
       applyReminderTagToContact(email.toLowerCase(), externalWebinar.registrationTag)
         .catch(err => console.error('ClickFunnels tag error:', err))

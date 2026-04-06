@@ -1,0 +1,233 @@
+interface MauticContact {
+  id: number
+  fields?: {
+    all?: Record<string, unknown>
+  }
+  tags?: Array<{
+    tag?: string
+  }>
+}
+
+interface SyncMauticContactInput {
+  email: string
+  firstName?: string | null
+  lastName?: string | null
+  phone?: string | null
+  country?: string | null
+  timezone?: string | null
+  tags?: string[]
+  customFields?: Record<string, string | null | undefined>
+}
+
+function getMauticBaseUrl(): string | null {
+  const baseUrl = process.env.MAUTIC_BASE_URL?.trim()
+  if (!baseUrl) {
+    return null
+  }
+
+  return baseUrl.replace(/\/$/, '')
+}
+
+function getConfiguredMauticFieldAliases() {
+  return {
+    phone: process.env.MAUTIC_PHONE_FIELD_ALIAS?.trim() || 'phone',
+    country: process.env.MAUTIC_COUNTRY_FIELD_ALIAS?.trim() || null,
+    timezone: process.env.MAUTIC_TIMEZONE_FIELD_ALIAS?.trim() || null,
+  }
+}
+
+function buildMauticAuthHeaders(): HeadersInit | null {
+  const accessToken = process.env.MAUTIC_ACCESS_TOKEN?.trim()
+  if (accessToken) {
+    return {
+      Authorization: `Bearer ${accessToken}`,
+    }
+  }
+
+  const username = process.env.MAUTIC_USERNAME?.trim() || process.env.MAUTIC_API_USERNAME?.trim()
+  const password = process.env.MAUTIC_PASSWORD ?? process.env.MAUTIC_API_PASSWORD
+
+  if (username && password) {
+    const encoded = Buffer.from(`${username}:${password}`).toString('base64')
+    return {
+      Authorization: `Basic ${encoded}`,
+    }
+  }
+
+  return null
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase()
+}
+
+function normalizeTagNames(tags?: string[]): string[] {
+  if (!tags) return []
+
+  return Array.from(
+    new Set(
+      tags
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
+    )
+  )
+}
+
+function extractFirstContact(payload: any): MauticContact | null {
+  if (!payload) return null
+
+  if (payload.contact?.id) {
+    return payload.contact as MauticContact
+  }
+
+  if (payload.contacts && typeof payload.contacts === 'object') {
+    const firstContact = Object.values(payload.contacts)[0]
+    if (firstContact && typeof firstContact === 'object' && 'id' in firstContact) {
+      return firstContact as MauticContact
+    }
+  }
+
+  return null
+}
+
+async function mauticRequest(path: string, init: RequestInit = {}): Promise<Response> {
+  const baseUrl = getMauticBaseUrl()
+  const authHeaders = buildMauticAuthHeaders()
+
+  if (!baseUrl || !authHeaders) {
+    throw new Error('Mautic API not configured')
+  }
+
+  const headers: HeadersInit = {
+    Accept: 'application/json',
+    ...authHeaders,
+    ...(init.headers || {}),
+  }
+
+  return fetch(`${baseUrl}/api${path}`, {
+    ...init,
+    headers,
+  })
+}
+
+export function isMauticConfigured(): boolean {
+  return !!(getMauticBaseUrl() && buildMauticAuthHeaders())
+}
+
+export async function findMauticContactByEmail(email: string): Promise<MauticContact | null> {
+  if (!isMauticConfigured()) {
+    return null
+  }
+
+  const normalizedEmail = normalizeEmail(email)
+
+  try {
+    const response = await mauticRequest(`/contacts?search=${encodeURIComponent(`email:${normalizedEmail}`)}`, {
+      method: 'GET',
+    })
+
+    if (!response.ok) {
+      const details = await response.text()
+      console.error('❌ Failed to search Mautic contact:', response.status, details)
+      return null
+    }
+
+    const payload = await response.json()
+    return extractFirstContact(payload)
+  } catch (error) {
+    console.error('❌ Mautic contact lookup failed:', error)
+    return null
+  }
+}
+
+export async function syncContactToMautic(input: SyncMauticContactInput): Promise<{ success: boolean; contactId?: number }> {
+  if (!isMauticConfigured()) {
+    console.log('⚠️ Mautic API not configured - skipping contact sync')
+    return { success: false }
+  }
+
+  const normalizedEmail = normalizeEmail(input.email)
+  const fieldAliases = getConfiguredMauticFieldAliases()
+  const tags = normalizeTagNames(input.tags)
+
+  try {
+    const existingContact = await findMauticContactByEmail(normalizedEmail)
+
+    const payload: Record<string, unknown> = {
+      email: normalizedEmail,
+      overwriteWithBlank: false,
+    }
+
+    if (input.firstName?.trim()) payload.firstname = input.firstName.trim()
+    if (input.lastName?.trim()) payload.lastname = input.lastName.trim()
+    if (input.phone?.trim()) payload[fieldAliases.phone] = input.phone.trim()
+    if (fieldAliases.country && input.country?.trim()) payload[fieldAliases.country] = input.country.trim()
+    if (fieldAliases.timezone && input.timezone?.trim()) payload[fieldAliases.timezone] = input.timezone.trim()
+
+    for (const [alias, value] of Object.entries(input.customFields || {})) {
+      if (!alias.trim() || !value?.trim()) continue
+      payload[alias.trim()] = value.trim()
+    }
+
+    if (tags.length > 0) {
+      payload.tags = tags
+    }
+
+    const response = existingContact
+      ? await mauticRequest(`/contacts/${existingContact.id}/edit`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
+      : await mauticRequest('/contacts/new', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        })
+
+    if (!response.ok) {
+      const details = await response.text()
+      console.error('❌ Mautic contact sync failed:', response.status, details)
+      return { success: false }
+    }
+
+    const result = await response.json()
+    const syncedContact = extractFirstContact(result)
+
+    console.log(`✅ Mautic contact ${existingContact ? 'updated' : 'created'}: ${normalizedEmail}`)
+    return {
+      success: true,
+      contactId: syncedContact?.id,
+    }
+  } catch (error) {
+    console.error('❌ Failed to sync contact to Mautic:', error)
+    return { success: false }
+  }
+}
+
+export async function tagMauticContact(email: string, tags: string[]): Promise<boolean> {
+  const normalizedTags = normalizeTagNames(tags)
+
+  if (normalizedTags.length === 0) {
+    return false
+  }
+
+  const result = await syncContactToMautic({
+    email,
+    tags: normalizedTags,
+  })
+
+  if (result.success) {
+    console.log(`✅ Mautic tags applied to ${normalizeEmail(email)}: ${normalizedTags.join(', ')}`)
+  }
+
+  return result.success
+}
+
+export async function applyMauticTagToContact(email: string, tagName: string): Promise<boolean> {
+  return tagMauticContact(email, [tagName])
+}
