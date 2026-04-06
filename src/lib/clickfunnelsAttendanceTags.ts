@@ -611,36 +611,18 @@ export async function processEndedWebinarsForAttendanceTags(): Promise<{
       console.log(`\n🎯 Processing: ${registration.name} (${registration.email}) - ${registration.webinar.title}`)
       
       try {
-        // Determine which tag to apply
-        const tagResult = await getAttendanceTag(registration.id)
-        
-        console.log(`   📌 Tag: ${tagResult.tagName}, Reason: ${tagResult.reason}`)
-
-        // Apply the tag if we have an email
-        if (registration.email) {
-          const tagToApply = tagResult.tagId || tagResult.tagName
-          
-          if (tagToApply) {
-            await tagClickFunnelsContact(registration.email, [tagToApply])
-            console.log(`   ✅ Applied ${tagResult.tagName} (ID: ${tagResult.tagId || 'N/A'})`)
-            totalTagged++
-          } else {
-             console.log(`   ⚠️ No tag resolved to apply`)
-          }
-        } else if (!registration.email) {
-          console.log(`   ⚠️ No email address`)
-        }
-
-        // Mark as processed
-        await prisma.registration.update({
-          where: { id: registration.id },
-          data: {
-            attendanceTagsApplied: true,
-            attendanceTagsAppliedAt: new Date()
-          }
+        const result = await applyAttendanceTagOnSessionEnd({
+          registrationId: registration.id
         })
 
-        webinarsProcessed.add(registration.webinar.id)
+        if (result.success) {
+          console.log(`   ✅ Applied ${result.tag || 'attendance tag'}: ${result.reason || 'No reason provided'}`)
+          totalTagged++
+          webinarsProcessed.add(registration.webinar.id)
+        } else {
+          console.log(`   ⚠️ Skipped ${registration.email}: ${result.error || result.reason || 'Unknown reason'}`)
+          totalErrors++
+        }
       } catch (error) {
         console.error(`   ❌ Failed to process registration ${registration.id}:`, error)
         totalErrors++

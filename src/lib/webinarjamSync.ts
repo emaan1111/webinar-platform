@@ -451,8 +451,14 @@ async function sendToFacebookCAPI(extWebinar: any, registrant: WebinarJamRegistr
  */
 async function applyTag(email: string, tagName: string): Promise<boolean> {
   try {
-    await applyReminderTagToContact(email, tagName)
-    return true
+    const normalizedTagName = tagName.trim()
+
+    if (!normalizedTagName) {
+      console.error(`  ❌ Empty tag name for ${email}`)
+      return false
+    }
+
+    return await applyReminderTagToContact(email, normalizedTagName)
   } catch (error) {
     console.error(`  ❌ Tag error for ${email}:`, error)
     return false
@@ -490,7 +496,10 @@ async function applyAttendanceTags(
       break
   }
 
-  if (!tagToApply) return false
+  if (!tagToApply?.trim()) {
+    console.log(`  ⚠️ No attendance tag configured for ${email} (${category})`)
+    return false
+  }
 
   const applied = await applyTag(email, tagToApply)
   
