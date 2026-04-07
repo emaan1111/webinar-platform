@@ -103,10 +103,8 @@ async function getAttendanceTag(
   const getTagId = (customTagName: string | null | undefined, customTagId: number | null | undefined, envKey: string): number | null => {
     // If webinar has a custom tag ID, use it
     if (customTagId) return customTagId
-    // If webinar has a custom tag NAME (but no ID), don't fall back to env - let it resolve by name
-    if (customTagName) return null
-    // No custom tag configured, use env var
-    return getTagIdFromEnv(envKey)
+    // Resolve attendance tags by name to avoid stale global env IDs applying the wrong tag.
+    return null
   }
 
   // If never attended, tag as MISSED
@@ -726,8 +724,7 @@ export async function reapplyAttendanceTagsAfterReplay(
     // Helper to get tagId - only use env fallback if NO custom tag name is set
     const getReplayTagId = (customTagName: string | null | undefined, customTagId: number | null | undefined, envKey: string): number | null => {
       if (customTagId) return customTagId
-      if (customTagName) return null // Custom name set, don't use env
-      return getTagIdFromEnv(envKey)
+      return null
     }
 
     // If they were previously tagged as MISSED, we should remove that tag

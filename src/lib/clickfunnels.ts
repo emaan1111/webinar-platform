@@ -234,8 +234,9 @@ function getConfiguredAttendanceTagId(tagKey: AttendanceTagKey, customTags?: Web
     return configuredWebinarTagId
   }
 
-  const envKey = ATTENDANCE_TAG_ENV_KEYS[tagKey as Exclude<AttendanceTagKey, 'registered'>]
-  return parseTagId(process.env[envKey])
+  // Attendance tags are safer to resolve by name because production env tag IDs
+  // can drift independently of the webinar-configured/default tag names.
+  return null
 }
 
 async function resolveAttendanceTagId(tagKey: AttendanceTagKey, customTags?: WebinarCustomTags): Promise<number | null> {
