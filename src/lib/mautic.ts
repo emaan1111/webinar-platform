@@ -250,11 +250,12 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
     }
     // Skip timezone - Mautic has strict validation that rejects many valid IANA timezone names
 
-    // Known datetime fields that need special formatting
-    const datetimeFields = ['webinar_scheduled_time', 'webinar_registration_date']
+    // Known datetime fields that need special formatting (MySQL format: YYYY-MM-DD HH:MM:SS)
+    // Note: webinar_scheduled_time is now pre-formatted as user-friendly text with timezone
+    const datetimeFields = ['webinar_registration_date']
     // Fields that should be truncated to 64 characters (TEXT type default limit)
     const shortTextFields = ['webinar_name', 'webinar_attendance_status', 'webinar_referral_code']
-    // webinar_link is now TEXT type and can handle full URLs (255 chars)
+    // webinar_link and webinar_scheduled_time are TEXTAREA type - can handle longer values
     
     for (const [alias, value] of Object.entries(input.customFields || {})) {
       if (!alias.trim() || value === null || value === undefined) continue
@@ -273,7 +274,7 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
         // Truncate short text fields to 64 chars (Mautic default TEXT limit)
         payload[trimmedAlias] = truncateForMautic(trimmedValue, 64)
       } else {
-        // webinar_link and other fields - no truncation needed
+        // webinar_link, webinar_scheduled_time and other fields - no truncation needed
         payload[trimmedAlias] = trimmedValue
       }
     }

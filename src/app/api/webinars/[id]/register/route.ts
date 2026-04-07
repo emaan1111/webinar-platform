@@ -293,11 +293,61 @@ export async function POST(
     } else if (crmIntegration === 'MAUTIC') {
       console.log('🚀 Syncing registration to Mautic BEFORE response...');
       try {
+        // Format scheduled time in user-friendly way with their timezone
+        let friendlyScheduledTime: string | undefined;
+        if (registration.scheduledStartTime) {
+          const userTimezone = registration.timezone || timezone || 'America/New_York';
+          try {
+            // Format: "8:00 PM, April 8, 2026"
+            const dateFormatter = new Intl.DateTimeFormat('en-US', {
+              timeZone: userTimezone,
+              weekday: 'long',
+              month: 'long',
+              day: 'numeric',
+              year: 'numeric',
+              hour: 'numeric',
+              minute: '2-digit',
+              hour12: true,
+            });
+            const formattedDate = dateFormatter.format(new Date(registration.scheduledStartTime));
+            
+            // Get friendly timezone name (e.g., "Eastern Time", "India Time")
+            const tzParts = userTimezone.split('/');
+            const cityName = tzParts[tzParts.length - 1]?.replace(/_/g, ' ') || userTimezone;
+            const regionName = tzParts.length > 1 ? tzParts[0].replace(/_/g, ' ') : '';
+            
+            // Map common regions to friendly names
+            const friendlyTzNames: Record<string, string> = {
+              'America/New_York': 'Eastern Time',
+              'America/Chicago': 'Central Time',
+              'America/Denver': 'Mountain Time',
+              'America/Los_Angeles': 'Pacific Time',
+              'America/Toronto': 'Eastern Time (Canada)',
+              'America/Vancouver': 'Pacific Time (Canada)',
+              'Europe/London': 'UK Time',
+              'Europe/Paris': 'Central European Time',
+              'Asia/Calcutta': 'India Time',
+              'Asia/Kolkata': 'India Time',
+              'Asia/Dubai': 'Gulf Time',
+              'Asia/Singapore': 'Singapore Time',
+              'Australia/Sydney': 'Sydney Time',
+              'Australia/Melbourne': 'Melbourne Time',
+              'Pacific/Auckland': 'New Zealand Time',
+            };
+            
+            const friendlyTzName = friendlyTzNames[userTimezone] || `${cityName} Time`;
+            friendlyScheduledTime = `${formattedDate} (${friendlyTzName})`;
+          } catch (e) {
+            console.error('Error formatting scheduled time:', e);
+            friendlyScheduledTime = registration.scheduledStartTime.toISOString();
+          }
+        }
+        
         // Build custom fields for Mautic
         const mauticCustomFields = {
           webinar_name: webinar.title,
           webinar_link: countdownLink || undefined,
-          webinar_scheduled_time: registration.scheduledStartTime?.toISOString() || undefined,
+          webinar_scheduled_time: friendlyScheduledTime,
           webinar_registration_date: registration.registeredAt.toISOString(),
           webinar_attendance_status: 'registered',
           webinar_referral_code: registration.referralCode || undefined,
