@@ -293,6 +293,26 @@ export async function POST(
     } else if (crmIntegration === 'MAUTIC') {
       console.log('🚀 Syncing registration to Mautic BEFORE response...');
       try {
+        // Build custom fields for Mautic
+        const mauticCustomFields = {
+          webinar_name: webinar.title,
+          webinar_link: countdownLink || undefined,
+          webinar_scheduled_time: registration.scheduledStartTime?.toISOString() || undefined,
+          webinar_registration_date: registration.registeredAt.toISOString(),
+          webinar_attendance_status: 'registered',
+          webinar_referral_code: registration.referralCode || undefined,
+        };
+        
+        // Debug log to see what values we have
+        console.log('📋 Mautic customFields being sent:', JSON.stringify({
+          webinar_title: webinar.title,
+          countdownLink,
+          scheduledStartTime: registration.scheduledStartTime,
+          registeredAt: registration.registeredAt,
+          referralCode: registration.referralCode,
+          customFields: mauticCustomFields,
+        }, null, 2));
+        
         // Sync contact to Mautic with webinar custom fields
         await syncContactToMautic({
           email: registration.email,
@@ -301,14 +321,7 @@ export async function POST(
           phone: registration.phone,
           country: registration.country,
           timezone: registration.timezone,
-          customFields: {
-            webinar_name: webinar.title,
-            webinar_link: countdownLink || undefined,
-            webinar_scheduled_time: registration.scheduledStartTime?.toISOString() || undefined,
-            webinar_registration_date: registration.registeredAt.toISOString(),
-            webinar_attendance_status: 'registered',
-            webinar_referral_code: registration.referralCode || undefined,
-          },
+          customFields: mauticCustomFields,
         });
         
         // Apply registration tag
