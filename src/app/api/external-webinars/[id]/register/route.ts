@@ -204,6 +204,17 @@ export async function POST(
     const crmIntegration = externalWebinar.crmIntegration || 'CLICKFUNNELS'
     
     if (crmIntegration === 'MAUTIC') {
+      // Build custom fields for Mautic
+      const mauticCustomFields = {
+        webinar_name: externalWebinar.externalWebinarName || externalWebinar.name,
+        webinar_link: liveRoomUrl || undefined,
+        webinar_scheduled_time: registration.scheduledStartTime?.toISOString() || undefined,
+        webinar_registration_date: registration.registeredAt.toISOString(),
+        webinar_attendance_status: 'registered',
+      };
+      
+      console.log('📋 External Webinar Mautic customFields:', JSON.stringify(mauticCustomFields, null, 2));
+      
       // Sync contact to Mautic with webinar custom fields
       syncContactToMautic({
         email: email.toLowerCase(),
@@ -211,13 +222,7 @@ export async function POST(
         lastName,
         phone,
         timezone,
-        customFields: {
-          webinar_name: externalWebinar.externalWebinarName || externalWebinar.name,
-          webinar_link: liveRoomUrl || undefined,
-          webinar_scheduled_time: registration.scheduledStartTime?.toISOString() || undefined,
-          webinar_registration_date: registration.registeredAt.toISOString(),
-          webinar_attendance_status: 'registered',
-        },
+        customFields: mauticCustomFields,
       }).then(() => {
         // Apply registration tag in Mautic
         if (externalWebinar.registrationTag) {
