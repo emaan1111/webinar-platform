@@ -61,6 +61,31 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase()
 }
 
+/**
+ * Format a date/datetime value for Mautic API
+ * Mautic expects: YYYY-MM-DD HH:MM:SS (MySQL format)
+ */
+function formatDateTimeForMautic(value: string | Date | undefined | null): string | undefined {
+  if (!value) return undefined
+  
+  try {
+    const date = typeof value === 'string' ? new Date(value) : value
+    if (isNaN(date.getTime())) return undefined
+    
+    // Format as YYYY-MM-DD HH:MM:SS
+    const year = date.getUTCFullYear()
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(date.getUTCDate()).padStart(2, '0')
+    const hours = String(date.getUTCHours()).padStart(2, '0')
+    const minutes = String(date.getUTCMinutes()).padStart(2, '0')
+    const seconds = String(date.getUTCSeconds()).padStart(2, '0')
+    
+    return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+  } catch {
+    return undefined
+  }
+}
+
 function normalizeTagNames(tags?: string[]): string[] {
   if (!tags) return []
 
@@ -164,9 +189,25 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
     if (fieldAliases.country && input.country?.trim()) payload[fieldAliases.country] = input.country.trim()
     if (fieldAliases.timezone && input.timezone?.trim()) payload[fieldAliases.timezone] = input.timezone.trim()
 
+    // Known datetime fields that need special formatting
+    const datetimeFields = ['webinar_scheduled_time', 'webinar_registration_date']
+    
     for (const [alias, value] of Object.entries(input.customFields || {})) {
-      if (!alias.trim() || !value?.trim()) continue
-      payload[alias.trim()] = value.trim()
+      if (!alias.trim() || value === null || value === undefined) continue
+      
+      const trimmedAlias = alias.trim()
+      const trimmedValue = String(value).trim()
+      if (!trimmedValue) continue
+      
+      // Format datetime fields for Mautic
+      if (datetimeFields.includes(trimmedAlias)) {
+        const formattedDate = formatDateTimeForMautic(trimmedValue)
+        if (formattedDate) {
+          payload[trimmedAlias] = formattedDate
+        }
+      } else {
+        payload[trimmedAlias] = trimmedValue
+      }
     }
 
     if (tags.length > 0) {
