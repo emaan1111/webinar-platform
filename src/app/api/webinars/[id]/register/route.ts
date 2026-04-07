@@ -244,9 +244,9 @@ export async function POST(
     }
 
     // Build links for ClickFunnels
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+    const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 
                     process.env.NEXTAUTH_URL || 
-                    'https://emaanpowerclasses.com';
+                    'https://emaanpowerclasses.com').replace(/\/+$/, ''); // Remove trailing slashes
     const countdownLink = webinar.slug 
       ? `${baseUrl}/countdown/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
       : null;

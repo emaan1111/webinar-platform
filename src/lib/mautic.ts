@@ -252,8 +252,9 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
 
     // Known datetime fields that need special formatting
     const datetimeFields = ['webinar_scheduled_time', 'webinar_registration_date']
-    // Fields that should be truncated to 64 characters
-    const textFields = ['webinar_name', 'webinar_link', 'webinar_attendance_status', 'webinar_referral_code']
+    // Fields that should be truncated to 64 characters (TEXT type default limit)
+    const shortTextFields = ['webinar_name', 'webinar_attendance_status', 'webinar_referral_code']
+    // webinar_link is now TEXT type and can handle full URLs (255 chars)
     
     for (const [alias, value] of Object.entries(input.customFields || {})) {
       if (!alias.trim() || value === null || value === undefined) continue
@@ -268,10 +269,11 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
         if (formattedDate) {
           payload[trimmedAlias] = formattedDate
         }
-      } else if (textFields.includes(trimmedAlias)) {
-        // Truncate text fields to 64 chars (Mautic limit)
+      } else if (shortTextFields.includes(trimmedAlias)) {
+        // Truncate short text fields to 64 chars (Mautic default TEXT limit)
         payload[trimmedAlias] = truncateForMautic(trimmedValue, 64)
       } else {
+        // webinar_link and other fields - no truncation needed
         payload[trimmedAlias] = trimmedValue
       }
     }
