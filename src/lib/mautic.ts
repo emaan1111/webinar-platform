@@ -86,6 +86,61 @@ function formatDateTimeForMautic(value: string | Date | undefined | null): strin
   }
 }
 
+/**
+ * Truncate string to max length for Mautic text fields (64 char limit)
+ */
+function truncateForMautic(value: string, maxLength: number = 64): string {
+  if (value.length <= maxLength) return value
+  return value.substring(0, maxLength - 3) + '...'
+}
+
+/**
+ * Map ISO country codes to full country names for Mautic
+ */
+const countryCodeToName: Record<string, string> = {
+  'US': 'United States',
+  'CA': 'Canada', 
+  'GB': 'United Kingdom',
+  'UK': 'United Kingdom',
+  'AU': 'Australia',
+  'IN': 'India',
+  'PK': 'Pakistan',
+  'AE': 'United Arab Emirates',
+  'SA': 'Saudi Arabia',
+  'MY': 'Malaysia',
+  'SG': 'Singapore',
+  'NZ': 'New Zealand',
+  'DE': 'Germany',
+  'FR': 'France',
+  'IT': 'Italy',
+  'ES': 'Spain',
+  'NL': 'Netherlands',
+  'SE': 'Sweden',
+  'NO': 'Norway',
+  'DK': 'Denmark',
+  'FI': 'Finland',
+  'IE': 'Ireland',
+  'PH': 'Philippines',
+  'ID': 'Indonesia',
+  'BD': 'Bangladesh',
+  'NG': 'Nigeria',
+  'ZA': 'South Africa',
+  'KE': 'Kenya',
+  'EG': 'Egypt',
+  'TR': 'Turkey',
+}
+
+function normalizeCountryForMautic(country: string | null | undefined): string | undefined {
+  if (!country) return undefined
+  const trimmed = country.trim().toUpperCase()
+  // If it's a 2-letter code, convert to full name
+  if (trimmed.length === 2 && countryCodeToName[trimmed]) {
+    return countryCodeToName[trimmed]
+  }
+  // Otherwise return as-is (might already be full name)
+  return country.trim()
+}
+
 function normalizeTagNames(tags?: string[]): string[] {
   if (!tags) return []
 
@@ -189,11 +244,16 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
     if (input.firstName?.trim()) payload.firstname = input.firstName.trim()
     if (input.lastName?.trim()) payload.lastname = input.lastName.trim()
     if (input.phone?.trim()) payload[fieldAliases.phone] = input.phone.trim()
-    if (fieldAliases.country && input.country?.trim()) payload[fieldAliases.country] = input.country.trim()
+    if (fieldAliases.country && input.country?.trim()) {
+      const normalizedCountry = normalizeCountryForMautic(input.country)
+      if (normalizedCountry) payload[fieldAliases.country] = normalizedCountry
+    }
     if (fieldAliases.timezone && input.timezone?.trim()) payload[fieldAliases.timezone] = input.timezone.trim()
 
     // Known datetime fields that need special formatting
     const datetimeFields = ['webinar_scheduled_time', 'webinar_registration_date']
+    // Fields that should be truncated to 64 characters
+    const textFields = ['webinar_name', 'webinar_link', 'webinar_attendance_status', 'webinar_referral_code']
     
     for (const [alias, value] of Object.entries(input.customFields || {})) {
       if (!alias.trim() || value === null || value === undefined) continue
@@ -208,6 +268,9 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
         if (formattedDate) {
           payload[trimmedAlias] = formattedDate
         }
+      } else if (textFields.includes(trimmedAlias)) {
+        // Truncate text fields to 64 chars (Mautic limit)
+        payload[trimmedAlias] = truncateForMautic(trimmedValue, 64)
       } else {
         payload[trimmedAlias] = trimmedValue
       }
