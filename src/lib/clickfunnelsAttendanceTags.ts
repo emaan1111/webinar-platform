@@ -15,7 +15,7 @@
 
 import { prisma } from './prisma'
 import { tagClickFunnelsContact } from './clickfunnels'
-import { tagMauticContact } from './mautic'
+import { tagMauticContact, syncContactToMautic } from './mautic'
 
 interface AttendanceTagOptions {
   registrationId: string
@@ -40,7 +40,7 @@ function normalizeAttendanceTagAlias(tagName: string): string {
  */
 async function getAttendanceTag(
   registrationId: string
-): Promise<{ tagName: string; tagId?: number | null; tagKey: string; reason: string; crmIntegration?: string }> {
+): Promise<{ tagName: string; tagId?: number | null; tagKey: string; reason: string; crmIntegration?: string; watchTimeSeconds?: number }> {
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     select: {
@@ -147,7 +147,8 @@ async function getAttendanceTag(
       tagId: getTagId(w.mostlyAttendedTag, w.mostlyAttendedTagId, 'CLICKFUNNELS_TAG_MOSTLY_ATTENDED'),
       tagKey: 'MOSTLY_ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, past threshold ${threshold}s`,
-      crmIntegration
+      crmIntegration,
+      watchTimeSeconds: effectiveWatchTime
     }
   } else if (threshold && effectiveWatchTime > 0) {
     // Attended but didn't reach threshold - PARTLY_ATTENDED
@@ -156,7 +157,8 @@ async function getAttendanceTag(
       tagId: getTagId(w.partlyAttendedTag, w.partlyAttendedTagId, 'CLICKFUNNELS_TAG_PARTLY_ATTENDED'),
       tagKey: 'PARTLY_ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, before threshold ${threshold}s`,
-      crmIntegration
+      crmIntegration,
+      watchTimeSeconds: effectiveWatchTime
     }
   } else {
     // No threshold configured, just mark as ATTENDED
@@ -165,7 +167,8 @@ async function getAttendanceTag(
       tagId: getTagId(w.attendedTag, w.attendedTagId, 'CLICKFUNNELS_TAG_ATTENDED'),
       tagKey: 'ATTENDED',
       reason: `Watched ${effectiveWatchTime}s, no threshold configured`,
-      crmIntegration
+      crmIntegration,
+      watchTimeSeconds: effectiveWatchTime
     }
   }
 }
@@ -251,6 +254,28 @@ export async function applyAttendanceTagOnSessionEnd(
         reason: tagInfo.reason,
         tagName: tagInfo.tagName,
       })
+      
+      // Map tag key to attendance status
+      const attendanceStatusMap: Record<string, string> = {
+        'ATTENDED': 'attended',
+        'MOSTLY_ATTENDED': 'mostly_attended',
+        'PARTLY_ATTENDED': 'partly_attended',
+        'MISSED': 'missed',
+        'REPLAY_ATTENDED': 'replay_watched',
+      }
+      const attendanceStatus = attendanceStatusMap[tagInfo.tagKey] || 'registered'
+      
+      // Calculate watch time in minutes
+      const watchTimeMinutes = tagInfo.watchTimeSeconds ? Math.round(tagInfo.watchTimeSeconds / 60) : undefined
+      
+      // Update contact custom fields with attendance info
+      await syncContactToMautic({
+        email: registration.email,
+        customFields: {
+          webinar_attendance_status: attendanceStatus,
+          webinar_watch_time: watchTimeMinutes ? String(watchTimeMinutes) : undefined,
+        },
+      }).catch(err => console.error('Failed to update Mautic contact fields:', err))
       
       success = await tagMauticContact(registration.email, [tagInfo.tagName])
       console.log(`📬 tagMauticContact result for ${registration.email}:`, success)

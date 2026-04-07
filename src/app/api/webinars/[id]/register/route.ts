@@ -293,7 +293,7 @@ export async function POST(
     } else if (crmIntegration === 'MAUTIC') {
       console.log('🚀 Syncing registration to Mautic BEFORE response...');
       try {
-        // Sync contact to Mautic
+        // Sync contact to Mautic with webinar custom fields
         await syncContactToMautic({
           email: registration.email,
           firstName: registration.name?.split(' ')[0] || null,
@@ -301,6 +301,14 @@ export async function POST(
           phone: registration.phone,
           country: registration.country,
           timezone: registration.timezone,
+          customFields: {
+            webinar_name: webinar.title,
+            webinar_link: countdownLink || undefined,
+            webinar_scheduled_time: registration.scheduledStartTime?.toISOString() || undefined,
+            webinar_registration_date: registration.registeredAt.toISOString(),
+            webinar_attendance_status: 'registered',
+            webinar_referral_code: registration.referralCode || undefined,
+          },
         });
         
         // Apply registration tag
