@@ -644,7 +644,7 @@ async function applyTagsToContact(
       
       console.log(`   Applying tag ${tagId} to contact ${contactId}...`)
 
-      const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contactId}/applied_tags`
+      const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
 
       const response = await fetch(url, {
         method: 'POST',
