@@ -248,7 +248,7 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
       const normalizedCountry = normalizeCountryForMautic(input.country)
       if (normalizedCountry) payload[fieldAliases.country] = normalizedCountry
     }
-    if (fieldAliases.timezone && input.timezone?.trim()) payload[fieldAliases.timezone] = input.timezone.trim()
+    // Skip timezone - Mautic has strict validation that rejects many valid IANA timezone names
 
     // Known datetime fields that need special formatting
     const datetimeFields = ['webinar_scheduled_time', 'webinar_registration_date']
