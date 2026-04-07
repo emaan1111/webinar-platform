@@ -171,6 +171,9 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
     return { success: false }
   }
 
+  // Debug: log input customFields
+  console.log('📝 Mautic sync input customFields:', JSON.stringify(input.customFields, null, 2))
+
   const normalizedEmail = normalizeEmail(input.email)
   const fieldAliases = getConfiguredMauticFieldAliases()
   const tags = normalizeTagNames(input.tags)
@@ -213,6 +216,9 @@ export async function syncContactToMautic(input: SyncMauticContactInput): Promis
     if (tags.length > 0) {
       payload.tags = tags
     }
+
+    // Debug logging for troubleshooting custom fields
+    console.log('📧 Mautic sync payload:', JSON.stringify(payload, null, 2))
 
     const response = existingContact
       ? await mauticRequest(`/contacts/${existingContact.id}/edit`, {
