@@ -1,7 +1,51 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
+import { getClickFunnelsContactTags } from '@/lib/clickfunnels'
 import { prisma } from '@/lib/prisma'
+
+function normalizeAttendanceTagAlias(tagName: string): string {
+  if (tagName === 'UM-Webinar-MostlyAttended') {
+    return 'UM-WebinarMostlyAttended'
+  }
+
+  if (tagName === 'UM-Webinar-ReplayAttended') {
+    return 'UM-WebinarReplayAttended'
+  }
+
+  return tagName
+}
+
+function getExpectedAttendanceTag(registration: any): { key: string; name: string } {
+  if (!registration.attended) {
+    return {
+      key: 'MISSED',
+      name: normalizeAttendanceTagAlias(registration.webinar.missedTag || 'UM-Webinar-Missed')
+    }
+  }
+
+  const threshold = registration.webinar.mostlyAttendedThreshold
+  const watchTime = registration.lastWatchedPosition || 0
+
+  if (threshold && watchTime >= threshold) {
+    return {
+      key: 'MOSTLY_ATTENDED',
+      name: normalizeAttendanceTagAlias(registration.webinar.mostlyAttendedTag || 'UM-WebinarMostlyAttended')
+    }
+  }
+
+  if (threshold && watchTime > 0) {
+    return {
+      key: 'PARTLY_ATTENDED',
+      name: normalizeAttendanceTagAlias(registration.webinar.partlyAttendedTag || 'UM-Webinar-PartlyAttended')
+    }
+  }
+
+  return {
+    key: 'ATTENDED',
+    name: normalizeAttendanceTagAlias(registration.webinar.attendedTag || 'UM-Webinar-Attended')
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +93,11 @@ export async function GET(request: NextRequest) {
             id: true,
             title: true,
             duration: true,
-            mostlyAttendedThreshold: true
+            mostlyAttendedThreshold: true,
+            attendedTag: true,
+            mostlyAttendedTag: true,
+            partlyAttendedTag: true,
+            missedTag: true
           }
         }
       },
@@ -73,6 +121,60 @@ export async function GET(request: NextRequest) {
         return sessionEnd > now && sessionEnd < twoHoursFromNow
       })
     }
+
+    const clickFunnelsContactCache = new Map<string, Awaited<ReturnType<typeof getClickFunnelsContactTags>>>()
+
+    const registrationsWithClickFunnelsStatus = await Promise.all(
+      registrations.map(async (registration) => {
+        const sessionEnd = new Date(registration.scheduledStartTime!.getTime() + registration.webinar.duration * 60 * 1000)
+        const sessionEnded = sessionEnd < now
+        const expectedTag = getExpectedAttendanceTag(registration)
+
+        if (!sessionEnded) {
+          return {
+            ...registration,
+            expectedTagKey: expectedTag.key,
+            expectedTagName: expectedTag.name,
+            clickFunnelsApplyStatus: 'NOT_READY',
+            clickFunnelsApplyMessage: 'Session has not ended yet'
+          }
+        }
+
+        if (!clickFunnelsContactCache.has(registration.email)) {
+          clickFunnelsContactCache.set(registration.email, await getClickFunnelsContactTags(registration.email))
+        }
+
+        const clickFunnelsContact = clickFunnelsContactCache.get(registration.email)!
+
+        if (!clickFunnelsContact.success) {
+          return {
+            ...registration,
+            expectedTagKey: expectedTag.key,
+            expectedTagName: expectedTag.name,
+            clickFunnelsApplyStatus: registration.attendanceTagsApplied ? 'FAILED' : 'PENDING',
+            clickFunnelsApplyMessage: clickFunnelsContact.error || 'Unable to verify ClickFunnels contact'
+          }
+        }
+
+        const hasExpectedTag = (clickFunnelsContact.tags || []).some((tag) => tag.name === expectedTag.name)
+
+        return {
+          ...registration,
+          expectedTagKey: expectedTag.key,
+          expectedTagName: expectedTag.name,
+          clickFunnelsApplyStatus: hasExpectedTag
+            ? 'SUCCESS'
+            : registration.attendanceTagsApplied
+              ? 'FAILED'
+              : 'PENDING',
+          clickFunnelsApplyMessage: hasExpectedTag
+            ? `Verified on ClickFunnels contact`
+            : registration.attendanceTagsApplied
+              ? `Expected tag not found on ClickFunnels contact`
+              : `Attendance tag not applied yet`
+        }
+      })
+    )
 
     // Calculate statistics
     const allRegistrations = await prisma.registration.findMany({
@@ -125,7 +227,7 @@ export async function GET(request: NextRequest) {
     })
 
     return NextResponse.json({
-      registrations,
+      registrations: registrationsWithClickFunnelsStatus,
       stats,
       webinars
     })

@@ -61,11 +61,19 @@ interface AttendanceTagRegistration {
   scheduledStartTime: string
   attendanceTagsApplied: boolean
   attendanceTagsAppliedAt?: string
+  expectedTagKey?: string
+  expectedTagName?: string
+  clickFunnelsApplyStatus?: 'SUCCESS' | 'FAILED' | 'PENDING' | 'NOT_READY'
+  clickFunnelsApplyMessage?: string
   webinar: {
     id: string
     title: string
     duration: number
     mostlyAttendedThreshold?: number
+    attendedTag?: string
+    mostlyAttendedTag?: string
+    partlyAttendedTag?: string
+    missedTag?: string
   }
 }
 
@@ -676,10 +684,36 @@ function AttendanceTagsTab({
   }
 
   const getExpectedTag = (reg: AttendanceTagRegistration) => {
-    if (!reg.attended) return 'MISSED'
-    if (!reg.webinar.mostlyAttendedThreshold) return 'ATTENDED'
-    if (reg.lastWatchedPosition >= reg.webinar.mostlyAttendedThreshold) return 'MOSTLY_ATTENDED'
-    return 'PARTLY_ATTENDED'
+    return reg.expectedTagKey || (() => {
+      if (!reg.attended) return 'MISSED'
+      if (!reg.webinar.mostlyAttendedThreshold) return 'ATTENDED'
+      if (reg.lastWatchedPosition >= reg.webinar.mostlyAttendedThreshold) return 'MOSTLY_ATTENDED'
+      return 'PARTLY_ATTENDED'
+    })()
+  }
+
+  const getClickFunnelsResultBadge = (status?: AttendanceTagRegistration['clickFunnelsApplyStatus']) => {
+    const statusValue = status || 'PENDING'
+
+    const styles = {
+      SUCCESS: 'bg-green-100 text-green-800 border-green-200',
+      FAILED: 'bg-red-100 text-red-800 border-red-200',
+      PENDING: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      NOT_READY: 'bg-gray-100 text-gray-700 border-gray-200'
+    }
+
+    const labels = {
+      SUCCESS: 'Success',
+      FAILED: 'Failure',
+      PENDING: 'Pending',
+      NOT_READY: 'Not Ready'
+    }
+
+    return (
+      <span className={`px-3 py-1 rounded-full text-xs font-semibold border ${styles[statusValue]}`}>
+        {labels[statusValue]}
+      </span>
+    )
   }
 
   const formatTime = (seconds: number) => {
@@ -865,6 +899,9 @@ function AttendanceTagsTab({
                         <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                           Tag Status
                         </th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                          ClickFunnels Result
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
@@ -973,6 +1010,21 @@ function AttendanceTagsTab({
                           ) : (
                             <span className="text-sm text-gray-400">Session not ended</span>
                           )}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-2">
+                            {getClickFunnelsResultBadge(reg.clickFunnelsApplyStatus)}
+                            {reg.expectedTagName && (
+                              <p className="text-xs text-gray-500">
+                                Expected: {reg.expectedTagName}
+                              </p>
+                            )}
+                            {reg.clickFunnelsApplyMessage && (
+                              <p className={`text-xs ${reg.clickFunnelsApplyStatus === 'FAILED' ? 'text-red-600' : 'text-gray-500'}`}>
+                                {reg.clickFunnelsApplyMessage}
+                              </p>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     )
