@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
+import { tagMauticContact } from '@/lib/mautic'
 
 const RETRY_DELAY_MINUTES = 5
 const MAX_ATTEMPTS = 5
@@ -91,7 +92,12 @@ export async function processPendingClickFunnelsReminderTags(limit = 50) {
         registration: {
           select: {
             id: true,
-            email: true
+            email: true,
+            webinar: {
+              select: {
+                crmIntegration: true
+              }
+            }
           }
         }
       },
@@ -110,9 +116,26 @@ export async function processPendingClickFunnelsReminderTags(limit = 50) {
 
   for (const tagJob of pendingTags) {
     stats.processed++
-    const success = tagJob.registration?.email
-      ? await applyReminderTagToContact(tagJob.registration.email, tagJob.tagName)
-      : false
+    
+    const email = tagJob.registration?.email
+    const crmIntegration = tagJob.registration?.webinar?.crmIntegration || 'CLICKFUNNELS'
+    
+    if (!email) {
+      stats.failed++
+      continue
+    }
+    
+    let success = false
+    
+    if (crmIntegration === 'NONE') {
+      // Skip CRM tagging but mark as processed
+      success = true
+      console.log(`ℹ️ CRM disabled for webinar; skipping tag ${tagJob.tagName}`)
+    } else if (crmIntegration === 'MAUTIC') {
+      success = await tagMauticContact(email, [tagJob.tagName])
+    } else {
+      success = await applyReminderTagToContact(email, tagJob.tagName)
+    }
 
     if (success) {
       stats.applied++
@@ -185,6 +208,103 @@ async function applyTagForRegistration(registrationId: string, tagName: string) 
     })
   } else {
     console.error('❌ Failed to apply ClickFunnels tag immediately', {
+      registrationId,
+      tagName
+    })
+  }
+}
+
+// ============ MAUTIC REMINDER TAGS ============
+
+export async function scheduleDelayedMauticTag(options: {
+  registrationId: string
+  tagName: string
+  scheduledFor: Date
+}) {
+  const { registrationId, tagName, scheduledFor } = options
+
+  if (Number.isNaN(scheduledFor.getTime())) {
+    console.warn('⚠️ Invalid scheduled time for Mautic tag', {
+      registrationId,
+      tagName,
+      scheduledFor
+    })
+    return
+  }
+
+  if (scheduledFor <= new Date()) {
+    console.log('⚠️ Scheduled Mautic tag time already passed; applying immediately', {
+      registrationId,
+      tagName
+    })
+    await applyMauticTagForRegistration(registrationId, tagName)
+    return
+  }
+
+  // Use the same table but we can differentiate by querying webinar's crmIntegration
+  // Or add a crmType column. For now, store in same table and check at processing time.
+  try {
+    await prisma.clickFunnelsReminderTag.upsert({
+      where: {
+        registrationId_tagName: {
+          registrationId,
+          tagName
+        }
+      },
+      create: {
+        registrationId,
+        tagName,
+        scheduledFor,
+        status: 'PENDING'
+      },
+      update: {
+        scheduledFor,
+        status: 'PENDING',
+        errorMessage: null
+      }
+    })
+
+    console.log('⏳ Scheduled Mautic tag application', {
+      registrationId,
+      tagName,
+      scheduledFor: scheduledFor.toISOString()
+    })
+  } catch (error) {
+    if (isMissingReminderTableError(error)) {
+      console.warn('⚠️ Reminder tag table missing; skipping schedule (run prisma migrations)', {
+        registrationId,
+        tagName
+      })
+      return
+    }
+    console.error('❌ Failed to schedule Mautic reminder tag:', error)
+    throw error
+  }
+}
+
+async function applyMauticTagForRegistration(registrationId: string, tagName: string) {
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    select: { id: true, email: true }
+  })
+
+  if (!registration?.email) {
+    console.warn('⚠️ Cannot apply Mautic tag; registration/email missing', {
+      registrationId,
+      tagName
+    })
+    return
+  }
+
+  const success = await tagMauticContact(registration.email, [tagName])
+
+  if (success) {
+    console.log('✅ Mautic tag applied immediately for registration', {
+      registrationId,
+      tagName
+    })
+  } else {
+    console.error('❌ Failed to apply Mautic tag immediately', {
       registrationId,
       tagName
     })

@@ -2,7 +2,7 @@
 // Documentation: https://apidocs.myclickfunnels.com/
 
 import { prisma } from '@/lib/prisma';
-import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
+// Note: Mautic integration is now handled per-webinar via crmIntegration setting
 
 interface ClickFunnelsContact {
   email_address: string  // CF uses email_address not email
@@ -772,6 +772,7 @@ async function updateClickFunnelsContact(
 
 /**
  * Tag a contact in ClickFunnels
+ * Note: For Mautic tagging, use the tagMauticContact function directly from mautic.ts
  */
 export async function tagClickFunnelsContact(
   email: string,
@@ -780,21 +781,10 @@ export async function tagClickFunnelsContact(
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
   const normalizedEmail = email.trim().toLowerCase()
-  const mauticTagNames = Array.from(
-    new Set(
-      tags
-        .map(tag => String(tag).trim())
-        .filter(tag => tag.length > 0 && !/^\d+$/.test(tag))
-    )
-  )
 
   if (!apiKey || !workspaceId) {
     console.log('⚠️ ClickFunnels API not configured - skipping tagging')
-    if (mauticTagNames.length === 0) {
-      return false
-    }
-
-    return await tagMauticContact(normalizedEmail, mauticTagNames)
+    return false
   }
 
   try {
@@ -886,10 +876,6 @@ export async function tagClickFunnelsContact(
       resolvedTagIds: tagIds,
     })
 
-    if (mauticTagNames.length > 0) {
-      await tagMauticContact(normalizedEmail, mauticTagNames)
-    }
-
     return true
   } catch (error) {
     console.error('❌ Failed to tag contact:', error)
@@ -929,15 +915,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
     const firstName = nameParts[0]
     const lastName = nameParts.slice(1).join(' ') || ''
 
-    const mauticResult = await syncContactToMautic({
-      email: data.email,
-      firstName,
-      lastName,
-      phone: data.phone,
-      country: data.country,
-      timezone: data.timezone,
-      tags: registrationTagName ? [registrationTagName] : undefined,
-    })
+    // Note: Mautic sync is now handled at the registration route level based on crmIntegration setting
 
     // Prepare contact data
     const contactData: ClickFunnelsContact = {
@@ -1007,7 +985,7 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
 
     if (!result) {
       console.log('⚠️ Contact not synced to ClickFunnels (API not configured or error)')
-      return { success: mauticResult.success }
+      return { success: false }
     }
 
     console.log('✅ Webinar registration synced to ClickFunnels:', {

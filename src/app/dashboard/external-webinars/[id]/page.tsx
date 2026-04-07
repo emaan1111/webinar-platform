@@ -65,6 +65,7 @@ export default function ExternalWebinarDetailPage() {
     isActive: true,
     syncAttendance: true,
     sendToFacebookCAPI: true,
+    crmIntegration: 'CLICKFUNNELS' as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE',
     registrationTag: '',
     attendedTag: '',
     mostlyAttendedTag: '',
@@ -93,6 +94,7 @@ export default function ExternalWebinarDetailPage() {
         isActive: data.isActive ?? true,
         syncAttendance: data.syncAttendance ?? true,
         sendToFacebookCAPI: data.sendToFacebookCAPI ?? true,
+        crmIntegration: data.crmIntegration || 'CLICKFUNNELS',
         registrationTag: data.registrationTag || '',
         attendedTag: data.attendedTag || '',
         mostlyAttendedTag: data.mostlyAttendedTag || '',
@@ -308,11 +310,57 @@ export default function ExternalWebinarDetailPage() {
           </CardBody>
         </Card>
 
+        {/* CRM Integration Selection */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">CRM Integration</h2>
+          </CardHeader>
+          <CardBody>
+            <p className="text-sm text-gray-500 mb-4">Choose which CRM to sync contacts and apply tags for this webinar.</p>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="crmIntegration"
+                  value="CLICKFUNNELS"
+                  checked={formData.crmIntegration === 'CLICKFUNNELS'}
+                  onChange={(e) => setFormData({ ...formData, crmIntegration: e.target.value as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE' })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">ClickFunnels</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="crmIntegration"
+                  value="MAUTIC"
+                  checked={formData.crmIntegration === 'MAUTIC'}
+                  onChange={(e) => setFormData({ ...formData, crmIntegration: e.target.value as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE' })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">Mautic</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="crmIntegration"
+                  value="NONE"
+                  checked={formData.crmIntegration === 'NONE'}
+                  onChange={(e) => setFormData({ ...formData, crmIntegration: e.target.value as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE' })}
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-gray-700">None</span>
+              </label>
+            </div>
+          </CardBody>
+        </Card>
+
         {/* Tags */}
+        {formData.crmIntegration !== 'NONE' && (
         <Card>
           <CardHeader>
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Tag className="w-5 h-5" /> ClickFunnels Tags
+              <Tag className="w-5 h-5" /> {formData.crmIntegration === 'MAUTIC' ? 'Mautic' : 'ClickFunnels'} Tags
             </h2>
           </CardHeader>
           <CardBody>
@@ -410,6 +458,7 @@ export default function ExternalWebinarDetailPage() {
             </div>
           </CardBody>
         </Card>
+        )}
 
         {/* SMS */}
         <Card>

@@ -3,7 +3,8 @@ import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
-import { scheduleDelayedClickFunnelsTag } from '@/lib/clickfunnelsReminderTags'
+import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
+import { scheduleDelayedClickFunnelsTag, scheduleDelayedMauticTag } from '@/lib/clickfunnelsReminderTags'
 import { generateReferralCode } from '@/lib/referral'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
@@ -104,6 +105,8 @@ export async function POST(
         partlyAttendedTag: true,
         missedTag: true,
         replayAttendedTag: true,
+        // CRM Integration
+        crmIntegration: true,
       }
     })
     
@@ -251,42 +254,69 @@ export async function POST(
       ? `${baseUrl}/w/${webinar.slug}?ref=${registration.referralCode}`
       : null;
 
-    // SYNC TO CLICKFUNNELS IMMEDIATELY (registration tag applied here)
-    console.log('🚀 Syncing registration to ClickFunnels BEFORE response...');
-    try {
-      await syncWebinarRegistrationToClickFunnels({
-        name: registration.name,
-        email: registration.email,
-        phone: registration.phone,
-        timezone: registration.timezone,
-        country: registration.country,
-        webinarId: webinar.id,
-        webinarTitle: webinar.title,
-        scheduledStartTime: registration.scheduledStartTime,
-        countdownLink: countdownLink,
-        referralLink: referralLink,
-        formattedWebinarTime: formattedWebinarTime,
-        formattedWebinarTimeLocal: formattedLocalWebinarTime,
-        attendeeTimezoneLabel,
-        zoomLink: schedule?.zoomLink || undefined,
-        isZoomSession: schedule?.isZoomSession || false,
-        customTags: {
-          registrationTag: webinar.registrationTag,
-          attendedTag: webinar.attendedTag,
-          mostlyAttendedTag: webinar.mostlyAttendedTag,
-          partlyAttendedTag: webinar.partlyAttendedTag,
-          missedTag: webinar.missedTag,
-          replayAttendedTag: webinar.replayAttendedTag,
-        }
-      });
-      console.log('✅ ClickFunnels sync completed - registration tag applied!');
-    } catch (err) {
-      console.error('❌ ClickFunnels sync error:', err);
-      // Don't fail registration if CF sync fails - log and continue
+    // SYNC TO CRM IMMEDIATELY (registration tag applied here)
+    const crmIntegration = webinar.crmIntegration || 'CLICKFUNNELS';
+    
+    if (crmIntegration === 'CLICKFUNNELS') {
+      console.log('🚀 Syncing registration to ClickFunnels BEFORE response...');
+      try {
+        await syncWebinarRegistrationToClickFunnels({
+          name: registration.name,
+          email: registration.email,
+          phone: registration.phone,
+          timezone: registration.timezone,
+          country: registration.country,
+          webinarId: webinar.id,
+          webinarTitle: webinar.title,
+          scheduledStartTime: registration.scheduledStartTime,
+          countdownLink: countdownLink,
+          referralLink: referralLink,
+          formattedWebinarTime: formattedWebinarTime,
+          formattedWebinarTimeLocal: formattedLocalWebinarTime,
+          attendeeTimezoneLabel,
+          zoomLink: schedule?.zoomLink || undefined,
+          isZoomSession: schedule?.isZoomSession || false,
+          customTags: {
+            registrationTag: webinar.registrationTag,
+            attendedTag: webinar.attendedTag,
+            mostlyAttendedTag: webinar.mostlyAttendedTag,
+            partlyAttendedTag: webinar.partlyAttendedTag,
+            missedTag: webinar.missedTag,
+            replayAttendedTag: webinar.replayAttendedTag,
+          }
+        });
+        console.log('✅ ClickFunnels sync completed - registration tag applied!');
+      } catch (err) {
+        console.error('❌ ClickFunnels sync error:', err);
+        // Don't fail registration if CF sync fails - log and continue
+      }
+    } else if (crmIntegration === 'MAUTIC') {
+      console.log('🚀 Syncing registration to Mautic BEFORE response...');
+      try {
+        // Sync contact to Mautic
+        await syncContactToMautic({
+          email: registration.email,
+          firstName: registration.name?.split(' ')[0] || null,
+          lastName: registration.name?.split(' ').slice(1).join(' ') || null,
+          phone: registration.phone,
+          country: registration.country,
+          timezone: registration.timezone,
+        });
+        
+        // Apply registration tag
+        const registrationTag = webinar.registrationTag || 'UM-Webinar-Registered';
+        await tagMauticContact(registration.email, [registrationTag]);
+        console.log('✅ Mautic sync completed - registration tag applied!');
+      } catch (err) {
+        console.error('❌ Mautic sync error:', err);
+        // Don't fail registration if Mautic sync fails - log and continue
+      }
+    } else {
+      console.log('ℹ️ CRM integration disabled for this webinar');
     }
 
     // Apply timing reminder tag immediately as well (if needed)
-    if (registration.scheduledStartTime) {
+    if (registration.scheduledStartTime && crmIntegration !== 'NONE') {
       const webinarStart = new Date(registration.scheduledStartTime);
       const now = new Date();
       const hoursUntilWebinar = (webinarStart.getTime() - now.getTime()) / (1000 * 60 * 60);
@@ -306,19 +336,31 @@ export async function POST(
 
       if (selectedBucket.offsetHours > 0 && scheduledFor > now) {
         try {
-          await scheduleDelayedClickFunnelsTag({
-            registrationId: registration.id,
-            tagName: selectedBucket.tagName,
-            scheduledFor
-          });
+          if (crmIntegration === 'MAUTIC') {
+            await scheduleDelayedMauticTag({
+              registrationId: registration.id,
+              tagName: selectedBucket.tagName,
+              scheduledFor
+            });
+          } else {
+            await scheduleDelayedClickFunnelsTag({
+              registrationId: registration.id,
+              tagName: selectedBucket.tagName,
+              scheduledFor
+            });
+          }
           console.log(`⏰ Scheduled ${selectedBucket.tagName} for later`);
         } catch (err) {
           console.error(`Failed to schedule ${selectedBucket.tagName}:`, err);
         }
       } else {
         try {
-          const { applyReminderTagToContact } = await import('@/lib/clickfunnels');
-          await applyReminderTagToContact(registration.email, selectedBucket.tagName);
+          if (crmIntegration === 'MAUTIC') {
+            await tagMauticContact(registration.email, [selectedBucket.tagName]);
+          } else {
+            const { applyReminderTagToContact } = await import('@/lib/clickfunnels');
+            await applyReminderTagToContact(registration.email, selectedBucket.tagName);
+          }
           console.log(`✅ Applied ${selectedBucket.tagName} immediately`);
         } catch (err) {
           console.error(`Failed to apply ${selectedBucket.tagName}:`, err);

@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
 import { registerUserToWebinar, isWebinarJamConfigured } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
-import { syncContactToMautic } from '@/lib/mautic'
+import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 
 /**
  * External Webinar Registration API
@@ -200,21 +200,33 @@ export async function POST(
       })
     }
 
-    // Apply ClickFunnels registration tag if configured
-    syncContactToMautic({
-      email: email.toLowerCase(),
-      firstName,
-      lastName,
-      phone,
-      timezone,
-    }).catch(err => {
-      console.error('Mautic contact sync error:', err)
-    })
-
-    if (externalWebinar.registrationTag) {
-      applyReminderTagToContact(email.toLowerCase(), externalWebinar.registrationTag)
-        .catch(err => console.error('ClickFunnels tag error:', err))
+    // Apply CRM integration based on webinar setting
+    const crmIntegration = externalWebinar.crmIntegration || 'CLICKFUNNELS'
+    
+    if (crmIntegration === 'MAUTIC') {
+      // Sync contact to Mautic
+      syncContactToMautic({
+        email: email.toLowerCase(),
+        firstName,
+        lastName,
+        phone,
+        timezone,
+      }).then(() => {
+        // Apply registration tag in Mautic
+        if (externalWebinar.registrationTag) {
+          return tagMauticContact(email.toLowerCase(), [externalWebinar.registrationTag])
+        }
+      }).catch(err => {
+        console.error('Mautic sync error:', err)
+      })
+    } else if (crmIntegration === 'CLICKFUNNELS') {
+      // Apply ClickFunnels registration tag if configured
+      if (externalWebinar.registrationTag) {
+        applyReminderTagToContact(email.toLowerCase(), externalWebinar.registrationTag)
+          .catch(err => console.error('ClickFunnels tag error:', err))
+      }
     }
+    // If crmIntegration is 'NONE', skip CRM sync
 
     console.log(`✅ External webinar registration: ${email} → ${externalWebinar.name}`)
 

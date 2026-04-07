@@ -77,6 +77,8 @@ export default function EditWebinarPage() {
     partlyAttendedTag: '',
     missedTag: '',
     replayAttendedTag: '',
+    // CRM Integration
+    crmIntegration: 'CLICKFUNNELS' as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE',
     // Post-Session SMS Automation
     autoSendPostSessionSMS: false,
     postSessionSMSMinutesAfter: 0,
@@ -203,6 +205,8 @@ export default function EditWebinarPage() {
         partlyAttendedTag: webinar.partlyAttendedTag || '',
         missedTag: webinar.missedTag || '',
         replayAttendedTag: webinar.replayAttendedTag || '',
+        // CRM Integration
+        crmIntegration: webinar.crmIntegration || 'CLICKFUNNELS',
         // Post-Session SMS Automation
         autoSendPostSessionSMS: webinar.autoSendPostSessionSMS || false,
         postSessionSMSMinutesAfter: webinar.postSessionSMSMinutesAfter || 0,
@@ -1591,10 +1595,54 @@ export default function EditWebinarPage() {
                   </p>
                 </div>
 
-                {/* Custom Tags Configuration */}
+                {/* CRM Integration Selection */}
                 <div className="pt-6 border-t border-gray-100">
                   <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-gray-900">Custom ClickFunnels Tag Names</h3>
+                    <h3 className="text-sm font-semibold text-gray-900">CRM Integration</h3>
+                    <p className="text-xs text-gray-500">Choose which CRM to sync contacts and apply tags for this webinar.</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="crmIntegration"
+                        value="CLICKFUNNELS"
+                        checked={formData.crmIntegration === 'CLICKFUNNELS'}
+                        onChange={(e) => setFormData({ ...formData, crmIntegration: e.target.value as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE' })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">ClickFunnels</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="crmIntegration"
+                        value="MAUTIC"
+                        checked={formData.crmIntegration === 'MAUTIC'}
+                        onChange={(e) => setFormData({ ...formData, crmIntegration: e.target.value as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE' })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">Mautic</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="crmIntegration"
+                        value="NONE"
+                        checked={formData.crmIntegration === 'NONE'}
+                        onChange={(e) => setFormData({ ...formData, crmIntegration: e.target.value as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE' })}
+                        className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-gray-700">None</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Custom Tags Configuration */}
+                {formData.crmIntegration !== 'NONE' && (
+                <div className="pt-6 border-t border-gray-100">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900">Custom {formData.crmIntegration === 'MAUTIC' ? 'Mautic' : 'ClickFunnels'} Tag Names</h3>
                     <p className="text-xs text-gray-500">Override the global default tags for this specific webinar. Leave empty to use defaults.</p>
                   </div>
 
@@ -1696,6 +1744,7 @@ export default function EditWebinarPage() {
                     </div>
                   </div>
                 </div>
+                )}
 
                 {/* Example */}
                 <div className="p-4 border-2 border-gray-200 rounded-lg bg-gray-50">

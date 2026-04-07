@@ -15,6 +15,7 @@
 
 import { prisma } from './prisma'
 import { tagClickFunnelsContact } from './clickfunnels'
+import { tagMauticContact } from './mautic'
 
 interface AttendanceTagOptions {
   registrationId: string
@@ -39,7 +40,7 @@ function normalizeAttendanceTagAlias(tagName: string): string {
  */
 async function getAttendanceTag(
   registrationId: string
-): Promise<{ tagName: string; tagId?: number | null; tagKey: string; reason: string }> {
+): Promise<{ tagName: string; tagId?: number | null; tagKey: string; reason: string; crmIntegration?: string }> {
   const registration = await prisma.registration.findUnique({
     where: { id: registrationId },
     select: {
@@ -50,6 +51,7 @@ async function getAttendanceTag(
         select: {
           mostlyAttendedThreshold: true,
           videoDuration: true,
+          crmIntegration: true,
           registrationTag: true,
           registrationTagId: true,
           attendedTag: true,
@@ -78,9 +80,11 @@ async function getAttendanceTag(
   }
 
   const w = registration.webinar
+  const crmIntegration = w.crmIntegration || 'CLICKFUNNELS'
   
   console.log(`🔍 getAttendanceTag - Webinar tag config for registration:`, {
     attended: registration.attended,
+    crmIntegration,
     watchTime: {
       lastWatchedPosition: registration.lastWatchedPosition,
       replayWatchTime: registration.replayWatchTime,
@@ -113,7 +117,8 @@ async function getAttendanceTag(
       tagName: normalizeAttendanceTagAlias(w.missedTag || 'UM-Webinar-Missed'),
       tagId: getTagId(w.missedTag, w.missedTagId, 'CLICKFUNNELS_TAG_MISSED'),
       tagKey: 'MISSED',
-      reason: 'Never attended'
+      reason: 'Never attended',
+      crmIntegration
     }
   }
 
@@ -141,7 +146,8 @@ async function getAttendanceTag(
       tagName: normalizeAttendanceTagAlias(w.mostlyAttendedTag || 'UM-WebinarMostlyAttended'),
       tagId: getTagId(w.mostlyAttendedTag, w.mostlyAttendedTagId, 'CLICKFUNNELS_TAG_MOSTLY_ATTENDED'),
       tagKey: 'MOSTLY_ATTENDED',
-      reason: `Watched ${effectiveWatchTime}s, past threshold ${threshold}s`
+      reason: `Watched ${effectiveWatchTime}s, past threshold ${threshold}s`,
+      crmIntegration
     }
   } else if (threshold && effectiveWatchTime > 0) {
     // Attended but didn't reach threshold - PARTLY_ATTENDED
@@ -149,7 +155,8 @@ async function getAttendanceTag(
       tagName: normalizeAttendanceTagAlias(w.partlyAttendedTag || 'UM-Webinar-PartlyAttended'),
       tagId: getTagId(w.partlyAttendedTag, w.partlyAttendedTagId, 'CLICKFUNNELS_TAG_PARTLY_ATTENDED'),
       tagKey: 'PARTLY_ATTENDED',
-      reason: `Watched ${effectiveWatchTime}s, before threshold ${threshold}s`
+      reason: `Watched ${effectiveWatchTime}s, before threshold ${threshold}s`,
+      crmIntegration
     }
   } else {
     // No threshold configured, just mark as ATTENDED
@@ -157,7 +164,8 @@ async function getAttendanceTag(
       tagName: normalizeAttendanceTagAlias(w.attendedTag || 'UM-Webinar-Attended'),
       tagId: getTagId(w.attendedTag, w.attendedTagId, 'CLICKFUNNELS_TAG_ATTENDED'),
       tagKey: 'ATTENDED',
-      reason: `Watched ${effectiveWatchTime}s, no threshold configured`
+      reason: `Watched ${effectiveWatchTime}s, no threshold configured`,
+      crmIntegration
     }
   }
 }
@@ -222,33 +230,66 @@ export async function applyAttendanceTagOnSessionEnd(
       }
     }
 
-    // Apply tag in ClickFunnels
-    // If tagId is a number, use it; otherwise use the tag name for lookup
-    const tagToApply = tagInfo.tagId || tagInfo.tagName
+    // Check CRM integration setting
+    const crmIntegration = tagInfo.crmIntegration || 'CLICKFUNNELS'
     
-    console.log(`📋 Applying ${tagInfo.tagKey} tag to ${registration.email}`, {
-      registrationId,
-      reason: tagInfo.reason,
-      tagName: tagInfo.tagName,
-      tagId: tagInfo.tagId,
-      tagToApply,
-      tagToApplyType: typeof tagToApply,
-      willLookupByName: !tagInfo.tagId
-    })
-
-    console.log(`🚀 Calling tagClickFunnelsContact for ${registration.email} with tag:`, tagToApply)
-    
-    const success = await tagClickFunnelsContact(
-      registration.email,
-      [tagToApply]
-    )
-    
-    console.log(`📬 tagClickFunnelsContact result for ${registration.email}:`, success)
-
-    if (!success) {
+    if (crmIntegration === 'NONE') {
+      console.log(`ℹ️ CRM integration disabled for webinar; skipping attendance tag for ${registration.email}`)
       return {
-        success: false,
-        error: 'Failed to apply tag in ClickFunnels'
+        success: true,
+        tag: tagInfo.tagKey,
+        reason: 'CRM integration disabled'
+      }
+    }
+
+    // Apply tag based on CRM integration
+    let success = false
+    
+    if (crmIntegration === 'MAUTIC') {
+      console.log(`📋 Applying ${tagInfo.tagKey} tag to ${registration.email} in Mautic`, {
+        registrationId,
+        reason: tagInfo.reason,
+        tagName: tagInfo.tagName,
+      })
+      
+      success = await tagMauticContact(registration.email, [tagInfo.tagName])
+      console.log(`📬 tagMauticContact result for ${registration.email}:`, success)
+      
+      if (!success) {
+        return {
+          success: false,
+          error: 'Failed to apply tag in Mautic'
+        }
+      }
+    } else {
+      // ClickFunnels
+      // If tagId is a number, use it; otherwise use the tag name for lookup
+      const tagToApply = tagInfo.tagId || tagInfo.tagName
+      
+      console.log(`📋 Applying ${tagInfo.tagKey} tag to ${registration.email} in ClickFunnels`, {
+        registrationId,
+        reason: tagInfo.reason,
+        tagName: tagInfo.tagName,
+        tagId: tagInfo.tagId,
+        tagToApply,
+        tagToApplyType: typeof tagToApply,
+        willLookupByName: !tagInfo.tagId
+      })
+
+      console.log(`🚀 Calling tagClickFunnelsContact for ${registration.email} with tag:`, tagToApply)
+      
+      success = await tagClickFunnelsContact(
+        registration.email,
+        [tagToApply]
+      )
+      
+      console.log(`📬 tagClickFunnelsContact result for ${registration.email}:`, success)
+
+      if (!success) {
+        return {
+          success: false,
+          error: 'Failed to apply tag in ClickFunnels'
+        }
       }
     }
 
@@ -267,10 +308,10 @@ export async function applyAttendanceTagOnSessionEnd(
       registrationId,
       webinarId: registration.webinarId,
       email: registration.email,
+      crmIntegration,
       tagKey: tagInfo.tagKey,
       tagName: tagInfo.tagName,
       tagId: tagInfo.tagId ?? null,
-      tagToApply,
       reason: tagInfo.reason,
       attendanceTagsAppliedAt: taggedAt.toISOString(),
     })

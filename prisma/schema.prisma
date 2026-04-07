@@ -124,6 +124,7 @@ model Webinar {
   partlyAttendedTagId                Int?
   registrationTagId                  Int?
   replayAttendedTagId                Int?
+  crmIntegration                     CrmIntegration            @default(CLICKFUNNELS)
   offers                             Offer[]
   aiChatConfig                       AIChatConfig?
   analytics                          Analytics[]
@@ -1111,6 +1112,12 @@ enum SplitTestGoal {
   LEAD_FORM
 }
 
+enum CrmIntegration {
+  CLICKFUNNELS
+  MAUTIC
+  NONE
+}
+
 model ContentPage {
   id          String           @id @default(cuid())
   title       String
@@ -1207,6 +1214,9 @@ model ExternalWebinar {
   
   // Facebook CAPI
   sendToFacebookCAPI      Boolean                   @default(true)
+  
+  // CRM Integration
+  crmIntegration          CrmIntegration            @default(CLICKFUNNELS)
   
   createdAt               DateTime                  @default(now())
   updatedAt               DateTime                  @default(now())

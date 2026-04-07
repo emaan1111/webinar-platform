@@ -131,6 +131,8 @@ export async function PATCH(
       'missedTag',
       'replayAttendedTag',
       'mostlyAttendedThreshold',
+      // CRM Integration
+      'crmIntegration',
       'autoSendPostSessionSMS',
       'postSessionSMSMinutesAfter',
       'postSessionSMSMinWatchedMinutes',

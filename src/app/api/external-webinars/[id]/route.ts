@@ -95,6 +95,8 @@ export async function PUT(
       name,
       isActive,
       syncAttendance,
+      // CRM Integration
+      crmIntegration,
       // Tag settings
       registrationTag,
       registrationTagId,
@@ -126,6 +128,7 @@ export async function PUT(
         ...(name !== undefined && { name }),
         ...(isActive !== undefined && { isActive }),
         ...(syncAttendance !== undefined && { syncAttendance }),
+        ...(crmIntegration !== undefined && { crmIntegration }),
         ...(registrationTag !== undefined && { registrationTag }),
         ...(registrationTagId !== undefined && { registrationTagId }),
         ...(attendedTag !== undefined && { attendedTag }),
