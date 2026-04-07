@@ -292,40 +292,34 @@ export default function AttendeesPage() {
       selectedCountries.length === 0 ||
       (attendee.country && selectedCountries.includes(attendee.country))
 
-    // Registered date range filter
+    // Helper to get date string in selected timezone (YYYY-MM-DD format)
+    const getDateInTimezone = (isoString: string) => {
+      const date = new Date(isoString)
+      // Format the date in the selected timezone to get the local date
+      const formatted = date.toLocaleDateString('en-CA', { timeZone: selectedTimezone }) // en-CA gives YYYY-MM-DD
+      return formatted
+    }
+
+    // Registered date range filter (timezone-aware)
     const matchesRegisteredDate = (() => {
       if (!registeredDateStart && !registeredDateEnd) return true
-      const regDate = new Date(attendee.registeredAt)
+      // Get the registration date in the selected timezone
+      const regDateStr = getDateInTimezone(attendee.registeredAt)
       
-      // Parse dates as local time by appending time component
-      // YYYY-MM-DD -> YYYY-MM-DD T00:00:00 (Local)
-      if (registeredDateStart) {
-        const startDate = new Date(registeredDateStart + 'T00:00:00')
-        if (regDate < startDate) return false
-      }
-      
-      if (registeredDateEnd) {
-        const endDate = new Date(registeredDateEnd + 'T23:59:59.999')
-        if (regDate > endDate) return false
-      }
+      if (registeredDateStart && regDateStr < registeredDateStart) return false
+      if (registeredDateEnd && regDateStr > registeredDateEnd) return false
       return true
     })()
 
-    // Joined date range filter
+    // Joined date range filter (timezone-aware)
     const matchesJoinedDate = (() => {
       if (!joinedDateStart && !joinedDateEnd) return true
       if (!attendee.joinedAt) return false
-      const joinDate = new Date(attendee.joinedAt)
+      // Get the join date in the selected timezone
+      const joinDateStr = getDateInTimezone(attendee.joinedAt)
       
-      if (joinedDateStart) {
-        const startDate = new Date(joinedDateStart + 'T00:00:00')
-        if (joinDate < startDate) return false
-      }
-      
-      if (joinedDateEnd) {
-        const endDate = new Date(joinedDateEnd + 'T23:59:59.999')
-        if (joinDate > endDate) return false
-      }
+      if (joinedDateStart && joinDateStr < joinedDateStart) return false
+      if (joinedDateEnd && joinDateStr > joinedDateEnd) return false
       return true
     })()
 
@@ -402,7 +396,7 @@ export default function AttendeesPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [searchQuery, attendanceFilter, webinarFilter, filters, sortConfig, selectedCountries, registeredDateStart, registeredDateEnd, joinedDateStart, joinedDateEnd])
+  }, [searchQuery, attendanceFilter, webinarFilter, filters, sortConfig, selectedCountries, registeredDateStart, registeredDateEnd, joinedDateStart, joinedDateEnd, selectedTimezone])
 
   const handleSelectAll = () => {
     if (selectedAttendees.length === paginatedAttendees.length) {
