@@ -7,6 +7,7 @@ import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { scheduleDelayedClickFunnelsTag, scheduleDelayedMauticTag } from '@/lib/clickfunnelsReminderTags'
 import { generateReferralCode } from '@/lib/referral'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
+import { sendEmail } from '@/lib/email'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
 
 const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
@@ -23,6 +24,72 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Max-Age': '86400',
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function buildRegistrationConfirmationEmail({
+  attendeeName,
+  webinarTitle,
+  webinarTime,
+  accessLink,
+  countdownLink,
+  calendarLink,
+  referralLink,
+}: {
+  attendeeName: string
+  webinarTitle: string
+  webinarTime: string | null
+  accessLink: string | null
+  countdownLink: string | null
+  calendarLink: string | null
+  referralLink: string | null
+}) {
+  const safeName = escapeHtml(attendeeName)
+  const safeTitle = escapeHtml(webinarTitle)
+  const safeTime = webinarTime ? escapeHtml(webinarTime) : null
+  const safeAccessLink = accessLink ? escapeHtml(accessLink) : null
+  const safeCountdownLink = countdownLink ? escapeHtml(countdownLink) : null
+  const safeCalendarLink = calendarLink ? escapeHtml(calendarLink) : null
+  const safeReferralLink = referralLink ? escapeHtml(referralLink) : null
+
+  const subject = `Registration confirmed: ${webinarTitle}`
+
+  const htmlBody = `
+    <div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 640px; margin: 0 auto; padding: 24px;">
+      <h1 style="font-size: 28px; margin: 0 0 16px;">You're registered</h1>
+      <p style="margin: 0 0 16px;">Hi ${safeName},</p>
+      <p style="margin: 0 0 16px;">Your registration for <strong>${safeTitle}</strong> is confirmed.</p>
+      ${safeTime ? `<p style="margin: 0 0 24px;"><strong>Your session time:</strong> ${safeTime}</p>` : ''}
+      ${safeAccessLink ? `<p style="margin: 0 0 16px;"><a href="${safeAccessLink}" style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 600;">Access your webinar</a></p>` : ''}
+      ${safeCountdownLink ? `<p style="margin: 0 0 12px;">Countdown page: <a href="${safeCountdownLink}">${safeCountdownLink}</a></p>` : ''}
+      ${safeCalendarLink ? `<p style="margin: 0 0 12px;">Add to calendar: <a href="${safeCalendarLink}">${safeCalendarLink}</a></p>` : ''}
+      ${safeReferralLink ? `<p style="margin: 0 0 12px;">Referral link: <a href="${safeReferralLink}">${safeReferralLink}</a></p>` : ''}
+      <p style="margin: 24px 0 0; color: #4b5563;">Keep this email for quick access before the webinar starts.</p>
+    </div>
+  `
+
+  const textBody = [
+    `Hi ${attendeeName},`,
+    '',
+    `Your registration for ${webinarTitle} is confirmed.`,
+    webinarTime ? `Your session time: ${webinarTime}` : null,
+    accessLink ? `Access your webinar: ${accessLink}` : null,
+    countdownLink ? `Countdown page: ${countdownLink}` : null,
+    calendarLink ? `Add to calendar: ${calendarLink}` : null,
+    referralLink ? `Referral link: ${referralLink}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  return { subject, htmlBody, textBody }
 }
 
 // OPTIONS /api/webinars/[id]/register - Handle preflight requests
@@ -253,6 +320,118 @@ export async function POST(
     const referralLink = webinar.slug
       ? `${baseUrl}/w/${webinar.slug}?ref=${registration.referralCode}`
       : null;
+    const calendarLink = webinar.slug
+      ? `${baseUrl}/api/calendar/${webinar.slug}?r=${registration.id}${scheduleId ? `&s=${scheduleId}` : ''}`
+      : null;
+    const accessLink = schedule?.isZoomSession && schedule?.zoomLink
+      ? schedule.zoomLink
+      : countdownLink;
+
+    // --- Confirmation Email (DB-template with tracking) ---
+    try {
+      const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
+        where: { webinarId: id, isActive: true },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      // Build subject / html from DB template or use built-in fallback
+      let emailSubject: string
+      let emailHtml: string
+      let emailText: string
+
+      if (activeTemplate) {
+        // Substitute placeholders in template
+        const replacePlaceholders = (text: string) =>
+          text
+            .replace(/\{\{name\}\}/gi, escapeHtml(registration.name))
+            .replace(/\{\{webinar_title\}\}/gi, escapeHtml(webinar.title))
+            .replace(/\{\{webinar_time\}\}/gi, formattedLocalWebinarTime ? escapeHtml(formattedLocalWebinarTime) : '')
+            .replace(/\{\{access_link\}\}/gi, accessLink || '')
+            .replace(/\{\{countdown_link\}\}/gi, countdownLink || '')
+            .replace(/\{\{calendar_link\}\}/gi, calendarLink || '')
+            .replace(/\{\{referral_link\}\}/gi, referralLink || '')
+
+        emailSubject = replacePlaceholders(activeTemplate.subject)
+        emailHtml = replacePlaceholders(activeTemplate.htmlBody)
+        emailText = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+
+        // Create the send record BEFORE sending so we have an ID for tracking URLs
+        const emailSendRecord = await prisma.confirmationEmailSend.create({
+          data: {
+            templateId: activeTemplate.id,
+            registrationId: registration.id,
+            to: registration.email,
+            subject: emailSubject,
+            status: 'SENT',
+          },
+        })
+
+        const trackingBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com').replace(/\/+$/, '')
+
+        // Inject open-tracking pixel before closing </div> or </body> or at end
+        const trackingPixel = `<img src="${trackingBaseUrl}/api/email-tracking/open/${emailSendRecord.id}?t=${Date.now()}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`
+        if (emailHtml.includes('</div>')) {
+          emailHtml = emailHtml.replace(/<\/div>\s*$/, `${trackingPixel}</div>`)
+        } else {
+          emailHtml += trackingPixel
+        }
+
+        // Wrap links with click tracker
+        emailHtml = emailHtml.replace(
+          /href="(https?:\/\/[^"]+)"/gi,
+          (_match, url) => {
+            const tracked = `${trackingBaseUrl}/api/email-tracking/click/${emailSendRecord.id}?url=${encodeURIComponent(url)}`
+            return `href="${tracked}"`
+          }
+        )
+
+        const emailSent = await sendEmail({
+          to: registration.email,
+          subject: emailSubject,
+          htmlBody: emailHtml,
+          textBody: emailText,
+        })
+
+        if (emailSent) {
+          console.log(`✅ Confirmation email sent to ${registration.email} (send id: ${emailSendRecord.id})`)
+        } else {
+          await prisma.confirmationEmailSend.update({
+            where: { id: emailSendRecord.id },
+            data: { status: 'FAILED', errorMessage: 'sendEmail returned false' },
+          })
+          console.error(`⚠️ Confirmation email failed for ${registration.email}`)
+        }
+      } else {
+        // Fallback to built-in template (no tracking)
+        const fallback = buildRegistrationConfirmationEmail({
+          attendeeName: registration.name,
+          webinarTitle: webinar.title,
+          webinarTime: formattedLocalWebinarTime,
+          accessLink,
+          countdownLink,
+          calendarLink,
+          referralLink,
+        })
+        emailSubject = fallback.subject
+        emailHtml = fallback.htmlBody
+        emailText = fallback.textBody
+
+        const emailSent = await sendEmail({
+          to: registration.email,
+          subject: emailSubject,
+          htmlBody: emailHtml,
+          textBody: emailText,
+        })
+
+        if (emailSent) {
+          console.log(`✅ Fallback confirmation email sent to ${registration.email}`)
+        } else {
+          console.error(`⚠️ Fallback confirmation email failed for ${registration.email}`)
+        }
+      }
+    } catch (error: any) {
+      console.error('⚠️ Failed to send confirmation email:', error)
+    }
 
     // SYNC TO CRM IMMEDIATELY (registration tag applied here)
     const crmIntegration = webinar.crmIntegration || 'CLICKFUNNELS';

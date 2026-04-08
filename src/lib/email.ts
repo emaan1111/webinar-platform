@@ -1,5 +1,10 @@
-// Microsoft Graph API Email Service
-// Uses Microsoft Graph API to send emails (no phone verification needed!)
+// Email Service — Microsoft Graph API + AWS SES
+// EMAIL_PROVIDER env var controls which sender is used: "microsoft" | "ses" | "ses_fallback"
+//   "microsoft"     → Microsoft Graph only (default, current behaviour)
+//   "ses"           → AWS SES only
+//   "ses_fallback"  → Try Microsoft Graph first, fall back to SES
+
+import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
 
 interface EmailOptions {
   to: string
@@ -7,6 +12,8 @@ interface EmailOptions {
   htmlBody: string
   textBody?: string
 }
+
+// ─── Microsoft Graph ─────────────────────────────────────────────────────────
 
 interface MicrosoftGraphTokenResponse {
   token_type: string
@@ -17,12 +24,7 @@ interface MicrosoftGraphTokenResponse {
 let cachedAccessToken: string | null = null
 let tokenExpiresAt: number = 0
 
-/**
- * Get Microsoft Graph API access token
- * Uses client credentials flow (app-only authentication)
- */
 async function getAccessToken(): Promise<string> {
-  // Return cached token if still valid (with 5 minute buffer)
   if (cachedAccessToken && Date.now() < tokenExpiresAt - 5 * 60 * 1000) {
     return cachedAccessToken
   }
@@ -35,9 +37,8 @@ async function getAccessToken(): Promise<string> {
     throw new Error('Microsoft Graph API credentials not configured')
   }
 
-  // Get token using client credentials flow
   const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`
-  
+
   const params = new URLSearchParams({
     client_id: clientId,
     client_secret: clientSecret,
@@ -45,66 +46,37 @@ async function getAccessToken(): Promise<string> {
     grant_type: 'client_credentials'
   })
 
-  try {
-    const response = await fetch(tokenUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      },
-      body: params.toString()
-    })
+  const response = await fetch(tokenUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString()
+  })
 
-    if (!response.ok) {
-      const error = await response.text()
-      throw new Error(`Failed to get access token: ${response.status} ${error}`)
-    }
-
-    const data: MicrosoftGraphTokenResponse = await response.json()
-    
-    cachedAccessToken = data.access_token
-    tokenExpiresAt = Date.now() + data.expires_in * 1000
-
-    return cachedAccessToken
-  } catch (error) {
-    console.error('❌ Microsoft Graph API authentication failed:', error)
-    throw error
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Failed to get access token: ${response.status} ${error}`)
   }
+
+  const data: MicrosoftGraphTokenResponse = await response.json()
+  cachedAccessToken = data.access_token
+  tokenExpiresAt = Date.now() + data.expires_in * 1000
+  return cachedAccessToken
 }
 
-/**
- * Send email using Microsoft Graph API
- */
-export async function sendEmail(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody, textBody } = options
-  
+async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
+  const { to, subject, htmlBody } = options
   const fromEmail = process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
-  
-  try {
-    console.log('📧 Sending email via Microsoft Graph API:', {
-      to,
-      subject,
-      from: fromEmail
-    })
 
+  try {
+    console.log('📧 Sending email via Microsoft Graph API:', { to, subject, from: fromEmail })
     const accessToken = await getAccessToken()
-    
-    // Microsoft Graph API endpoint
+
     const apiUrl = `https://graph.microsoft.com/v1.0/users/${fromEmail}/sendMail`
-    
     const emailMessage = {
       message: {
-        subject: subject,
-        body: {
-          contentType: 'HTML',
-          content: htmlBody
-        },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: to
-            }
-          }
-        ]
+        subject,
+        body: { contentType: 'HTML', content: htmlBody },
+        toRecipients: [{ emailAddress: { address: to } }]
       },
       saveToSentItems: true
     }
@@ -112,7 +84,7 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(emailMessage)
@@ -131,32 +103,120 @@ export async function sendEmail(options: EmailOptions): Promise<boolean> {
     console.log('✅ Email sent successfully via Microsoft Graph API')
     return true
   } catch (error) {
-    console.error('❌ Failed to send email:', error)
+    console.error('❌ Failed to send email via Microsoft Graph:', error)
     return false
   }
 }
 
-/**
- * Send email with fallback to SMTP
- * Tries Microsoft Graph API first, falls back to SMTP if it fails
- */
-export async function sendEmailWithFallback(options: EmailOptions): Promise<boolean> {
-  // Try Microsoft Graph API first
-  const graphSuccess = await sendEmail(options)
-  
-  if (graphSuccess) {
-    return true
-  }
+// ─── AWS SES ─────────────────────────────────────────────────────────────────
 
-  // TODO: Implement SMTP fallback if needed
-  console.log('⚠️ Microsoft Graph API failed, SMTP fallback not implemented yet')
-  return false
+let sesClient: SESClient | null = null
+
+function getSESClient(): SESClient {
+  if (sesClient) return sesClient
+
+  const region = process.env.AWS_SES_REGION || process.env.AWS_REGION || 'us-east-1'
+
+  // If explicit keys are set, use them; otherwise the SDK uses the default
+  // credential chain (env vars, IAM role, etc.)
+  const credentials =
+    process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY
+      ? {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        }
+      : undefined
+
+  sesClient = new SESClient({ region, credentials })
+  return sesClient
+}
+
+async function sendViaSES(options: EmailOptions): Promise<boolean> {
+  const { to, subject, htmlBody, textBody } = options
+  const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
+
+  try {
+    console.log('📧 Sending email via AWS SES:', { to, subject, from: fromEmail })
+
+    const client = getSESClient()
+    const command = new SendEmailCommand({
+      Source: fromEmail,
+      Destination: { ToAddresses: [to] },
+      Message: {
+        Subject: { Data: subject, Charset: 'UTF-8' },
+        Body: {
+          Html: { Data: htmlBody, Charset: 'UTF-8' },
+          ...(textBody ? { Text: { Data: textBody, Charset: 'UTF-8' } } : {}),
+        },
+      },
+    })
+
+    await client.send(command)
+    console.log('✅ Email sent successfully via AWS SES')
+    return true
+  } catch (error) {
+    console.error('❌ Failed to send email via AWS SES:', error)
+    return false
+  }
+}
+
+// ─── Public API (unchanged signatures) ───────────────────────────────────────
+
+/**
+ * Send email using the configured provider.
+ *
+ * EMAIL_PROVIDER values:
+ *   "microsoft"     → Microsoft Graph only (default)
+ *   "ses"           → AWS SES only
+ *   "ses_fallback"  → Microsoft Graph first, then SES if it fails
+ */
+export async function sendEmail(options: EmailOptions): Promise<boolean> {
+  const provider = (process.env.EMAIL_PROVIDER || 'microsoft').toLowerCase()
+
+  switch (provider) {
+    case 'ses':
+      return sendViaSES(options)
+
+    case 'ses_fallback': {
+      const graphOk = await sendViaMicrosoftGraph(options)
+      if (graphOk) return true
+      console.log('⚠️ Microsoft Graph failed, falling back to AWS SES…')
+      return sendViaSES(options)
+    }
+
+    case 'microsoft':
+    default:
+      return sendViaMicrosoftGraph(options)
+  }
 }
 
 /**
- * Validate email configuration
+ * @deprecated Use sendEmail() — it now handles provider selection & fallback.
+ */
+export async function sendEmailWithFallback(options: EmailOptions): Promise<boolean> {
+  return sendEmail(options)
+}
+
+/**
+ * Validate email configuration for the active provider.
  */
 export function validateEmailConfig(): boolean {
+  const provider = (process.env.EMAIL_PROVIDER || 'microsoft').toLowerCase()
+
+  if (provider === 'ses') {
+    const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.EMAIL_ADDRESS
+    if (!fromEmail) {
+      console.error('❌ AWS SES: AWS_SES_FROM_EMAIL or EMAIL_ADDRESS is required')
+      return false
+    }
+    // Credentials are optional (IAM role fallback), so only warn
+    if (!process.env.AWS_ACCESS_KEY_ID) {
+      console.warn('⚠️ AWS_ACCESS_KEY_ID not set — relying on IAM role / instance credentials')
+    }
+    return true
+  }
+
+  // Microsoft Graph validation
   const clientId = process.env.MICROSOFT_CLIENT_ID
   const clientSecret = process.env.MICROSOFT_CLIENT_SECRET
   const emailAddress = process.env.EMAIL_ADDRESS

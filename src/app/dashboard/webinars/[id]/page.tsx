@@ -22,7 +22,8 @@ import {
   Globe,
   Loader2,
   AlertCircle,
-  HelpCircle
+  HelpCircle,
+  Mail
 } from 'lucide-react'
 
 interface WebinarSchedule {
@@ -192,6 +193,12 @@ export default function ViewWebinarPage() {
               <Button variant="secondary" size="sm">
                 <MessageSquare className="w-4 h-4 mr-2" />
                 Reminders
+              </Button>
+            </Link>
+            <Link href={`/dashboard/webinars/${webinar.id}/confirmation-email`}>
+              <Button variant="secondary" size="sm">
+                <Mail className="w-4 h-4 mr-2" />
+                Confirmation Email
               </Button>
             </Link>
             <Button variant="danger" size="sm" onClick={handleDelete}>

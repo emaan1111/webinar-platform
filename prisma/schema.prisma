@@ -137,6 +137,7 @@ model Webinar {
   registrations                      Registration[]
   faqs                               WebinarFaq[]
   reminderTemplates                  WebinarReminderTemplate[]
+  confirmationEmails                 ConfirmationEmailTemplate[]
   sales                              WebinarSale[]
   schedules                          WebinarSchedule[]
   host                               User                      @relation("HostedWebinars", fields: [hostId], references: [id])
@@ -306,6 +307,7 @@ model Registration {
   user                     User?                     @relation(fields: [userId], references: [id])
   webinar                  Webinar                   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   reminders                WebinarReminderSent[]
+  confirmationEmailSends   ConfirmationEmailSend[]
   sales                    WebinarSale[]
 
   @@index([email])
@@ -1311,4 +1313,66 @@ model ExternalWebinarRegistration {
   @@index([attended])
   @@index([attendanceTagsApplied])
   @@map("external_webinar_registrations")
+}
+
+// ─── Confirmation Email Templates & Tracking ───────────────────────────────
+
+model ConfirmationEmailTemplate {
+  id             String                  @id @default(cuid())
+  webinarId      String
+  name           String                  @default("Registration Confirmation")
+  subject        String
+  htmlBody       String                  @db.Text
+  isActive       Boolean                 @default(true)
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  webinar        Webinar                 @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  sends          ConfirmationEmailSend[]
+
+  @@index([webinarId])
+  @@map("confirmation_email_templates")
+}
+
+model ConfirmationEmailSend {
+  id             String                  @id @default(cuid())
+  templateId     String
+  registrationId String
+  to             String
+  subject        String
+  status         String                  @default("SENT")   // SENT, FAILED
+  sentAt         DateTime                @default(now())
+  openedAt       DateTime?
+  clickedAt      DateTime?
+  openCount      Int                     @default(0)
+  clickCount     Int                     @default(0)
+  userAgent      String?
+  errorMessage   String?
+
+  template       ConfirmationEmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  registration   Registration              @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  events         EmailTrackingEvent[]
+
+  @@index([templateId])
+  @@index([registrationId])
+  @@index([sentAt])
+  @@map("confirmation_email_sends")
+}
+
+model EmailTrackingEvent {
+  id         String                @id @default(cuid())
+  sendId     String
+  type       String                // OPEN, CLICK
+  url        String?               // clicked URL (for CLICK events)
+  userAgent  String?               @db.Text
+  ipAddress  String?
+  deviceType String?               // mobile, desktop, tablet
+  createdAt  DateTime              @default(now())
+
+  send       ConfirmationEmailSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
+
+  @@index([sendId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("email_tracking_events")
 }

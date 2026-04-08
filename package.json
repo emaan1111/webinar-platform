@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.2",
+    "@aws-sdk/client-ses": "3.1026.0",
     "@prisma/client": "^6.18.0",
     "bcryptjs": "^2.4.3",
     "csv-parser": "^3.2.0",
