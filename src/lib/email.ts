@@ -11,6 +11,7 @@ interface EmailOptions {
   subject: string
   htmlBody: string
   textBody?: string
+  fromName?: string  // Display name for sender (e.g. "Emaan Power")
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────────
@@ -64,11 +65,12 @@ async function getAccessToken(): Promise<string> {
 }
 
 async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody } = options
+  const { to, subject, htmlBody, fromName } = options
   const fromEmail = process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
+  const senderName = fromName || process.env.EMAIL_FROM_NAME || 'Emaan Power'
 
   try {
-    console.log('📧 Sending email via Microsoft Graph API:', { to, subject, from: fromEmail })
+    console.log('📧 Sending email via Microsoft Graph API:', { to, subject, from: fromEmail, fromName: senderName })
     const accessToken = await getAccessToken()
 
     const apiUrl = `https://graph.microsoft.com/v1.0/users/${fromEmail}/sendMail`
@@ -76,7 +78,8 @@ async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
       message: {
         subject,
         body: { contentType: 'HTML', content: htmlBody },
-        toRecipients: [{ emailAddress: { address: to } }]
+        toRecipients: [{ emailAddress: { address: to } }],
+        from: { emailAddress: { address: fromEmail, name: senderName } }
       },
       saveToSentItems: true
     }
@@ -132,15 +135,18 @@ function getSESClient(): SESClient {
 }
 
 async function sendViaSES(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody, textBody } = options
+  const { to, subject, htmlBody, textBody, fromName } = options
   const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
+  const senderName = fromName || process.env.EMAIL_FROM_NAME || 'Emaan Power'
+  // Format: "Display Name <email@example.com>"
+  const source = senderName ? `${senderName} <${fromEmail}>` : fromEmail
 
   try {
-    console.log('📧 Sending email via AWS SES:', { to, subject, from: fromEmail })
+    console.log('📧 Sending email via AWS SES:', { to, subject, from: fromEmail, fromName: senderName })
 
     const client = getSESClient()
     const command = new SendEmailCommand({
-      Source: fromEmail,
+      Source: source,
       Destination: { ToAddresses: [to] },
       Message: {
         Subject: { Data: subject, Charset: 'UTF-8' },

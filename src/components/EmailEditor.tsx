@@ -4,6 +4,32 @@ import React, { useRef, useCallback, useMemo, useEffect, useState } from 'react'
 import ReactQuill from 'react-quill-new'
 import 'react-quill-new/dist/quill.snow.css'
 
+// Custom styles for font size picker
+const customStyles = `
+  .ql-snow .ql-picker.ql-size .ql-picker-label::before,
+  .ql-snow .ql-picker.ql-size .ql-picker-item::before {
+    content: attr(data-value) !important;
+  }
+  .ql-snow .ql-picker.ql-size .ql-picker-label[data-value=""]::before,
+  .ql-snow .ql-picker.ql-size .ql-picker-item[data-value=""]::before {
+    content: 'Size' !important;
+  }
+  .ql-snow .ql-picker.ql-font .ql-picker-label::before,
+  .ql-snow .ql-picker.ql-font .ql-picker-item::before {
+    content: attr(data-value) !important;
+  }
+  .ql-snow .ql-picker.ql-font .ql-picker-label[data-value=""]::before,
+  .ql-snow .ql-picker.ql-font .ql-picker-item[data-value=""]::before {
+    content: 'Font' !important;
+  }
+  .ql-snow .ql-picker.ql-size {
+    width: 70px;
+  }
+  .ql-snow .ql-picker.ql-font {
+    width: 100px;
+  }
+`
+
 interface EmailEditorProps {
   value: string
   onChange: (value: string) => void
@@ -33,6 +59,8 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
   const modules = useMemo(() => ({
     toolbar: {
       container: [
+        [{ font: [] }],
+        [{ size: ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px'] }],
         [{ header: [1, 2, 3, false] }],
         ['bold', 'italic', 'underline', 'strike'],
         [{ color: [] }, { background: [] }],
@@ -46,6 +74,18 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
       },
     },
   }), [imageHandler])
+
+  // Register custom font sizes with Quill
+  useEffect(() => {
+    if (mounted && typeof window !== 'undefined') {
+      const Quill = require('react-quill-new').Quill
+      if (Quill) {
+        const Size = Quill.import('attributors/style/size')
+        Size.whitelist = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px']
+        Quill.register(Size, true)
+      }
+    }
+  }, [mounted])
 
   // Insert text at the current cursor position
   const insertText = useCallback((text: string) => {
@@ -77,13 +117,16 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
   }
 
   return (
-    <ReactQuill
-      ref={quillRef}
-      theme="snow"
-      value={value}
-      onChange={onChange}
-      modules={modules}
-      placeholder={placeholder || 'Compose your email...'}
-    />
+    <>
+      <style>{customStyles}</style>
+      <ReactQuill
+        ref={quillRef}
+        theme="snow"
+        value={value}
+        onChange={onChange}
+        modules={modules}
+        placeholder={placeholder || 'Compose your email...'}
+      />
+    </>
   )
 }
