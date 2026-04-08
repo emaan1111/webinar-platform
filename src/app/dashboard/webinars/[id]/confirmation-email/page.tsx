@@ -71,6 +71,12 @@ interface DeviceBreakdown {
   count: number
 }
 
+interface LinkBreakdown {
+  url: string
+  totalClicks: number
+  uniqueClicks: number
+}
+
 interface RecentSend {
   id: string
   to: string
@@ -139,6 +145,7 @@ export default function ConfirmationEmailPage() {
   // Stats
   const [statsOverview, setStatsOverview] = useState<StatsOverview | null>(null)
   const [deviceBreakdown, setDeviceBreakdown] = useState<DeviceBreakdown[]>([])
+  const [linkBreakdown, setLinkBreakdown] = useState<LinkBreakdown[]>([])
   const [recentSends, setRecentSends] = useState<RecentSend[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
 
@@ -166,6 +173,7 @@ export default function ConfirmationEmailPage() {
       const data = await res.json()
       setStatsOverview(data.overview)
       setDeviceBreakdown(data.deviceBreakdown || [])
+      setLinkBreakdown(data.linkBreakdown || [])
       setRecentSends(data.recentSends || [])
     } catch {
       // silently ignore stats errors
@@ -648,6 +656,61 @@ export default function ConfirmationEmailPage() {
                             </div>
                           )
                         })}
+                      </div>
+                    </CardBody>
+                  </Card>
+                )}
+
+                {/* Per-Link Click Breakdown */}
+                {linkBreakdown.length > 0 && (
+                  <Card>
+                    <CardHeader>
+                      <h2 className="text-sm font-semibold text-gray-900">
+                        Link Performance
+                      </h2>
+                    </CardHeader>
+                    <CardBody>
+                      <div className="overflow-x-auto -mx-4 sm:mx-0">
+                        <table className="min-w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-gray-200">
+                              <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                Link URL
+                              </th>
+                              <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                Unique Clicks
+                              </th>
+                              <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase tracking-wide">
+                                Total Clicks
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100">
+                            {linkBreakdown.map((link, idx) => (
+                              <tr key={idx} className="hover:bg-gray-50">
+                                <td className="py-2 px-3 text-gray-900">
+                                  <a 
+                                    href={link.url} 
+                                    target="_blank" 
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline truncate block max-w-[400px]"
+                                    title={link.url}
+                                  >
+                                    {link.url.length > 60 ? link.url.slice(0, 60) + '...' : link.url}
+                                  </a>
+                                </td>
+                                <td className="py-2 px-3 text-right">
+                                  <span className="text-blue-600 font-medium">
+                                    {link.uniqueClicks}
+                                  </span>
+                                </td>
+                                <td className="py-2 px-3 text-right text-gray-600">
+                                  {link.totalClicks}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     </CardBody>
                   </Card>

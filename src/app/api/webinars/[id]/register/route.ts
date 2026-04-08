@@ -377,26 +377,16 @@ export async function POST(
           emailHtml += trackingPixel
         }
 
-        // Wrap links with click tracker (both double and single quoted href attributes)
+        // Wrap links with click tracker (only proper href attributes, not src for images)
         emailHtml = emailHtml.replace(
-          /href=["'](https?:\/\/[^"']+)["']/gi,
-          (_match, url) => {
+          /<a\s+([^>]*?)href\s*=\s*["'](https?:\/\/[^"']+)["']([^>]*)>/gi,
+          (_match, before, url, after) => {
             const tracked = `${trackingBaseUrl}/api/email-tracking/click/${emailSendRecord.id}?url=${encodeURIComponent(url)}`
-            return `href="${tracked}"`
+            return `<a ${before}href="${tracked}"${after}>`
           }
         )
         
-        // Also wrap standalone URLs that are not already inside href (for raw link text)
-        // This regex finds URLs that are not immediately preceded by href=" or href='
-        emailHtml = emailHtml.replace(
-          /(?<!href=["'])(https?:\/\/[^\s<>"']+)(?![^<]*<\/a>)/gi,
-          (url) => {
-            // Skip if this looks like it's already a tracking URL
-            if (url.includes('/api/email-tracking/')) return url
-            const tracked = `${trackingBaseUrl}/api/email-tracking/click/${emailSendRecord.id}?url=${encodeURIComponent(url)}`
-            return `<a href="${tracked}">${url}</a>`
-          }
-        )
+        console.log(`📧 Email HTML has ${(emailHtml.match(/<a\s+[^>]*href/gi) || []).length} links after tracking injection`)
 
         const emailSent = await sendEmail({
           to: registration.email,

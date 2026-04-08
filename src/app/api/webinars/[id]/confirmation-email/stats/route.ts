@@ -33,6 +33,7 @@ export async function GET(
         clickRate: 0,
       },
       deviceBreakdown: [],
+      linkBreakdown: [],
       recentSends: [],
     })
   }
@@ -65,6 +66,40 @@ export async function GET(
     count: d._count.id,
   }))
 
+  // Per-link click breakdown
+  const linkClicks = await prisma.emailTrackingEvent.groupBy({
+    by: ['url'],
+    where: { 
+      send: { templateId: { in: templateIds } },
+      type: 'CLICK',
+      url: { not: null },
+    },
+    _count: { id: true },
+  })
+
+  // Get unique clicks per link (count distinct sendId per url)
+  const linkBreakdown = await Promise.all(
+    linkClicks.map(async (lc) => {
+      const uniqueClickers = await prisma.emailTrackingEvent.findMany({
+        where: {
+          send: { templateId: { in: templateIds } },
+          type: 'CLICK',
+          url: lc.url,
+        },
+        distinct: ['sendId'],
+        select: { sendId: true },
+      })
+      return {
+        url: lc.url || 'unknown',
+        totalClicks: lc._count.id,
+        uniqueClicks: uniqueClickers.length,
+      }
+    })
+  )
+
+  // Sort by total clicks descending
+  linkBreakdown.sort((a, b) => b.totalClicks - a.totalClicks)
+
   // Recent sends with open/click info
   const recentSends = await prisma.confirmationEmailSend.findMany({
     where: { templateId: { in: templateIds } },
@@ -96,6 +131,7 @@ export async function GET(
       clickRate: totalSent > 0 ? Math.round((uniqueClicks / totalSent) * 100) : 0,
     },
     deviceBreakdown,
+    linkBreakdown,
     recentSends,
   })
 }
