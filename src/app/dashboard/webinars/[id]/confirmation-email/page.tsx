@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
@@ -27,6 +28,9 @@ import {
   Copy,
   Info,
 } from 'lucide-react'
+
+// Dynamic import for WYSIWYG editor (no SSR)
+const EmailEditor = dynamic(() => import('@/components/EmailEditor'), { ssr: false })
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -87,6 +91,7 @@ const PLACEHOLDERS = [
   { tag: '{{name}}', desc: 'Attendee name' },
   { tag: '{{webinar_title}}', desc: 'Webinar title' },
   { tag: '{{webinar_time}}', desc: 'Scheduled time (local)' },
+  { tag: '{{webinar_scheduled_time}}', desc: 'Scheduled time with timezone (e.g. Tuesday, April 8, 2026 at 4:00 PM EDT)' },
   { tag: '{{access_link}}', desc: 'Webinar access / Zoom link' },
   { tag: '{{countdown_link}}', desc: 'Countdown page URL' },
   { tag: '{{calendar_link}}', desc: 'Add-to-calendar URL' },
@@ -255,7 +260,12 @@ export default function ConfirmationEmailPage() {
   }
 
   const insertPlaceholder = (tag: string) => {
-    setFormHtml((prev) => prev + tag)
+    const editorInsert = (window as any).__emailEditorInsert
+    if (editorInsert) {
+      editorInsert(tag)
+    } else {
+      setFormHtml((prev) => prev + tag)
+    }
   }
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -392,29 +402,19 @@ export default function ConfirmationEmailPage() {
                         ))}
                       </div>
                     </div>
-                    {/* HTML Body */}
+                    {/* WYSIWYG Email Body */}
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        HTML Body
+                        Email Body
                       </label>
-                      <textarea
-                        value={formHtml}
-                        onChange={(e) => setFormHtml(e.target.value)}
-                        rows={16}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm font-mono focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                      />
-                    </div>
-                    {/* Preview */}
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Preview
-                      </label>
-                      <div className="border border-gray-200 rounded-lg p-4 bg-white">
-                        <div
-                          dangerouslySetInnerHTML={{ __html: formHtml }}
-                          className="prose prose-sm max-w-none"
+                      <div className="border border-gray-300 rounded-lg overflow-hidden [&_.ql-toolbar]:border-0 [&_.ql-toolbar]:border-b [&_.ql-toolbar]:border-gray-300 [&_.ql-container]:border-0 [&_.ql-editor]:min-h-[300px] [&_.ql-editor]:text-sm">
+                        <EmailEditor
+                          value={formHtml}
+                          onChange={setFormHtml}
+                          placeholder="Compose your confirmation email..."
                         />
                       </div>
+                      <p className="text-xs text-gray-400 mt-1">Use the image button in the toolbar to insert images by URL.</p>
                     </div>
                     {/* Actions */}
                     <div className="flex justify-end gap-2 pt-2">

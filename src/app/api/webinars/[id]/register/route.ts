@@ -346,6 +346,7 @@ export async function POST(
             .replace(/\{\{name\}\}/gi, escapeHtml(registration.name))
             .replace(/\{\{webinar_title\}\}/gi, escapeHtml(webinar.title))
             .replace(/\{\{webinar_time\}\}/gi, formattedLocalWebinarTime ? escapeHtml(formattedLocalWebinarTime) : '')
+            .replace(/\{\{webinar_scheduled_time\}\}/gi, formattedLocalWebinarTime ? escapeHtml(formattedLocalWebinarTime) : '')
             .replace(/\{\{access_link\}\}/gi, accessLink || '')
             .replace(/\{\{countdown_link\}\}/gi, countdownLink || '')
             .replace(/\{\{calendar_link\}\}/gi, calendarLink || '')
