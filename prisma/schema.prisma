@@ -1323,6 +1323,7 @@ model ConfirmationEmailTemplate {
   name           String                  @default("Registration Confirmation")
   subject        String
   htmlBody       String                  @db.Text
+  fromName       String?
   isActive       Boolean                 @default(true)
   createdAt      DateTime                @default(now())
   updatedAt      DateTime                @updatedAt

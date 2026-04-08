@@ -50,6 +50,7 @@ interface Template {
   name: string
   subject: string
   htmlBody: string
+  fromName: string | null
   isActive: boolean
   createdAt: string
   updatedAt: string
@@ -138,6 +139,7 @@ export default function ConfirmationEmailPage() {
   const [editing, setEditing] = useState<Template | null>(null)
   const [creating, setCreating] = useState(false)
   const [formName, setFormName] = useState('')
+  const [formFromName, setFormFromName] = useState('')
   const [formSubject, setFormSubject] = useState('')
   const [formHtml, setFormHtml] = useState('')
   const [saving, setSaving] = useState(false)
@@ -196,6 +198,7 @@ export default function ConfirmationEmailPage() {
     setEditing(null)
     setCreating(true)
     setFormName('Registration Confirmation')
+    setFormFromName('')
     setFormSubject('Registration confirmed: {{webinar_title}}')
     setFormHtml(DEFAULT_HTML)
   }
@@ -204,6 +207,7 @@ export default function ConfirmationEmailPage() {
     setCreating(false)
     setEditing(t)
     setFormName(t.name)
+    setFormFromName(t.fromName || '')
     setFormSubject(t.subject)
     setFormHtml(t.htmlBody)
   }
@@ -221,14 +225,14 @@ export default function ConfirmationEmailPage() {
         const res = await fetch(`/api/webinars/${webinarId}/confirmation-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formName, subject: formSubject, htmlBody: formHtml }),
+          body: JSON.stringify({ name: formName, fromName: formFromName || null, subject: formSubject, htmlBody: formHtml }),
         })
         if (!res.ok) throw new Error('Create failed')
       } else if (editing) {
         const res = await fetch(`/api/webinars/${webinarId}/confirmation-email/${editing.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: formName, subject: formSubject, htmlBody: formHtml }),
+          body: JSON.stringify({ name: formName, fromName: formFromName || null, subject: formSubject, htmlBody: formHtml }),
         })
         if (!res.ok) throw new Error('Update failed')
       }
@@ -375,6 +379,19 @@ export default function ConfirmationEmailPage() {
                         onChange={(e) => setFormName(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         placeholder="e.g. Registration Confirmation"
+                      />
+                    </div>
+                    {/* From Name */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        From Name <span className="text-gray-400 font-normal">(optional)</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formFromName}
+                        onChange={(e) => setFormFromName(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        placeholder="e.g. Ustadha Ariba Farheen (defaults to env var)"
                       />
                     </div>
                     {/* Subject */}

@@ -35,7 +35,7 @@ export async function PUT(
   }
 
   const body = await request.json()
-  const { name, subject, htmlBody, isActive } = body
+  const { name, subject, htmlBody, fromName, isActive } = body
 
   if (!subject || !htmlBody) {
     return NextResponse.json(
@@ -58,6 +58,7 @@ export async function PUT(
       name: name || undefined,
       subject,
       htmlBody,
+      fromName: fromName !== undefined ? (fromName || null) : undefined,
       isActive: typeof isActive === 'boolean' ? isActive : undefined,
     },
   })

@@ -405,6 +405,7 @@ export async function POST(
           subject: emailSubject,
           htmlBody: emailHtml,
           textBody: emailText,
+          fromName: activeTemplate.fromName || undefined,
         })
 
         if (emailSent) {

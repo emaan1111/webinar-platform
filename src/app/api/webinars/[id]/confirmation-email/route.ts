@@ -65,7 +65,7 @@ export async function POST(
   }
 
   const body = await request.json()
-  const { name, subject, htmlBody, isActive } = body
+  const { name, subject, htmlBody, fromName, isActive } = body
 
   if (!subject || !htmlBody) {
     return NextResponse.json(
@@ -89,6 +89,7 @@ export async function POST(
       name: name || 'Registration Confirmation',
       subject,
       htmlBody,
+      fromName: fromName || null,
       isActive: isActive !== false,
     },
   })
