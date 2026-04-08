@@ -4,8 +4,13 @@ import React, { useRef, useCallback, useMemo, useEffect, useState } from 'react'
 import ReactQuill from 'react-quill-new'
 import 'react-quill-new/dist/quill.snow.css'
 
-// Custom styles for font size picker
+// Custom styles for font size picker and fonts
 const customStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap');
+  
+  .ql-font-Open-Sans {
+    font-family: 'Open Sans', sans-serif;
+  }
   .ql-snow .ql-picker.ql-size .ql-picker-label::before,
   .ql-snow .ql-picker.ql-size .ql-picker-item::before {
     content: attr(data-value) !important;
@@ -22,11 +27,14 @@ const customStyles = `
   .ql-snow .ql-picker.ql-font .ql-picker-item[data-value=""]::before {
     content: 'Font' !important;
   }
+  .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="Open Sans"]::before {
+    font-family: 'Open Sans', sans-serif;
+  }
   .ql-snow .ql-picker.ql-size {
     width: 70px;
   }
   .ql-snow .ql-picker.ql-font {
-    width: 100px;
+    width: 110px;
   }
 `
 
@@ -59,7 +67,7 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
   const modules = useMemo(() => ({
     toolbar: {
       container: [
-        [{ font: [] }],
+        [{ font: ['', 'serif', 'monospace', 'Open Sans'] }],
         [{ size: ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px'] }],
         [{ header: [1, 2, 3, false] }],
         ['bold', 'italic', 'underline', 'strike'],
@@ -75,7 +83,7 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
     },
   }), [imageHandler])
 
-  // Register custom font sizes with Quill
+  // Register custom font sizes and fonts with Quill
   useEffect(() => {
     if (mounted && typeof window !== 'undefined') {
       const Quill = require('react-quill-new').Quill
@@ -83,6 +91,10 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
         const Size = Quill.import('attributors/style/size')
         Size.whitelist = ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px']
         Quill.register(Size, true)
+        
+        const Font = Quill.import('attributors/class/font')
+        Font.whitelist = ['serif', 'monospace', 'Open Sans']
+        Quill.register(Font, true)
       }
     }
   }, [mounted])

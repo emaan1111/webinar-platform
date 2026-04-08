@@ -386,6 +386,18 @@ export async function POST(
           }
         )
         
+        // Also wrap standalone URLs (like from {{countdown_link}} merge tags) that are NOT inside HTML attributes
+        // This regex finds URLs that are NOT preceded by =" or =' (i.e., not inside href/src attributes)
+        emailHtml = emailHtml.replace(
+          /(?<!=["'])(https?:\/\/[^\s<>"']+)/gi,
+          (url) => {
+            // Skip if already a tracking URL
+            if (url.includes('/api/email-tracking/')) return url
+            const tracked = `${trackingBaseUrl}/api/email-tracking/click/${emailSendRecord.id}?url=${encodeURIComponent(url)}`
+            return `<a href="${tracked}">${url}</a>`
+          }
+        )
+        
         console.log(`📧 Email HTML has ${(emailHtml.match(/<a\s+[^>]*href/gi) || []).length} links after tracking injection`)
 
         const emailSent = await sendEmail({
