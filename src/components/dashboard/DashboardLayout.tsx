@@ -29,7 +29,8 @@ import {
   GitFork,
   Calendar,
   ExternalLink,
-  BookOpen
+  BookOpen,
+  PanelTop
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -46,6 +47,7 @@ const navigation = [
   { name: 'Split Tests', href: '/dashboard/split-tests', icon: GitFork },
   { name: 'Registration Pages', href: '/dashboard/registration-pages', icon: Layout },
   { name: 'Forms', href: '/dashboard/forms', icon: ClipboardList },
+  { name: 'Popup Forms', href: '/dashboard/popups', icon: PanelTop },
   { name: 'Templates', href: '/dashboard/templates', icon: FileText },
   { name: 'Images', href: '/dashboard/images', icon: Image },
   { name: 'Attendees', href: '/dashboard/attendees', icon: Users },

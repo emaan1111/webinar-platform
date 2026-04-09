@@ -27,6 +27,7 @@ model User {
   registrations    Registration[]
   sessions         Session[]
   hostedWebinars   Webinar[]         @relation("HostedWebinars")
+  popups           Popup[]
 
   @@map("users")
 }
@@ -1376,4 +1377,48 @@ model EmailTrackingEvent {
   @@index([type])
   @@index([createdAt])
   @@map("email_tracking_events")
+}
+
+// ============ Popup Builder ============
+
+model Popup {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  description     String?
+  fields          Json         // Array of field configs: [{id, type, label, placeholder, required, position, options, width}]
+  layout          Json?        // Layout config: sections, rows, columns, ordering
+  styles          Json?        // Style config: colors, fonts, sizes, spacing per section
+  customHtml      String?      @db.Text // Optional: user-provided custom HTML
+  useCustomHtml   Boolean      @default(false)
+  submitText      String       @default("Submit")
+  successMessage  String       @default("Thank you for your submission!")
+  redirectUrl     String?      // Custom on-submit redirect URL
+  isActive        Boolean      @default(true)
+  userId          String
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @default(now())
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads           PopupLead[]
+
+  @@index([userId])
+  @@map("popups")
+}
+
+model PopupLead {
+  id          String   @id @default(cuid())
+  popupId     String
+  data        Json     // Submitted field values as key-value pairs
+  ip          String?
+  userAgent   String?
+  referrer    String?
+  pageUrl     String?  // The page the popup was embedded on
+  createdAt   DateTime @default(now())
+
+  popup       Popup    @relation(fields: [popupId], references: [id], onDelete: Cascade)
+
+  @@index([popupId])
+  @@index([createdAt])
+  @@map("popup_leads")
 }
