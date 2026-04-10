@@ -24,6 +24,9 @@ export default function EmbedCodeModal({ slug, onClose }: EmbedCodeModalProps) {
 <div id="popup-${slug}"></div>
 <script src="${origin}/popup-embed.js" data-popup="${slug}" data-mode="inline" data-container="popup-${slug}"></script>`
 
+  const embedDelayed = `<!-- Popup appears after 3 seconds -->
+<script src="${origin}/popup-embed.js" data-popup="${slug}" data-delay="3000"></script>`
+
   const copyCode = (code: string, label: string) => {
     navigator.clipboard.writeText(code)
     setCopied(label)
@@ -99,6 +102,38 @@ export default function EmbedCodeModal({ slug, onClose }: EmbedCodeModalProps) {
               >
                 {copied === 'inline' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               </button>
+            </div>
+          </div>
+
+          {/* Delayed Popup */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-1">Delayed Popup</h3>
+            <p className="text-xs text-gray-500 mb-2">
+              Show popup after a delay (in milliseconds). Great for exit-intent style behavior.
+            </p>
+            <div className="relative">
+              <pre className="bg-gray-900 text-green-400 text-xs p-3 rounded-lg overflow-x-auto whitespace-pre-wrap">
+                {embedDelayed}
+              </pre>
+              <button
+                onClick={() => copyCode(embedDelayed, 'delayed')}
+                className="absolute top-2 right-2 p-1.5 bg-gray-700 hover:bg-gray-600 rounded text-white"
+              >
+                {copied === 'delayed' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Optional Attributes */}
+          <div className="border-t pt-4">
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Optional Attributes</h3>
+            <div className="text-xs text-gray-600 space-y-1 font-mono bg-gray-50 p-3 rounded">
+              <p><code className="text-blue-600">data-delay="3000"</code> — Delay before showing (ms)</p>
+              <p><code className="text-blue-600">data-trigger="button"</code> — Show button instead of auto popup</p>
+              <p><code className="text-blue-600">data-button-text="..."</code> — Custom button text</p>
+              <p><code className="text-blue-600">data-button-style="..."</code> — Custom button CSS</p>
+              <p><code className="text-blue-600">data-mode="inline"</code> — Embed form inline (no overlay)</p>
+              <p><code className="text-blue-600">data-container="id"</code> — Container element ID for inline mode</p>
             </div>
           </div>
         </div>
