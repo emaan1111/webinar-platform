@@ -119,6 +119,8 @@ export default function AnalyticsPage() {
   const [webinars, setWebinars] = useState<WebinarOption[]>([])
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [timeFrame, setTimeFrame] = useState<string>('all')
+  const [customDateFrom, setCustomDateFrom] = useState('')
+  const [customDateTo, setCustomDateTo] = useState('')
   const [showWebinarDropdown, setShowWebinarDropdown] = useState(false)
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -162,11 +164,14 @@ export default function AnalyticsPage() {
       try {
         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
         // Use the aggregate API endpoint for better performance
-        const queryParams = new URLSearchParams({
+        const params: Record<string, string> = {
           webinarIds: webinarIds.join(','),
           timeFrame: timeFrame,
-          timezone: timezone
-        })
+          timezone: timezone,
+        }
+        if (timeFrame === 'custom' && customDateFrom) params.from = customDateFrom
+        if (timeFrame === 'custom' && customDateTo) params.to = customDateTo
+        const queryParams = new URLSearchParams(params)
         
         const response = await fetch(`/api/analytics/aggregate?${queryParams}`)
         const aggregateResult = await response.json()
@@ -488,7 +493,7 @@ export default function AnalyticsPage() {
     }
 
     fetchAnalytics()
-  }, [selectedWebinars, timeFrame, webinars])
+  }, [selectedWebinars, timeFrame, customDateFrom, customDateTo, webinars])
 
   const handleWebinarToggle = (webinarId: string) => {
     if (webinarId === 'all') {
@@ -678,12 +683,32 @@ export default function AnalyticsPage() {
               disabled={loading}
             >
               <option value="all">All Time</option>
+              <option value="1h">Last Hour</option>
               <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
               <option value="7d">Last 7 Days</option>
               <option value="30d">Last 30 Days</option>
               <option value="90d">Last 90 Days</option>
               <option value="1y">Last Year</option>
+              <option value="custom">Custom Range</option>
             </select>
+            {timeFrame === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={customDateFrom}
+                  onChange={(e) => setCustomDateFrom(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+                />
+                <span className="text-gray-500 text-sm">to</span>
+                <input
+                  type="date"
+                  value={customDateTo}
+                  onChange={(e) => setCustomDateTo(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-sm"
+                />
+              </div>
+            )}
 
             {/* Webinar Multi-Select Dropdown */}
             <div className="relative">

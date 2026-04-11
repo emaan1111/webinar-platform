@@ -37,14 +37,25 @@ export async function GET(request: NextRequest) {
 
     // Calculate date filter based on timeFrame
     let dateFilter: Date | undefined;
+    let dateFilterEnd: Date | undefined;
     const now = new Date();
     
     switch (timeFrame) {
-      case 'today':
-        // Calculate start of day in user's timezone
+      case '1h':
+        dateFilter = new Date(now.getTime() - 60 * 60 * 1000);
+        break;
+      case 'today': {
         const todayStr = formatInTimeZone(now, timezone, 'yyyy-MM-dd');
         dateFilter = fromZonedTime(todayStr + ' 00:00:00', timezone);
         break;
+      }
+      case 'yesterday': {
+        const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+        const yesterdayStr = formatInTimeZone(yesterday, timezone, 'yyyy-MM-dd');
+        dateFilter = fromZonedTime(yesterdayStr + ' 00:00:00', timezone);
+        dateFilterEnd = fromZonedTime(yesterdayStr + ' 23:59:59', timezone);
+        break;
+      }
       case '7d':
         dateFilter = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
@@ -57,6 +68,13 @@ export async function GET(request: NextRequest) {
       case '1y':
         dateFilter = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
         break;
+      case 'custom': {
+        const fromParam = searchParams.get('from');
+        const toParam = searchParams.get('to');
+        if (fromParam) dateFilter = fromZonedTime(fromParam + ' 00:00:00', timezone);
+        if (toParam) dateFilterEnd = fromZonedTime(toParam + ' 23:59:59', timezone);
+        break;
+      }
       default:
         dateFilter = undefined;
     }
@@ -66,9 +84,10 @@ export async function GET(request: NextRequest) {
       webinarId: webinarIds.length > 0 ? { in: webinarIds } : undefined,
     };
 
-    if (dateFilter) {
+    if (dateFilter || dateFilterEnd) {
       whereClause.registeredAt = {
-        gte: dateFilter,
+        ...(dateFilter && { gte: dateFilter }),
+        ...(dateFilterEnd && { lte: dateFilterEnd }),
       };
     }
 
