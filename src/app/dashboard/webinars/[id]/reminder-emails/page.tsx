@@ -605,7 +605,7 @@ export default function ReminderEmailsPage() {
           <>
             {statsLoading ? (
               <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
-            ) : !statsOverview || statsOverview.totalSent === 0 ? (
+            ) : !statsOverview || (statsOverview.totalSent === 0 && (!statsOverview.totalPending || statsOverview.totalPending === 0)) ? (
               <Card><CardBody>
                 <div className="text-center py-12">
                   <BarChart3 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
@@ -620,6 +620,9 @@ export default function ReminderEmailsPage() {
                   <Card><CardBody>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Total Sent</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">{statsOverview.totalSent}</p>
+                    {statsOverview.totalPending > 0 && (
+                      <p className="text-xs text-amber-600 mt-1">{statsOverview.totalPending} pending</p>
+                    )}
                   </CardBody></Card>
                   <Card><CardBody>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Open Rate</p>
@@ -722,6 +725,7 @@ export default function ReminderEmailsPage() {
                             <tr className="border-b border-gray-200">
                               <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">To</th>
                               <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Reminder</th>
+                              <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Scheduled For</th>
                               <th className="text-left py-2 px-3 text-xs font-medium text-gray-500 uppercase">Status</th>
                               <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Opens</th>
                               <th className="text-right py-2 px-3 text-xs font-medium text-gray-500 uppercase">Clicks</th>
@@ -732,8 +736,11 @@ export default function ReminderEmailsPage() {
                               <tr key={s.id} className="border-b border-gray-100">
                                 <td className="py-2 px-3 text-gray-900 truncate max-w-[200px]">{s.to}</td>
                                 <td className="py-2 px-3 text-gray-500">{s.template?.name}</td>
+                                <td className="py-2 px-3 text-gray-500 text-xs">
+                                  {s.scheduledFor ? new Date(s.scheduledFor).toLocaleString() : '—'}
+                                </td>
                                 <td className="py-2 px-3">
-                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.status === 'SENT' ? 'bg-green-100 text-green-800' : s.status === 'FAILED' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-600'}`}>
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${s.status === 'SENT' ? 'bg-green-100 text-green-800' : s.status === 'FAILED' ? 'bg-red-100 text-red-800' : s.status === 'PENDING' ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>
                                     {s.status}
                                   </span>
                                 </td>

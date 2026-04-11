@@ -5,6 +5,7 @@ import { processPendingClickFunnelsReminderTags } from '@/lib/clickfunnelsRemind
 import { processEndedWebinarsForAttendanceTags } from '@/lib/clickfunnelsAttendanceTags'
 import { processEndedSessionsForPostSMS } from '@/lib/postSessionSmsAutomation'
 import { syncWebinarJamRegistrations } from '@/lib/webinarjamSync'
+import { processPendingReminderEmails, processPendingFollowUpEmails, processNonOpenerResends } from '@/lib/emailScheduler'
 
 // POST /api/cron/process-reminders - Process pending reminders
 // This should be called by a cron job every 5-10 minutes
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    console.log('🔔 Cron job: Processing reminders + ClickFunnels tags + attendance tagging + post-session SMS + WebinarJam sync...')
+    console.log('🔔 Cron job: Processing reminders + emails + ClickFunnels tags + attendance tagging + post-session SMS + WebinarJam sync...')
 
     const [
       reminderStats, 
@@ -26,14 +27,20 @@ export async function POST(request: NextRequest) {
       clickFunnelsTagStats, 
       attendanceTagStats, 
       postSessionSmsStats,
-      webinarJamSyncStats
+      webinarJamSyncStats,
+      reminderEmailCount,
+      followUpEmailCount,
+      resendCount
     ] = await Promise.all([
       processPendingReminders(),
       processEventReminders(),
       processPendingClickFunnelsReminderTags(),
       processEndedWebinarsForAttendanceTags(),
       processEndedSessionsForPostSMS(),
-      syncWebinarJamRegistrations()
+      syncWebinarJamRegistrations(),
+      processPendingReminderEmails(),
+      processPendingFollowUpEmails(),
+      processNonOpenerResends()
     ])
 
     return NextResponse.json({
@@ -44,6 +51,11 @@ export async function POST(request: NextRequest) {
       attendanceTagStats,
       postSessionSmsStats,
       webinarJamSyncStats,
+      emailProcessing: {
+        reminderEmails: reminderEmailCount,
+        followUpEmails: followUpEmailCount,
+        nonOpenerResends: resendCount
+      },
       timestamp: new Date().toISOString()
     })
   } catch (error: any) {

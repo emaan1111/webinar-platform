@@ -31,17 +31,23 @@ export async function GET(
   }
 
   const agg = await prisma.reminderEmailSend.aggregate({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, status: 'SENT' },
     _count: { id: true },
     _sum: { openCount: true, clickCount: true },
   })
+  const totalScheduled = await prisma.reminderEmailSend.count({
+    where: { templateId: { in: templateIds } },
+  })
   const uniqueOpens = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, status: 'SENT', openCount: { gt: 0 } },
   })
   const uniqueClicks = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, clickCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, status: 'SENT', clickCount: { gt: 0 } },
   })
   const totalSent = agg._count.id
+  const totalPending = await prisma.reminderEmailSend.count({
+    where: { templateId: { in: templateIds }, status: 'PENDING' },
+  })
 
   // Device breakdown — scope to actual sends for this webinar's templates
   const sendIds = await prisma.reminderEmailSend.findMany({
@@ -72,18 +78,18 @@ export async function GET(
 
   // A/B variant breakdown
   const variantA = await prisma.reminderEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, abVariant: 'A' },
+    where: { templateId: { in: templateIds }, abVariant: 'A', status: 'SENT' },
     _count: { id: true },
   })
   const variantAOpens = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, abVariant: 'A', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, abVariant: 'A', status: 'SENT', openCount: { gt: 0 } },
   })
   const variantB = await prisma.reminderEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, abVariant: 'B' },
+    where: { templateId: { in: templateIds }, abVariant: 'B', status: 'SENT' },
     _count: { id: true },
   })
   const variantBOpens = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, abVariant: 'B', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, abVariant: 'B', status: 'SENT', openCount: { gt: 0 } },
   })
   const abBreakdown = {
     variantA: { sent: variantA._count.id, opens: variantAOpens, openRate: variantA._count.id > 0 ? Math.round((variantAOpens / variantA._count.id) * 100) : 0 },
@@ -94,12 +100,12 @@ export async function GET(
   const perTemplate = await Promise.all(
     templates.map(async (t) => {
       const s = await prisma.reminderEmailSend.aggregate({
-        where: { templateId: t.id },
+        where: { templateId: t.id, status: 'SENT' },
         _count: { id: true },
         _sum: { openCount: true, clickCount: true },
       })
-      const uo = await prisma.reminderEmailSend.count({ where: { templateId: t.id, openCount: { gt: 0 } } })
-      const uc = await prisma.reminderEmailSend.count({ where: { templateId: t.id, clickCount: { gt: 0 } } })
+      const uo = await prisma.reminderEmailSend.count({ where: { templateId: t.id, status: 'SENT', openCount: { gt: 0 } } })
+      const uc = await prisma.reminderEmailSend.count({ where: { templateId: t.id, status: 'SENT', clickCount: { gt: 0 } } })
       const ts = s._count.id
       return {
         templateId: t.id,
@@ -137,6 +143,8 @@ export async function GET(
   return NextResponse.json({
     overview: {
       totalSent,
+      totalScheduled,
+      totalPending,
       totalOpens: agg._sum.openCount || 0,
       totalClicks: agg._sum.clickCount || 0,
       uniqueOpens,

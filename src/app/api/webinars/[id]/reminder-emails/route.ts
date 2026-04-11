@@ -18,17 +18,18 @@ export async function GET(
     orderBy: { minutesBefore: 'desc' },
     include: {
       sends: {
-        select: { openCount: true, clickCount: true },
+        select: { status: true, openCount: true, clickCount: true },
       },
     },
   })
 
   const templatesWithStats = templates.map((t) => {
-    const totalSent = t.sends.length
-    const uniqueOpens = t.sends.filter((s) => s.openCount > 0).length
-    const uniqueClicks = t.sends.filter((s) => s.clickCount > 0).length
-    const totalOpens = t.sends.reduce((sum, s) => sum + s.openCount, 0)
-    const totalClicks = t.sends.reduce((sum, s) => sum + s.clickCount, 0)
+    const sentSends = t.sends.filter((s) => s.status === 'SENT')
+    const totalSent = sentSends.length
+    const uniqueOpens = sentSends.filter((s) => s.openCount > 0).length
+    const uniqueClicks = sentSends.filter((s) => s.clickCount > 0).length
+    const totalOpens = sentSends.reduce((sum, s) => sum + s.openCount, 0)
+    const totalClicks = sentSends.reduce((sum, s) => sum + s.clickCount, 0)
     const { sends, ...rest } = t
     return {
       ...rest,
