@@ -29,9 +29,11 @@ interface TemplateStats {
 
 interface Template {
   id: string; webinarId: string; name: string; subject: string
-  htmlBody: string; fromName: string | null; delayMinutes: number
-  audienceType: string; isActive: boolean; sortOrder: number
-  createdAt: string; updatedAt: string; stats: TemplateStats
+  subjectB?: string | null; htmlBody: string; fromName: string | null
+  delayMinutes: number; audienceType: string; isActive: boolean
+  skipIfPurchased?: boolean; resendToNonOpeners?: boolean
+  resendAfterHours?: number | null; resendSubject?: string | null
+  sortOrder: number; createdAt: string; updatedAt: string; stats: TemplateStats
 }
 
 // ─── Default HTML ────────────────────────────────────────────────────────────
@@ -247,6 +249,31 @@ export default function FollowUpEmailsPage() {
       const res = await fetch(`/api/webinars/${webinarId}/followup-emails/${t.id}`, { method: 'DELETE' })
       if (!res.ok) throw new Error('Delete failed')
       if (editing?.id === t.id) cancelEdit()
+      await fetchTemplates()
+    } catch (err: any) { setError(err.message) }
+  }
+
+  const duplicateTemplate = async (t: Template) => {
+    try {
+      const res = await fetch(`/api/webinars/${webinarId}/followup-emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `${t.name} (Copy)`,
+          subject: t.subject,
+          htmlBody: t.htmlBody,
+          fromName: t.fromName,
+          delayMinutes: t.delayMinutes,
+          audienceType: t.audienceType,
+          isActive: false,
+          subjectB: t.subjectB,
+          skipIfPurchased: t.skipIfPurchased,
+          resendToNonOpeners: t.resendToNonOpeners,
+          resendAfterHours: t.resendAfterHours,
+          resendSubject: t.resendSubject,
+        }),
+      })
+      if (!res.ok) throw new Error('Duplicate failed')
       await fetchTemplates()
     } catch (err: any) { setError(err.message) }
   }
@@ -626,6 +653,9 @@ export default function FollowUpEmailsPage() {
                         </button>
                         <button onClick={() => startEdit(t)} className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50" title="Edit">
                           <Edit className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => duplicateTemplate(t)} className="p-2 rounded-lg text-gray-400 hover:text-green-600 hover:bg-green-50" title="Duplicate">
+                          <Copy className="w-4 h-4" />
                         </button>
                         <button onClick={() => deleteTemplate(t)} className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50" title="Delete">
                           <Trash2 className="w-4 h-4" />
