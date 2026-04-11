@@ -36,6 +36,17 @@ const customStyles = `
   .ql-snow .ql-picker.ql-font {
     width: 110px;
   }
+  .ql-snow .ql-picker.ql-lineheight {
+    width: 55px;
+  }
+  .ql-snow .ql-picker.ql-lineheight .ql-picker-label::before,
+  .ql-snow .ql-picker.ql-lineheight .ql-picker-item::before {
+    content: attr(data-value) !important;
+  }
+  .ql-snow .ql-picker.ql-lineheight .ql-picker-label[data-value=""]::before,
+  .ql-snow .ql-picker.ql-lineheight .ql-picker-item[data-value=""]::before {
+    content: 'Line' !important;
+  }
 `
 
 interface EmailEditorProps {
@@ -69,6 +80,7 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
       container: [
         [{ font: ['', 'serif', 'monospace', 'Open Sans'] }],
         [{ size: ['10px', '12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px', '36px', '48px'] }],
+        [{ lineheight: ['1', '1.2', '1.4', '1.6', '1.8', '2', '2.5', '3'] }],
         [{ header: [1, 2, 3, false] }],
         ['bold', 'italic', 'underline', 'strike'],
         [{ color: [] }, { background: [] }],
@@ -95,6 +107,14 @@ export default function EmailEditor({ value, onChange, placeholder }: EmailEdito
         const Font = Quill.import('attributors/class/font')
         Font.whitelist = ['serif', 'monospace', 'Open Sans']
         Quill.register(Font, true)
+
+        // Custom line-height attributor
+        const Parchment = Quill.import('parchment')
+        const LineHeightStyle = new Parchment.StyleAttributor('lineheight', 'line-height', {
+          scope: Parchment.Scope.BLOCK,
+          whitelist: ['1', '1.2', '1.4', '1.6', '1.8', '2', '2.5', '3'],
+        })
+        Quill.register(LineHeightStyle, true)
       }
     }
   }, [mounted])
