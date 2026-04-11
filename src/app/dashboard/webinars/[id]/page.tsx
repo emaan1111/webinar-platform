@@ -158,65 +158,65 @@ export default function ViewWebinarPage() {
 
   return (
     <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/dashboard/webinars">
-              <Button variant="secondary" size="sm">
-                <ArrowLeft className="w-4 h-4" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{webinar.title}</h1>
-              <p className="mt-1 text-sm text-gray-500">Webinar Details</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={copyLink}>
-              <Copy className="w-4 h-4 mr-2" />
-              Copy Link
+        <div className="flex items-center gap-4">
+          <Link href="/dashboard/webinars">
+            <Button variant="secondary" size="sm">
+              <ArrowLeft className="w-4 h-4" />
             </Button>
-            <Link href={`/dashboard/webinars/${webinar.id}/edit`}>
-              <Button size="sm">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
-            </Link>
-            <Link href={`/dashboard/webinars/${webinar.id}/faq`}>
-              <Button variant="secondary" size="sm">
-                <HelpCircle className="w-4 h-4 mr-2" />
-                FAQs
-              </Button>
-            </Link>
-            <Link href={`/dashboard/webinars/${webinar.id}/reminders`}>
-              <Button variant="secondary" size="sm">
-                <MessageSquare className="w-4 h-4 mr-2" />
-                Reminders
-              </Button>
-            </Link>
-            <Link href={`/dashboard/webinars/${webinar.id}/confirmation-email`}>
-              <Button variant="secondary" size="sm">
-                <Mail className="w-4 h-4 mr-2" />
-                Confirmation Email
-              </Button>
-            </Link>
-            <Link href={`/dashboard/webinars/${webinar.id}/reminder-emails`}>
-              <Button variant="secondary" size="sm">
-                <Mail className="w-4 h-4 mr-2" />
-                Reminder Emails
-              </Button>
-            </Link>
-            <Link href={`/dashboard/webinars/${webinar.id}/followup-emails`}>
-              <Button variant="secondary" size="sm">
-                <Mail className="w-4 h-4 mr-2" />
-                Follow-Up Emails
-              </Button>
-            </Link>
-            <Button variant="danger" size="sm" onClick={handleDelete}>
-              <Trash2 className="w-4 h-4" />
-            </Button>
+          </Link>
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold text-gray-900">{webinar.title}</h1>
+            <p className="mt-1 text-sm text-gray-500">Webinar Details</p>
           </div>
+          <Button variant="danger" size="sm" onClick={handleDelete}>
+            <Trash2 className="w-4 h-4" />
+          </Button>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" size="sm" onClick={copyLink}>
+            <Copy className="w-4 h-4 mr-2" />
+            Copy Link
+          </Button>
+          <Link href={`/dashboard/webinars/${webinar.id}/edit`}>
+            <Button size="sm">
+              <Edit className="w-4 h-4 mr-2" />
+              Edit
+            </Button>
+          </Link>
+          <Link href={`/dashboard/webinars/${webinar.id}/faq`}>
+            <Button variant="secondary" size="sm">
+              <HelpCircle className="w-4 h-4 mr-2" />
+              FAQs
+            </Button>
+          </Link>
+          <Link href={`/dashboard/webinars/${webinar.id}/reminders`}>
+            <Button variant="secondary" size="sm">
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Reminders
+            </Button>
+          </Link>
+          <Link href={`/dashboard/webinars/${webinar.id}/confirmation-email`}>
+            <Button variant="secondary" size="sm">
+              <Mail className="w-4 h-4 mr-2" />
+              Confirmation Email
+            </Button>
+          </Link>
+          <Link href={`/dashboard/webinars/${webinar.id}/reminder-emails`}>
+            <Button variant="secondary" size="sm">
+              <Mail className="w-4 h-4 mr-2" />
+              Reminder Emails
+            </Button>
+          </Link>
+          <Link href={`/dashboard/webinars/${webinar.id}/followup-emails`}>
+            <Button variant="secondary" size="sm">
+              <Mail className="w-4 h-4 mr-2" />
+              Follow-Up Emails
+            </Button>
+          </Link>
         </div>
 
         {/* Status Badge */}
