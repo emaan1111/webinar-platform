@@ -252,6 +252,16 @@ export async function PATCH(
 
         console.log('Updated webinar schedules:', schedulesData.length)
       }
+
+      // Reschedule reminder emails when schedule changes
+      try {
+        const { rescheduleReminderEmails } = await import('@/lib/emailScheduler')
+        rescheduleReminderEmails(params.id).catch((err: any) =>
+          console.error('⚠️ Failed to reschedule reminder emails:', err)
+        )
+      } catch (err) {
+        console.error('⚠️ Failed to import emailScheduler:', err)
+      }
     }
 
     // Fetch updated webinar with schedules

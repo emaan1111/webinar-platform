@@ -38,6 +38,7 @@ export async function GET(
 ) {
   const { sendId } = params
   const url = new URL(_request.url)
+  const emailType = url.searchParams.get('type') || 'confirmation'
 
   // Extract tracking context
   const userAgent = _request.headers.get('user-agent') || ''
@@ -50,31 +51,89 @@ export async function GET(
   // Fire-and-forget — never block the pixel response
   ;(async () => {
     try {
-      const send = await prisma.confirmationEmailSend.findUnique({
-        where: { id: sendId },
-        select: { id: true },
-      })
-      if (!send) return
-
-      await prisma.$transaction([
-        prisma.emailTrackingEvent.create({
-          data: {
-            sendId,
-            type: 'OPEN',
-            userAgent,
-            ipAddress: ip,
-            deviceType,
-          },
-        }),
-        prisma.confirmationEmailSend.update({
+      if (emailType === 'reminder') {
+        const send = await prisma.reminderEmailSend.findUnique({
           where: { id: sendId },
-          data: {
-            openedAt: new Date(),
-            openCount: { increment: 1 },
-            userAgent: userAgent || undefined,
-          },
-        }),
-      ])
+          select: { id: true },
+        })
+        if (!send) return
+
+        await prisma.$transaction([
+          prisma.emailTrackingEvent.create({
+            data: {
+              type: 'OPEN',
+              emailType: 'reminder',
+              reminderEmailSendId: sendId,
+              userAgent,
+              ipAddress: ip,
+              deviceType,
+            },
+          }),
+          prisma.reminderEmailSend.update({
+            where: { id: sendId },
+            data: {
+              openedAt: new Date(),
+              openCount: { increment: 1 },
+              userAgent: userAgent || undefined,
+            },
+          }),
+        ])
+      } else if (emailType === 'followup') {
+        const send = await prisma.followUpEmailSend.findUnique({
+          where: { id: sendId },
+          select: { id: true },
+        })
+        if (!send) return
+
+        await prisma.$transaction([
+          prisma.emailTrackingEvent.create({
+            data: {
+              type: 'OPEN',
+              emailType: 'followup',
+              followUpEmailSendId: sendId,
+              userAgent,
+              ipAddress: ip,
+              deviceType,
+            },
+          }),
+          prisma.followUpEmailSend.update({
+            where: { id: sendId },
+            data: {
+              openedAt: new Date(),
+              openCount: { increment: 1 },
+              userAgent: userAgent || undefined,
+            },
+          }),
+        ])
+      } else {
+        // Default: confirmation email (backwards compatible)
+        const send = await prisma.confirmationEmailSend.findUnique({
+          where: { id: sendId },
+          select: { id: true },
+        })
+        if (!send) return
+
+        await prisma.$transaction([
+          prisma.emailTrackingEvent.create({
+            data: {
+              sendId,
+              type: 'OPEN',
+              emailType: 'confirmation',
+              userAgent,
+              ipAddress: ip,
+              deviceType,
+            },
+          }),
+          prisma.confirmationEmailSend.update({
+            where: { id: sendId },
+            data: {
+              openedAt: new Date(),
+              openCount: { increment: 1 },
+              userAgent: userAgent || undefined,
+            },
+          }),
+        ])
+      }
     } catch (err) {
       console.error('Email open tracking error:', err)
     }

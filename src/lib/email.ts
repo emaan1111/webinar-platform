@@ -4,7 +4,13 @@
 //   "ses"           → AWS SES only
 //   "ses_fallback"  → Try Microsoft Graph first, fall back to SES
 
-import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses'
+import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses'
+
+interface EmailAttachment {
+  filename: string
+  content: string   // Base64-encoded content
+  contentType: string
+}
 
 interface EmailOptions {
   to: string
@@ -12,6 +18,7 @@ interface EmailOptions {
   htmlBody: string
   textBody?: string
   fromName?: string  // Display name for sender (e.g. "Emaan Power")
+  attachments?: EmailAttachment[]
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────────
@@ -65,7 +72,7 @@ async function getAccessToken(): Promise<string> {
 }
 
 async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody, fromName } = options
+  const { to, subject, htmlBody, fromName, attachments } = options
   const fromEmail = process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
   const senderName = fromName || process.env.EMAIL_FROM_NAME || 'Emaan Power'
 
@@ -74,14 +81,23 @@ async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
     const accessToken = await getAccessToken()
 
     const apiUrl = `https://graph.microsoft.com/v1.0/users/${fromEmail}/sendMail`
-    const emailMessage = {
+    const emailMessage: any = {
       message: {
         subject,
         body: { contentType: 'HTML', content: htmlBody },
         toRecipients: [{ emailAddress: { address: to } }],
-        from: { emailAddress: { address: fromEmail, name: senderName } }
+        from: { emailAddress: { address: fromEmail, name: senderName } },
       },
       saveToSentItems: true
+    }
+
+    if (attachments && attachments.length > 0) {
+      emailMessage.message.attachments = attachments.map((att) => ({
+        '@odata.type': '#microsoft.graph.fileAttachment',
+        name: att.filename,
+        contentType: att.contentType,
+        contentBytes: att.content,
+      }))
     }
 
     const response = await fetch(apiUrl, {
@@ -135,7 +151,7 @@ function getSESClient(): SESClient {
 }
 
 async function sendViaSES(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody, textBody, fromName } = options
+  const { to, subject, htmlBody, textBody, fromName, attachments } = options
   const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
   const senderName = fromName || process.env.EMAIL_FROM_NAME || 'Emaan Power'
   // Format: "Display Name <email@example.com>"
@@ -145,19 +161,66 @@ async function sendViaSES(options: EmailOptions): Promise<boolean> {
     console.log('📧 Sending email via AWS SES:', { to, subject, from: fromEmail, fromName: senderName })
 
     const client = getSESClient()
-    const command = new SendEmailCommand({
-      Source: source,
-      Destination: { ToAddresses: [to] },
-      Message: {
-        Subject: { Data: subject, Charset: 'UTF-8' },
-        Body: {
-          Html: { Data: htmlBody, Charset: 'UTF-8' },
-          ...(textBody ? { Text: { Data: textBody, Charset: 'UTF-8' } } : {}),
-        },
-      },
-    })
 
-    await client.send(command)
+    // If there are attachments, use SendRawEmailCommand (MIME)
+    if (attachments && attachments.length > 0) {
+      const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`
+      const rawParts = [
+        `From: ${source}`,
+        `To: ${to}`,
+        `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
+        `MIME-Version: 1.0`,
+        `Content-Type: multipart/mixed; boundary="${boundary}"`,
+        '',
+        `--${boundary}`,
+        `Content-Type: multipart/alternative; boundary="${boundary}_alt"`,
+        '',
+        `--${boundary}_alt`,
+        `Content-Type: text/plain; charset=UTF-8`,
+        `Content-Transfer-Encoding: 7bit`,
+        '',
+        textBody || htmlBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+        '',
+        `--${boundary}_alt`,
+        `Content-Type: text/html; charset=UTF-8`,
+        `Content-Transfer-Encoding: 7bit`,
+        '',
+        htmlBody,
+        '',
+        `--${boundary}_alt--`,
+      ]
+
+      for (const att of attachments) {
+        rawParts.push(
+          '',
+          `--${boundary}`,
+          `Content-Type: ${att.contentType}; name="${att.filename}"`,
+          `Content-Disposition: attachment; filename="${att.filename}"`,
+          `Content-Transfer-Encoding: base64`,
+          '',
+          att.content,
+        )
+      }
+      rawParts.push('', `--${boundary}--`)
+
+      const rawCommand = new SendRawEmailCommand({
+        RawMessage: { Data: new TextEncoder().encode(rawParts.join('\r\n')) },
+      })
+      await client.send(rawCommand)
+    } else {
+      const command = new SendEmailCommand({
+        Source: source,
+        Destination: { ToAddresses: [to] },
+        Message: {
+          Subject: { Data: subject, Charset: 'UTF-8' },
+          Body: {
+            Html: { Data: htmlBody, Charset: 'UTF-8' },
+            ...(textBody ? { Text: { Data: textBody, Charset: 'UTF-8' } } : {}),
+          },
+        },
+      })
+      await client.send(command)
+    }
     console.log('✅ Email sent successfully via AWS SES')
     return true
   } catch (error) {

@@ -8,6 +8,7 @@ import { scheduleDelayedClickFunnelsTag, scheduleDelayedMauticTag } from '@/lib/
 import { generateReferralCode } from '@/lib/referral'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
 import { sendEmail } from '@/lib/email'
+import { generateICS } from '@/lib/calendarUtils'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
 
 const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
@@ -163,6 +164,9 @@ export async function POST(
         id: true,
         title: true,
         slug: true,
+        description: true,
+        duration: true,
+        sendCalendarInvite: true,
         enableABTesting: true,
         trafficSplitPercent: true,
         // ClickFunnels Custom Tags
@@ -452,6 +456,53 @@ export async function POST(
       console.error('⚠️ Failed to send confirmation email:', error)
     }
 
+    // --- Separate Calendar Invite Email (if enabled) ---
+    if (webinar.sendCalendarInvite && registration.scheduledStartTime) {
+      try {
+        const icsContent = generateICS({
+          title: webinar.title,
+          description: `${webinar.description || webinar.title}\n\nJoin your webinar: ${countdownLink || accessLink || ''}`,
+          startTime: new Date(registration.scheduledStartTime),
+          durationMinutes: webinar.duration || 60,
+          url: countdownLink || accessLink || undefined,
+          uid: `${webinar.id}-${registration.id}@${new URL(baseUrl).hostname}`,
+        })
+
+        const calendarEmailHtml = `<div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 640px; margin: 0 auto; padding: 24px;">
+  <h2 style="font-size: 22px; margin: 0 0 12px;">📅 Calendar Invite: ${webinar.title}</h2>
+  <p style="margin: 0 0 12px;">Hi ${registration.name},</p>
+  <p style="margin: 0 0 12px;">We've attached a calendar invite (.ics file) for your upcoming webinar. Open the attachment to add it to your calendar automatically.</p>
+  <p style="margin: 0 0 16px;"><strong>When:</strong> ${formattedLocalWebinarTime || 'See attached invite'}</p>
+  <p style="margin: 0 0 16px;">
+    <a href="${countdownLink || accessLink || ''}" style="display: inline-block; background: #111827; color: #ffffff; text-decoration: none; padding: 12px 18px; border-radius: 8px; font-weight: 600;">View Countdown Page</a>
+  </p>
+  <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280;">If the attachment doesn't open automatically, you can also <a href="${calendarLink || ''}">add to calendar here</a>.</p>
+</div>`
+
+        const calendarEmailText = `Calendar Invite: ${webinar.title}\n\nHi ${registration.name},\n\nWe've attached a calendar invite for your upcoming webinar.\n\nWhen: ${formattedLocalWebinarTime || 'See attached invite'}\n\nCountdown page: ${countdownLink || accessLink || ''}`
+
+        const calendarSent = await sendEmail({
+          to: registration.email,
+          subject: `📅 Add to Calendar: ${webinar.title}`,
+          htmlBody: calendarEmailHtml,
+          textBody: calendarEmailText,
+          attachments: [{
+            filename: 'webinar-invite.ics',
+            content: Buffer.from(icsContent).toString('base64'),
+            contentType: 'text/calendar; method=REQUEST',
+          }],
+        })
+
+        if (calendarSent) {
+          console.log(`📅 Calendar invite email sent to ${registration.email}`)
+        } else {
+          console.error(`⚠️ Calendar invite email failed for ${registration.email}`)
+        }
+      } catch (calError) {
+        console.error('⚠️ Failed to send calendar invite email:', calError)
+      }
+    }
+
     // SYNC TO CRM IMMEDIATELY (registration tag applied here)
     const crmIntegration = webinar.crmIntegration || 'CLICKFUNNELS';
     
@@ -637,6 +688,16 @@ export async function POST(
       }
     }
     // ====== END CRITICAL SECTION ======
+
+    // Schedule reminder emails (non-blocking)
+    try {
+      const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
+      scheduleReminderEmails(registration.id).catch((err: any) =>
+        console.error('⚠️ Failed to schedule reminder emails:', err)
+      )
+    } catch (err) {
+      console.error('⚠️ Failed to import emailScheduler:', err)
+    }
     
     // Return success - ClickFunnels sync is complete
     const response = NextResponse.json(

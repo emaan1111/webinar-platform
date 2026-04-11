@@ -126,6 +126,8 @@ model Webinar {
   registrationTagId                  Int?
   replayAttendedTagId                Int?
   crmIntegration                     CrmIntegration            @default(CLICKFUNNELS)
+  sendCalendarInvite                 Boolean                   @default(true)
+  reminderEmailSource                String                    @default("internal") // "internal" | "cf_mautic"
   offers                             Offer[]
   aiChatConfig                       AIChatConfig?
   analytics                          Analytics[]
@@ -139,6 +141,8 @@ model Webinar {
   faqs                               WebinarFaq[]
   reminderTemplates                  WebinarReminderTemplate[]
   confirmationEmails                 ConfirmationEmailTemplate[]
+  reminderEmails                     ReminderEmailTemplate[]
+  followUpEmails                     FollowUpEmailTemplate[]
   sales                              WebinarSale[]
   schedules                          WebinarSchedule[]
   host                               User                      @relation("HostedWebinars", fields: [hostId], references: [id])
@@ -309,6 +313,8 @@ model Registration {
   webinar                  Webinar                   @relation(fields: [webinarId], references: [id], onDelete: Cascade)
   reminders                WebinarReminderSent[]
   confirmationEmailSends   ConfirmationEmailSend[]
+  reminderEmailSends       ReminderEmailSend[]
+  followUpEmailSends       FollowUpEmailSend[]
   sales                    WebinarSale[]
 
   @@index([email])
@@ -1362,21 +1368,148 @@ model ConfirmationEmailSend {
 }
 
 model EmailTrackingEvent {
-  id         String                @id @default(cuid())
-  sendId     String
-  type       String                // OPEN, CLICK
-  url        String?               // clicked URL (for CLICK events)
-  userAgent  String?               @db.Text
-  ipAddress  String?
-  deviceType String?               // mobile, desktop, tablet
-  createdAt  DateTime              @default(now())
+  id                    String                 @id @default(cuid())
+  sendId                String?
+  type                  String                 // OPEN, CLICK
+  url                   String?                // clicked URL (for CLICK events)
+  userAgent             String?                @db.Text
+  ipAddress             String?
+  deviceType            String?                // mobile, desktop, tablet
+  emailType             String                 @default("confirmation") // confirmation, reminder, followup
+  reminderEmailSendId   String?
+  followUpEmailSendId   String?
+  createdAt             DateTime               @default(now())
 
-  send       ConfirmationEmailSend @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  send                  ConfirmationEmailSend? @relation(fields: [sendId], references: [id], onDelete: Cascade)
+  reminderEmailSend     ReminderEmailSend?     @relation(fields: [reminderEmailSendId], references: [id], onDelete: Cascade)
+  followUpEmailSend     FollowUpEmailSend?     @relation(fields: [followUpEmailSendId], references: [id], onDelete: Cascade)
 
   @@index([sendId])
+  @@index([reminderEmailSendId])
+  @@index([followUpEmailSendId])
   @@index([type])
   @@index([createdAt])
   @@map("email_tracking_events")
+}
+
+// ─── Reminder Email Templates & Tracking ───────────────────────────────────
+
+model ReminderEmailTemplate {
+  id             String              @id @default(cuid())
+  webinarId      String
+  name           String              @default("Reminder")
+  subject        String
+  subjectB       String?             // A/B test: alternate subject line
+  htmlBody       String              @db.Text
+  fromName       String?
+  minutesBefore  Int                 // e.g. 1440 (24hr), 120 (2hr), 60 (1hr), 10, 1
+  isActive       Boolean             @default(true)
+  skipIfJoined   Boolean             @default(true) // Smart skip: don't send if already joined webinar
+  resendToNonOpeners  Boolean        @default(false)
+  resendAfterHours    Int?           // Hours after original send to resend
+  resendSubject       String?        // Subject for resend (defaults to subjectB or original)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  webinar        Webinar             @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  sends          ReminderEmailSend[]
+
+  @@index([webinarId])
+  @@index([minutesBefore])
+  @@map("reminder_email_templates")
+}
+
+model ReminderEmailSend {
+  id             String                @id @default(cuid())
+  templateId     String
+  registrationId String
+  to             String
+  subject        String
+  abVariant      String               @default("A") // A or B
+  isResend       Boolean              @default(false) // true if this is a non-opener resend
+  status         String                @default("PENDING") // PENDING, SENDING, SENT, FAILED, SKIPPED, CANCELLED
+  scheduledFor   DateTime?
+  sentAt         DateTime?
+  openedAt       DateTime?
+  clickedAt      DateTime?
+  openCount      Int                   @default(0)
+  clickCount     Int                   @default(0)
+  userAgent      String?
+  errorMessage   String?
+  retryCount     Int                   @default(0)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  template       ReminderEmailTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  registration   Registration          @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  events         EmailTrackingEvent[]
+
+  @@index([templateId])
+  @@index([registrationId])
+  @@index([status, scheduledFor])
+  @@index([sentAt])
+  @@map("reminder_email_sends")
+}
+
+// ─── Follow-Up Email Templates & Tracking ──────────────────────────────────
+
+model FollowUpEmailTemplate {
+  id              String               @id @default(cuid())
+  webinarId       String
+  name            String               @default("Follow-Up")
+  subject         String
+  subjectB        String?              // A/B test: alternate subject line
+  htmlBody        String               @db.Text
+  fromName        String?
+  delayMinutes    Int                  // delay after webinar ends, e.g. 0 (immediate), 60, 2880 (2 days)
+  audienceType    String               @default("all") // all, attended, mostly_attended, partly_attended, missed, replay
+  isActive        Boolean              @default(true)
+  skipIfPurchased Boolean              @default(false) // Smart skip: don't send if already purchased
+  resendToNonOpeners  Boolean          @default(false)
+  resendAfterHours    Int?           
+  resendSubject       String?
+  sortOrder       Int                  @default(0)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  webinar         Webinar              @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  sends           FollowUpEmailSend[]
+
+  @@index([webinarId])
+  @@index([audienceType])
+  @@map("followup_email_templates")
+}
+
+model FollowUpEmailSend {
+  id              String                 @id @default(cuid())
+  templateId      String
+  registrationId  String
+  to              String
+  subject         String
+  abVariant       String                @default("A") // A or B
+  isResend        Boolean               @default(false)
+  status          String                 @default("PENDING") // PENDING, SENDING, SENT, FAILED, SKIPPED, CANCELLED
+  scheduledFor    DateTime?
+  sentAt          DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  openCount       Int                    @default(0)
+  clickCount      Int                    @default(0)
+  userAgent       String?
+  errorMessage    String?
+  retryCount      Int                    @default(0)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+
+  template        FollowUpEmailTemplate  @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  registration    Registration           @relation(fields: [registrationId], references: [id], onDelete: Cascade)
+  events          EmailTrackingEvent[]
+
+  @@index([templateId])
+  @@index([registrationId])
+  @@index([status, scheduledFor])
+  @@index([sentAt])
+  @@map("followup_email_sends")
 }
 
 // ============ Popup Builder ============

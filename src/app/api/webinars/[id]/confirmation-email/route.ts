@@ -13,6 +13,12 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Fetch webinar-level settings
+  const webinar = await prisma.webinar.findUnique({
+    where: { id: params.id },
+    select: { sendCalendarInvite: true },
+  })
+
   const templates = await prisma.confirmationEmailTemplate.findMany({
     where: { webinarId: params.id },
     orderBy: { createdAt: 'desc' },
@@ -51,7 +57,10 @@ export async function GET(
     })
   )
 
-  return NextResponse.json({ templates: templatesWithStats })
+  return NextResponse.json({
+    templates: templatesWithStats,
+    sendCalendarInvite: webinar?.sendCalendarInvite ?? true,
+  })
 }
 
 // POST /api/webinars/[id]/confirmation-email — create template
@@ -95,4 +104,28 @@ export async function POST(
   })
 
   return NextResponse.json({ template }, { status: 201 })
+}
+
+// PATCH /api/webinars/[id]/confirmation-email — update webinar-level email settings
+export async function PATCH(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const body = await request.json()
+  const { sendCalendarInvite } = body
+
+  const webinar = await prisma.webinar.update({
+    where: { id: params.id },
+    data: {
+      ...(typeof sendCalendarInvite === 'boolean' && { sendCalendarInvite }),
+    },
+    select: { id: true, sendCalendarInvite: true },
+  })
+
+  return NextResponse.json({ webinar })
 }

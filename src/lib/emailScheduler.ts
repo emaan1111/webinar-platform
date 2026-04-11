@@ -1,0 +1,584 @@
+/**
+ * Reminder & Follow-Up Email Scheduling + Sending
+ *
+ * This module:
+ * 1. Schedules reminder email sends when a registration is created
+ * 2. Schedules follow-up email sends when a webinar ends
+ * 3. Processes pending sends (called by cron)
+ */
+
+import { prisma } from '@/lib/prisma'
+import { sendEmail } from '@/lib/email'
+import { prepareEmailHtml, type MergeTagContext } from '@/lib/emailTracking'
+
+// ─── Schedule reminder emails for a new registration ────────────────────────
+
+export async function scheduleReminderEmails(registrationId: string) {
+  const registration = await prisma.registration.findUnique({
+    where: { id: registrationId },
+    include: {
+      webinar: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          reminderEmailSource: true,
+          schedules: {
+            where: { isActive: true },
+            take: 1,
+            orderBy: { scheduledAt: 'asc' },
+          },
+        },
+      },
+    },
+  })
+
+  if (!registration || !registration.webinar) return
+  if (registration.webinar.reminderEmailSource !== 'internal') return
+
+  const webinar = registration.webinar
+  const schedule = webinar.schedules[0]
+  const webinarStart = registration.scheduledStartTime || schedule?.scheduledAt
+  if (!webinarStart) return
+
+  // Find all active reminder email templates
+  const templates = await prisma.reminderEmailTemplate.findMany({
+    where: { webinarId: webinar.id, isActive: true },
+  })
+
+  if (templates.length === 0) return
+
+  const now = new Date()
+
+  for (const template of templates) {
+    const sendAt = new Date(webinarStart.getTime() - template.minutesBefore * 60 * 1000)
+
+    // Don't schedule if the time has already passed
+    if (sendAt <= now) continue
+
+    // Check if already scheduled
+    const existing = await prisma.reminderEmailSend.findFirst({
+      where: {
+        templateId: template.id,
+        registrationId: registration.id,
+      },
+    })
+    if (existing) continue
+
+    await prisma.reminderEmailSend.create({
+      data: {
+        templateId: template.id,
+        registrationId: registration.id,
+        to: registration.email,
+        subject: template.subject,
+        abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
+        status: 'PENDING',
+        scheduledFor: sendAt,
+      },
+    })
+  }
+}
+
+// ─── Schedule follow-up emails after webinar ends ───────────────────────────
+
+export async function scheduleFollowUpEmails(webinarId: string) {
+  const templates = await prisma.followUpEmailTemplate.findMany({
+    where: { webinarId, isActive: true },
+  })
+
+  if (templates.length === 0) return
+
+  const webinar = await prisma.webinar.findUnique({
+    where: { id: webinarId },
+    select: { id: true, title: true, slug: true },
+  })
+  if (!webinar) return
+
+  const now = new Date()
+
+  // Get all registrations for this webinar
+  const registrations = await prisma.registration.findMany({
+    where: { webinarId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      attended: true,
+      firstJoinedAt: true,
+      leftAt: true,
+      watchedReplay: true,
+      replayWatchTime: true,
+    },
+  })
+
+  for (const template of templates) {
+    const sendAt = new Date(now.getTime() + template.delayMinutes * 60 * 1000)
+
+    for (const reg of registrations) {
+      // Filter by audience type
+      if (!matchesAudience(reg, template.audienceType)) continue
+
+      // Check if already scheduled
+      const existing = await prisma.followUpEmailSend.findFirst({
+        where: { templateId: template.id, registrationId: reg.id },
+      })
+      if (existing) continue
+
+      await prisma.followUpEmailSend.create({
+        data: {
+          templateId: template.id,
+          registrationId: reg.id,
+          to: reg.email,
+          subject: template.subject,
+          abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
+          status: 'PENDING',
+          scheduledFor: sendAt,
+        },
+      })
+    }
+  }
+}
+
+// ─── Process pending reminder email sends ───────────────────────────────────
+
+const MAX_RETRIES = 3
+
+export async function processPendingReminderEmails() {
+  const now = new Date()
+
+  // Atomically claim a batch by moving PENDING → SENDING to prevent duplicate sends
+  // from parallel cron runs. Also pick up retryable FAILED sends.
+  const retryBefore = new Date(now.getTime() - 5 * 60 * 1000) // retry after 5 min backoff
+  await prisma.reminderEmailSend.updateMany({
+    where: {
+      OR: [
+        { status: 'PENDING', scheduledFor: { lte: now } },
+        { status: 'FAILED', retryCount: { lt: MAX_RETRIES }, updatedAt: { lte: retryBefore } },
+      ],
+    },
+    data: { status: 'SENDING' },
+  })
+
+  const pendingSends = await prisma.reminderEmailSend.findMany({
+    where: { status: 'SENDING' },
+    include: {
+      template: true,
+      registration: {
+        include: {
+          webinar: {
+            select: { id: true, title: true, slug: true },
+          },
+        },
+      },
+    },
+    take: 50,
+  })
+
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com').replace(/\/+$/, '')
+
+  for (const send of pendingSends) {
+    try {
+      const reg = send.registration
+      const webinar = reg.webinar
+
+      // Smart skip: don't send if attendee has already joined the webinar
+      if (send.template.skipIfJoined && reg.firstJoinedAt) {
+        await prisma.reminderEmailSend.update({
+          where: { id: send.id },
+          data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee already joined' },
+        })
+        console.log(`⏭️ Skipped reminder for ${send.to} (already joined)`)
+        continue
+      }
+
+      // A/B subject selection
+      const useSubjectB = send.abVariant === 'B' && send.template.subjectB
+      const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
+
+      const countdownLink = webinar.slug ? `${baseUrl}/w/${webinar.slug}/countdown?r=${reg.id}` : null
+      const accessLink = countdownLink
+      const calendarLink = webinar.slug ? `${baseUrl}/api/calendar/${webinar.slug}?r=${reg.id}` : null
+      const referralLink = webinar.slug && reg.referralCode ? `${baseUrl}/w/${webinar.slug}?ref=${reg.referralCode}` : null
+
+      const ctx: MergeTagContext = {
+        name: reg.name,
+        email: reg.email,
+        webinarTitle: webinar.title,
+        webinarTime: reg.scheduledStartTime?.toLocaleString('en-US', { timeZone: reg.timezone || 'America/New_York' }) || '',
+        accessLink,
+        countdownLink,
+        calendarLink,
+        referralLink,
+      }
+
+      const { html, text } = prepareEmailHtml(send.template.htmlBody, ctx, send.id, 'reminder')
+      const subject = rawSubject
+        .replace(/\{\{name\}\}/gi, reg.name)
+        .replace(/\{\{webinar_title\}\}/gi, webinar.title)
+
+      const sent = await sendEmail({
+        to: send.to,
+        subject,
+        htmlBody: html,
+        textBody: text,
+        fromName: send.template.fromName || undefined,
+      })
+
+      await prisma.reminderEmailSend.update({
+        where: { id: send.id },
+        data: {
+          status: sent ? 'SENT' : 'FAILED',
+          sentAt: sent ? new Date() : undefined,
+          errorMessage: sent ? undefined : 'sendEmail returned false',
+          retryCount: sent ? undefined : { increment: 1 },
+        },
+      })
+
+      if (sent) {
+        console.log(`✅ Reminder email sent to ${send.to} (${send.template.name})`)
+      } else {
+        console.error(`⚠️ Reminder email failed for ${send.to}`)
+      }
+    } catch (err: any) {
+      console.error(`❌ Error sending reminder email ${send.id}:`, err)
+      await prisma.reminderEmailSend.update({
+        where: { id: send.id },
+        data: { status: 'FAILED', errorMessage: err.message, retryCount: { increment: 1 } },
+      })
+    }
+  }
+
+  return pendingSends.length
+}
+
+// ─── Process pending follow-up email sends ──────────────────────────────────
+
+export async function processPendingFollowUpEmails() {
+  const now = new Date()
+
+  // Atomically claim a batch to prevent duplicate sends from parallel cron runs
+  const retryBefore = new Date(now.getTime() - 5 * 60 * 1000)
+  await prisma.followUpEmailSend.updateMany({
+    where: {
+      OR: [
+        { status: 'PENDING', scheduledFor: { lte: now } },
+        { status: 'FAILED', retryCount: { lt: MAX_RETRIES }, updatedAt: { lte: retryBefore } },
+      ],
+    },
+    data: { status: 'SENDING' },
+  })
+
+  const pendingSends = await prisma.followUpEmailSend.findMany({
+    where: { status: 'SENDING' },
+    include: {
+      template: true,
+      registration: {
+        include: {
+          webinar: {
+            select: { id: true, title: true, slug: true, hasReplay: true },
+          },
+        },
+      },
+    },
+    take: 50,
+  })
+
+  const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com').replace(/\/+$/, '')
+
+  for (const send of pendingSends) {
+    try {
+      const reg = send.registration
+      const webinar = reg.webinar
+
+      // Smart skip: don't send follow-up if attendee already purchased
+      if (send.template.skipIfPurchased && reg.hasPurchased) {
+        await prisma.followUpEmailSend.update({
+          where: { id: send.id },
+          data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee already purchased' },
+        })
+        console.log(`⏭️ Skipped follow-up for ${send.to} (already purchased)`)
+        continue
+      }
+
+      // A/B subject selection
+      const useSubjectB = send.abVariant === 'B' && send.template.subjectB
+      const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
+
+      const countdownLink = webinar.slug ? `${baseUrl}/w/${webinar.slug}/countdown?r=${reg.id}` : null
+      const accessLink = countdownLink
+      const replayLink = webinar.slug && webinar.hasReplay ? `${baseUrl}/w/${webinar.slug}/replay?r=${reg.id}` : null
+      const referralLink = webinar.slug && reg.referralCode ? `${baseUrl}/w/${webinar.slug}?ref=${reg.referralCode}` : null
+
+      // Determine attendance status label
+      let attendanceStatus = 'Registered'
+      if (reg.attended) attendanceStatus = 'Attended'
+      else if (reg.watchedReplay) attendanceStatus = 'Watched Replay'
+      else if (reg.firstJoinedAt) attendanceStatus = 'Partly Attended'
+      else attendanceStatus = 'Missed'
+
+      const watchTime = reg.replayWatchTime ? `${reg.replayWatchTime} minutes` : '0 minutes'
+
+      const ctx: MergeTagContext = {
+        name: reg.name,
+        email: reg.email,
+        webinarTitle: webinar.title,
+        webinarTime: reg.scheduledStartTime?.toLocaleString('en-US', { timeZone: reg.timezone || 'America/New_York' }) || '',
+        accessLink,
+        countdownLink,
+        replayLink,
+        referralLink,
+        attendanceStatus,
+        watchTime,
+      }
+
+      const { html, text } = prepareEmailHtml(send.template.htmlBody, ctx, send.id, 'followup')
+      const subject = rawSubject
+        .replace(/\{\{name\}\}/gi, reg.name)
+        .replace(/\{\{webinar_title\}\}/gi, webinar.title)
+
+      const sent = await sendEmail({
+        to: send.to,
+        subject,
+        htmlBody: html,
+        textBody: text,
+        fromName: send.template.fromName || undefined,
+      })
+
+      await prisma.followUpEmailSend.update({
+        where: { id: send.id },
+        data: {
+          status: sent ? 'SENT' : 'FAILED',
+          sentAt: sent ? new Date() : undefined,
+          errorMessage: sent ? undefined : 'sendEmail returned false',
+          retryCount: sent ? undefined : { increment: 1 },
+        },
+      })
+
+      if (sent) {
+        console.log(`✅ Follow-up email sent to ${send.to} (${send.template.name})`)
+      } else {
+        console.error(`⚠️ Follow-up email failed for ${send.to}`)
+      }
+    } catch (err: any) {
+      console.error(`❌ Error sending follow-up email ${send.id}:`, err)
+      await prisma.followUpEmailSend.update({
+        where: { id: send.id },
+        data: { status: 'FAILED', errorMessage: err.message, retryCount: { increment: 1 } },
+      })
+    }
+  }
+
+  return pendingSends.length
+}
+
+// ─── Audience matching ──────────────────────────────────────────────────────
+
+function matchesAudience(
+  reg: {
+    attended: boolean
+    firstJoinedAt: Date | null
+    leftAt: Date | null
+    watchedReplay: boolean
+    replayWatchTime: number
+  },
+  audienceType: string
+): boolean {
+  switch (audienceType) {
+    case 'all':
+      return true
+    case 'attended':
+      return reg.attended === true
+    case 'mostly_attended':
+      return reg.attended === true && reg.firstJoinedAt !== null
+    case 'partly_attended':
+      return reg.firstJoinedAt !== null && !reg.attended
+    case 'missed':
+      return !reg.firstJoinedAt && !reg.attended && !reg.watchedReplay
+    case 'replay':
+      return reg.watchedReplay === true
+    default:
+      return true
+  }
+}
+
+// ─── Reschedule reminders when webinar time changes ─────────────────────────
+
+export async function rescheduleReminderEmails(webinarId: string) {
+  // Cancel all pending/sending reminder sends for this webinar
+  const templates = await prisma.reminderEmailTemplate.findMany({
+    where: { webinarId, isActive: true },
+    select: { id: true, minutesBefore: true },
+  })
+  if (templates.length === 0) return
+
+  const templateIds = templates.map((t) => t.id)
+
+  // Cancel existing pending sends
+  await prisma.reminderEmailSend.updateMany({
+    where: {
+      templateId: { in: templateIds },
+      status: { in: ['PENDING', 'SENDING'] },
+    },
+    data: { status: 'CANCELLED' },
+  })
+
+  // Re-schedule for all registrations
+  const registrations = await prisma.registration.findMany({
+    where: { webinarId },
+    select: { id: true },
+  })
+
+  for (const reg of registrations) {
+    await scheduleReminderEmails(reg.id)
+  }
+}
+
+// ─── Cancel pending sends for a specific template ───────────────────────────
+
+export async function cancelPendingSendsForTemplate(
+  templateId: string,
+  type: 'reminder' | 'followup'
+) {
+  if (type === 'reminder') {
+    return prisma.reminderEmailSend.updateMany({
+      where: { templateId, status: { in: ['PENDING', 'SENDING'] } },
+      data: { status: 'CANCELLED' },
+    })
+  } else {
+    return prisma.followUpEmailSend.updateMany({
+      where: { templateId, status: { in: ['PENDING', 'SENDING'] } },
+      data: { status: 'CANCELLED' },
+    })
+  }
+}
+
+// ─── Send a test email for a template ───────────────────────────────────────
+
+export async function sendTestEmail(opts: {
+  to: string
+  templateSubject: string
+  templateHtml: string
+  fromName?: string
+  type: 'reminder' | 'followup'
+  webinarTitle: string
+}) {
+  const ctx: MergeTagContext = {
+    name: 'Test User',
+    email: opts.to,
+    webinarTitle: opts.webinarTitle,
+    webinarTime: new Date().toLocaleString('en-US'),
+    accessLink: 'https://example.com/access',
+    countdownLink: 'https://example.com/countdown',
+    calendarLink: 'https://example.com/calendar',
+    referralLink: 'https://example.com/referral',
+    replayLink: 'https://example.com/replay',
+    attendanceStatus: 'Attended',
+    watchTime: '45 minutes',
+  }
+
+  // Use a dummy sendId for test emails (won't be tracked)
+  const testSendId = `test-${Date.now()}`
+  const { html, text } = prepareEmailHtml(opts.templateHtml, ctx, testSendId, opts.type)
+  const subject = `[TEST] ${opts.templateSubject}`
+    .replace(/\{\{name\}\}/gi, 'Test User')
+    .replace(/\{\{webinar_title\}\}/gi, opts.webinarTitle)
+
+  return sendEmail({
+    to: opts.to,
+    subject,
+    htmlBody: html,
+    textBody: text,
+    fromName: opts.fromName || undefined,
+  })
+}
+
+// ─── Auto-resend to non-openers ─────────────────────────────────────────────
+
+export async function processNonOpenerResends() {
+  const now = new Date()
+  let resent = 0
+
+  // Reminder non-opener resends
+  const reminderTemplates = await prisma.reminderEmailTemplate.findMany({
+    where: { resendToNonOpeners: true, resendAfterHours: { not: null } },
+  })
+
+  for (const tpl of reminderTemplates) {
+    const cutoff = new Date(now.getTime() - (tpl.resendAfterHours! * 60 * 60 * 1000))
+    const unopenedSends = await prisma.reminderEmailSend.findMany({
+      where: {
+        templateId: tpl.id,
+        status: 'SENT',
+        openCount: 0,
+        isResend: false,
+        sentAt: { lte: cutoff },
+      },
+      take: 25,
+    })
+
+    for (const send of unopenedSends) {
+      const alreadyResent = await prisma.reminderEmailSend.findFirst({
+        where: { templateId: tpl.id, registrationId: send.registrationId, isResend: true },
+      })
+      if (alreadyResent) continue
+
+      const resendSubject = tpl.resendSubject || tpl.subjectB || tpl.subject
+      await prisma.reminderEmailSend.create({
+        data: {
+          templateId: tpl.id,
+          registrationId: send.registrationId,
+          to: send.to,
+          subject: resendSubject,
+          abVariant: 'A',
+          isResend: true,
+          status: 'PENDING',
+          scheduledFor: now,
+        },
+      })
+      resent++
+    }
+  }
+
+  // Follow-up non-opener resends
+  const followupTemplates = await prisma.followUpEmailTemplate.findMany({
+    where: { resendToNonOpeners: true, resendAfterHours: { not: null } },
+  })
+
+  for (const tpl of followupTemplates) {
+    const cutoff = new Date(now.getTime() - (tpl.resendAfterHours! * 60 * 60 * 1000))
+    const unopenedSends = await prisma.followUpEmailSend.findMany({
+      where: {
+        templateId: tpl.id,
+        status: 'SENT',
+        openCount: 0,
+        isResend: false,
+        sentAt: { lte: cutoff },
+      },
+      take: 25,
+    })
+
+    for (const send of unopenedSends) {
+      const alreadyResent = await prisma.followUpEmailSend.findFirst({
+        where: { templateId: tpl.id, registrationId: send.registrationId, isResend: true },
+      })
+      if (alreadyResent) continue
+
+      const resendSubject = tpl.resendSubject || tpl.subjectB || tpl.subject
+      await prisma.followUpEmailSend.create({
+        data: {
+          templateId: tpl.id,
+          registrationId: send.registrationId,
+          to: send.to,
+          subject: resendSubject,
+          abVariant: 'A',
+          isResend: true,
+          status: 'PENDING',
+          scheduledFor: now,
+        },
+      })
+      resent++
+    }
+  }
+
+  return resent
+}

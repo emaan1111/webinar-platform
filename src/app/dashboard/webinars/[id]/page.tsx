@@ -201,6 +201,18 @@ export default function ViewWebinarPage() {
                 Confirmation Email
               </Button>
             </Link>
+            <Link href={`/dashboard/webinars/${webinar.id}/reminder-emails`}>
+              <Button variant="secondary" size="sm">
+                <Mail className="w-4 h-4 mr-2" />
+                Reminder Emails
+              </Button>
+            </Link>
+            <Link href={`/dashboard/webinars/${webinar.id}/followup-emails`}>
+              <Button variant="secondary" size="sm">
+                <Mail className="w-4 h-4 mr-2" />
+                Follow-Up Emails
+              </Button>
+            </Link>
             <Button variant="danger" size="sm" onClick={handleDelete}>
               <Trash2 className="w-4 h-4" />
             </Button>

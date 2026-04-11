@@ -151,6 +151,10 @@ export default function ConfirmationEmailPage() {
   const [recentSends, setRecentSends] = useState<RecentSend[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
 
+  // Calendar invite toggle
+  const [sendCalendarInvite, setSendCalendarInvite] = useState(true)
+  const [calendarToggleSaving, setCalendarToggleSaving] = useState(false)
+
   // ── Fetch templates ──────────────────────────────────────────────────────
 
   const fetchTemplates = useCallback(async () => {
@@ -160,6 +164,9 @@ export default function ConfirmationEmailPage() {
       if (!res.ok) throw new Error('Failed to fetch templates')
       const data = await res.json()
       setTemplates(data.templates || [])
+      if (typeof data.sendCalendarInvite === 'boolean') {
+        setSendCalendarInvite(data.sendCalendarInvite)
+      }
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -193,6 +200,25 @@ export default function ConfirmationEmailPage() {
   }, [activeTab, fetchStats])
 
   // ── Handlers ─────────────────────────────────────────────────────────────
+
+  const toggleCalendarInvite = async () => {
+    try {
+      setCalendarToggleSaving(true)
+      const newValue = !sendCalendarInvite
+      const res = await fetch(`/api/webinars/${webinarId}/confirmation-email`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sendCalendarInvite: newValue }),
+      })
+      if (res.ok) {
+        setSendCalendarInvite(newValue)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCalendarToggleSaving(false)
+    }
+  }
 
   const startCreate = () => {
     setEditing(null)
@@ -353,6 +379,32 @@ export default function ConfirmationEmailPage() {
         {/* ─── Templates Tab ────────────────────────────────────────────────── */}
         {activeTab === 'templates' && (
           <>
+            {/* Calendar Invite Toggle */}
+            <div className="flex items-center justify-between p-4 bg-white border border-gray-200 rounded-lg">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">📅</span>
+                <div>
+                  <h3 className="text-sm font-medium text-gray-900">Send Calendar Invite</h3>
+                  <p className="text-xs text-gray-500">
+                    Send a separate email with a .ics calendar file after registration
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={toggleCalendarInvite}
+                disabled={calendarToggleSaving}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  sendCalendarInvite ? 'bg-blue-600' : 'bg-gray-200'
+                } ${calendarToggleSaving ? 'opacity-50' : ''}`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                    sendCalendarInvite ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* Editor */}
             {(creating || editing) && (
               <Card>
