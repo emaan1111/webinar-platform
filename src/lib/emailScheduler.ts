@@ -93,12 +93,9 @@ export async function processEndedSessionsForFollowUpEmails(): Promise<{
   let scheduled = 0
   const webinarsProcessed = new Set<string>()
 
-  // Only process sessions starting from when this feature went live (12 Apr 2026)
-  // to avoid sending follow-ups to past attendees retroactively.
-  // After go-live, the 7-day rolling window prevents unbounded growth.
-  const goLiveDate = new Date('2026-04-12T15:00:00Z')
-  const rollingCutoff = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
-  const cutoffDate = goLiveDate > rollingCutoff ? goLiveDate : rollingCutoff
+  // Only process sessions that ended within the last 7 days to avoid
+  // sending stale follow-ups to old registrations
+  const cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
   // Find registrations where session has ended and we haven't processed follow-ups
   // Same pattern as processEndedWebinarsForAttendanceTags

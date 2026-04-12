@@ -616,19 +616,38 @@ export default function FollowUpEmailsPage() {
                 </div>
               </CardBody></Card>
             ) : (
-              <div className="space-y-3">
-                {templates.map((t, idx) => (
+              <div className="space-y-6">
+                {(() => {
+                  const audienceOrder = ['mostly_attended', 'partly_attended', 'missed', 'replay', 'attended', 'all']
+                  const grouped = new Map<string, Template[]>()
+                  for (const t of templates) {
+                    const key = t.audienceType || 'all'
+                    if (!grouped.has(key)) grouped.set(key, [])
+                    grouped.get(key)!.push(t)
+                  }
+                  // Sort groups by the defined order
+                  const sortedGroups = [...grouped.entries()].sort(
+                    (a, b) => (audienceOrder.indexOf(a[0]) === -1 ? 99 : audienceOrder.indexOf(a[0])) -
+                              (audienceOrder.indexOf(b[0]) === -1 ? 99 : audienceOrder.indexOf(b[0]))
+                  )
+                  return sortedGroups.map(([audience, groupTemplates]) => (
+                    <div key={audience}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${audienceColor(audience)}`}>
+                          <Users className="w-3.5 h-3.5 mr-1" />{audienceLabel(audience)}
+                        </span>
+                        <span className="text-xs text-gray-400">{groupTemplates.length} email{groupTemplates.length !== 1 ? 's' : ''}</span>
+                        <div className="flex-1 border-t border-gray-200" />
+                      </div>
+                      <div className="space-y-2">
+                        {groupTemplates.sort((a, b) => a.delayMinutes - b.delayMinutes).map((t) => (
                   <Card key={t.id}><CardBody>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <span className="text-xs font-medium text-gray-400">#{idx + 1}</span>
                           <h3 className="text-sm font-semibold text-gray-900 truncate">{t.name}</h3>
                           <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${t.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'}`}>
                             {t.isActive ? 'Active' : 'Disabled'}
-                          </span>
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${audienceColor(t.audienceType)}`}>
-                            <Users className="w-3 h-3 mr-1" />{audienceLabel(t.audienceType)}
                           </span>
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                             <Clock className="w-3 h-3 mr-1" />{minutesToAfterLabel(t.delayMinutes)}
@@ -663,7 +682,11 @@ export default function FollowUpEmailsPage() {
                       </div>
                     </div>
                   </CardBody></Card>
-                ))}
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                })()}
               </div>
             )}
 
