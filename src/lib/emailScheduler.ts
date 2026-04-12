@@ -117,12 +117,17 @@ export async function processEndedSessionsForFollowUpEmails(): Promise<{
       replayWatchTime: true,
       scheduledStartTime: true,
       hasPurchased: true,
+      lastWatchedPosition: true,
+      sessions: {
+        select: { watchDuration: true, totalWatchTime: true },
+      },
       webinar: {
         select: {
           id: true,
           title: true,
           slug: true,
           duration: true,
+          mostlyAttendedThreshold: true,
         },
       },
     },
@@ -435,6 +440,19 @@ export async function processPendingFollowUpEmails() {
 }
 
 // ─── Audience matching ──────────────────────────────────────────────────────
+// Uses watch time + threshold to categorize, matching the attendance tagging system.
+
+function getEffectiveWatchTime(reg: {
+  sessions?: Array<{ watchDuration: number | null; totalWatchTime: number | null }>
+  replayWatchTime: number | null
+  lastWatchedPosition: number | null
+}): number {
+  const sessionWatchTime = (reg.sessions || []).reduce(
+    (sum, s) => sum + (s.watchDuration || s.totalWatchTime || 0),
+    0
+  )
+  return Math.max(sessionWatchTime, reg.replayWatchTime || 0, reg.lastWatchedPosition || 0)
+}
 
 function matchesAudience(
   reg: {
@@ -442,21 +460,32 @@ function matchesAudience(
     firstJoinedAt: Date | null
     leftAt: Date | null
     watchedReplay: boolean
-    replayWatchTime: number
+    replayWatchTime: number | null
+    lastWatchedPosition: number | null
+    sessions?: Array<{ watchDuration: number | null; totalWatchTime: number | null }>
+    webinar?: { mostlyAttendedThreshold: number | null }
   },
   audienceType: string
 ): boolean {
+  const watchTime = getEffectiveWatchTime(reg)
+  const threshold = reg.webinar?.mostlyAttendedThreshold
+
   switch (audienceType) {
     case 'all':
       return true
     case 'attended':
       return reg.attended === true
     case 'mostly_attended':
-      return reg.attended === true && reg.firstJoinedAt !== null
+      // Watched past the configured threshold (same as tagging)
+      if (threshold) return reg.attended && watchTime >= threshold
+      // No threshold configured — anyone who attended
+      return reg.attended === true
     case 'partly_attended':
-      return reg.firstJoinedAt !== null && !reg.attended
+      // Attended but didn't reach the threshold
+      if (threshold) return reg.attended && watchTime > 0 && watchTime < threshold
+      return false // Can't determine without threshold
     case 'missed':
-      return !reg.firstJoinedAt && !reg.attended && !reg.watchedReplay
+      return !reg.attended && !reg.watchedReplay
     case 'replay':
       return reg.watchedReplay === true
     default:
