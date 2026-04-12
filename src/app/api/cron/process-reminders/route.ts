@@ -5,7 +5,7 @@ import { processPendingClickFunnelsReminderTags } from '@/lib/clickfunnelsRemind
 import { processEndedWebinarsForAttendanceTags } from '@/lib/clickfunnelsAttendanceTags'
 import { processEndedSessionsForPostSMS } from '@/lib/postSessionSmsAutomation'
 import { syncWebinarJamRegistrations } from '@/lib/webinarjamSync'
-import { processPendingReminderEmails, processPendingFollowUpEmails, processNonOpenerResends } from '@/lib/emailScheduler'
+import { processPendingReminderEmails, processPendingFollowUpEmails, processNonOpenerResends, processEndedSessionsForFollowUpEmails } from '@/lib/emailScheduler'
 
 // POST /api/cron/process-reminders - Process pending reminders
 // This should be called by a cron job every 5-10 minutes
@@ -21,6 +21,10 @@ export async function POST(request: NextRequest) {
 
     console.log('🔔 Cron job: Processing reminders + emails + ClickFunnels tags + attendance tagging + post-session SMS + WebinarJam sync...')
 
+    // Step 1: Schedule follow-up emails for ended sessions (like attendance tagging)
+    const followUpScheduleStats = await processEndedSessionsForFollowUpEmails()
+
+    // Step 2: Process all pending sends and other tasks in parallel
     const [
       reminderStats, 
       eventReminderStats, 
@@ -51,6 +55,7 @@ export async function POST(request: NextRequest) {
       attendanceTagStats,
       postSessionSmsStats,
       webinarJamSyncStats,
+      followUpScheduleStats,
       emailProcessing: {
         reminderEmails: reminderEmailCount,
         followUpEmails: followUpEmailCount,

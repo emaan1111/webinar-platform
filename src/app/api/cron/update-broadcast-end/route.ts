@@ -144,35 +144,9 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ Finalized ${updatedCount} live and ${replayUpdatedCount} replay registration last-seen times`);
 
-    // Schedule follow-up emails for webinars that had registrations finalized
-    if (updatedCount > 0 || replayUpdatedCount > 0) {
-      try {
-        const { scheduleFollowUpEmails } = await import('@/lib/emailScheduler');
-        const webinarIds = new Set<string>();
-        for (const reg of registrationsToUpdate) {
-          if (reg.scheduledStartTime && reg.webinar.duration) {
-            const endTime = new Date(
-              new Date(reg.scheduledStartTime).getTime() + reg.webinar.duration * 60 * 1000
-            );
-            if (now >= endTime) webinarIds.add(reg.webinar.id);
-          }
-        }
-        for (const reg of replayRegistrations) {
-          if (reg.sessions[0]) {
-            const finalLeftAt = reg.sessions[0].leftAt || reg.sessions[0].lastSeenAt;
-            if (finalLeftAt && finalLeftAt < new Date(now.getTime() - 10 * 60 * 1000)) {
-              webinarIds.add(reg.webinarId);
-            }
-          }
-        }
-        for (const webinarId of webinarIds) {
-          await scheduleFollowUpEmails(webinarId);
-        }
-        console.log(`📧 Scheduled follow-up emails for ${webinarIds.size} webinar(s)`);
-      } catch (err) {
-        console.error('⚠️ Failed to schedule follow-up emails:', err);
-      }
-    }
+    // Note: Follow-up email scheduling is now handled by process-reminders cron
+    // via processEndedSessionsForFollowUpEmails() which independently detects
+    // ended sessions (same pattern as attendance tagging).
 
     return NextResponse.json({
       success: true,

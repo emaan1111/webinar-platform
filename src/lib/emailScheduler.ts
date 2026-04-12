@@ -79,26 +79,33 @@ export async function scheduleReminderEmails(registrationId: string) {
   }
 }
 
-// ─── Schedule follow-up emails after webinar ends ───────────────────────────
+// ─── Schedule follow-up emails after webinar session ends ───────────────────
+// Mirrors the attendance tagging pattern: finds registrations whose
+// scheduledStartTime + duration has passed, then creates follow-up sends
+// based on audience type (missed, attended, mostly_attended, partly_attended).
 
-export async function scheduleFollowUpEmails(webinarId: string) {
-  const templates = await prisma.followUpEmailTemplate.findMany({
-    where: { webinarId, isActive: true },
-  })
-
-  if (templates.length === 0) return
-
-  const webinar = await prisma.webinar.findUnique({
-    where: { id: webinarId },
-    select: { id: true, title: true, slug: true },
-  })
-  if (!webinar) return
-
+export async function processEndedSessionsForFollowUpEmails(): Promise<{
+  scheduled: number
+  registrationsChecked: number
+  webinarsProcessed: number
+}> {
   const now = new Date()
+  let scheduled = 0
+  const webinarsProcessed = new Set<string>()
 
-  // Get all registrations for this webinar
+  // Only process sessions that ended within the last 7 days to avoid
+  // sending stale follow-ups to old registrations
+  const cutoffDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  // Find registrations where session has ended and we haven't processed follow-ups
+  // Same pattern as processEndedWebinarsForAttendanceTags
   const registrations = await prisma.registration.findMany({
-    where: { webinarId },
+    where: {
+      scheduledStartTime: { not: null, gte: cutoffDate },
+      webinar: {
+        duration: { gt: 0 },
+      },
+    },
     select: {
       id: true,
       email: true,
@@ -108,35 +115,91 @@ export async function scheduleFollowUpEmails(webinarId: string) {
       leftAt: true,
       watchedReplay: true,
       replayWatchTime: true,
+      scheduledStartTime: true,
+      hasPurchased: true,
+      webinar: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          duration: true,
+        },
+      },
     },
+    take: 500,
   })
 
-  for (const template of templates) {
-    const sendAt = new Date(now.getTime() + template.delayMinutes * 60 * 1000)
+  if (registrations.length === 0) return { scheduled: 0, registrationsChecked: 0, webinarsProcessed: 0 }
 
-    for (const reg of registrations) {
-      // Filter by audience type
-      if (!matchesAudience(reg, template.audienceType)) continue
+  // Filter to sessions that have ended
+  const endedRegs = registrations.filter((reg) => {
+    if (!reg.scheduledStartTime || !reg.webinar.duration) return false
+    const sessionEnd = new Date(reg.scheduledStartTime.getTime() + reg.webinar.duration * 60 * 1000)
+    return sessionEnd <= now
+  })
 
-      // Check if already scheduled
-      const existing = await prisma.followUpEmailSend.findFirst({
-        where: { templateId: template.id, registrationId: reg.id },
-      })
-      if (existing) continue
+  if (endedRegs.length === 0) return { scheduled: 0, registrationsChecked: 0, webinarsProcessed: 0 }
 
-      await prisma.followUpEmailSend.create({
-        data: {
-          templateId: template.id,
-          registrationId: reg.id,
-          to: reg.email,
-          subject: template.subject,
-          abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
-          status: 'PENDING',
-          scheduledFor: sendAt,
-        },
-      })
-    }
+  // Group by webinar to batch template lookup
+  const byWebinar = new Map<string, typeof endedRegs>()
+  for (const reg of endedRegs) {
+    const list = byWebinar.get(reg.webinar.id) || []
+    list.push(reg)
+    byWebinar.set(reg.webinar.id, list)
   }
+
+  for (const [webinarId, regs] of byWebinar) {
+    const templates = await prisma.followUpEmailTemplate.findMany({
+      where: { webinarId, isActive: true },
+    })
+    if (templates.length === 0) continue
+
+    for (const template of templates) {
+      // Get all existing sends for this template in one query
+      const existingSends = await prisma.followUpEmailSend.findMany({
+        where: {
+          templateId: template.id,
+          registrationId: { in: regs.map((r) => r.id) },
+        },
+        select: { registrationId: true },
+      })
+      const alreadyScheduled = new Set(existingSends.map((s) => s.registrationId))
+
+      for (const reg of regs) {
+        if (alreadyScheduled.has(reg.id)) continue
+        if (!matchesAudience(reg, template.audienceType)) continue
+
+        // Calculate send time from when the session ended + delayMinutes
+        const sessionEnd = new Date(reg.scheduledStartTime!.getTime() + reg.webinar.duration! * 60 * 1000)
+        const sendAt = new Date(sessionEnd.getTime() + template.delayMinutes * 60 * 1000)
+
+        await prisma.followUpEmailSend.create({
+          data: {
+            templateId: template.id,
+            registrationId: reg.id,
+            to: reg.email,
+            subject: template.subject,
+            abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
+            status: 'PENDING',
+            scheduledFor: sendAt,
+          },
+        })
+        scheduled++
+      }
+    }
+    webinarsProcessed.add(webinarId)
+  }
+
+  if (scheduled > 0) {
+    console.log(`📧 Scheduled ${scheduled} follow-up emails for ${webinarsProcessed.size} webinar(s)`)
+  }
+
+  return { scheduled, registrationsChecked: endedRegs.length, webinarsProcessed: webinarsProcessed.size }
+}
+
+// Legacy wrapper — kept for backward compatibility
+export async function scheduleFollowUpEmails(webinarId: string) {
+  return processEndedSessionsForFollowUpEmails()
 }
 
 // ─── Process pending reminder email sends ───────────────────────────────────
