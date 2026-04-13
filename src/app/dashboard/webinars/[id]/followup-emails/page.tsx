@@ -12,6 +12,7 @@ import {
   AlertCircle, Mail, BarChart3, MousePointer, Smartphone, Monitor,
   Tablet, Clock, Copy, Info, Users, Send, Ban, FlaskConical,
   SkipForward, RefreshCw, Download, ExternalLink, Link2,
+  ChevronDown, ChevronUp, CheckCircle, XCircle, Timer,
 } from 'lucide-react'
 import {
   FOLLOWUP_PLACEHOLDERS, FOLLOWUP_DELAY_PRESETS, AUDIENCE_TYPES,
@@ -125,6 +126,12 @@ export default function FollowUpEmailsPage() {
   const [recentSends, setRecentSends] = useState<any[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
 
+  // Per-template sends viewer
+  const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null)
+  const [sendsData, setSendsData] = useState<any>(null)
+  const [sendsLoading, setSendsLoading] = useState(false)
+  const [sendsFilter, setSendsFilter] = useState('all')
+
   const fetchTemplates = useCallback(async () => {
     try {
       setLoading(true)
@@ -151,6 +158,28 @@ export default function FollowUpEmailsPage() {
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
   useEffect(() => { if (activeTab === 'stats') fetchStats() }, [activeTab, fetchStats])
+
+  const fetchSends = useCallback(async (templateId: string, filter: string = 'all') => {
+    setSendsLoading(true)
+    try {
+      const res = await fetch(`/api/webinars/${webinarId}/followup-emails/${templateId}/sends?filter=${filter}&limit=50`)
+      if (!res.ok) throw new Error('Failed to fetch sends')
+      const data = await res.json()
+      setSendsData(data)
+    } catch { setSendsData(null) }
+    finally { setSendsLoading(false) }
+  }, [webinarId])
+
+  const toggleSendsPanel = (templateId: string) => {
+    if (expandedTemplateId === templateId) {
+      setExpandedTemplateId(null)
+      setSendsData(null)
+    } else {
+      setExpandedTemplateId(templateId)
+      setSendsFilter('all')
+      fetchSends(templateId, 'all')
+    }
+  }
 
   const getEffectiveDelay = (): number => {
     if (!useCustomDelay) return formDelay
@@ -681,6 +710,134 @@ export default function FollowUpEmailsPage() {
                         </button>
                       </div>
                     </div>
+                    {/* Expand/collapse recipients */}
+                    {t.stats.totalSent > 0 && (
+                      <button
+                        onClick={() => toggleSendsPanel(t.id)}
+                        className="mt-3 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+                      >
+                        {expandedTemplateId === t.id ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                        {expandedTemplateId === t.id ? 'Hide' : 'View'} Recipients ({t.stats.totalSent})
+                      </button>
+                    )}
+                    {/* Recipients panel */}
+                    {expandedTemplateId === t.id && (
+                      <div className="mt-3 border-t border-gray-100 pt-3">
+                        {/* Filter tabs */}
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {[
+                            { key: 'all', label: 'All' },
+                            { key: 'opened', label: 'Opened' },
+                            { key: 'clicked', label: 'Clicked' },
+                            { key: 'sent', label: 'Not Opened' },
+                            { key: 'pending', label: 'Pending' },
+                            { key: 'failed', label: 'Failed' },
+                          ].map((f) => (
+                            <button
+                              key={f.key}
+                              onClick={() => { setSendsFilter(f.key); fetchSends(t.id, f.key) }}
+                              className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                                sendsFilter === f.key
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                              }`}
+                            >
+                              {f.label}
+                              {sendsData?.summary && f.key === 'opened' && ` (${sendsData.summary.totalOpened})`}
+                              {sendsData?.summary && f.key === 'clicked' && ` (${sendsData.summary.totalClicked})`}
+                            </button>
+                          ))}
+                        </div>
+                        {sendsLoading ? (
+                          <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-gray-400" /></div>
+                        ) : !sendsData?.sends?.length ? (
+                          <p className="text-xs text-gray-400 text-center py-4">No recipients match this filter.</p>
+                        ) : (
+                          <div className="space-y-0 divide-y divide-gray-100 max-h-96 overflow-y-auto">
+                            {sendsData.sends.map((s: any) => (
+                              <div key={s.id} className="flex items-center gap-3 py-2 text-xs">
+                                {/* Status icon */}
+                                <div className="flex-shrink-0">
+                                  {s.clickCount > 0 ? (
+                                    <MousePointer className="w-4 h-4 text-blue-500" />
+                                  ) : s.openCount > 0 ? (
+                                    <Eye className="w-4 h-4 text-green-500" />
+                                  ) : s.status === 'SENT' ? (
+                                    <CheckCircle className="w-4 h-4 text-gray-300" />
+                                  ) : s.status === 'PENDING' || s.status === 'SENDING' ? (
+                                    <Timer className="w-4 h-4 text-yellow-500" />
+                                  ) : s.status === 'FAILED' ? (
+                                    <XCircle className="w-4 h-4 text-red-500" />
+                                  ) : (
+                                    <Mail className="w-4 h-4 text-gray-300" />
+                                  )}
+                                </div>
+                                {/* Name & email */}
+                                <div className="flex-1 min-w-0">
+                                  <span className="font-medium text-gray-900">{s.recipientName || 'Unknown'}</span>
+                                  <span className="text-gray-400 ml-1.5">{s.to}</span>
+                                </div>
+                                {/* Open/click info */}
+                                <div className="flex items-center gap-3 flex-shrink-0 text-gray-500">
+                                  {s.openCount > 0 && (
+                                    <span className="flex items-center gap-1 text-green-600">
+                                      <Eye className="w-3 h-3" /> {s.openCount}x
+                                      {s.openedAt && <span className="text-gray-400 ml-1">{new Date(s.openedAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>}
+                                    </span>
+                                  )}
+                                  {s.clickCount > 0 && (
+                                    <span className="flex items-center gap-1 text-blue-600">
+                                      <MousePointer className="w-3 h-3" /> {s.clickCount}x
+                                    </span>
+                                  )}
+                                  {s.status === 'PENDING' && (
+                                    <span className="text-yellow-600">Scheduled {new Date(s.scheduledFor).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span>
+                                  )}
+                                  {s.status === 'FAILED' && (
+                                    <span className="text-red-600 truncate max-w-[200px]" title={s.errorMessage}>{s.errorMessage || 'Failed'}</span>
+                                  )}
+                                  {s.status === 'SKIPPED' && (
+                                    <span className="text-gray-400">Skipped</span>
+                                  )}
+                                </div>
+                                {/* A/B variant badge */}
+                                {s.abVariant === 'B' && (
+                                  <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">B</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {sendsData?.pagination && sendsData.pagination.totalPages > 1 && (
+                          <p className="text-xs text-gray-400 text-center mt-2">
+                            Showing {sendsData.sends.length} of {sendsData.pagination.total} recipients
+                          </p>
+                        )}
+                        {/* Clicked URLs summary */}
+                        {sendsFilter === 'clicked' && sendsData?.sends?.some((s: any) => s.clicks?.length > 0) && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="text-xs font-medium text-gray-600 mb-2">URLs Clicked</p>
+                            <div className="space-y-1">
+                              {(() => {
+                                const urlCounts = new Map<string, number>()
+                                for (const s of sendsData.sends) {
+                                  for (const c of s.clicks || []) {
+                                    if (c.url) urlCounts.set(c.url, (urlCounts.get(c.url) || 0) + 1)
+                                  }
+                                }
+                                return [...urlCounts.entries()].sort((a, b) => b[1] - a[1]).map(([url, count]) => (
+                                  <div key={url} className="flex items-center gap-2 text-xs">
+                                    <Link2 className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                    <span className="text-gray-600 truncate flex-1" title={url}>{url}</span>
+                                    <span className="text-gray-400 flex-shrink-0">{count} click{count !== 1 ? 's' : ''}</span>
+                                  </div>
+                                ))
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardBody></Card>
                         ))}
                       </div>
