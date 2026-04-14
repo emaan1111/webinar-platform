@@ -11,6 +11,11 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { getUnsubscribeLink, prepareEmailHtml, type MergeTagContext } from '@/lib/emailTracking'
 
+function isEmailUnsubscribed(registration: unknown): boolean {
+  if (!registration || typeof registration !== 'object') return false
+  return Boolean((registration as { emailUnsubscribed?: boolean }).emailUnsubscribed)
+}
+
 // ─── Schedule reminder emails for a new registration ────────────────────────
 
 export async function scheduleReminderEmails(registrationId: string) {
@@ -35,6 +40,7 @@ export async function scheduleReminderEmails(registrationId: string) {
 
   if (!registration || !registration.webinar) return
   if (registration.webinar.reminderEmailSource !== 'internal') return
+  if (isEmailUnsubscribed(registration)) return
 
   const webinar = registration.webinar
   const schedule = webinar.schedules[0]
@@ -114,6 +120,7 @@ export async function processEndedSessionsForFollowUpEmails(): Promise<{
       firstJoinedAt: true,
       leftAt: true,
       watchedReplay: true,
+      emailUnsubscribed: true,
       replayWatchTime: true,
       scheduledStartTime: true,
       hasPurchased: true,
@@ -172,6 +179,7 @@ export async function processEndedSessionsForFollowUpEmails(): Promise<{
 
       for (const reg of regs) {
         if (alreadyScheduled.has(reg.id)) continue
+        if (reg.emailUnsubscribed) continue
         if (!matchesAudience(reg, template.audienceType)) continue
 
         // Calculate send time from when the session ended + delayMinutes
@@ -259,7 +267,7 @@ export async function processPendingReminderEmails() {
         continue
       }
 
-      if (!reg.marketingConsent) {
+      if (isEmailUnsubscribed(reg)) {
         await prisma.reminderEmailSend.update({
           where: { id: send.id },
           data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee unsubscribed' },
@@ -378,7 +386,7 @@ export async function processPendingFollowUpEmails() {
         continue
       }
 
-      if (!reg.marketingConsent) {
+      if (isEmailUnsubscribed(reg)) {
         await prisma.followUpEmailSend.update({
           where: { id: send.id },
           data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee unsubscribed' },
@@ -502,7 +510,7 @@ function matchesAudience(
       return reg.attended === true
     case 'partly_attended':
       // Attended but didn't reach the threshold
-      if (threshold) return reg.attended && watchTime > 0 && watchTime < threshold
+      if (threshold) return reg.attended && watchTime < threshold
       return false // Can't determine without threshold
     case 'missed':
       return !reg.attended && !reg.watchedReplay
@@ -627,17 +635,13 @@ export async function processNonOpenerResends() {
         sentAt: { lte: cutoff },
       },
       include: {
-        registration: {
-          select: {
-            marketingConsent: true,
-          },
-        },
+        registration: true,
       },
       take: 25,
     })
 
     for (const send of unopenedSends) {
-      if (!send.registration.marketingConsent) continue
+      if (isEmailUnsubscribed(send.registration)) continue
 
       const alreadyResent = await prisma.reminderEmailSend.findFirst({
         where: { templateId: tpl.id, registrationId: send.registrationId, isResend: true },
@@ -677,17 +681,13 @@ export async function processNonOpenerResends() {
         sentAt: { lte: cutoff },
       },
       include: {
-        registration: {
-          select: {
-            marketingConsent: true,
-          },
-        },
+        registration: true,
       },
       take: 25,
     })
 
     for (const send of unopenedSends) {
-      if (!send.registration.marketingConsent) continue
+      if (isEmailUnsubscribed(send.registration)) continue
 
       const alreadyResent = await prisma.followUpEmailSend.findFirst({
         where: { templateId: tpl.id, registrationId: send.registrationId, isResend: true },

@@ -455,6 +455,10 @@ async function sendReminderEmailMessage(
   placeholders: ReturnType<typeof buildReminderPlaceholders>
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    if (registration.emailUnsubscribed) {
+      return { success: false, error: 'Attendee unsubscribed from webinar emails' }
+    }
+
     const subject = replacePlaceholders(template.emailSubject, placeholders)
     const body = appendUnsubscribeFooter(
       replacePlaceholders(template.emailBody, placeholders),

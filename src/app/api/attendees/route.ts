@@ -337,7 +337,7 @@ export async function PATCH(request: Request) {
     }
 
     const body = await request.json()
-    const { id, attended } = body
+    const { id, attended, emailUnsubscribed } = body
 
     // Find user
     const user = await prisma.user.findUnique({
@@ -363,9 +363,22 @@ export async function PATCH(request: Request) {
     }
 
     // Update registration
+    const updateData: Record<string, unknown> = {}
+    if (typeof attended === 'boolean') {
+      updateData.attended = attended
+    }
+    if (typeof emailUnsubscribed === 'boolean') {
+      updateData.emailUnsubscribed = emailUnsubscribed
+      updateData.emailUnsubscribedAt = emailUnsubscribed ? new Date() : null
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No valid fields provided' }, { status: 400 })
+    }
+
     const updated = await prisma.registration.update({
       where: { id },
-      data: { attended }
+      data: updateData
     })
 
     return NextResponse.json({ registration: updated })

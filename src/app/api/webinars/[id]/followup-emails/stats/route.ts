@@ -74,6 +74,18 @@ export async function GET(
     where: { templateId: { in: templateIds }, clickCount: { gt: 0 }, ...sentDateWhere },
   })
   const totalSent = agg._count.id
+  const distinctRecipients = await prisma.followUpEmailSend.findMany({
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
+    select: { registrationId: true },
+    distinct: ['registrationId'],
+  })
+  const totalUnsubscribed = await prisma.registration.count({
+    where: {
+      webinarId: params.id,
+      emailUnsubscribed: true,
+      ...(dateRange ? { emailUnsubscribedAt: dateRange } : {}),
+    },
+  })
 
   // Device breakdown — scope to actual sends for this webinar's templates
   const sendIds = await prisma.followUpEmailSend.findMany({
@@ -170,6 +182,8 @@ export async function GET(
   return NextResponse.json({
     overview: {
       totalSent,
+      totalUnsubscribed,
+      unsubscribeRate: distinctRecipients.length > 0 ? Math.round((totalUnsubscribed / distinctRecipients.length) * 100) : 0,
       totalOpens: agg._sum.openCount || 0,
       totalClicks: agg._sum.clickCount || 0,
       uniqueOpens,

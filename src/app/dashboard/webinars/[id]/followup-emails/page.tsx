@@ -973,7 +973,7 @@ export default function FollowUpEmailsPage() {
                 </Card>
 
                 {/* Overview */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <Card><CardBody>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Total Sent</p>
                     <p className="text-2xl font-bold text-gray-900 mt-1">{statsOverview.totalSent}</p>
@@ -987,6 +987,11 @@ export default function FollowUpEmailsPage() {
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Click Rate</p>
                     <p className="text-2xl font-bold text-blue-600 mt-1">{statsOverview.clickRate}%</p>
                     <p className="text-xs text-gray-400">{statsOverview.uniqueClicks} / {statsOverview.totalSent}</p>
+                  </CardBody></Card>
+                  <Card><CardBody>
+                    <p className="text-xs text-gray-500 uppercase tracking-wide">Unsubscribes</p>
+                    <p className="text-2xl font-bold text-amber-600 mt-1">{statsOverview.totalUnsubscribed || 0}</p>
+                    <p className="text-xs text-gray-400">{statsOverview.unsubscribeRate || 0}% of recipients</p>
                   </CardBody></Card>
                   <Card><CardBody>
                     <p className="text-xs text-gray-500 uppercase tracking-wide">Total Interactions</p>

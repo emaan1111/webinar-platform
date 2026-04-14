@@ -27,7 +27,8 @@ export default async function UnsubscribePage({
       id: true,
       name: true,
       email: true,
-      marketingConsent: true,
+      emailUnsubscribed: true,
+      emailUnsubscribedAt: true,
       webinar: {
         select: {
           title: true,
@@ -48,10 +49,13 @@ export default async function UnsubscribePage({
     )
   }
 
-  if (registration.marketingConsent) {
+  if (!registration.emailUnsubscribed) {
     await prisma.registration.update({
       where: { id: registration.id },
-      data: { marketingConsent: false },
+      data: {
+        emailUnsubscribed: true,
+        emailUnsubscribedAt: new Date(),
+      },
     })
   }
 
@@ -69,6 +73,11 @@ export default async function UnsubscribePage({
         <p className="mt-3 text-sm leading-6 text-gray-600">
           Transactional messages required to complete your registration may still be delivered.
         </p>
+        {registration.emailUnsubscribedAt && (
+          <p className="mt-3 text-xs text-gray-500">
+            Unsubscribed on {registration.emailUnsubscribedAt.toLocaleString()}
+          </p>
+        )}
         {registration.webinar.slug && (
           <div className="mt-6">
             <Link

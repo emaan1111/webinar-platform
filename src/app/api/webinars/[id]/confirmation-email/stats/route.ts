@@ -43,6 +43,14 @@ export async function GET(
 
   const templateIds = templates.map((t) => t.id)
 
+  const totalUnsubscribed = await prisma.registration.count({
+    where: {
+      webinarId: params.id,
+      emailUnsubscribed: true,
+      ...(sentAtRange ? { emailUnsubscribedAt: sentAtRange } : {}),
+    },
+  })
+
   if (templateIds.length === 0) {
     return NextResponse.json({
       overview: {
@@ -51,6 +59,8 @@ export async function GET(
         totalClicks: 0,
         uniqueOpens: 0,
         uniqueClicks: 0,
+        totalUnsubscribed,
+        unsubscribeRate: 0,
         openRate: 0,
         clickRate: 0,
       },
@@ -59,6 +69,12 @@ export async function GET(
       recentSends: [],
     })
   }
+
+  const distinctRecipients = await prisma.confirmationEmailSend.findMany({
+    where: { templateId: { in: templateIds }, ...(sentAtRange ? { sentAt: sentAtRange } : {}) },
+    select: { registrationId: true },
+    distinct: ['registrationId'],
+  })
 
   // Aggregate overview
   const agg = await prisma.confirmationEmailSend.aggregate({
@@ -154,6 +170,8 @@ export async function GET(
       totalClicks: agg._sum.clickCount || 0,
       uniqueOpens,
       uniqueClicks,
+      totalUnsubscribed,
+      unsubscribeRate: distinctRecipients.length > 0 ? Math.round((totalUnsubscribed / distinctRecipients.length) * 100) : 0,
       openRate: totalSent > 0 ? Math.round((uniqueOpens / totalSent) * 100) : 0,
       clickRate: totalSent > 0 ? Math.round((uniqueClicks / totalSent) * 100) : 0,
     },

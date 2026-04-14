@@ -1,0 +1,3 @@
+ALTER TABLE registrations
+ADD COLUMN IF NOT EXISTS "emailUnsubscribed" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS "emailUnsubscribedAt" TIMESTAMPTZ;

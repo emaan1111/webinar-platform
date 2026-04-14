@@ -89,6 +89,18 @@ export async function GET(
   const totalPending = await prisma.reminderEmailSend.count({
     where: { templateId: { in: templateIds }, status: 'PENDING', ...pendingDateWhere },
   })
+  const distinctRecipients = await prisma.reminderEmailSend.findMany({
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
+    select: { registrationId: true },
+    distinct: ['registrationId'],
+  })
+  const totalUnsubscribed = await prisma.registration.count({
+    where: {
+      webinarId: params.id,
+      emailUnsubscribed: true,
+      ...(dateRange ? { emailUnsubscribedAt: dateRange } : {}),
+    },
+  })
 
   // Device breakdown — scope to actual sends for this webinar's templates
   const sendIds = await prisma.reminderEmailSend.findMany({
@@ -186,6 +198,8 @@ export async function GET(
       totalSent,
       totalScheduled,
       totalPending,
+      totalUnsubscribed,
+      unsubscribeRate: distinctRecipients.length > 0 ? Math.round((totalUnsubscribed / distinctRecipients.length) * 100) : 0,
       totalOpens: agg._sum.openCount || 0,
       totalClicks: agg._sum.clickCount || 0,
       uniqueOpens,

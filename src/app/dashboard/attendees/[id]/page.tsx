@@ -47,6 +47,8 @@ interface AttendeeProfile {
   totalWatchTime: number
   engagementScore: number
   hasPurchased: boolean
+  emailUnsubscribed: boolean
+  emailUnsubscribedAt: string | null
   emailHistory: Array<{
     id: string
     emailType: string
@@ -212,6 +214,7 @@ export default function AttendeeProfilePage() {
   const [savingPurchase, setSavingPurchase] = useState(false)
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null)
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
+  const [updatingEmailSubscription, setUpdatingEmailSubscription] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -483,6 +486,37 @@ export default function AttendeeProfilePage() {
     }
   }
 
+  const handleToggleEmailSubscription = async () => {
+    if (!profile) return
+
+    setUpdatingEmailSubscription(true)
+    try {
+      const response = await fetch('/api/attendees', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: profile.id,
+          emailUnsubscribed: !profile.emailUnsubscribed,
+        })
+      })
+
+      const data = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update email subscription')
+      }
+
+      setProfile((prev) => prev ? {
+        ...prev,
+        emailUnsubscribed: data.registration.emailUnsubscribed,
+        emailUnsubscribedAt: data.registration.emailUnsubscribedAt || null,
+      } : prev)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update email subscription')
+    } finally {
+      setUpdatingEmailSubscription(false)
+    }
+  }
+
   if (loading) {
     return (
       <DashboardLayout>
@@ -704,6 +738,28 @@ export default function AttendeeProfilePage() {
                 </div>
               </div>
             )}
+          </div>
+
+          <div className="mt-6 border-t border-gray-200 pt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Email Subscription</p>
+              <p className="text-sm text-gray-600">
+                {profile.emailUnsubscribed
+                  ? `Unsubscribed${profile.emailUnsubscribedAt ? ` on ${formatDateTime(profile.emailUnsubscribedAt)}` : ''}`
+                  : 'Subscribed to webinar email updates'}
+              </p>
+            </div>
+            <Button
+              variant="secondary"
+              onClick={handleToggleEmailSubscription}
+              disabled={updatingEmailSubscription}
+            >
+              {updatingEmailSubscription
+                ? 'Saving...'
+                : profile.emailUnsubscribed
+                  ? 'Resubscribe'
+                  : 'Unsubscribe'}
+            </Button>
           </div>
         </div>
 

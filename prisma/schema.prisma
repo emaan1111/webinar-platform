@@ -275,6 +275,8 @@ model Registration {
   gdprConsent              Boolean                   @default(false)
   privacyConsent           Boolean                   @default(false)
   marketingConsent         Boolean                   @default(false)
+  emailUnsubscribed        Boolean                   @default(false)
+  emailUnsubscribedAt      DateTime?
   registeredAt             DateTime                  @default(now())
   scheduledStartTime       DateTime?
   attended                 Boolean                   @default(false)

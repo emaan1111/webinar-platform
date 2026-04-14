@@ -64,6 +64,8 @@ interface StatsOverview {
   totalClicks: number
   uniqueOpens: number
   uniqueClicks: number
+  totalUnsubscribed: number
+  unsubscribeRate: number
   openRate: number
   clickRate: number
 }
@@ -751,7 +753,7 @@ export default function ConfirmationEmailPage() {
                 </Card>
 
                 {/* Overview cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <Card>
                     <CardBody>
                       <p className="text-xs text-gray-500 uppercase tracking-wide">Total Sent</p>
@@ -779,6 +781,17 @@ export default function ConfirmationEmailPage() {
                       </p>
                       <p className="text-xs text-gray-400">
                         {statsOverview.uniqueClicks} / {statsOverview.totalSent}
+                      </p>
+                    </CardBody>
+                  </Card>
+                  <Card>
+                    <CardBody>
+                      <p className="text-xs text-gray-500 uppercase tracking-wide">Unsubscribes</p>
+                      <p className="text-2xl font-bold text-amber-600 mt-1">
+                        {statsOverview.totalUnsubscribed}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        {statsOverview.unsubscribeRate}% of recipients
                       </p>
                     </CardBody>
                   </Card>

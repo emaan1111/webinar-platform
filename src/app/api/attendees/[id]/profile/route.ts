@@ -461,6 +461,8 @@ export async function GET(
       totalWatchTime: effectiveTotalWatchTime,
       engagementScore,
       hasPurchased: registration.hasPurchased,
+      emailUnsubscribed: registration.emailUnsubscribed,
+      emailUnsubscribedAt: registration.emailUnsubscribedAt?.toISOString() || null,
       emailHistory,
 
       // Purchases
