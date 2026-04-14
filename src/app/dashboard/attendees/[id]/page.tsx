@@ -47,6 +47,27 @@ interface AttendeeProfile {
   totalWatchTime: number
   engagementScore: number
   hasPurchased: boolean
+  emailHistory: Array<{
+    id: string
+    emailType: string
+    templateName: string | null
+    subject: string
+    to: string
+    status: string
+    sentAt: string | null
+    openedAt: string | null
+    clickedAt: string | null
+    openCount: number
+    clickCount: number
+    abVariant: string | null
+    isResend: boolean
+    timingLabel: string | null
+    audienceLabel: string | null
+    clicks: Array<{
+      url: string
+      clickedAt: string
+    }>
+  }>
   
   // Purchases
   purchases: Array<{
@@ -240,6 +261,20 @@ export default function AttendeeProfilePage() {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  const getEmailTypeLabel = (emailType: string) => {
+    if (emailType === 'confirmation') return 'Confirmation'
+    if (emailType === 'reminder') return 'Reminder'
+    if (emailType === 'followup') return 'Follow-Up'
+    return emailType
+  }
+
+  const getEmailTypeClasses = (emailType: string) => {
+    if (emailType === 'confirmation') return 'bg-blue-100 text-blue-700'
+    if (emailType === 'reminder') return 'bg-amber-100 text-amber-700'
+    if (emailType === 'followup') return 'bg-purple-100 text-purple-700'
+    return 'bg-gray-100 text-gray-700'
   }
 
   const handleAddPurchase = async () => {
@@ -1043,6 +1078,107 @@ export default function AttendeeProfilePage() {
                       </button>
                     </div>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Email History Section */}
+        <div className="bg-white rounded-xl border border-gray-200 p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <Mail className="w-5 h-5 text-indigo-600" />
+            Email History ({profile.emailHistory.length})
+          </h2>
+
+          {profile.emailHistory.length === 0 ? (
+            <p className="text-sm text-gray-600">
+              No tracked confirmation, reminder, or follow-up emails have been sent to this attendee yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {profile.emailHistory.map((email) => (
+                <div key={email.id} className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${getEmailTypeClasses(email.emailType)}`}>
+                          <Mail className="w-3.5 h-3.5" />
+                          {getEmailTypeLabel(email.emailType)}
+                        </span>
+                        {email.timingLabel && (
+                          <span className="inline-flex items-center rounded-full bg-gray-200 px-2 py-1 text-xs font-medium text-gray-700">
+                            {email.timingLabel}
+                          </span>
+                        )}
+                        {email.audienceLabel && (
+                          <span className="inline-flex items-center rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-700">
+                            {email.audienceLabel}
+                          </span>
+                        )}
+                        {email.abVariant === 'B' && (
+                          <span className="inline-flex items-center rounded-full bg-fuchsia-100 px-2 py-1 text-xs font-semibold text-fuchsia-700">
+                            Variant B
+                          </span>
+                        )}
+                        {email.isResend && (
+                          <span className="inline-flex items-center rounded-full bg-orange-100 px-2 py-1 text-xs font-semibold text-orange-700">
+                            Resend
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-sm font-semibold text-gray-900 break-words">{email.subject}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {email.templateName || 'Email Template'}
+                        {' '}• Sent to {email.to}
+                        {email.sentAt ? ` • ${formatDateTime(email.sentAt)}` : ''}
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 font-medium text-gray-700 border border-gray-200">
+                        <Eye className="w-3.5 h-3.5 text-green-600" />
+                        {email.openCount} open{email.openCount === 1 ? '' : 's'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1.5 font-medium text-gray-700 border border-gray-200">
+                        <MousePointerClick className="w-3.5 h-3.5 text-blue-600" />
+                        {email.clickCount} click{email.clickCount === 1 ? '' : 's'}
+                      </span>
+                    </div>
+                  </div>
+
+                  {(email.openedAt || email.clickedAt) && (
+                    <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+                      {email.openedAt && (
+                        <span>First opened: {formatDateTime(email.openedAt)}</span>
+                      )}
+                      {email.clickedAt && (
+                        <span>Last clicked: {formatDateTime(email.clickedAt)}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {email.clicks.length > 0 && (
+                    <div className="mt-3 border-t border-gray-200 pt-3">
+                      <p className="text-xs font-medium text-gray-600 mb-2">Clicked URLs</p>
+                      <div className="space-y-2">
+                        {email.clicks.map((click, index) => (
+                          <div key={`${email.id}-${click.url}-${index}`} className="flex flex-col gap-1 rounded-md bg-white px-3 py-2 text-xs border border-gray-200">
+                            <a
+                              href={click.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-medium text-blue-600 hover:underline break-all"
+                            >
+                              {click.url}
+                            </a>
+                            <span className="text-gray-500">Clicked {formatDateTime(click.clickedAt)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

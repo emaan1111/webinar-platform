@@ -27,6 +27,7 @@ import {
   CheckCircle2,
   Copy,
   Info,
+  RefreshCw,
 } from 'lucide-react'
 
 // Dynamic import for WYSIWYG editor (no SSR)
@@ -150,6 +151,9 @@ export default function ConfirmationEmailPage() {
   const [linkBreakdown, setLinkBreakdown] = useState<LinkBreakdown[]>([])
   const [recentSends, setRecentSends] = useState<RecentSend[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
+  const [resettingStats, setResettingStats] = useState(false)
+  const [statsDateFrom, setStatsDateFrom] = useState('')
+  const [statsDateTo, setStatsDateTo] = useState('')
 
   // Calendar invite toggle
   const [sendCalendarInvite, setSendCalendarInvite] = useState(true)
@@ -177,7 +181,11 @@ export default function ConfirmationEmailPage() {
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true)
-      const res = await fetch(`/api/webinars/${webinarId}/confirmation-email/stats`)
+      const queryParams = new URLSearchParams()
+      if (statsDateFrom) queryParams.set('from', statsDateFrom)
+      if (statsDateTo) queryParams.set('to', statsDateTo)
+      const suffix = queryParams.toString() ? `?${queryParams.toString()}` : ''
+      const res = await fetch(`/api/webinars/${webinarId}/confirmation-email/stats${suffix}`)
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
       setStatsOverview(data.overview)
@@ -189,7 +197,7 @@ export default function ConfirmationEmailPage() {
     } finally {
       setStatsLoading(false)
     }
-  }, [webinarId])
+  }, [statsDateFrom, statsDateTo, webinarId])
 
   useEffect(() => {
     fetchTemplates()
@@ -306,6 +314,27 @@ export default function ConfirmationEmailPage() {
     }
   }
 
+  const handleResetStats = async () => {
+    if (!confirm('Reset confirmation email tracking stats for this webinar? This will clear opens, clicks, and tracking events, but keep the send history.')) {
+      return
+    }
+
+    setResettingStats(true)
+    try {
+      const res = await fetch(`/api/webinars/${webinarId}/confirmation-email/reset-stats`, {
+        method: 'POST',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to reset stats')
+      alert('Confirmation email stats have been reset')
+      await Promise.all([fetchStats(), fetchTemplates()])
+    } catch (err: any) {
+      setError(err.message || 'Failed to reset stats')
+    } finally {
+      setResettingStats(false)
+    }
+  }
+
   // ── Render ───────────────────────────────────────────────────────────────
 
   const deviceIcon = (d: string) => {
@@ -332,12 +361,26 @@ export default function ConfirmationEmailPage() {
               </p>
             </div>
           </div>
-          {!creating && !editing && (
-            <Button size="sm" onClick={startCreate}>
-              <Plus className="w-4 h-4 mr-2" />
-              New Template
-            </Button>
-          )}
+          <div className="flex gap-2">
+            {activeTab === 'stats' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleResetStats}
+                disabled={resettingStats}
+                className="text-orange-700 border-orange-200 hover:bg-orange-50"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${resettingStats ? 'animate-spin' : ''}`} />
+                {resettingStats ? 'Resetting...' : 'Reset Stats'}
+              </Button>
+            )}
+            {!creating && !editing && activeTab === 'templates' && (
+              <Button size="sm" onClick={startCreate}>
+                <Plus className="w-4 h-4 mr-2" />
+                New Template
+              </Button>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -638,6 +681,33 @@ export default function ConfirmationEmailPage() {
             ) : !statsOverview || statsOverview.totalSent === 0 ? (
               <Card>
                 <CardBody>
+                  <div className="flex flex-col gap-3 pb-4 md:flex-row md:items-end md:justify-between">
+                    <div>
+                      <h3 className="text-sm font-semibold text-gray-900">Date Range</h3>
+                      <p className="text-xs text-gray-500">Filter email stats by sent date.</p>
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <input
+                        type="date"
+                        value={statsDateFrom}
+                        onChange={(e) => setStatsDateFrom(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                      <span className="text-sm text-gray-500">to</span>
+                      <input
+                        type="date"
+                        value={statsDateTo}
+                        onChange={(e) => setStatsDateTo(e.target.value)}
+                        className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                      />
+                      {(statsDateFrom || statsDateTo) && (
+                        <Button variant="secondary" size="sm" onClick={() => { setStatsDateFrom(''); setStatsDateTo('') }}>
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="text-center py-12">
                     <BarChart3 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 mb-2">No Data Yet</h3>
@@ -649,6 +719,37 @@ export default function ConfirmationEmailPage() {
               </Card>
             ) : (
               <>
+                <Card>
+                  <CardBody>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Date Range</h3>
+                        <p className="text-xs text-gray-500">Filter email stats by sent date.</p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="date"
+                          value={statsDateFrom}
+                          onChange={(e) => setStatsDateFrom(e.target.value)}
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        <span className="text-sm text-gray-500">to</span>
+                        <input
+                          type="date"
+                          value={statsDateTo}
+                          onChange={(e) => setStatsDateTo(e.target.value)}
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        {(statsDateFrom || statsDateTo) && (
+                          <Button variant="secondary" size="sm" onClick={() => { setStatsDateFrom(''); setStatsDateTo('') }}>
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+
                 {/* Overview cards */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Card>

@@ -3,15 +3,48 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+function getDateRange(searchParams: URLSearchParams) {
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+
+  if (!from && !to) return null
+
+  const range: { gte?: Date; lte?: Date } = {}
+
+  if (from) {
+    range.gte = new Date(`${from}T00:00:00.000Z`)
+  }
+
+  if (to) {
+    range.lte = new Date(`${to}T23:59:59.999Z`)
+  }
+
+  return range
+}
+
 // GET /api/webinars/[id]/followup-emails/stats
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const { searchParams } = new URL(request.url)
+  const dateRange = getDateRange(searchParams)
+  const sentDateWhere = dateRange ? { sentAt: dateRange } : {}
+  const eventDateWhere = dateRange ? { createdAt: dateRange } : {}
+  const activityDateWhere = dateRange
+    ? {
+        OR: [
+          { sentAt: dateRange },
+          { scheduledFor: dateRange },
+          { createdAt: dateRange },
+        ],
+      }
+    : {}
 
   const templates = await prisma.followUpEmailTemplate.findMany({
     where: { webinarId: params.id },
@@ -30,27 +63,27 @@ export async function GET(
   }
 
   const agg = await prisma.followUpEmailSend.aggregate({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...sentDateWhere },
     _count: { id: true },
     _sum: { openCount: true, clickCount: true },
   })
   const uniqueOpens = await prisma.followUpEmailSend.count({
-    where: { templateId: { in: templateIds }, openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, openCount: { gt: 0 }, ...sentDateWhere },
   })
   const uniqueClicks = await prisma.followUpEmailSend.count({
-    where: { templateId: { in: templateIds }, clickCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, clickCount: { gt: 0 }, ...sentDateWhere },
   })
   const totalSent = agg._count.id
 
   // Device breakdown — scope to actual sends for this webinar's templates
   const sendIds = await prisma.followUpEmailSend.findMany({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
     select: { id: true },
   })
   const sendIdList = sendIds.map((s) => s.id)
   const deviceEvents = await prisma.emailTrackingEvent.groupBy({
     by: ['deviceType'],
-    where: { followUpEmailSendId: { in: sendIdList }, emailType: 'followup' },
+    where: { followUpEmailSendId: { in: sendIdList }, emailType: 'followup', ...eventDateWhere },
     _count: { id: true },
   })
   const deviceBreakdown = deviceEvents.map((d) => ({
@@ -61,7 +94,7 @@ export async function GET(
   // Link-level click breakdown
   const linkEvents = await prisma.emailTrackingEvent.groupBy({
     by: ['url'],
-    where: { followUpEmailSendId: { in: sendIdList }, emailType: 'followup', type: 'CLICK', url: { not: null } },
+    where: { followUpEmailSendId: { in: sendIdList }, emailType: 'followup', type: 'CLICK', url: { not: null }, ...eventDateWhere },
     _count: { id: true },
   })
   const linkBreakdown = linkEvents
@@ -71,18 +104,18 @@ export async function GET(
 
   // A/B variant breakdown
   const variantA = await prisma.followUpEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, abVariant: 'A' },
+    where: { templateId: { in: templateIds }, abVariant: 'A', ...sentDateWhere },
     _count: { id: true },
   })
   const variantAOpens = await prisma.followUpEmailSend.count({
-    where: { templateId: { in: templateIds }, abVariant: 'A', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, abVariant: 'A', openCount: { gt: 0 }, ...sentDateWhere },
   })
   const variantB = await prisma.followUpEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, abVariant: 'B' },
+    where: { templateId: { in: templateIds }, abVariant: 'B', ...sentDateWhere },
     _count: { id: true },
   })
   const variantBOpens = await prisma.followUpEmailSend.count({
-    where: { templateId: { in: templateIds }, abVariant: 'B', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, abVariant: 'B', openCount: { gt: 0 }, ...sentDateWhere },
   })
   const abBreakdown = {
     variantA: { sent: variantA._count.id, opens: variantAOpens, openRate: variantA._count.id > 0 ? Math.round((variantAOpens / variantA._count.id) * 100) : 0 },
@@ -93,12 +126,12 @@ export async function GET(
   const perTemplate = await Promise.all(
     templates.map(async (t) => {
       const s = await prisma.followUpEmailSend.aggregate({
-        where: { templateId: t.id },
+        where: { templateId: t.id, ...sentDateWhere },
         _count: { id: true },
         _sum: { openCount: true, clickCount: true },
       })
-      const uo = await prisma.followUpEmailSend.count({ where: { templateId: t.id, openCount: { gt: 0 } } })
-      const uc = await prisma.followUpEmailSend.count({ where: { templateId: t.id, clickCount: { gt: 0 } } })
+      const uo = await prisma.followUpEmailSend.count({ where: { templateId: t.id, openCount: { gt: 0 }, ...sentDateWhere } })
+      const uc = await prisma.followUpEmailSend.count({ where: { templateId: t.id, clickCount: { gt: 0 }, ...sentDateWhere } })
       const ts = s._count.id
       return {
         templateId: t.id,
@@ -116,7 +149,7 @@ export async function GET(
 
   // Recent sends
   const recentSends = await prisma.followUpEmailSend.findMany({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: {

@@ -125,6 +125,9 @@ export default function FollowUpEmailsPage() {
   const [perTemplateStats, setPerTemplateStats] = useState<any[]>([])
   const [recentSends, setRecentSends] = useState<any[]>([])
   const [statsLoading, setStatsLoading] = useState(false)
+  const [resettingStats, setResettingStats] = useState(false)
+  const [statsDateFrom, setStatsDateFrom] = useState('')
+  const [statsDateTo, setStatsDateTo] = useState('')
 
   // Per-template sends viewer
   const [expandedTemplateId, setExpandedTemplateId] = useState<string | null>(null)
@@ -146,7 +149,11 @@ export default function FollowUpEmailsPage() {
   const fetchStats = useCallback(async () => {
     try {
       setStatsLoading(true)
-      const res = await fetch(`/api/webinars/${webinarId}/followup-emails/stats`)
+      const queryParams = new URLSearchParams()
+      if (statsDateFrom) queryParams.set('from', statsDateFrom)
+      if (statsDateTo) queryParams.set('to', statsDateTo)
+      const suffix = queryParams.toString() ? `?${queryParams.toString()}` : ''
+      const res = await fetch(`/api/webinars/${webinarId}/followup-emails/stats${suffix}`)
       if (!res.ok) throw new Error('Failed to fetch stats')
       const data = await res.json()
       setStatsOverview({ ...data.overview, abBreakdown: data.abBreakdown, linkBreakdown: data.linkBreakdown })
@@ -154,7 +161,7 @@ export default function FollowUpEmailsPage() {
       setRecentSends(data.recentSends || [])
     } catch { /* ignore */ }
     finally { setStatsLoading(false) }
-  }, [webinarId])
+  }, [statsDateFrom, statsDateTo, webinarId])
 
   useEffect(() => { fetchTemplates() }, [fetchTemplates])
   useEffect(() => { if (activeTab === 'stats') fetchStats() }, [activeTab, fetchStats])
@@ -342,6 +349,25 @@ export default function FollowUpEmailsPage() {
     } catch (err: any) { setError(err.message) }
   }
 
+  const handleResetStats = async () => {
+    if (!confirm('Reset follow-up email tracking stats for this webinar? This will clear opens, clicks, and tracking events, but keep the send history.')) return
+
+    setResettingStats(true)
+    try {
+      const res = await fetch(`/api/webinars/${webinarId}/followup-emails/reset-stats`, {
+        method: 'POST',
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to reset stats')
+      alert('Follow-up email stats have been reset')
+      await Promise.all([fetchStats(), fetchTemplates()])
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setResettingStats(false)
+    }
+  }
+
   const handlePreview = async () => {
     try {
       const res = await fetch(`/api/webinars/${webinarId}/preview-email`, {
@@ -408,16 +434,30 @@ export default function FollowUpEmailsPage() {
               <p className="text-sm text-gray-500">Send targeted emails after the webinar based on attendance</p>
             </div>
           </div>
-          {activeTab === 'templates' && !creating && !editing && (
-            <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={() => { setShowCloneDialog(true); fetchWebinarsForClone() }}>
-                <Download className="w-4 h-4 mr-2" /> Clone From…
+          <div className="flex gap-2">
+            {activeTab === 'stats' && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={handleResetStats}
+                disabled={resettingStats}
+                className="text-orange-700 border-orange-200 hover:bg-orange-50"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${resettingStats ? 'animate-spin' : ''}`} />
+                {resettingStats ? 'Resetting...' : 'Reset Stats'}
               </Button>
-              <Button size="sm" onClick={startCreate}>
-                <Plus className="w-4 h-4 mr-2" /> New Follow-Up
-              </Button>
-            </div>
-          )}
+            )}
+            {activeTab === 'templates' && !creating && !editing && (
+              <>
+                <Button variant="secondary" size="sm" onClick={() => { setShowCloneDialog(true); fetchWebinarsForClone() }}>
+                  <Download className="w-4 h-4 mr-2" /> Clone From…
+                </Button>
+                <Button size="sm" onClick={startCreate}>
+                  <Plus className="w-4 h-4 mr-2" /> New Follow-Up
+                </Button>
+              </>
+            )}
+          </div>
         </div>
 
         {error && (
@@ -866,6 +906,33 @@ export default function FollowUpEmailsPage() {
               <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
             ) : !statsOverview || statsOverview.totalSent === 0 ? (
               <Card><CardBody>
+                <div className="flex flex-col gap-3 pb-4 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">Date Range</h3>
+                    <p className="text-xs text-gray-500">Filter follow-up stats by send or scheduled date.</p>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                    <input
+                      type="date"
+                      value={statsDateFrom}
+                      onChange={(e) => setStatsDateFrom(e.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                    <span className="text-sm text-gray-500">to</span>
+                    <input
+                      type="date"
+                      value={statsDateTo}
+                      onChange={(e) => setStatsDateTo(e.target.value)}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                    />
+                    {(statsDateFrom || statsDateTo) && (
+                      <Button variant="secondary" size="sm" onClick={() => { setStatsDateFrom(''); setStatsDateTo('') }}>
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="text-center py-12">
                   <BarChart3 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
                   <h3 className="text-lg font-medium text-gray-900 mb-2">No Data Yet</h3>
@@ -874,6 +941,37 @@ export default function FollowUpEmailsPage() {
               </CardBody></Card>
             ) : (
               <>
+                <Card>
+                  <CardBody>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900">Date Range</h3>
+                        <p className="text-xs text-gray-500">Filter follow-up stats by send or scheduled date.</p>
+                      </div>
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                        <input
+                          type="date"
+                          value={statsDateFrom}
+                          onChange={(e) => setStatsDateFrom(e.target.value)}
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        <span className="text-sm text-gray-500">to</span>
+                        <input
+                          type="date"
+                          value={statsDateTo}
+                          onChange={(e) => setStatsDateTo(e.target.value)}
+                          className="rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                        />
+                        {(statsDateFrom || statsDateTo) && (
+                          <Button variant="secondary" size="sm" onClick={() => { setStatsDateFrom(''); setStatsDateTo('') }}>
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </CardBody>
+                </Card>
+
                 {/* Overview */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <Card><CardBody>

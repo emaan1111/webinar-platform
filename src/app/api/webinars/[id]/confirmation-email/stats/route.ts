@@ -3,15 +3,37 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+function getDateRange(searchParams: URLSearchParams) {
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+
+  if (!from && !to) return null
+
+  const range: { gte?: Date; lte?: Date } = {}
+
+  if (from) {
+    range.gte = new Date(`${from}T00:00:00.000Z`)
+  }
+
+  if (to) {
+    range.lte = new Date(`${to}T23:59:59.999Z`)
+  }
+
+  return range
+}
+
 // GET /api/webinars/[id]/confirmation-email/stats
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const { searchParams } = new URL(request.url)
+  const sentAtRange = getDateRange(searchParams)
 
   // Overall webinar-level stats
   const templates = await prisma.confirmationEmailTemplate.findMany({
@@ -40,16 +62,16 @@ export async function GET(
 
   // Aggregate overview
   const agg = await prisma.confirmationEmailSend.aggregate({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...(sentAtRange ? { sentAt: sentAtRange } : {}) },
     _count: { id: true },
     _sum: { openCount: true, clickCount: true },
   })
 
   const uniqueOpens = await prisma.confirmationEmailSend.count({
-    where: { templateId: { in: templateIds }, openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, openCount: { gt: 0 }, ...(sentAtRange ? { sentAt: sentAtRange } : {}) },
   })
   const uniqueClicks = await prisma.confirmationEmailSend.count({
-    where: { templateId: { in: templateIds }, clickCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, clickCount: { gt: 0 }, ...(sentAtRange ? { sentAt: sentAtRange } : {}) },
   })
 
   const totalSent = agg._count.id
@@ -57,7 +79,10 @@ export async function GET(
   // Device breakdown from tracking events
   const deviceEvents = await prisma.emailTrackingEvent.groupBy({
     by: ['deviceType'],
-    where: { send: { templateId: { in: templateIds } } },
+    where: {
+      send: { templateId: { in: templateIds } },
+      ...(sentAtRange ? { createdAt: sentAtRange } : {}),
+    },
     _count: { id: true },
   })
 
@@ -73,6 +98,7 @@ export async function GET(
       send: { templateId: { in: templateIds } },
       type: 'CLICK',
       url: { not: null },
+      ...(sentAtRange ? { createdAt: sentAtRange } : {}),
     },
     _count: { id: true },
   })
@@ -85,6 +111,7 @@ export async function GET(
           send: { templateId: { in: templateIds } },
           type: 'CLICK',
           url: lc.url,
+          ...(sentAtRange ? { createdAt: sentAtRange } : {}),
         },
         distinct: ['sendId'],
         select: { sendId: true },
@@ -102,7 +129,7 @@ export async function GET(
 
   // Recent sends with open/click info
   const recentSends = await prisma.confirmationEmailSend.findMany({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...(sentAtRange ? { sentAt: sentAtRange } : {}) },
     orderBy: { sentAt: 'desc' },
     take: 50,
     select: {

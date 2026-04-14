@@ -3,15 +3,56 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+function getDateRange(searchParams: URLSearchParams) {
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+
+  if (!from && !to) return null
+
+  const range: { gte?: Date; lte?: Date } = {}
+
+  if (from) {
+    range.gte = new Date(`${from}T00:00:00.000Z`)
+  }
+
+  if (to) {
+    range.lte = new Date(`${to}T23:59:59.999Z`)
+  }
+
+  return range
+}
+
 // GET /api/webinars/[id]/reminder-emails/stats
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions)
   if (!session?.user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  const { searchParams } = new URL(request.url)
+  const dateRange = getDateRange(searchParams)
+  const sentDateWhere = dateRange ? { sentAt: dateRange } : {}
+  const eventDateWhere = dateRange ? { createdAt: dateRange } : {}
+  const activityDateWhere = dateRange
+    ? {
+        OR: [
+          { sentAt: dateRange },
+          { scheduledFor: dateRange },
+          { createdAt: dateRange },
+        ],
+      }
+    : {}
+  const pendingDateWhere = dateRange
+    ? {
+        OR: [
+          { scheduledFor: dateRange },
+          { createdAt: dateRange },
+        ],
+      }
+    : {}
 
   const templates = await prisma.reminderEmailTemplate.findMany({
     where: { webinarId: params.id },
@@ -31,33 +72,33 @@ export async function GET(
   }
 
   const agg = await prisma.reminderEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, status: 'SENT' },
+    where: { templateId: { in: templateIds }, status: 'SENT', ...sentDateWhere },
     _count: { id: true },
     _sum: { openCount: true, clickCount: true },
   })
   const totalScheduled = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
   })
   const uniqueOpens = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, status: 'SENT', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, status: 'SENT', openCount: { gt: 0 }, ...sentDateWhere },
   })
   const uniqueClicks = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, status: 'SENT', clickCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, status: 'SENT', clickCount: { gt: 0 }, ...sentDateWhere },
   })
   const totalSent = agg._count.id
   const totalPending = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, status: 'PENDING' },
+    where: { templateId: { in: templateIds }, status: 'PENDING', ...pendingDateWhere },
   })
 
   // Device breakdown — scope to actual sends for this webinar's templates
   const sendIds = await prisma.reminderEmailSend.findMany({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
     select: { id: true },
   })
   const sendIdList = sendIds.map((s) => s.id)
   const deviceEvents = await prisma.emailTrackingEvent.groupBy({
     by: ['deviceType'],
-    where: { reminderEmailSendId: { in: sendIdList }, emailType: 'reminder' },
+    where: { reminderEmailSendId: { in: sendIdList }, emailType: 'reminder', ...eventDateWhere },
     _count: { id: true },
   })
   const deviceBreakdown = deviceEvents.map((d) => ({
@@ -68,7 +109,7 @@ export async function GET(
   // Link-level click breakdown
   const linkEvents = await prisma.emailTrackingEvent.groupBy({
     by: ['url'],
-    where: { reminderEmailSendId: { in: sendIdList }, emailType: 'reminder', type: 'CLICK', url: { not: null } },
+    where: { reminderEmailSendId: { in: sendIdList }, emailType: 'reminder', type: 'CLICK', url: { not: null }, ...eventDateWhere },
     _count: { id: true },
   })
   const linkBreakdown = linkEvents
@@ -78,18 +119,18 @@ export async function GET(
 
   // A/B variant breakdown
   const variantA = await prisma.reminderEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, abVariant: 'A', status: 'SENT' },
+    where: { templateId: { in: templateIds }, abVariant: 'A', status: 'SENT', ...sentDateWhere },
     _count: { id: true },
   })
   const variantAOpens = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, abVariant: 'A', status: 'SENT', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, abVariant: 'A', status: 'SENT', openCount: { gt: 0 }, ...sentDateWhere },
   })
   const variantB = await prisma.reminderEmailSend.aggregate({
-    where: { templateId: { in: templateIds }, abVariant: 'B', status: 'SENT' },
+    where: { templateId: { in: templateIds }, abVariant: 'B', status: 'SENT', ...sentDateWhere },
     _count: { id: true },
   })
   const variantBOpens = await prisma.reminderEmailSend.count({
-    where: { templateId: { in: templateIds }, abVariant: 'B', status: 'SENT', openCount: { gt: 0 } },
+    where: { templateId: { in: templateIds }, abVariant: 'B', status: 'SENT', openCount: { gt: 0 }, ...sentDateWhere },
   })
   const abBreakdown = {
     variantA: { sent: variantA._count.id, opens: variantAOpens, openRate: variantA._count.id > 0 ? Math.round((variantAOpens / variantA._count.id) * 100) : 0 },
@@ -100,12 +141,12 @@ export async function GET(
   const perTemplate = await Promise.all(
     templates.map(async (t) => {
       const s = await prisma.reminderEmailSend.aggregate({
-        where: { templateId: t.id, status: 'SENT' },
+        where: { templateId: t.id, status: 'SENT', ...sentDateWhere },
         _count: { id: true },
         _sum: { openCount: true, clickCount: true },
       })
-      const uo = await prisma.reminderEmailSend.count({ where: { templateId: t.id, status: 'SENT', openCount: { gt: 0 } } })
-      const uc = await prisma.reminderEmailSend.count({ where: { templateId: t.id, status: 'SENT', clickCount: { gt: 0 } } })
+      const uo = await prisma.reminderEmailSend.count({ where: { templateId: t.id, status: 'SENT', openCount: { gt: 0 }, ...sentDateWhere } })
+      const uc = await prisma.reminderEmailSend.count({ where: { templateId: t.id, status: 'SENT', clickCount: { gt: 0 }, ...sentDateWhere } })
       const ts = s._count.id
       return {
         templateId: t.id,
@@ -122,7 +163,7 @@ export async function GET(
 
   // Recent sends
   const recentSends = await prisma.reminderEmailSend.findMany({
-    where: { templateId: { in: templateIds } },
+    where: { templateId: { in: templateIds }, ...activityDateWhere },
     orderBy: { createdAt: 'desc' },
     take: 50,
     select: {

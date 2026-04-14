@@ -3,6 +3,33 @@ import { getServerSession } from 'next-auth/next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+function formatRelativeMinutes(minutes: number, suffix: 'before' | 'after') {
+  if (minutes % 1440 === 0) {
+    const days = minutes / 1440
+    return `${days} day${days === 1 ? '' : 's'} ${suffix}`
+  }
+
+  if (minutes % 60 === 0) {
+    const hours = minutes / 60
+    return `${hours} hour${hours === 1 ? '' : 's'} ${suffix}`
+  }
+
+  return `${minutes} min ${suffix}`
+}
+
+function formatAudienceLabel(audienceType: string) {
+  const labels: Record<string, string> = {
+    all: 'All Registrants',
+    attended: 'Attended Live',
+    mostly_attended: 'Mostly Attended',
+    partly_attended: 'Partly Attended',
+    missed: 'Missed Live',
+    replay: 'Watched Replay',
+  }
+
+  return labels[audienceType] || audienceType
+}
+
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -148,6 +175,97 @@ export async function GET(
           },
           orderBy: { createdAt: 'desc' }
         },
+        confirmationEmailSends: {
+          where: { status: 'SENT' },
+          select: {
+            id: true,
+            to: true,
+            subject: true,
+            status: true,
+            sentAt: true,
+            openedAt: true,
+            clickedAt: true,
+            openCount: true,
+            clickCount: true,
+            template: {
+              select: {
+                name: true
+              }
+            },
+            events: {
+              where: { type: 'CLICK', url: { not: null } },
+              select: {
+                url: true,
+                createdAt: true
+              },
+              orderBy: { createdAt: 'desc' }
+            }
+          },
+          orderBy: { sentAt: 'desc' }
+        },
+        reminderEmailSends: {
+          where: { status: 'SENT' },
+          select: {
+            id: true,
+            to: true,
+            subject: true,
+            status: true,
+            sentAt: true,
+            openedAt: true,
+            clickedAt: true,
+            openCount: true,
+            clickCount: true,
+            abVariant: true,
+            isResend: true,
+            template: {
+              select: {
+                name: true,
+                minutesBefore: true
+              }
+            },
+            events: {
+              where: { type: 'CLICK', url: { not: null } },
+              select: {
+                url: true,
+                createdAt: true
+              },
+              orderBy: { createdAt: 'desc' }
+            }
+          },
+          orderBy: { sentAt: 'desc' }
+        },
+        followUpEmailSends: {
+          where: { status: 'SENT' },
+          select: {
+            id: true,
+            to: true,
+            subject: true,
+            status: true,
+            sentAt: true,
+            openedAt: true,
+            clickedAt: true,
+            openCount: true,
+            clickCount: true,
+            abVariant: true,
+            isResend: true,
+            template: {
+              select: {
+                name: true,
+                delayMinutes: true,
+                audienceType: true
+              }
+            },
+            events: {
+              where: { type: 'CLICK', url: { not: null } },
+              select: {
+                url: true,
+                createdAt: true
+              },
+              orderBy: { createdAt: 'desc' }
+            }
+          },
+          orderBy: { sentAt: 'desc' }
+        },
         clickFunnelsReminderTags: {
           select: {
             id: true,
@@ -252,6 +370,80 @@ export async function GET(
     if (registration.sales.length > 0) engagementScore += 25
     engagementScore = Math.min(100, engagementScore)
 
+    const emailHistory = [
+      ...registration.confirmationEmailSends.map((send: any) => ({
+        id: send.id,
+        emailType: 'confirmation',
+        templateName: send.template?.name || 'Confirmation Email',
+        subject: send.subject,
+        to: send.to,
+        status: send.status,
+        sentAt: send.sentAt?.toISOString() || null,
+        openedAt: send.openedAt?.toISOString() || null,
+        clickedAt: send.clickedAt?.toISOString() || null,
+        openCount: send.openCount || 0,
+        clickCount: send.clickCount || 0,
+        abVariant: null,
+        isResend: false,
+        timingLabel: null,
+        audienceLabel: null,
+        clicks: send.events.map((event: any) => ({
+          url: event.url,
+          clickedAt: event.createdAt.toISOString()
+        }))
+      })),
+      ...registration.reminderEmailSends.map((send: any) => ({
+        id: send.id,
+        emailType: 'reminder',
+        templateName: send.template?.name || 'Reminder Email',
+        subject: send.subject,
+        to: send.to,
+        status: send.status,
+        sentAt: send.sentAt?.toISOString() || null,
+        openedAt: send.openedAt?.toISOString() || null,
+        clickedAt: send.clickedAt?.toISOString() || null,
+        openCount: send.openCount || 0,
+        clickCount: send.clickCount || 0,
+        abVariant: send.abVariant || null,
+        isResend: Boolean(send.isResend),
+        timingLabel: send.template?.minutesBefore != null
+          ? formatRelativeMinutes(send.template.minutesBefore, 'before')
+          : null,
+        audienceLabel: null,
+        clicks: send.events.map((event: any) => ({
+          url: event.url,
+          clickedAt: event.createdAt.toISOString()
+        }))
+      })),
+      ...registration.followUpEmailSends.map((send: any) => ({
+        id: send.id,
+        emailType: 'followup',
+        templateName: send.template?.name || 'Follow-Up Email',
+        subject: send.subject,
+        to: send.to,
+        status: send.status,
+        sentAt: send.sentAt?.toISOString() || null,
+        openedAt: send.openedAt?.toISOString() || null,
+        clickedAt: send.clickedAt?.toISOString() || null,
+        openCount: send.openCount || 0,
+        clickCount: send.clickCount || 0,
+        abVariant: send.abVariant || null,
+        isResend: Boolean(send.isResend),
+        timingLabel: send.template?.delayMinutes != null
+          ? formatRelativeMinutes(send.template.delayMinutes, 'after')
+          : null,
+        audienceLabel: send.template?.audienceType
+          ? formatAudienceLabel(send.template.audienceType)
+          : null,
+        clicks: send.events.map((event: any) => ({
+          url: event.url,
+          clickedAt: event.createdAt.toISOString()
+        }))
+      }))
+    ]
+      .filter((send) => send.sentAt)
+      .sort((a, b) => new Date(b.sentAt!).getTime() - new Date(a.sentAt!).getTime())
+
     // Format profile data
     const profile = {
       id: registration.id,
@@ -269,6 +461,7 @@ export async function GET(
       totalWatchTime: effectiveTotalWatchTime,
       engagementScore,
       hasPurchased: registration.hasPurchased,
+      emailHistory,
 
       // Purchases
       purchases: registration.sales.map((sale: any) => ({
