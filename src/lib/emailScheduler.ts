@@ -9,7 +9,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
-import { prepareEmailHtml, type MergeTagContext } from '@/lib/emailTracking'
+import { getUnsubscribeLink, prepareEmailHtml, type MergeTagContext } from '@/lib/emailTracking'
 
 // ─── Schedule reminder emails for a new registration ────────────────────────
 
@@ -259,6 +259,15 @@ export async function processPendingReminderEmails() {
         continue
       }
 
+      if (!reg.marketingConsent) {
+        await prisma.reminderEmailSend.update({
+          where: { id: send.id },
+          data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee unsubscribed' },
+        })
+        console.log(`⏭️ Skipped reminder for ${send.to} (unsubscribed)`)
+        continue
+      }
+
       // A/B subject selection
       const useSubjectB = send.abVariant === 'B' && send.template.subjectB
       const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
@@ -277,6 +286,7 @@ export async function processPendingReminderEmails() {
         countdownLink,
         calendarLink,
         referralLink,
+        unsubscribeLink: getUnsubscribeLink(reg.id),
       }
 
       const { html, text } = prepareEmailHtml(send.template.htmlBody, ctx, send.id, 'reminder')
@@ -368,6 +378,15 @@ export async function processPendingFollowUpEmails() {
         continue
       }
 
+      if (!reg.marketingConsent) {
+        await prisma.followUpEmailSend.update({
+          where: { id: send.id },
+          data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee unsubscribed' },
+        })
+        console.log(`⏭️ Skipped follow-up for ${send.to} (unsubscribed)`)
+        continue
+      }
+
       // A/B subject selection
       const useSubjectB = send.abVariant === 'B' && send.template.subjectB
       const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
@@ -397,6 +416,7 @@ export async function processPendingFollowUpEmails() {
         referralLink,
         attendanceStatus,
         watchTime,
+        unsubscribeLink: getUnsubscribeLink(reg.id),
       }
 
       const { html, text } = prepareEmailHtml(send.template.htmlBody, ctx, send.id, 'followup')
@@ -566,6 +586,7 @@ export async function sendTestEmail(opts: {
     replayLink: 'https://example.com/replay',
     attendanceStatus: 'Attended',
     watchTime: '45 minutes',
+    unsubscribeLink: 'https://example.com/unsubscribe?r=test-registration',
   }
 
   // Use a dummy sendId for test emails (won't be tracked)
@@ -605,10 +626,19 @@ export async function processNonOpenerResends() {
         isResend: false,
         sentAt: { lte: cutoff },
       },
+      include: {
+        registration: {
+          select: {
+            marketingConsent: true,
+          },
+        },
+      },
       take: 25,
     })
 
     for (const send of unopenedSends) {
+      if (!send.registration.marketingConsent) continue
+
       const alreadyResent = await prisma.reminderEmailSend.findFirst({
         where: { templateId: tpl.id, registrationId: send.registrationId, isResend: true },
       })
@@ -646,10 +676,19 @@ export async function processNonOpenerResends() {
         isResend: false,
         sentAt: { lte: cutoff },
       },
+      include: {
+        registration: {
+          select: {
+            marketingConsent: true,
+          },
+        },
+      },
       take: 25,
     })
 
     for (const send of unopenedSends) {
+      if (!send.registration.marketingConsent) continue
+
       const alreadyResent = await prisma.followUpEmailSend.findFirst({
         where: { templateId: tpl.id, registrationId: send.registrationId, isResend: true },
       })

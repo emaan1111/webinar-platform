@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
-import { replaceMergeTags, MergeTagContext } from '@/lib/emailTracking'
+import { appendUnsubscribeFooter, replaceMergeTags, MergeTagContext } from '@/lib/emailTracking'
 
 /**
  * POST /api/webinars/[id]/preview-email
@@ -37,9 +37,13 @@ export async function POST(
     replayLink: 'https://example.com/webinar/replay/abc123',
     attendanceStatus: 'Attended',
     watchTime: '45 minutes',
+    unsubscribeLink: 'https://example.com/unsubscribe?r=sample-registration',
   }
 
-  const renderedHtml = replaceMergeTags(htmlBody, sampleCtx)
+  const renderedHtml = appendUnsubscribeFooter(
+    replaceMergeTags(htmlBody, sampleCtx),
+    sampleCtx.unsubscribeLink
+  )
 
   return NextResponse.json({ html: renderedHtml })
 }

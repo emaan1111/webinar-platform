@@ -32,6 +32,11 @@ export interface MergeTagContext {
   replayLink?: string | null
   attendanceStatus?: string | null
   watchTime?: string | null
+  unsubscribeLink?: string | null
+}
+
+export function getUnsubscribeLink(registrationId: string): string {
+  return `${TRACKING_BASE_URL()}/unsubscribe?r=${encodeURIComponent(registrationId)}`
 }
 
 // ─── Replace merge tags ─────────────────────────────────────────────────────
@@ -50,6 +55,25 @@ export function replaceMergeTags(text: string, ctx: MergeTagContext): string {
     .replace(/\{\{replay_link\}\}/gi, ctx.replayLink || '')
     .replace(/\{\{attendance_status\}\}/gi, ctx.attendanceStatus ? escapeHtml(ctx.attendanceStatus) : '')
     .replace(/\{\{watch_time\}\}/gi, ctx.watchTime ? escapeHtml(ctx.watchTime) : '')
+    .replace(/\{\{unsubscribe_link\}\}/gi, ctx.unsubscribeLink || '')
+}
+
+export function appendUnsubscribeFooter(html: string, unsubscribeLink?: string | null): string {
+  if (!unsubscribeLink || html.includes('data-email-unsubscribe-footer')) {
+    return html
+  }
+
+  const footer = `<div data-email-unsubscribe-footer="true" style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;font-family:Arial,sans-serif;font-size:12px;line-height:1.6;color:#6b7280;"><p style="margin:0;">If you no longer want webinar emails from us, <a href="${unsubscribeLink}" style="color:#2563eb;text-decoration:underline;">unsubscribe here</a>.</p></div>`
+
+  if (html.includes('</body>')) {
+    return html.replace('</body>', `${footer}</body>`)
+  }
+
+  if (html.includes('</div>')) {
+    return html.replace(/<\/div>\s*$/, `${footer}</div>`)
+  }
+
+  return `${html}${footer}`
 }
 
 // ─── Inject open-tracking pixel ─────────────────────────────────────────────
@@ -109,6 +133,7 @@ export function prepareEmailHtml(
   emailType: 'confirmation' | 'reminder' | 'followup'
 ): { html: string; text: string } {
   let html = replaceMergeTags(templateHtml, ctx)
+  html = appendUnsubscribeFooter(html, ctx.unsubscribeLink)
   html = injectTrackingPixel(html, sendId, emailType)
   html = wrapLinksWithTracking(html, sendId, emailType)
   const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
@@ -127,6 +152,7 @@ export const CONFIRMATION_PLACEHOLDERS = [
   { tag: '{{countdown_link}}', desc: 'Countdown page URL' },
   { tag: '{{calendar_link}}', desc: 'Add-to-calendar URL' },
   { tag: '{{referral_link}}', desc: 'Referral URL' },
+  { tag: '{{unsubscribe_link}}', desc: 'Unsubscribe URL' },
 ]
 
 export const REMINDER_PLACEHOLDERS = [
@@ -139,6 +165,7 @@ export const REMINDER_PLACEHOLDERS = [
   { tag: '{{countdown_link}}', desc: 'Countdown page URL' },
   { tag: '{{calendar_link}}', desc: 'Add-to-calendar URL' },
   { tag: '{{referral_link}}', desc: 'Referral URL' },
+  { tag: '{{unsubscribe_link}}', desc: 'Unsubscribe URL' },
 ]
 
 export const FOLLOWUP_PLACEHOLDERS = [
@@ -152,6 +179,7 @@ export const FOLLOWUP_PLACEHOLDERS = [
   { tag: '{{referral_link}}', desc: 'Referral URL' },
   { tag: '{{attendance_status}}', desc: 'Attendance status (attended, missed, etc.)' },
   { tag: '{{watch_time}}', desc: 'Total watch time' },
+  { tag: '{{unsubscribe_link}}', desc: 'Unsubscribe URL' },
 ]
 
 // ─── Human-friendly timing strings ─────────────────────────────────────────

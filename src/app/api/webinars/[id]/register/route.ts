@@ -10,6 +10,7 @@ import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook
 import { sendEmail } from '@/lib/email'
 import { generateICS } from '@/lib/calendarUtils'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
+import { appendUnsubscribeFooter, getUnsubscribeLink, prepareEmailHtml, replaceMergeTags } from '@/lib/emailTracking'
 
 const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
   Promise.resolve()
@@ -342,23 +343,21 @@ export async function POST(
       let emailSubject: string
       let emailHtml: string
       let emailText: string
+      const unsubscribeLink = getUnsubscribeLink(registration.id)
+      const emailCtx = {
+        name: registration.name,
+        email: registration.email,
+        webinarTitle: webinar.title,
+        webinarTime: formattedLocalWebinarTime,
+        accessLink,
+        countdownLink,
+        calendarLink,
+        referralLink,
+        unsubscribeLink,
+      }
 
       if (activeTemplate) {
-        // Substitute placeholders in template
-        const replacePlaceholders = (text: string) =>
-          text
-            .replace(/\{\{name\}\}/gi, escapeHtml(registration.name))
-            .replace(/\{\{webinar_title\}\}/gi, escapeHtml(webinar.title))
-            .replace(/\{\{webinar_time\}\}/gi, formattedLocalWebinarTime ? escapeHtml(formattedLocalWebinarTime) : '')
-            .replace(/\{\{webinar_scheduled_time\}\}/gi, formattedLocalWebinarTime ? escapeHtml(formattedLocalWebinarTime) : '')
-            .replace(/\{\{access_link\}\}/gi, accessLink || '')
-            .replace(/\{\{countdown_link\}\}/gi, countdownLink || '')
-            .replace(/\{\{calendar_link\}\}/gi, calendarLink || '')
-            .replace(/\{\{referral_link\}\}/gi, referralLink || '')
-
-        emailSubject = replacePlaceholders(activeTemplate.subject)
-        emailHtml = replacePlaceholders(activeTemplate.htmlBody)
-        emailText = emailHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+        emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
 
         // Create the send record BEFORE sending so we have an ID for tracking URLs
         const emailSendRecord = await prisma.confirmationEmailSend.create({
@@ -370,39 +369,9 @@ export async function POST(
             status: 'SENT',
           },
         })
-
-        const trackingBaseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com').replace(/\/+$/, '')
-
-        // Inject open-tracking pixel before closing </div> or </body> or at end
-        const trackingPixel = `<img src="${trackingBaseUrl}/api/email-tracking/open/${emailSendRecord.id}?t=${Date.now()}" width="1" height="1" alt="" style="display:block;width:1px;height:1px;border:0;" />`
-        if (emailHtml.includes('</div>')) {
-          emailHtml = emailHtml.replace(/<\/div>\s*$/, `${trackingPixel}</div>`)
-        } else {
-          emailHtml += trackingPixel
-        }
-
-        // Wrap links with click tracker (only proper href attributes, not src for images)
-        emailHtml = emailHtml.replace(
-          /<a\s+([^>]*?)href\s*=\s*["'](https?:\/\/[^"']+)["']([^>]*)>/gi,
-          (_match, before, url, after) => {
-            const tracked = `${trackingBaseUrl}/api/email-tracking/click/${emailSendRecord.id}?url=${encodeURIComponent(url)}`
-            return `<a ${before}href="${tracked}"${after}>`
-          }
-        )
-        
-        // Also wrap standalone URLs that are NOT already inside anchor tags
-        // This finds URLs in text content only (not in attributes or anchor text)
-        emailHtml = emailHtml.replace(
-          />([^<]*)(https?:\/\/[^\s<>"']+)([^<]*)</gi,
-          (match, before, url, after) => {
-            // Skip if this looks like it's already a tracking URL or anchor text for an existing link
-            if (url.includes('/api/email-tracking/')) return match
-            // Skip if this URL is the display text of an anchor (indicated by </a> following)
-            if (after.trim() === '' && match.endsWith('</a')) return match
-            const tracked = `${trackingBaseUrl}/api/email-tracking/click/${emailSendRecord.id}?url=${encodeURIComponent(url)}`
-            return `>${before}<a href="${tracked}">${url}</a>${after}<`
-          }
-        )
+        const preparedEmail = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
+        emailHtml = preparedEmail.html
+        emailText = preparedEmail.text
         
         console.log(`📧 Email HTML has ${(emailHtml.match(/<a\s+[^>]*href/gi) || []).length} links after tracking injection`)
         console.log(`📧 Template fromName: "${activeTemplate.fromName || '(not set, using env default)'}"`)
@@ -436,7 +405,7 @@ export async function POST(
           referralLink,
         })
         emailSubject = fallback.subject
-        emailHtml = fallback.htmlBody
+        emailHtml = appendUnsubscribeFooter(fallback.htmlBody, unsubscribeLink)
         emailText = fallback.textBody
 
         const emailSent = await sendEmail({
@@ -459,6 +428,7 @@ export async function POST(
     // --- Separate Calendar Invite Email (if enabled) ---
     if (webinar.sendCalendarInvite && registration.scheduledStartTime) {
       try {
+        const unsubscribeLink = getUnsubscribeLink(registration.id)
         const icsContent = generateICS({
           title: webinar.title,
           description: `${webinar.description || webinar.title}\n\nJoin your webinar: ${countdownLink || accessLink || ''}`,
@@ -478,13 +448,14 @@ export async function POST(
   </p>
   <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280;">If the attachment doesn't open automatically, you can also <a href="${calendarLink || ''}">add to calendar here</a>.</p>
 </div>`
+        const calendarEmailHtmlWithFooter = appendUnsubscribeFooter(calendarEmailHtml, unsubscribeLink)
 
         const calendarEmailText = `Calendar Invite: ${webinar.title}\n\nHi ${registration.name},\n\nWe've attached a calendar invite for your upcoming webinar.\n\nWhen: ${formattedLocalWebinarTime || 'See attached invite'}\n\nCountdown page: ${countdownLink || accessLink || ''}`
 
         const calendarSent = await sendEmail({
           to: registration.email,
           subject: `📅 Add to Calendar: ${webinar.title}`,
-          htmlBody: calendarEmailHtml,
+          htmlBody: calendarEmailHtmlWithFooter,
           textBody: calendarEmailText,
           attachments: [{
             filename: 'webinar-invite.ics',

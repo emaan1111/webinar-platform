@@ -2,6 +2,7 @@
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { sendClickSendSMS } from '@/lib/clicksend'
+import { appendUnsubscribeFooter, getUnsubscribeLink } from '@/lib/emailTracking'
 
 interface ReminderTemplateData {
   type?: 'pre_webinar' | 'post_webinar'
@@ -455,7 +456,10 @@ async function sendReminderEmailMessage(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     const subject = replacePlaceholders(template.emailSubject, placeholders)
-    const body = replacePlaceholders(template.emailBody, placeholders)
+    const body = appendUnsubscribeFooter(
+      replacePlaceholders(template.emailBody, placeholders),
+      getUnsubscribeLink(registration.id)
+    )
 
     console.log('📧 Sending reminder email', {
       reminderId,
