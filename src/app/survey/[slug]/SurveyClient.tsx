@@ -126,6 +126,7 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [submitted, setSubmitted] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [responseId, setResponseId] = useState<string | null>(null)
 
   const q = questions[currentQ]
   const totalQ = questions.length
@@ -146,21 +147,32 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
 
   const canProceed = q.type === 'single' ? !!answers[q.id] : ((answers[q.id] as string[]) || []).length > 0
 
+  const saveAnswer = async (questionId: string, value: string | string[]) => {
+    try {
+      const res = await fetch(`/api/surveys/${surveyId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          answers: { [questionId]: value },
+          responseId,
+        }),
+      })
+      if (res.ok) {
+        const data = await res.json()
+        if (!responseId) setResponseId(data.responseId)
+      }
+    } catch {
+      // Silently fail — answer is still stored locally
+    }
+  }
+
   const goNext = async () => {
+    setSubmitting(true)
+    await saveAnswer(q.id, answers[q.id])
+    setSubmitting(false)
     if (currentQ < totalQ - 1) {
       setCurrentQ(currentQ + 1)
     } else {
-      setSubmitting(true)
-      try {
-        await fetch(`/api/surveys/${surveyId}/submit`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ answers }),
-        })
-      } catch {
-        // Still show thank you even if submit fails
-      }
-      setSubmitting(false)
       setSubmitted(true)
     }
   }
