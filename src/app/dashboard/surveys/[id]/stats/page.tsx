@@ -32,7 +32,7 @@ export default function SurveyStatsPage() {
   const [to, setTo] = useState('')
   const [surveyTitle, setSurveyTitle] = useState('')
   const [resetting, setResetting] = useState(false)
-  const [filters, setFilters] = useState<Record<string, string>>({})
+  const [filters, setFilters] = useState<Record<string, string[]>>({})
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -72,10 +72,16 @@ export default function SurveyStatsPage() {
   const toggleFilter = (questionId: string, value: string) => {
     setFilters((prev) => {
       const next = { ...prev }
-      if (next[questionId] === value) {
-        delete next[questionId]
+      const current = next[questionId] || []
+      if (current.includes(value)) {
+        const updated = current.filter((v) => v !== value)
+        if (updated.length === 0) {
+          delete next[questionId]
+        } else {
+          next[questionId] = updated
+        }
       } else {
-        next[questionId] = value
+        next[questionId] = [...current, value]
       }
       return next
     })
@@ -177,11 +183,11 @@ export default function SurveyStatsPage() {
               <button onClick={() => setFilters({})} className="text-xs text-blue-600 hover:text-blue-800 underline">Clear all</button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(filters).map(([qId, val]) => {
+              {Object.entries(filters).flatMap(([qId, vals]) => {
                 const q = questionStats.find((qs) => qs.id === qId)
-                return (
+                return vals.map((val) => (
                   <button
-                    key={qId}
+                    key={`${qId}-${val}`}
                     onClick={() => toggleFilter(qId, val)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 rounded-full text-xs text-blue-800 hover:bg-blue-100"
                   >
@@ -190,7 +196,7 @@ export default function SurveyStatsPage() {
                     <span className="truncate max-w-[150px]">{val}</span>
                     <span className="text-blue-400 ml-1">&times;</span>
                   </button>
-                )
+                ))
               })}
             </div>
           </div>
@@ -259,7 +265,7 @@ export default function SurveyStatsPage() {
                         {/* Bar chart */}
                         <div className="space-y-2">
                           {q.options.map((opt) => {
-                            const isFiltered = filters[q.id] === opt.label
+                            const isFiltered = (filters[q.id] || []).includes(opt.label)
                             return (
                             <div
                               key={opt.label}

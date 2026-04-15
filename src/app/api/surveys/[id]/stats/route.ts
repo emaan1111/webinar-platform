@@ -36,21 +36,19 @@ export async function GET(
   let filteredResponseIds: string[] | null = null
   if (filtersRaw) {
     try {
-      const filters: Record<string, string> = JSON.parse(filtersRaw)
+      const filters: Record<string, string[]> = JSON.parse(filtersRaw)
       const filterEntries = Object.entries(filters)
       if (filterEntries.length > 0) {
-        // For each filter, find responses that have that answer
+        // For each question filter, find responses matching ANY of the selected values (OR within question)
         const sets: Set<string>[] = []
-        for (const [questionId, value] of filterEntries) {
+        for (const [questionId, values] of filterEntries) {
+          if (!Array.isArray(values) || values.length === 0) continue
+          const orConditions = values.flatMap((value) => [
+            { questionId, response: responseWhere, value },
+            { questionId, response: responseWhere, value: { contains: `"${value}"` } },
+          ])
           const matching = await prisma.surveyAnswer.findMany({
-            where: {
-              questionId,
-              response: responseWhere,
-              OR: [
-                { value },
-                { value: { contains: `"${value}"` } }, // for multi-select JSON arrays
-              ],
-            },
+            where: { OR: orConditions },
             select: { responseId: true },
           })
           sets.push(new Set(matching.map((a) => a.responseId)))
