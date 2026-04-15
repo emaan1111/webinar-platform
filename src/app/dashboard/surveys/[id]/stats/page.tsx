@@ -103,13 +103,21 @@ export default function SurveyStatsPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Survey Results</h1>
           </div>
-          <button
-            onClick={resetResponses}
-            disabled={resetting || totalResponses === 0}
-            className="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {resetting ? 'Resetting...' : 'Reset All Responses'}
-          </button>
+          <div className="flex items-center gap-3">
+            <a
+              href={`/api/surveys/${surveyId}/export`}
+              className={`px-4 py-2 text-sm bg-white text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 ${totalResponses === 0 ? 'opacity-40 pointer-events-none' : ''}`}
+            >
+              Export CSV
+            </a>
+            <button
+              onClick={resetResponses}
+              disabled={resetting || totalResponses === 0}
+              className="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {resetting ? 'Resetting...' : 'Reset All Responses'}
+            </button>
+          </div>
         </div>
 
         {/* Overview Card */}
