@@ -900,6 +900,8 @@ model Survey {
   thankYouBody    String?
   isActive        Boolean          @default(true)
   primaryColor    String           @default("#1a5c3a")
+  giftTitle       String?
+  giftUrl         String?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   questions       SurveyQuestion[]

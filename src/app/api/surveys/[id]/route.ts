@@ -33,7 +33,7 @@ export async function PATCH(
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { title, description, thankYouTitle, thankYouBody, primaryColor, isActive } = body
+  const { title, description, thankYouTitle, thankYouBody, primaryColor, isActive, giftTitle, giftUrl } = body
 
   const data: Record<string, unknown> = {}
   if (title !== undefined) data.title = title
@@ -42,6 +42,8 @@ export async function PATCH(
   if (thankYouBody !== undefined) data.thankYouBody = thankYouBody || null
   if (primaryColor !== undefined) data.primaryColor = primaryColor
   if (typeof isActive === 'boolean') data.isActive = isActive
+  if (giftTitle !== undefined) data.giftTitle = giftTitle || null
+  if (giftUrl !== undefined) data.giftUrl = giftUrl || null
 
   const survey = await prisma.survey.update({
     where: { id: params.id },

@@ -18,6 +18,8 @@ interface SurveyClientProps {
   thankYouTitle: string
   thankYouBody: string | null
   primaryColor: string
+  giftTitle: string | null
+  giftUrl: string | null
   questions: Question[]
 }
 
@@ -119,7 +121,7 @@ function CheckboxOption({ selected, label, onClick }: { selected: boolean; label
   )
 }
 
-export default function SurveyClient({ surveyId, title, description, thankYouTitle, thankYouBody, primaryColor, questions }: SurveyClientProps) {
+export default function SurveyClient({ surveyId, title, description, thankYouTitle, thankYouBody, primaryColor, giftTitle, giftUrl, questions }: SurveyClientProps) {
   const [currentQ, setCurrentQ] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string | string[]>>({})
   const [submitted, setSubmitted] = useState(false)
@@ -190,7 +192,34 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
               dangerouslySetInnerHTML={{ __html: thankYouBody }}
             />
           )}
-          <div style={{ marginTop: '40px', padding: '20px', borderRadius: '12px', background: '#f0f7f2', border: '1px solid #c8ddd0' }}>
+          {giftUrl && (
+            <div style={{ marginTop: '32px', padding: '24px', borderRadius: '16px', background: '#fff', border: '1.5px solid #d4cfc7', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+              <p style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '1.5px', textTransform: 'uppercase', color: '#8b6914', marginBottom: '8px' }}>Free Gift</p>
+              <p style={{ fontSize: '18px', fontWeight: '600', color: '#2d2a26', lineHeight: '1.4', marginBottom: '16px' }}>
+                {giftTitle || 'Download Your Free Gift'}
+              </p>
+              <a
+                href={giftUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: 'inline-block',
+                  padding: '14px 32px',
+                  borderRadius: '10px',
+                  background: '#1a5c3a',
+                  color: '#fff',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  fontFamily: "'Source Serif 4', Georgia, serif",
+                  textDecoration: 'none',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                Download PDF →
+              </a>
+            </div>
+          )}
+          <div style={{ marginTop: '24px', padding: '20px', borderRadius: '12px', background: '#f0f7f2', border: '1px solid #c8ddd0' }}>
             <p style={{ fontSize: '14px', color: '#1a5c3a', fontWeight: '600', marginBottom: '4px' }}>
               Your responses have been recorded
             </p>

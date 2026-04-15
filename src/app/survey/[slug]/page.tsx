@@ -29,6 +29,8 @@ export default async function SurveyPage({ params }: { params: { slug: string } 
       thankYouTitle={survey.thankYouTitle}
       thankYouBody={survey.thankYouBody}
       primaryColor={survey.primaryColor}
+      giftTitle={survey.giftTitle}
+      giftUrl={survey.giftUrl}
       questions={questions}
     />
   )

@@ -44,6 +44,8 @@ export default function SurveyEditorPage() {
   const [primaryColor, setPrimaryColor] = useState('#1a5c3a')
   const [thankYouTitle, setThankYouTitle] = useState('')
   const [thankYouBody, setThankYouBody] = useState('')
+  const [giftTitle, setGiftTitle] = useState('')
+  const [giftUrl, setGiftUrl] = useState('')
 
   // New question form
   const [showAddQuestion, setShowAddQuestion] = useState(false)
@@ -72,6 +74,8 @@ export default function SurveyEditorPage() {
       setPrimaryColor(s.primaryColor)
       setThankYouTitle(s.thankYouTitle)
       setThankYouBody(s.thankYouBody || '')
+      setGiftTitle(s.giftTitle || '')
+      setGiftUrl(s.giftUrl || '')
     }
     setLoading(false)
   }, [surveyId])
@@ -94,7 +98,7 @@ export default function SurveyEditorPage() {
     await fetch(`/api/surveys/${surveyId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ thankYouTitle, thankYouBody }),
+      body: JSON.stringify({ thankYouTitle, thankYouBody, giftTitle, giftUrl }),
     })
     setSaving(false)
     fetchSurvey()
@@ -387,6 +391,16 @@ export default function SurveyEditorPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Thank You Body (HTML supported)</label>
               <textarea value={thankYouBody} onChange={(e) => setThankYouBody(e.target.value)} rows={8} className="w-full px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm" />
+            </div>
+            <hr className="border-gray-200" />
+            <p className="text-sm font-semibold text-gray-800">Gift Download (optional)</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gift Title</label>
+              <input value={giftTitle} onChange={(e) => setGiftTitle(e.target.value)} placeholder="e.g. 3 Shifts That Correct Without Destroying" className="w-full px-3 py-2 border border-gray-300 rounded-lg" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gift URL (PDF link)</label>
+              <input value={giftUrl} onChange={(e) => setGiftUrl(e.target.value)} placeholder="https://drive.google.com/..." className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" />
             </div>
             {/* Preview */}
             <div className="border border-gray-200 rounded-lg p-8 bg-gray-50">
