@@ -32,12 +32,14 @@ export default function SurveyStatsPage() {
   const [to, setTo] = useState('')
   const [surveyTitle, setSurveyTitle] = useState('')
   const [resetting, setResetting] = useState(false)
+  const [filters, setFilters] = useState<Record<string, string>>({})
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
     const qs = new URLSearchParams()
     if (from) qs.set('from', from)
     if (to) qs.set('to', to)
+    if (Object.keys(filters).length > 0) qs.set('filters', JSON.stringify(filters))
 
     const res = await fetch(`/api/surveys/${surveyId}/stats?${qs}`)
     if (res.ok) {
@@ -55,7 +57,7 @@ export default function SurveyStatsPage() {
     }
 
     setLoading(false)
-  }, [surveyId, from, to])
+  }, [surveyId, from, to, filters])
 
   const resetResponses = async () => {
     if (!confirm(`Are you sure you want to delete ALL responses for this survey? This cannot be undone.`)) return
@@ -66,6 +68,18 @@ export default function SurveyStatsPage() {
   }
 
   useEffect(() => { fetchStats() }, [fetchStats])
+
+  const toggleFilter = (questionId: string, value: string) => {
+    setFilters((prev) => {
+      const next = { ...prev }
+      if (next[questionId] === value) {
+        delete next[questionId]
+      } else {
+        next[questionId] = value
+      }
+      return next
+    })
+  }
 
   // Find top answer per question
   const getTopAnswer = (q: QuestionStat) => {
@@ -155,6 +169,33 @@ export default function SurveyStatsPage() {
           )}
         </div>
 
+        {/* Active Filters */}
+        {Object.keys(filters).length > 0 && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide">Active Filters ({totalResponses} matching)</p>
+              <button onClick={() => setFilters({})} className="text-xs text-blue-600 hover:text-blue-800 underline">Clear all</button>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(filters).map(([qId, val]) => {
+                const q = questionStats.find((qs) => qs.id === qId)
+                return (
+                  <button
+                    key={qId}
+                    onClick={() => toggleFilter(qId, val)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 rounded-full text-xs text-blue-800 hover:bg-blue-100"
+                  >
+                    <span className="font-medium truncate max-w-[150px]">{q?.question?.slice(0, 30) || qId}</span>
+                    <span className="text-blue-400">:</span>
+                    <span className="truncate max-w-[150px]">{val}</span>
+                    <span className="text-blue-400 ml-1">&times;</span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Daily Trend */}
         {Object.keys(dailyCounts).length > 0 && (
           <div className="bg-white rounded-lg border border-gray-200 p-5 mb-8">
@@ -217,10 +258,20 @@ export default function SurveyStatsPage() {
 
                         {/* Bar chart */}
                         <div className="space-y-2">
-                          {q.options.map((opt) => (
-                            <div key={opt.label}>
+                          {q.options.map((opt) => {
+                            const isFiltered = filters[q.id] === opt.label
+                            return (
+                            <div
+                              key={opt.label}
+                              onClick={() => toggleFilter(q.id, opt.label)}
+                              className={`cursor-pointer rounded-lg px-2 py-1.5 -mx-2 transition-all ${
+                                isFiltered ? 'bg-blue-50 ring-1 ring-blue-300' : 'hover:bg-gray-50'
+                              }`}
+                            >
                               <div className="flex items-center justify-between text-xs mb-1">
-                                <span className="text-gray-700 truncate max-w-[70%]">{opt.label}</span>
+                                <span className={`truncate max-w-[70%] ${isFiltered ? 'text-blue-700 font-medium' : 'text-gray-700'}`}>
+                                  {isFiltered && '✓ '}{opt.label}
+                                </span>
                                 <span className="text-gray-400 flex-shrink-0 ml-2">{opt.count} ({opt.percentage}%)</span>
                               </div>
                               <div className="w-full bg-gray-100 rounded-full h-2.5">
@@ -228,13 +279,14 @@ export default function SurveyStatsPage() {
                                   className="h-2.5 rounded-full transition-all duration-500"
                                   style={{
                                     width: `${opt.percentage}%`,
-                                    background: sectionColors[q.section] || '#1a5c3a',
+                                    background: isFiltered ? '#2563eb' : (sectionColors[q.section] || '#1a5c3a'),
                                     minWidth: opt.count > 0 ? '8px' : '0',
                                   }}
                                 />
                               </div>
                             </div>
-                          ))}
+                            )
+                          })}
                         </div>
                       </div>
                     )

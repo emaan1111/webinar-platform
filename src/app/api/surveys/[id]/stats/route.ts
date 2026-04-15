@@ -14,6 +14,7 @@ export async function GET(
   const { searchParams } = new URL(request.url)
   const from = searchParams.get('from')
   const to = searchParams.get('to')
+  const filtersRaw = searchParams.get('filters')
 
   const dateFilter: Record<string, unknown> = {}
   if (from) dateFilter.gte = new Date(from)
@@ -31,12 +32,49 @@ export async function GET(
 
   if (!survey) return NextResponse.json({ error: 'Survey not found' }, { status: 404 })
 
-  const totalResponses = await prisma.surveyResponse.count({ where: responseWhere })
+  // If filters are set, narrow down to matching response IDs
+  let filteredResponseIds: string[] | null = null
+  if (filtersRaw) {
+    try {
+      const filters: Record<string, string> = JSON.parse(filtersRaw)
+      const filterEntries = Object.entries(filters)
+      if (filterEntries.length > 0) {
+        // For each filter, find responses that have that answer
+        const sets: Set<string>[] = []
+        for (const [questionId, value] of filterEntries) {
+          const matching = await prisma.surveyAnswer.findMany({
+            where: {
+              questionId,
+              response: responseWhere,
+              OR: [
+                { value },
+                { value: { contains: `"${value}"` } }, // for multi-select JSON arrays
+              ],
+            },
+            select: { responseId: true },
+          })
+          sets.push(new Set(matching.map((a) => a.responseId)))
+        }
+        // Intersect all sets
+        const intersection = sets.reduce((acc, s) => new Set([...acc].filter((id) => s.has(id))))
+        filteredResponseIds = [...intersection]
+      }
+    } catch {
+      // ignore bad filters
+    }
+  }
 
-  // Get all answers for this survey within date range
+  // Build the where clause for counting/fetching
+  const scopedWhere = filteredResponseIds !== null
+    ? { ...responseWhere, id: { in: filteredResponseIds } }
+    : responseWhere
+
+  const totalResponses = await prisma.surveyResponse.count({ where: scopedWhere })
+
+  // Get all answers scoped to filtered responses
   const answers = await prisma.surveyAnswer.findMany({
     where: {
-      response: responseWhere,
+      response: scopedWhere,
     },
     select: {
       questionId: true,
@@ -89,7 +127,7 @@ export async function GET(
 
   const recentResponses = await prisma.surveyResponse.findMany({
     where: {
-      surveyId: params.id,
+      ...scopedWhere,
       createdAt: { gte: from ? new Date(from) : thirtyDaysAgo },
     },
     select: { createdAt: true },
