@@ -109,3 +109,22 @@ export async function GET(
     dailyCounts,
   })
 }
+
+// Admin: delete all responses for a survey (reset stats)
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Delete answers first (FK), then responses
+  await prisma.surveyAnswer.deleteMany({
+    where: { response: { surveyId: params.id } },
+  })
+  await prisma.surveyResponse.deleteMany({
+    where: { surveyId: params.id },
+  })
+
+  return NextResponse.json({ success: true })
+}

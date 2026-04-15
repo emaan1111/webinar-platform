@@ -31,6 +31,7 @@ export default function SurveyStatsPage() {
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [surveyTitle, setSurveyTitle] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   const fetchStats = useCallback(async () => {
     setLoading(true)
@@ -55,6 +56,14 @@ export default function SurveyStatsPage() {
 
     setLoading(false)
   }, [surveyId, from, to])
+
+  const resetResponses = async () => {
+    if (!confirm(`Are you sure you want to delete ALL responses for this survey? This cannot be undone.`)) return
+    setResetting(true)
+    await fetch(`/api/surveys/${surveyId}/stats`, { method: 'DELETE' })
+    setResetting(false)
+    fetchStats()
+  }
 
   useEffect(() => { fetchStats() }, [fetchStats])
 
@@ -94,6 +103,13 @@ export default function SurveyStatsPage() {
             </div>
             <h1 className="text-2xl font-bold text-gray-900">Survey Results</h1>
           </div>
+          <button
+            onClick={resetResponses}
+            disabled={resetting || totalResponses === 0}
+            className="px-4 py-2 text-sm bg-red-50 text-red-600 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {resetting ? 'Resetting...' : 'Reset All Responses'}
+          </button>
         </div>
 
         {/* Overview Card */}
