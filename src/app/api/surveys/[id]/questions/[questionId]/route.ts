@@ -12,7 +12,7 @@ export async function PATCH(
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await request.json()
-  const { section, question, type, options, maxSelect, position } = body
+  const { section, question, type, options, maxSelect, position, hidden } = body
 
   const data: Record<string, unknown> = {}
   if (section !== undefined) data.section = section
@@ -21,6 +21,7 @@ export async function PATCH(
   if (options !== undefined) data.options = JSON.stringify(options)
   if (maxSelect !== undefined) data.maxSelect = maxSelect
   if (position !== undefined) data.position = position
+  if (typeof hidden === 'boolean') data.hidden = hidden
 
   const updated = await prisma.surveyQuestion.update({
     where: { id: params.questionId },

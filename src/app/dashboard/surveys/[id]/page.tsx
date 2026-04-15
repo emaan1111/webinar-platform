@@ -13,6 +13,7 @@ interface Question {
   options: string // JSON
   maxSelect: number
   position: number
+  hidden: boolean
 }
 
 interface Survey {
@@ -135,6 +136,15 @@ export default function SurveyEditorPage() {
     fetchSurvey()
   }
 
+  const toggleHidden = async (qId: string, currentlyHidden: boolean) => {
+    await fetch(`/api/surveys/${surveyId}/questions/${qId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ hidden: !currentlyHidden }),
+    })
+    fetchSurvey()
+  }
+
   const startEdit = (q: Question) => {
     setEditingId(q.id)
     setEditSection(q.section)
@@ -230,7 +240,7 @@ export default function SurveyEditorPage() {
         {tab === 'questions' && (
           <div className="space-y-4">
             {sortedQuestions.map((q, idx) => (
-              <div key={q.id} className="bg-white rounded-lg border border-gray-200 p-5">
+              <div key={q.id} className={`bg-white rounded-lg border p-5 ${q.hidden ? 'border-orange-200 bg-orange-50/30' : 'border-gray-200'}`}>
                 {editingId === q.id ? (
                   /* Edit Mode */
                   <div className="space-y-4">
@@ -282,6 +292,7 @@ export default function SurveyEditorPage() {
                         <div className="flex items-center gap-2 mb-1">
                           <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide">{q.section}</span>
                           <span className="text-xs px-1.5 py-0.5 bg-gray-100 rounded text-gray-500">{q.type === 'multi' ? `Multi (max ${q.maxSelect})` : 'Single'}</span>
+                          {q.hidden && <span className="text-xs px-1.5 py-0.5 bg-orange-100 text-orange-600 rounded font-medium">Hidden</span>}
                         </div>
                         <p className="text-sm font-medium text-gray-900 mb-2">{q.question}</p>
                         <div className="flex flex-wrap gap-1.5">
@@ -293,6 +304,7 @@ export default function SurveyEditorPage() {
                       <div className="flex items-center gap-1 ml-4">
                         <button onClick={() => moveQuestion(q.id, 'up')} disabled={idx === 0} className="p-1.5 text-gray-400 hover:text-gray-600 disabled:opacity-30" title="Move up">↑</button>
                         <button onClick={() => moveQuestion(q.id, 'down')} disabled={idx === sortedQuestions.length - 1} className="p-1.5 text-gray-400 hover:text-gray-600 disabled:opacity-30" title="Move down">↓</button>
+                        <button onClick={() => toggleHidden(q.id, q.hidden)} className={`p-1.5 ${q.hidden ? 'text-orange-500 hover:text-green-600' : 'text-gray-400 hover:text-orange-500'}`} title={q.hidden ? 'Show in survey' : 'Hide from survey'}>{q.hidden ? '👁️‍🗨️' : '👁️'}</button>
                         <button onClick={() => startEdit(q)} className="p-1.5 text-gray-400 hover:text-blue-600" title="Edit">✎</button>
                         <button onClick={() => deleteQuestion(q.id)} className="p-1.5 text-gray-400 hover:text-red-600" title="Delete">🗑</button>
                       </div>

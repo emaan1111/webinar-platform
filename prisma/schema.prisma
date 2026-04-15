@@ -919,6 +919,7 @@ model SurveyQuestion {
   options   String         // JSON array of option strings
   maxSelect Int            @default(1)
   position  Int            @default(0)
+  hidden    Boolean        @default(false)
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   survey    Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)

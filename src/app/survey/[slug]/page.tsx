@@ -12,14 +12,16 @@ export default async function SurveyPage({ params }: { params: { slug: string } 
 
   if (!survey || !survey.isActive) notFound()
 
-  const questions = survey.questions.map((q) => ({
-    id: q.id,
-    section: q.section,
-    question: q.question,
-    type: q.type as 'single' | 'multi',
-    options: JSON.parse(q.options) as string[],
-    max: q.maxSelect,
-  }))
+  const questions = survey.questions
+    .filter((q) => !q.hidden)
+    .map((q) => ({
+      id: q.id,
+      section: q.section,
+      question: q.question,
+      type: q.type as 'single' | 'multi',
+      options: JSON.parse(q.options) as string[],
+      max: q.maxSelect,
+    }))
 
   return (
     <SurveyClient
