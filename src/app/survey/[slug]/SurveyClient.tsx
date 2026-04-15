@@ -21,7 +21,7 @@ interface SurveyClientProps {
   questions: Question[]
 }
 
-function RadioOption({ selected, label, onClick, color }: { selected: boolean; label: string; onClick: () => void; color: string }) {
+function RadioOption({ selected, label, onClick }: { selected: boolean; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -31,13 +31,13 @@ function RadioOption({ selected, label, onClick, color }: { selected: boolean; l
         gap: '12px',
         padding: '14px 18px',
         borderRadius: '12px',
-        border: selected ? `2px solid ${color}` : '1.5px solid #d4cfc7',
-        background: selected ? `${color}11` : '#faf9f6',
+        border: selected ? '2px solid #1a5c3a' : '1.5px solid #d4cfc7',
+        background: selected ? '#f0f7f2' : '#faf9f6',
         cursor: 'pointer',
         textAlign: 'left',
         width: '100%',
         transition: 'all 0.2s ease',
-        boxShadow: selected ? `0 0 0 1px ${color}` : 'none',
+        boxShadow: selected ? '0 0 0 1px #1a5c3a' : 'none',
       }}
     >
       <span
@@ -46,20 +46,27 @@ function RadioOption({ selected, label, onClick, color }: { selected: boolean; l
           height: '20px',
           minWidth: '20px',
           borderRadius: '50%',
-          border: selected ? `6px solid ${color}` : '2px solid #b8b0a4',
+          border: selected ? '6px solid #1a5c3a' : '2px solid #b8b0a4',
           background: '#fff',
           marginTop: '1px',
           transition: 'all 0.2s ease',
         }}
       />
-      <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '15px', lineHeight: '1.5', color: '#2d2a26' }}>
+      <span
+        style={{
+          fontFamily: "'Source Serif 4', Georgia, serif",
+          fontSize: '15px',
+          lineHeight: '1.5',
+          color: '#2d2a26',
+        }}
+      >
         {label}
       </span>
     </button>
   )
 }
 
-function CheckboxOption({ selected, label, onClick, color }: { selected: boolean; label: string; onClick: () => void; color: string }) {
+function CheckboxOption({ selected, label, onClick }: { selected: boolean; label: string; onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -69,13 +76,13 @@ function CheckboxOption({ selected, label, onClick, color }: { selected: boolean
         gap: '12px',
         padding: '14px 18px',
         borderRadius: '12px',
-        border: selected ? `2px solid ${color}` : '1.5px solid #d4cfc7',
-        background: selected ? `${color}11` : '#faf9f6',
+        border: selected ? '2px solid #1a5c3a' : '1.5px solid #d4cfc7',
+        background: selected ? '#f0f7f2' : '#faf9f6',
         cursor: 'pointer',
         textAlign: 'left',
         width: '100%',
         transition: 'all 0.2s ease',
-        boxShadow: selected ? `0 0 0 1px ${color}` : 'none',
+        boxShadow: selected ? '0 0 0 1px #1a5c3a' : 'none',
       }}
     >
       <span
@@ -85,7 +92,7 @@ function CheckboxOption({ selected, label, onClick, color }: { selected: boolean
           minWidth: '20px',
           borderRadius: '6px',
           border: selected ? 'none' : '2px solid #b8b0a4',
-          background: selected ? color : '#fff',
+          background: selected ? '#1a5c3a' : '#fff',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -98,7 +105,14 @@ function CheckboxOption({ selected, label, onClick, color }: { selected: boolean
       >
         {selected ? '✓' : ''}
       </span>
-      <span style={{ fontFamily: "'Source Serif 4', Georgia, serif", fontSize: '15px', lineHeight: '1.5', color: '#2d2a26' }}>
+      <span
+        style={{
+          fontFamily: "'Source Serif 4', Georgia, serif",
+          fontSize: '15px',
+          lineHeight: '1.5',
+          color: '#2d2a26',
+        }}
+      >
         {label}
       </span>
     </button>
@@ -164,10 +178,10 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
 
   if (submitted) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Source Serif 4', Georgia, serif" }}>
+      <div style={{ minHeight: '100vh', background: '#faf9f6', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '24px', fontFamily: "'Source Serif 4', Georgia, serif" }}>
         <div style={{ maxWidth: '560px', width: '100%', textAlign: 'center', padding: '48px 32px' }}>
           <div style={{ fontSize: '48px', marginBottom: '24px' }}>🤲</div>
-          <h2 style={{ fontSize: '28px', fontWeight: '600', color: primaryColor, marginBottom: '16px', lineHeight: '1.3' }}>
+          <h2 style={{ fontSize: '28px', fontWeight: '600', color: '#1a5c3a', marginBottom: '16px', lineHeight: '1.3' }}>
             {thankYouTitle}
           </h2>
           {thankYouBody && (
@@ -176,11 +190,11 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
               dangerouslySetInnerHTML={{ __html: thankYouBody }}
             />
           )}
-          <div style={{ marginTop: '40px', padding: '20px', borderRadius: '12px', background: `${primaryColor}11`, border: `1px solid ${primaryColor}33` }}>
-            <p style={{ fontSize: '14px', color: primaryColor, fontWeight: '600', marginBottom: '4px' }}>
+          <div style={{ marginTop: '40px', padding: '20px', borderRadius: '12px', background: '#f0f7f2', border: '1px solid #c8ddd0' }}>
+            <p style={{ fontSize: '14px', color: '#1a5c3a', fontWeight: '600', marginBottom: '4px' }}>
               Your responses have been recorded
             </p>
-            <p style={{ fontSize: '13px', color: '#6b6560' }}>
+            <p style={{ fontSize: '13px', color: '#4a6b54' }}>
               {totalQ} questions answered • {new Date().toLocaleDateString()}
             </p>
           </div>
@@ -190,13 +204,13 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', fontFamily: "'Source Serif 4', Georgia, serif" }}>
+    <div style={{ minHeight: '100vh', background: '#faf9f6', display: 'flex', flexDirection: 'column', fontFamily: "'Source Serif 4', Georgia, serif" }}>
       {/* Header */}
       <div style={{ padding: '24px 24px 20px', borderBottom: '1px solid #e8e4de' }}>
         <div style={{ maxWidth: '600px', margin: '0 auto' }}>
           {currentQ === 0 && (
             <div style={{ textAlign: 'center', marginBottom: '24px' }}>
-              <p style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '2px', textTransform: 'uppercase', color: primaryColor, marginBottom: '8px' }}>
+              <p style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '2px', textTransform: 'uppercase', color: '#1a5c3a', marginBottom: '8px' }}>
                 Emaan Power
               </p>
               <h1 style={{ fontSize: '26px', fontWeight: '700', color: '#2d2a26', lineHeight: '1.3', marginBottom: '8px' }}>
@@ -213,7 +227,7 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
           {/* Progress */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <div style={{ flex: 1, height: '4px', background: '#e8e4de', borderRadius: '4px', overflow: 'hidden' }}>
-              <div style={{ width: `${progress}%`, height: '100%', background: primaryColor, borderRadius: '4px', transition: 'width 0.4s ease' }} />
+              <div style={{ width: `${progress}%`, height: '100%', background: '#1a5c3a', borderRadius: '4px', transition: 'width 0.4s ease' }} />
             </div>
             <span style={{ fontSize: '13px', color: '#9b9590', fontVariantNumeric: 'tabular-nums', minWidth: '40px' }}>
               {currentQ + 1}/{totalQ}
@@ -249,7 +263,6 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
                   label={option}
                   selected={answers[q.id] === option}
                   onClick={() => handleSingle(option)}
-                  color={primaryColor}
                 />
               ) : (
                 <CheckboxOption
@@ -257,7 +270,6 @@ export default function SurveyClient({ surveyId, title, description, thankYouTit
                   label={option}
                   selected={((answers[q.id] as string[]) || []).includes(option)}
                   onClick={() => handleMulti(option)}
-                  color={primaryColor}
                 />
               )
             )}
