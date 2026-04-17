@@ -30,8 +30,12 @@ export async function GET(request: Request) {
 
     const whereClause: any = {
       registration: {
-        webinar: {
-          userId: user.id
+        is: {
+          webinar: {
+            is: {
+              hostId: user.id
+            }
+          }
         }
       }
     }
@@ -43,7 +47,7 @@ export async function GET(request: Request) {
       }
     } else {
       if (webinarId && webinarId !== 'all') {
-        whereClause.registration.webinarId = webinarId
+        whereClause.registration.is.webinarId = webinarId
       }
 
       if (startDate || endDate) {
