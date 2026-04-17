@@ -320,14 +320,12 @@
 
 .videoControls {
   position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.8), transparent);
-  padding: 20px;
+  top: 12px;
+  right: 12px;
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
+  z-index: 15;
 }
 
 .statusBadge {
@@ -1347,23 +1345,27 @@
 
   /* Adjust video controls layout for mobile - ensure fullscreen button doesn't overlap */
   .videoControls {
-    padding: 15px;
-    flex-wrap: wrap;
-    gap: 8px;
+    top: 10px;
+    right: 10px;
+    left: auto;
+    bottom: auto;
+    padding: 0;
+    flex-wrap: nowrap;
+    gap: 6px;
   }
 
   /* Fullscreen button stays in the controls area, not absolute positioned */
   .fullscreenButton {
-    width: 36px;
-    height: 36px;
-    font-size: 1rem;
+    width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
   }
 
   /* Mute button for mobile */
   .muteButton {
-    width: 36px;
-    height: 36px;
-    font-size: 1rem;
+    width: 32px;
+    height: 32px;
+    font-size: 0.85rem;
   }
 
   /* Make CTA button smaller on mobile */
@@ -1418,16 +1420,16 @@
 
   /* Smaller fullscreen button for very small screens */
   .fullscreenButton {
-    width: 32px;
-    height: 32px;
-    font-size: 0.9rem;
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
   }
 
   /* Smaller mute button for very small screens */
   .muteButton {
-    width: 32px;
-    height: 32px;
-    font-size: 0.9rem;
+    width: 30px;
+    height: 30px;
+    font-size: 0.8rem;
   }
 
   /* Smaller CTA on very small screens */
@@ -1546,7 +1548,7 @@
   .fullscreenButton {
     width: 32px;
     height: 32px;
-    font-size: 0.9rem;
+    font-size: 0.85rem;
   }
 
   /* Keep CTA visible in landscape */
@@ -1562,7 +1564,11 @@
 
   /* Make video controls more compact in landscape */
   .videoControls {
-    padding: 10px;
+    top: 8px;
+    right: 8px;
+    left: auto;
+    bottom: auto;
+    padding: 0;
   }
 
   .videoTime {
@@ -2001,14 +2007,14 @@
   background: rgba(255, 255, 255, 0.15);
   border: 2px solid rgba(255, 255, 255, 0.3);
   color: white;
-  border-radius: 8px;
-  width: 44px;
-  height: 44px;
+  border-radius: 7px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  font-size: 1rem;
+  font-size: 0.9rem;
   transition: all 0.2s ease;
   backdrop-filter: blur(8px);
 }
@@ -2029,9 +2035,9 @@
   .skipButton,
   .muteButton,
   .fullscreenButton {
-    width: 38px;
-    height: 38px;
-    font-size: 0.9rem;
+    width: 34px;
+    height: 34px;
+    font-size: 0.85rem;
   }
 
   .skipTime {

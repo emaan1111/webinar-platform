@@ -1905,11 +1905,6 @@ export default function WebinarLiveClient({
   // Determine replay vs live status
   const isReplay = isReplayMode || (totalDuration != null ? elapsedSeconds >= totalDuration : false);
 
-  const formattedElapsed = useMemo(
-    () => formatTimeLabel(elapsedSeconds),
-    [elapsedSeconds]
-  );
-
   const formattedTotal = useMemo(
     () => formatTimeLabel(totalDuration ?? elapsedSeconds),
     [totalDuration, elapsedSeconds]
@@ -3054,11 +3049,6 @@ export default function WebinarLiveClient({
                       </button>
                     </>
                   )}
-                  {webinar.showElapsedTime !== false && !isReplayMode && (
-                    <div className={styles.videoTime}>
-                      {formattedElapsed}
-                    </div>
-                  )}
                   {broadcastStarted && !isReplayMode && (
                     <>
                       <button
@@ -3132,37 +3122,6 @@ export default function WebinarLiveClient({
                 </div>
               )}
 
-              {/* Red CTA Button in Top-Left Corner - show when offer is active */}
-              {webinar.hasOffers !== false && offerContent && broadcastStarted && (
-                <div className={styles.videoTopLeftCTA}>
-                  <button
-                    type="button"
-                    className={styles.videoCtaButton}
-                    onClick={() => {
-                      // Track offer click
-                      if (trackerRef.current) {
-                        trackerRef.current.trackOffer(
-                          'click',
-                          offerContent.title,
-                          offerContent.ctaUrl || '#',
-                          elapsedSeconds
-                        );
-                        trackerRef.current.trackEngagement('offer_click', elapsedSeconds, {
-                          offerTitle: offerContent.title,
-                          ctaUrl: offerContent.ctaUrl
-                        });
-                      }
-                      
-                      if (offerContent.ctaUrl && offerContent.ctaUrl !== '#') {
-                        window.open(offerContent.ctaUrl, '_blank');
-                      }
-                    }}
-                  >
-                    <i className="fas fa-gift" />
-                    <span>{offerContent.ctaText}</span>
-                  </button>
-                </div>
-              )}
             </div>
 
             {/* Mobile Reaction Buttons - Below Video */}
