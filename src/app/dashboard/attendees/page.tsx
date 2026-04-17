@@ -162,6 +162,11 @@ export default function AttendeesPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   // Manual sale entry from attendee list
+  const [showExportSessionsPanel, setShowExportSessionsPanel] = useState(false)
+  const [exportSessionsDateStart, setExportSessionsDateStart] = useState('')
+  const [exportSessionsDateEnd, setExportSessionsDateEnd] = useState('')
+  const [exportSessionsWebinar, setExportSessionsWebinar] = useState('all')
+
   const [showSaleModal, setShowSaleModal] = useState(false)
   const [saleTarget, setSaleTarget] = useState<Attendee | null>(null)
   const [isSubmittingSale, setIsSubmittingSale] = useState(false)
@@ -623,21 +628,18 @@ export default function AttendeesPage() {
   const handleExportSessions = () => {
     const params = new URLSearchParams()
     
-    if (selectedAttendees.length > 0) {
-      params.append('ids', selectedAttendees.join(','))
-    } else {
-      if (webinarFilter !== 'all') {
-        params.append('webinarId', webinarFilter)
-      }
-      if (joinedDateStart) {
-        params.append('startDate', joinedDateStart)
-      }
-      if (joinedDateEnd) {
-        params.append('endDate', joinedDateEnd)
-      }
+    if (exportSessionsWebinar !== 'all') {
+      params.append('webinarId', exportSessionsWebinar)
+    }
+    if (exportSessionsDateStart) {
+      params.append('startDate', exportSessionsDateStart)
+    }
+    if (exportSessionsDateEnd) {
+      params.append('endDate', exportSessionsDateEnd)
     }
     
     window.open(`/api/attendees/export-sessions?${params.toString()}`, '_blank')
+    setShowExportSessionsPanel(false)
   }
 
   const handleExportCSV = () => {
@@ -1339,13 +1341,89 @@ export default function AttendeesPage() {
                   Export View
                 </button>
 
-                <button 
-                  onClick={handleExportSessions}
-                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                >
-                  <Download className="w-4 h-4" />
-                  Export Sessions
-                </button>
+                <div className="relative">
+                  <button 
+                    onClick={() => setShowExportSessionsPanel(!showExportSessionsPanel)}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                  >
+                    <Download className="w-4 h-4" />
+                    Export Sessions
+                  </button>
+
+                  {showExportSessionsPanel && (
+                    <div className="absolute right-0 top-full mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-lg z-50 p-4 space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-sm font-semibold text-gray-900">Export Session Data</h4>
+                        <button onClick={() => setShowExportSessionsPanel(false)} className="text-gray-400 hover:text-gray-600">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Webinar</label>
+                        <select
+                          value={exportSessionsWebinar}
+                          onChange={(e) => setExportSessionsWebinar(e.target.value)}
+                          className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        >
+                          <option value="all">All Webinars</option>
+                          {(webinars.length > 0 ? webinars : Array.from(
+                            new Map(attendees.map(a => [a.webinarId, { id: a.webinarId, title: a.webinarTitle }])).values()
+                          )).map(w => (
+                            <option key={w.id} value={w.id}>{w.title}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">From</label>
+                          <input
+                            type="date"
+                            value={exportSessionsDateStart}
+                            onChange={(e) => setExportSessionsDateStart(e.target.value)}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">To</label>
+                          <input
+                            type="date"
+                            value={exportSessionsDateEnd}
+                            onChange={(e) => setExportSessionsDateEnd(e.target.value)}
+                            className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+
+                      <p className="text-xs text-gray-500">
+                        {!exportSessionsDateStart && !exportSessionsDateEnd
+                          ? 'No date range selected — will export all sessions.'
+                          : `Exporting sessions${exportSessionsDateStart ? ' from ' + exportSessionsDateStart : ''}${exportSessionsDateEnd ? ' to ' + exportSessionsDateEnd : ''}.`}
+                      </p>
+
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleExportSessions}
+                          className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors"
+                        >
+                          <Download className="w-4 h-4" />
+                          Download CSV
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExportSessionsDateStart('')
+                            setExportSessionsDateEnd('')
+                            setExportSessionsWebinar('all')
+                          }}
+                          className="px-3 py-2 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                        >
+                          Reset
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 <button 
                   onClick={handleApplyAttendanceTags}
