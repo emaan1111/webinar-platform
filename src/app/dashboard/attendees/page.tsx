@@ -620,6 +620,26 @@ export default function AttendeesPage() {
     return `${secs}s`
   }
 
+  const handleExportSessions = () => {
+    const params = new URLSearchParams()
+    
+    if (selectedAttendees.length > 0) {
+      params.append('ids', selectedAttendees.join(','))
+    } else {
+      if (webinarFilter !== 'all') {
+        params.append('webinarId', webinarFilter)
+      }
+      if (joinedDateStart) {
+        params.append('startDate', joinedDateStart)
+      }
+      if (joinedDateEnd) {
+        params.append('endDate', joinedDateEnd)
+      }
+    }
+    
+    window.open(`/api/attendees/export-sessions?${params.toString()}`, '_blank')
+  }
+
   const handleExportCSV = () => {
     const enabledColumns = activeView.columns.filter(c => c.enabled)
     const headers = enabledColumns.map(c => c.label)
@@ -1316,7 +1336,15 @@ export default function AttendeesPage() {
                   className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
                 >
                   <Download className="w-4 h-4" />
-                  Export
+                  Export View
+                </button>
+
+                <button 
+                  onClick={handleExportSessions}
+                  className="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Export Sessions
                 </button>
 
                 <button 
