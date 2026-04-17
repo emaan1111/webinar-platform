@@ -15,13 +15,10 @@ declare global {
         setCurrentTime(seconds: number): Promise<void>;
         getCurrentTime(): Promise<number>;
         getDuration(): Promise<number>;
-        getPaused(): Promise<boolean>;
         setVolume(volume: number): Promise<number>;
         getVolume(): Promise<number>;
         getMuted(): Promise<boolean>;
         setMuted(muted: boolean): Promise<boolean>;
-        requestFullscreen?(): Promise<void>;
-        exitFullscreen?(): Promise<void>;
         on(event: string, callback: (data?: any) => void): void;
         off(event: string, callback?: (data?: any) => void): void;
       };
@@ -411,8 +408,6 @@ export default function WebinarLiveClient({
   
   // Ref for managing the emergency video load timeout safely across re-renders/retries
   const videoLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const fullscreenResumeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const wasFullscreenRef = useRef(false);
   const playerInitInProgressRef = useRef<boolean>(false); // Prevent duplicate player init
   const [isTyping, setIsTyping] = useState(false); // Show "someone is typing" indicator
   const [isTabVisible, setIsTabVisible] = useState(true); // Track tab visibility
@@ -842,43 +837,14 @@ export default function WebinarLiveClient({
   // Handle fullscreen changes
   useEffect(() => {
     const handleFullscreenChange = () => {
-      const currentlyFullscreen = !!(
+      setIsFullscreen(
+        !!(
         document.fullscreenElement ||
         (document as any).webkitFullscreenElement ||
         (document as any).mozFullScreenElement ||
         (document as any).msFullscreenElement
+        )
       );
-
-      const justExitedFullscreen = wasFullscreenRef.current && !currentlyFullscreen;
-      wasFullscreenRef.current = currentlyFullscreen;
-
-      setIsFullscreen(currentlyFullscreen);
-
-      if (
-        justExitedFullscreen &&
-        isMobile &&
-        broadcastStarted &&
-        vimeoPlayerRef.current &&
-        !document.hidden
-      ) {
-        if (fullscreenResumeTimeoutRef.current) {
-          clearTimeout(fullscreenResumeTimeoutRef.current);
-        }
-
-        fullscreenResumeTimeoutRef.current = setTimeout(async () => {
-          try {
-            const isPaused = await vimeoPlayerRef.current.getPaused();
-            if (isPaused) {
-              await vimeoPlayerRef.current.play();
-              setShowPausedOverlay(false);
-              console.log('▶️ Resumed video after exiting fullscreen');
-            }
-          } catch (err) {
-            console.error('❌ Could not resume after exiting fullscreen:', err);
-            setShowPausedOverlay(true);
-          }
-        }, 150);
-      }
     };
 
     document.addEventListener('fullscreenchange', handleFullscreenChange);
@@ -887,15 +853,12 @@ export default function WebinarLiveClient({
     document.addEventListener('MSFullscreenChange', handleFullscreenChange);
 
     return () => {
-      if (fullscreenResumeTimeoutRef.current) {
-        clearTimeout(fullscreenResumeTimeoutRef.current);
-      }
       document.removeEventListener('fullscreenchange', handleFullscreenChange);
       document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
       document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
       document.removeEventListener('MSFullscreenChange', handleFullscreenChange);
     };
-  }, [isMobile, broadcastStarted]);
+  }, []);
 
   // Mark component as mounted and auto-start replay mode
   useEffect(() => {
@@ -974,21 +937,16 @@ export default function WebinarLiveClient({
         // Enter fullscreen in landscape mode
         console.log('🎬 Entering fullscreen for landscape mode...');
         try {
-          if (vimeoPlayerRef.current?.requestFullscreen) {
-            await vimeoPlayerRef.current.requestFullscreen();
-            setIsFullscreen(true);
-          } else {
-            const elem = videoContainerRef.current;
-
-            if (elem.requestFullscreen) {
-              await elem.requestFullscreen();
-            } else if ((elem as any).webkitRequestFullscreen) {
-              await (elem as any).webkitRequestFullscreen();
-            } else if ((elem as any).mozRequestFullScreen) {
-              await (elem as any).mozRequestFullScreen();
-            } else if ((elem as any).msRequestFullscreen) {
-              await (elem as any).msRequestFullscreen();
-            }
+          const elem = videoContainerRef.current;
+          
+          if (elem.requestFullscreen) {
+            await elem.requestFullscreen();
+          } else if ((elem as any).webkitRequestFullscreen) {
+            await (elem as any).webkitRequestFullscreen();
+          } else if ((elem as any).mozRequestFullScreen) {
+            await (elem as any).mozRequestFullScreen();
+          } else if ((elem as any).msRequestFullscreen) {
+            await (elem as any).msRequestFullscreen();
           }
 
           console.log('✅ Fullscreen entered');
@@ -1009,10 +967,7 @@ export default function WebinarLiveClient({
         // Exit fullscreen when rotating back to portrait
         console.log('🎬 Exiting fullscreen for portrait mode...');
         try {
-          if (vimeoPlayerRef.current?.exitFullscreen) {
-            await vimeoPlayerRef.current.exitFullscreen();
-            setIsFullscreen(false);
-          } else if (document.exitFullscreen) {
+          if (document.exitFullscreen) {
             await document.exitFullscreen();
           } else if ((document as any).webkitExitFullscreen) {
             await (document as any).webkitExitFullscreen();
@@ -1824,10 +1779,8 @@ export default function WebinarLiveClient({
 
     try {
       if (!isFullscreen) {
-        if (vimeoPlayerRef.current?.requestFullscreen) {
-          await vimeoPlayerRef.current.requestFullscreen();
-          setIsFullscreen(true);
-        } else if (videoContainerRef.current.requestFullscreen) {
+        // Enter fullscreen
+        if (videoContainerRef.current.requestFullscreen) {
           await videoContainerRef.current.requestFullscreen();
         } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
           await (videoContainerRef.current as any).webkitRequestFullscreen();
@@ -1837,10 +1790,8 @@ export default function WebinarLiveClient({
           await (videoContainerRef.current as any).msRequestFullscreen();
         }
       } else {
-        if (vimeoPlayerRef.current?.exitFullscreen) {
-          await vimeoPlayerRef.current.exitFullscreen();
-          setIsFullscreen(false);
-        } else if (document.exitFullscreen) {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
           await document.exitFullscreen();
         } else if ((document as any).webkitExitFullscreen) {
           await (document as any).webkitExitFullscreen();
@@ -2156,24 +2107,10 @@ export default function WebinarLiveClient({
                  if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
                  setVideoLoading(false);
                  setVideoError(false);
-                 setShowPausedOverlay(false);
-                 setNeedsUserGesture(false);
                  player.off('play', handlePlaybackStarted);
             };
             
             player.on('play', handlePlaybackStarted);
-
-            player.on('pause', () => {
-              if (document.hidden || webinarEnded) {
-                return;
-              }
-
-              if (isMobile && broadcastStarted) {
-                console.log('⏸️ Video paused on mobile - showing resume overlay');
-                setVideoLoading(false);
-                setShowPausedOverlay(true);
-              }
-            });
             
             // Listen for volume changes (user unmuting via native Vimeo controls)
             player.on('volumechange', async (data: { volume: number }) => {
