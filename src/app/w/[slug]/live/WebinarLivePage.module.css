@@ -1,98 +1,4 @@
 .root {
-  --primary: #7b68ee;
-  --primary-light: #9d8df1;
-  --secondary: #6b8e7f;
-  --accent: #f4a4c1;
-  --gold: #f0c75e;
-  --light: #ffffff;
-  --bg-light: #fdf6f9;
-  --text: #333333;
-  --text-light: #555555;
-  --shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
-  --border-radius: 8px;
-  --heart-color: #e75780;
-  --clap-color: #f0c75e;
-  --thumbs-color: #7b68ee;
-  --chat-color: #6b8e7f;
-  --sidebar-width: 380px;
-  --breakpoint: 768px;
-  --offer-gradient: linear-gradient(135deg, #7b68ee, #f4a4c1);
-  font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background-color: var(--bg-light);
-  color: var(--text);
-  line-height: 1.6;
-  font-weight: 400;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-.root *,
-.root *::before,
-.root *::after {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-.container {
-  max-width: 1800px;
-  margin: 0 auto;
-  padding: 20px;
-  padding-left: 40px;
-  padding-right: 40px;
-  transition: margin-right 0.3s ease, padding 0.3s ease;
-}
-
-.chatOpen {
-  margin-right: var(--sidebar-width);
-  margin-left: 0;
-  padding-left: 30px;
-}
-
-.webinarLayout {
-  display: flex;
-  gap: 30px;
-  flex-wrap: wrap;
-}
-
-.mainContent {
-  flex: 1;
-  min-width: 300px;
-}
-
-.videoContainer {
-  position: relative;
-  background-color: #000;
-  border-radius: var(--border-radius);
-  overflow: hidden;
-  box-shadow: var(--shadow);
-  margin-bottom: 20px;
-}
-
-.videoPlaceholder {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  background: linear-gradient(135deg, var(--primary), var(--secondary));
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 3rem;
-}
-
-.videoEmbed {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border: none;
-}
-
-.countdownOverlay {
-  position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.55);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
   justify-content: center;
   color: white;
   text-align: center;
@@ -107,53 +13,6 @@
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(4px);
   display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-  transition: all 0.3s ease;
-  animation: fadeIn 0.5s ease;
-}
-
-.broadcastOverlay:hover {
-  background: rgba(0, 0, 0, 0.9);
-}
-
-.broadcastOverlayContent {
-  text-align: center;
-  color: white;
-  padding: 40px;
-  max-width: 500px;
-}
-
-.broadcastIcon {
-  font-size: 5rem;
-  color: var(--primary);
-  margin-bottom: 20px;
-  animation: pulse 2s ease-in-out infinite;
-  text-shadow: 0 0 30px rgba(123, 104, 238, 0.5);
-}
-
-.broadcastTitle {
-  font-size: 2rem;
-  font-weight: 700;
-  margin-bottom: 12px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-  background: linear-gradient(135deg, #ffffff, #9d8df1);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.broadcastSubtitle {
-  font-size: 1.1rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: 300;
-  letter-spacing: 0.5px;
-}
-
-@keyframes fadeIn {
   from {
     opacity: 0;
   }
@@ -446,32 +305,6 @@
 }
 
 .muteButton:hover {
-  background: rgba(0, 0, 0, 0.75);
-  transform: scale(1.05);
-}
-
-/* Playback Speed Button */
-.playbackSpeedButton {
-  background: rgba(0, 0, 0, 0.5);
-  border: none;
-  color: white;
-  cursor: pointer;
-  font-size: 0.85rem;
-  font-weight: 600;
-  border-radius: 6px;
-  min-width: 60px; /* Wider for text like "Normal", "Faster" */
-  padding: 0 10px;
-  height: 36px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s ease;
-  backdrop-filter: blur(4px);
-  margin-right: 2px;
-  text-transform: capitalize;
-}
-
-.playbackSpeedButton:hover {
   background: rgba(0, 0, 0, 0.75);
   transform: scale(1.05);
 }
@@ -1294,11 +1127,6 @@
     flex-direction: column;
   }
 
-  .statusBadge {
-    padding: 6px 10px;
-    font-size: 0.75rem;
-  }
-
   .countdownValue {
     font-size: 2rem;
   }
@@ -1594,11 +1422,6 @@
   /* Make video controls more compact in landscape */
   .videoControls {
     padding: 10px;
-  }
-
-  .statusBadge {
-    padding: 4px 8px;
-    font-size: 0.7rem;
   }
 
   .videoTime {

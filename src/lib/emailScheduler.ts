@@ -280,7 +280,7 @@ export async function processPendingReminderEmails() {
       const useSubjectB = send.abVariant === 'B' && send.template.subjectB
       const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
 
-      const countdownLink = webinar.slug ? `${baseUrl}/w/${webinar.slug}/countdown?r=${reg.id}` : null
+      const countdownLink = webinar.slug ? `${baseUrl}/countdown/${webinar.slug}?r=${reg.id}` : null
       const accessLink = countdownLink
       const calendarLink = webinar.slug ? `${baseUrl}/api/calendar/${webinar.slug}?r=${reg.id}` : null
       const referralLink = webinar.slug && reg.referralCode ? `${baseUrl}/w/${webinar.slug}?ref=${reg.referralCode}` : null
@@ -399,9 +399,9 @@ export async function processPendingFollowUpEmails() {
       const useSubjectB = send.abVariant === 'B' && send.template.subjectB
       const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
 
-      const countdownLink = webinar.slug ? `${baseUrl}/w/${webinar.slug}/countdown?r=${reg.id}` : null
+      const countdownLink = webinar.slug ? `${baseUrl}/countdown/${webinar.slug}?r=${reg.id}` : null
       const accessLink = countdownLink
-      const replayLink = webinar.slug && webinar.hasReplay ? `${baseUrl}/w/${webinar.slug}/replay?r=${reg.id}` : null
+      const replayLink = webinar.slug && webinar.hasReplay ? `${baseUrl}/room/${webinar.slug}?r=${reg.id}` : null
       const referralLink = webinar.slug && reg.referralCode ? `${baseUrl}/w/${webinar.slug}?ref=${reg.referralCode}` : null
 
       // Determine attendance status label

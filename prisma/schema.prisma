@@ -984,7 +984,7 @@ model SplitTest {
   slug               String              @unique
   isActive           Boolean             @default(true)
   createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
   conversions        Int                 @default(0)
   goal               SplitTestGoal       @default(WEBINAR)
   eventRegistrations EventRegistration[]

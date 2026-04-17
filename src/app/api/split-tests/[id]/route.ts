@@ -22,7 +22,8 @@ export async function PATCH(
             data: {
                 name,
                 slug,
-                isActive
+                isActive,
+                updatedAt: new Date()
             }
         });
 

@@ -19,8 +19,8 @@ declare global {
         getVolume(): Promise<number>;
         getMuted(): Promise<boolean>;
         setMuted(muted: boolean): Promise<boolean>;
-        setPlaybackRate(rate: number): Promise<number>;
-        getPlaybackRate(): Promise<number>;
+        requestFullscreen?(): Promise<void>;
+        exitFullscreen?(): Promise<void>;
         on(event: string, callback: (data?: any) => void): void;
         off(event: string, callback?: (data?: any) => void): void;
       };
@@ -428,7 +428,6 @@ export default function WebinarLiveClient({
   const [showReplayPrompt, setShowReplayPrompt] = useState(false); // Show replay start prompt
   const [iframeKey, setIframeKey] = useState(0); // Force iframe recreation on retry
   const [showPausedOverlay, setShowPausedOverlay] = useState(false); // Show play button when video paused after tab switch
-  const [playbackRate, setPlaybackRate] = useState(0.9); // Default to Slower (0.9x)
 
   const chatMessagesRef = useRef<HTMLDivElement>(null);
   const videoContainerRef = useRef<HTMLDivElement>(null);
@@ -940,16 +939,21 @@ export default function WebinarLiveClient({
         // Enter fullscreen in landscape mode
         console.log('🎬 Entering fullscreen for landscape mode...');
         try {
-          const elem = videoContainerRef.current;
-          
-          if (elem.requestFullscreen) {
-            await elem.requestFullscreen();
-          } else if ((elem as any).webkitRequestFullscreen) {
-            await (elem as any).webkitRequestFullscreen();
-          } else if ((elem as any).mozRequestFullScreen) {
-            await (elem as any).mozRequestFullScreen();
-          } else if ((elem as any).msRequestFullscreen) {
-            await (elem as any).msRequestFullscreen();
+          if (vimeoPlayerRef.current?.requestFullscreen) {
+            await vimeoPlayerRef.current.requestFullscreen();
+            setIsFullscreen(true);
+          } else {
+            const elem = videoContainerRef.current;
+
+            if (elem.requestFullscreen) {
+              await elem.requestFullscreen();
+            } else if ((elem as any).webkitRequestFullscreen) {
+              await (elem as any).webkitRequestFullscreen();
+            } else if ((elem as any).mozRequestFullScreen) {
+              await (elem as any).mozRequestFullScreen();
+            } else if ((elem as any).msRequestFullscreen) {
+              await (elem as any).msRequestFullscreen();
+            }
           }
 
           console.log('✅ Fullscreen entered');
@@ -970,7 +974,10 @@ export default function WebinarLiveClient({
         // Exit fullscreen when rotating back to portrait
         console.log('🎬 Exiting fullscreen for portrait mode...');
         try {
-          if (document.exitFullscreen) {
+          if (vimeoPlayerRef.current?.exitFullscreen) {
+            await vimeoPlayerRef.current.exitFullscreen();
+            setIsFullscreen(false);
+          } else if (document.exitFullscreen) {
             await document.exitFullscreen();
           } else if ((document as any).webkitExitFullscreen) {
             await (document as any).webkitExitFullscreen();
@@ -1782,8 +1789,10 @@ export default function WebinarLiveClient({
 
     try {
       if (!isFullscreen) {
-        // Enter fullscreen
-        if (videoContainerRef.current.requestFullscreen) {
+        if (vimeoPlayerRef.current?.requestFullscreen) {
+          await vimeoPlayerRef.current.requestFullscreen();
+          setIsFullscreen(true);
+        } else if (videoContainerRef.current.requestFullscreen) {
           await videoContainerRef.current.requestFullscreen();
         } else if ((videoContainerRef.current as any).webkitRequestFullscreen) {
           await (videoContainerRef.current as any).webkitRequestFullscreen();
@@ -1793,8 +1802,10 @@ export default function WebinarLiveClient({
           await (videoContainerRef.current as any).msRequestFullscreen();
         }
       } else {
-        // Exit fullscreen
-        if (document.exitFullscreen) {
+        if (vimeoPlayerRef.current?.exitFullscreen) {
+          await vimeoPlayerRef.current.exitFullscreen();
+          setIsFullscreen(false);
+        } else if (document.exitFullscreen) {
           await document.exitFullscreen();
         } else if ((document as any).webkitExitFullscreen) {
           await (document as any).webkitExitFullscreen();
@@ -1833,36 +1844,6 @@ export default function WebinarLiveClient({
       console.error('Error toggling mute:', err);
     }
   }, [isMuted]);
-
-  const togglePlaybackSpeed = useCallback(async () => {
-    if (!vimeoPlayerRef.current) return;
-
-    try {
-      const currentRate = playbackRate;
-      let nextRate = 1;
-      
-      // Cycle: 0.8 -> 0.9 -> 1 -> 1.1 -> 1.2 -> 1.3 -> 0.8
-      if (currentRate === 0.8) nextRate = 0.9;
-      else if (currentRate === 0.9) nextRate = 1;
-      else if (currentRate === 1) nextRate = 1.1;
-      else if (currentRate === 1.1) nextRate = 1.2;
-      else if (currentRate === 1.2) nextRate = 1.3;
-      else nextRate = 0.8;
-
-      await vimeoPlayerRef.current.setPlaybackRate(nextRate);
-      setPlaybackRate(nextRate);
-      console.log(`⏩ Playback rate set to ${nextRate}x`);
-      
-      // Track event
-      if (trackerRef.current) {
-        trackerRef.current.trackEngagement('playback_speed', elapsedSeconds, { rate: nextRate });
-      }
-    } catch (err) {
-      console.error('Error changing playback rate:', err);
-      // Vimeo Free/Plus accounts might not support speed control via API
-      // If it fails, we should probably know about it or handle it gracefully
-    }
-  }, [playbackRate, elapsedSeconds]);
 
   const openChat = useCallback(() => {
     if (webinar.hasChat === false) {
@@ -1937,10 +1918,6 @@ export default function WebinarLiveClient({
 
   // Determine replay vs live status
   const isReplay = isReplayMode || (totalDuration != null ? elapsedSeconds >= totalDuration : false);
-
-  const statusLabel = isReplay ? 'Replay' : 'Broadcasting';
-
-  const statusClass = isReplay ? styles.badgeReplay : styles.badgeLive;
 
   const formattedElapsed = useMemo(
     () => formatTimeLabel(elapsedSeconds),
@@ -2124,16 +2101,6 @@ export default function WebinarLiveClient({
             try {
               await player.setMuted(true);
               await player.setVolume(0);
-              
-              // Apply saved playback rate
-              if (playbackRate !== 1) {
-                try {
-                  await player.setPlaybackRate(playbackRate);
-                  console.log(`⏩ Applied saved playback rate: ${playbackRate}x`);
-                } catch (rateErr) {
-                  console.warn('Could not set playback rate on init:', rateErr);
-                }
-              }
 
             } catch (e) {
               console.error('⚠️ CRITICAL: Could not set mute!', e);
@@ -2357,7 +2324,7 @@ export default function WebinarLiveClient({
     return () => {
       if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
     };
-  }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted, playbackRate]); 
+  }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); 
 
   // Handler for manual play when user gesture is required
   const handleManualPlay = async () => {
@@ -2566,16 +2533,6 @@ export default function WebinarLiveClient({
 
     return () => clearInterval(interval);
   }, [isReplay, webinar.replayExpiresAt]);
-
-  const getSpeedLabel = (rate: number) => {
-    if (rate === 0.8) return 'Slowest';
-    if (rate === 0.9) return 'Slower';
-    if (rate === 1) return 'Normal';
-    if (rate === 1.1) return 'Fast';
-    if (rate === 1.2) return 'Faster';
-    if (rate === 1.3) return 'Max';
-    return `${rate}x`;
-  };
 
   useEffect(() => {
     const ua = navigator.userAgent || '';
@@ -3064,10 +3021,6 @@ export default function WebinarLiveClient({
               {/* Hide custom video controls bar in replay mode since native Vimeo controls are active */}
               {!isReplayMode && (
               <div className={styles.videoControls}>
-                <div className={`${styles.statusBadge} ${statusClass}`}>
-                  <span className={styles.statusDot} />
-                  {statusLabel}
-                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {/* Rewind/Forward buttons - only show in replay mode (and not when native controls are active) */}
                   {isReplay && broadcastStarted && !isReplayMode && (
@@ -3122,15 +3075,6 @@ export default function WebinarLiveClient({
                   )}
                   {broadcastStarted && !isReplayMode && (
                     <>
-                      <button
-                        type="button"
-                        className={styles.playbackSpeedButton}
-                        onClick={togglePlaybackSpeed}
-                        aria-label={`Current playback speed: ${getSpeedLabel(playbackRate)}`}
-                        title="Change playback speed"
-                      >
-                        {getSpeedLabel(playbackRate)}
-                      </button>
                       <button
                         type="button"
                         className={styles.muteButton}

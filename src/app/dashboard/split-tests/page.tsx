@@ -261,6 +261,9 @@ export default function SplitTestsDashboard() {
                             </span>
                         </div>
                         <div className="text-sm font-mono text-purple-600 mt-1">/t/{test.slug}</div>
+                        {test.updatedAt && test.updatedAt !== test.createdAt && (
+                          <div className="text-xs text-gray-400 mt-1">Last edited {new Date(test.updatedAt).toLocaleDateString()} {new Date(test.updatedAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</div>
+                        )}
                     </div>
                     <div className="flex gap-2">
                         <Link href={`/dashboard/split-tests/${test.id}`}>
