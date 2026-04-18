@@ -203,7 +203,10 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     
     // Parse attendance data
     const watchTimeMinutes = parseWatchTime(registrant.time_live) + parseWatchTime(registrant.time_replay)
-    const attended = registrant.attended_live === 1 || registrant.attended_replay === 1
+    // API may return number (1) or string ("Yes") for attended fields
+    const attendedLive = registrant.attended_live === 1 || registrant.attended_live === '1' || String(registrant.attended_live).toLowerCase() === 'yes'
+    const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
+    const attended = attendedLive || attendedReplay
     
     if (!existing) {
       // Get linked lead page and split test info (1 external webinar = 1 lead page)

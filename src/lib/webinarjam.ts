@@ -38,6 +38,7 @@ export interface WebinarJamRegistrant {
   last_name?: string
   email: string
   phone?: string
+  phone_number?: string // New API format uses phone_number
   phone_country_code?: string
   ip?: string
   
@@ -46,43 +47,60 @@ export interface WebinarJamRegistrant {
   schedule: string | number
   signup_date: string
   
-  // Live attendance
-  attended_live: number // 0=not attended, 1=attended
+  // Live attendance - API may return number (0/1) or string ("Yes"/"No")
+  attended_live: number | string
   date_live?: string
   entered_live?: string // Time entered
   time_live?: string // Time spent in live room (e.g., "00:45:30" or seconds)
-  purchased_live?: number
-  revenue_live?: string
+  purchased_live?: number | string
+  revenue_live?: string | number
   
-  // Replay attendance
-  attended_replay: number
+  // Replay attendance - API may return number (0/1) or string ("Yes"/"No")
+  attended_replay: number | string
   date_replay?: string
   time_replay?: string // Time spent in replay room
-  purchased_replay?: number
-  revenue_replay?: string
+  purchased_replay?: number | string
+  revenue_replay?: string | number
   
   // Status
-  subscribed?: number
-  gdpr_status?: number
-  gdpr_communications?: number
+  subscribed?: number | string
+  gdpr_status?: number | string
+  gdpr_communications?: number | string
   
   // UTM tracking
-  utm_source?: string
-  utm_medium?: string
-  utm_campaign?: string
-  utm_term?: string
-  utm_content?: string
+  utm_source?: string | null
+  utm_medium?: string | null
+  utm_campaign?: string | null
+  utm_term?: string | null
+  utm_content?: string | null
   
-  // Links
+  // Links (new API nests these under a links object)
   live_room?: string
   replay_room?: string
   unsubscribe?: string
+  links?: {
+    live_room?: string
+    replay_room?: string
+    unsubscribe?: string
+  }
+  
+  // Additional fields in new API
+  country?: { id: number; name: string } | string
+  state?: { id: number; name: string } | string
 }
 
 export interface WebinarJamRegistrantsResponse {
   status: string
   users?: WebinarJamRegistrant[]
-  user?: WebinarJamRegistrant[]  // API sometimes returns 'user' instead of 'users'
+  user?: WebinarJamRegistrant[]  // Legacy format
+  // New API format: registrants is a paginated object
+  registrants?: {
+    current_page: number
+    data: WebinarJamRegistrant[]
+    last_page: number
+    per_page: number
+    total: number
+  } | WebinarJamRegistrant[]
   webinar?: {
     webinar_id: string | number
     name: string
@@ -254,8 +272,21 @@ export async function getWebinarRegistrants(
       return { registrants: [] }
     }
 
-    // API sometimes returns 'user' instead of 'users'
-    const registrants = data.users || data.user || []
+    // Handle multiple API response formats:
+    // - New paginated format: data.registrants.data (array inside paginated object)
+    // - Legacy array format: data.registrants (direct array)
+    // - Old format: data.users or data.user
+    let registrants: WebinarJamRegistrant[] = []
+    
+    if (data.registrants) {
+      if (Array.isArray(data.registrants)) {
+        registrants = data.registrants
+      } else if (data.registrants.data && Array.isArray(data.registrants.data)) {
+        registrants = data.registrants.data
+      }
+    } else {
+      registrants = data.users || data.user || []
+    }
 
     return {
       webinar: data.webinar,
@@ -319,8 +350,8 @@ export async function registerUserToWebinar(
 
     return {
       success: true,
-      liveRoomUrl: result.user?.live_room || result.live_room,
-      replayRoomUrl: result.user?.replay_room || result.replay_room,
+      liveRoomUrl: result.user?.live_room || result.user?.links?.live_room || result.live_room,
+      replayRoomUrl: result.user?.replay_room || result.user?.links?.replay_room || result.replay_room,
     }
   } catch (error) {
     console.error('❌ WebinarJam registration error:', error)
@@ -371,11 +402,12 @@ export function getRegistrantFullName(registrant: WebinarJamRegistrant): string 
  * Get full phone with country code
  */
 export function getRegistrantPhone(registrant: WebinarJamRegistrant): string | undefined {
-  if (!registrant.phone) return undefined
+  const phone = registrant.phone || registrant.phone_number
+  if (!phone) return undefined
   if (registrant.phone_country_code) {
-    return `${registrant.phone_country_code}${registrant.phone}`
+    return `${registrant.phone_country_code}${phone}`
   }
-  return registrant.phone
+  return phone
 }
 
 /**
