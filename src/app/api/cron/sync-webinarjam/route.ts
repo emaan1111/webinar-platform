@@ -296,6 +296,7 @@ async function createRegistration(
     console.log(`  ➕ New: ${registrant.email}${leadPageId ? ' (linked to lead page)' : ''}`)
     return true
   } catch (error) {
+    console.error(`  ❌ Failed to create registration for ${registrant.email}:`, error)
     // Likely duplicate - ignore
     return false
   }

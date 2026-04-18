@@ -29,7 +29,26 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    return NextResponse.json(registrationPages);
+    const activeTestWebinars = await prisma.webinar.findMany({
+      where: {
+        enableABTesting: true,
+        testRegistrationPage: true,
+      },
+      select: { regPageAId: true, regPageBId: true }
+    });
+    
+    const activeTestPageIds = new Set<string>();
+    activeTestWebinars.forEach((w: any) => {
+      if (w.regPageAId) activeTestPageIds.add(w.regPageAId);
+      if (w.regPageBId) activeTestPageIds.add(w.regPageBId);
+    });
+
+    const enrichedRegistrationPages = registrationPages.map((page: any) => ({
+      ...page,
+      isActiveABTest: activeTestPageIds.has(page.id)
+    }));
+
+    return NextResponse.json(enrichedRegistrationPages);
   } catch (error) {
     console.error('Error fetching registration pages:', error);
     return NextResponse.json(

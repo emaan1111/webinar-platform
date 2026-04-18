@@ -4,6 +4,8 @@ import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook
 import { registerUserToWebinar, isWebinarJamConfigured } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
+import { sendEmail } from '@/lib/email'
+import { replaceMergeTags, prepareEmailHtml, MergeTagContext } from '@/lib/emailTracking'
 
 /**
  * External Webinar Registration API
@@ -241,6 +243,56 @@ export async function POST(
     // If crmIntegration is 'NONE', skip CRM sync
 
     console.log(`✅ External webinar registration: ${email} → ${externalWebinar.name}`)
+
+    // --- Send Confirmation Email (DB template with tracking) ---
+    try {
+      const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
+        where: { externalWebinarId: id, isActive: true },
+        orderBy: { createdAt: 'desc' },
+      })
+
+      if (activeTemplate) {
+        const webinarTitle = externalWebinar.externalWebinarName || externalWebinar.name
+        const emailCtx: MergeTagContext = {
+          name: registration.name,
+          email: registration.email,
+          webinarTitle,
+          webinarTime: registration.scheduledStartTime?.toLocaleString() || null,
+        }
+
+        const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
+        const emailSendRecord = await prisma.confirmationEmailSend.create({
+          data: {
+            templateId: activeTemplate.id,
+            externalRegistrationId: registration.id,
+            to: registration.email,
+            subject: emailSubject,
+            status: 'SENT',
+          },
+        })
+
+        const { html: emailHtml } = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
+        await sendEmail({
+          to: registration.email,
+          subject: emailSubject,
+          htmlBody: emailHtml,
+          fromName: activeTemplate.fromName || undefined,
+        })
+        console.log(`📧 Confirmation email sent to ${email}`)
+      }
+    } catch (err) {
+      console.error('⚠️ Failed to send confirmation email:', err)
+    }
+
+    // --- Schedule Reminder Emails (non-blocking) ---
+    try {
+      const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
+      scheduleReminderEmails(registration.id, true).catch((err: any) =>
+        console.error('⚠️ Failed to schedule reminder emails:', err)
+      )
+    } catch (err) {
+      console.error('⚠️ Failed to import emailScheduler:', err)
+    }
 
     return NextResponse.json({
       success: true,

@@ -18,38 +18,62 @@ function isEmailUnsubscribed(registration: unknown): boolean {
 
 // ─── Schedule reminder emails for a new registration ────────────────────────
 
-export async function scheduleReminderEmails(registrationId: string) {
-  const registration = await prisma.registration.findUnique({
-    where: { id: registrationId },
-    include: {
-      webinar: {
-        select: {
-          id: true,
-          title: true,
-          slug: true,
-          reminderEmailSource: true,
-          schedules: {
-            where: { isActive: true },
-            take: 1,
-            orderBy: { scheduledAt: 'asc' },
+export async function scheduleReminderEmails(registrationId: string, isExternal = false) {
+  let registration: any
+  let webinar: any
+  let webinarStart: Date | null = null
+
+  if (isExternal) {
+    registration = await prisma.externalWebinarRegistration.findUnique({
+      where: { id: registrationId },
+      include: {
+        externalWebinar: {
+          select: {
+            id: true,
+            externalWebinarName: true,
+            // externalWebinar doesn't have reminderEmailSource, default to internal
+          },
+        },
+        schedule: true,
+      },
+    })
+    
+    if (!registration || !registration.externalWebinar) return
+    webinar = registration.externalWebinar
+    webinarStart = registration.scheduledStartTime || registration.schedule?.scheduledTime
+  } else {
+    registration = await prisma.registration.findUnique({
+      where: { id: registrationId },
+      include: {
+        webinar: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            reminderEmailSource: true,
+            schedules: {
+              where: { isActive: true },
+              take: 1,
+              orderBy: { scheduledAt: 'asc' },
+            },
           },
         },
       },
-    },
-  })
+    })
+    if (!registration || !registration.webinar) return
+    if (registration.webinar.reminderEmailSource !== 'internal') return
+    if (isEmailUnsubscribed(registration)) return
+    
+    webinar = registration.webinar
+    const schedule = webinar.schedules[0]
+    webinarStart = registration.scheduledStartTime || schedule?.scheduledAt
+  }
 
-  if (!registration || !registration.webinar) return
-  if (registration.webinar.reminderEmailSource !== 'internal') return
-  if (isEmailUnsubscribed(registration)) return
-
-  const webinar = registration.webinar
-  const schedule = webinar.schedules[0]
-  const webinarStart = registration.scheduledStartTime || schedule?.scheduledAt
   if (!webinarStart) return
 
   // Find all active reminder email templates
   const templates = await prisma.reminderEmailTemplate.findMany({
-    where: { webinarId: webinar.id, isActive: true },
+    where: isExternal ? { externalWebinarId: webinar.id, isActive: true } : { webinarId: webinar.id, isActive: true },
   })
 
   if (templates.length === 0) return
@@ -64,17 +88,18 @@ export async function scheduleReminderEmails(registrationId: string) {
 
     // Check if already scheduled
     const existing = await prisma.reminderEmailSend.findFirst({
-      where: {
-        templateId: template.id,
-        registrationId: registration.id,
-      },
+      where: Object.assign(
+        { templateId: template.id },
+        isExternal ? { externalRegistrationId: registration.id } : { registrationId: registration.id }
+      ),
     })
     if (existing) continue
 
     await prisma.reminderEmailSend.create({
       data: {
         templateId: template.id,
-        registrationId: registration.id,
+        registrationId: isExternal ? null : registration.id,
+        externalRegistrationId: isExternal ? registration.id : null,
         to: registration.email,
         subject: template.subject,
         abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
@@ -246,6 +271,13 @@ export async function processPendingReminderEmails() {
           },
         },
       },
+      externalRegistration: {
+        include: {
+          externalWebinar: {
+            select: { id: true, externalWebinarName: true },
+          }
+        }
+      }
     },
     take: 50,
   })
@@ -254,11 +286,20 @@ export async function processPendingReminderEmails() {
 
   for (const send of pendingSends) {
     try {
-      const reg = send.registration
-      const webinar = reg.webinar
+      const isExternal = !!send.externalRegistrationId
+      const reg: any = isExternal ? send.externalRegistration : send.registration
+      const webinar: any = isExternal ? reg?.externalWebinar : reg?.webinar
+
+      if (!reg || !webinar) {
+        await prisma.reminderEmailSend.update({
+          where: { id: send.id },
+          data: { status: 'FAILED', errorMessage: 'Missing registration or webinar relation' },
+        })
+        continue
+      }
 
       // Smart skip: don't send if attendee has already joined the webinar
-      if (send.template.skipIfJoined && reg.firstJoinedAt) {
+      if (send.template.skipIfJoined && reg.firstJoinedAt && !isExternal) {
         await prisma.reminderEmailSend.update({
           where: { id: send.id },
           data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee already joined' },
@@ -280,15 +321,18 @@ export async function processPendingReminderEmails() {
       const useSubjectB = send.abVariant === 'B' && send.template.subjectB
       const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
 
-      const countdownLink = webinar.slug ? `${baseUrl}/countdown/${webinar.slug}?r=${reg.id}` : null
+      const webinarSlug = isExternal ? null : webinar.slug
+      const webinarTitle = isExternal ? webinar.externalWebinarName || 'Webinar' : webinar.title
+
+      const countdownLink = webinarSlug ? `${baseUrl}/countdown/${webinarSlug}?r=${reg.id}` : null
       const accessLink = countdownLink
-      const calendarLink = webinar.slug ? `${baseUrl}/api/calendar/${webinar.slug}?r=${reg.id}` : null
-      const referralLink = webinar.slug && reg.referralCode ? `${baseUrl}/w/${webinar.slug}?ref=${reg.referralCode}` : null
+      const calendarLink = webinarSlug ? `${baseUrl}/api/calendar/${webinarSlug}?r=${reg.id}` : null
+      const referralLink = webinarSlug && reg.referralCode ? `${baseUrl}/w/${webinarSlug}?ref=${reg.referralCode}` : null
 
       const ctx: MergeTagContext = {
         name: reg.name,
         email: reg.email,
-        webinarTitle: webinar.title,
+        webinarTitle: webinarTitle,
         webinarTime: reg.scheduledStartTime?.toLocaleString('en-US', { timeZone: reg.timezone || 'America/New_York' }) || '',
         accessLink,
         countdownLink,
@@ -300,7 +344,7 @@ export async function processPendingReminderEmails() {
       const { html, text } = prepareEmailHtml(send.template.htmlBody, ctx, send.id, 'reminder')
       const subject = rawSubject
         .replace(/\{\{name\}\}/gi, reg.name)
-        .replace(/\{\{webinar_title\}\}/gi, webinar.title)
+        .replace(/\{\{webinar_title\}\}/gi, webinarTitle)
 
       const sent = await sendEmail({
         to: send.to,
@@ -365,6 +409,13 @@ export async function processPendingFollowUpEmails() {
           },
         },
       },
+      externalRegistration: {
+        include: {
+          externalWebinar: {
+            select: { id: true, externalWebinarName: true },
+          },
+        },
+      },
     },
     take: 50,
   })
@@ -373,11 +424,20 @@ export async function processPendingFollowUpEmails() {
 
   for (const send of pendingSends) {
     try {
-      const reg = send.registration
-      const webinar = reg.webinar
+      const isExternal = !!send.externalRegistrationId
+      const reg: any = isExternal ? send.externalRegistration : send.registration
+      const webinar: any = isExternal ? reg?.externalWebinar : reg?.webinar
+
+      if (!reg || !webinar) {
+        await prisma.followUpEmailSend.update({
+          where: { id: send.id },
+          data: { status: 'FAILED', errorMessage: 'Missing registration or webinar relation' },
+        })
+        continue
+      }
 
       // Smart skip: don't send follow-up if attendee already purchased
-      if (send.template.skipIfPurchased && reg.hasPurchased) {
+      if (!isExternal && send.template.skipIfPurchased && reg.hasPurchased) {
         await prisma.followUpEmailSend.update({
           where: { id: send.id },
           data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee already purchased' },
@@ -399,24 +459,29 @@ export async function processPendingFollowUpEmails() {
       const useSubjectB = send.abVariant === 'B' && send.template.subjectB
       const rawSubject = useSubjectB ? send.template.subjectB! : send.template.subject
 
-      const countdownLink = webinar.slug ? `${baseUrl}/countdown/${webinar.slug}?r=${reg.id}` : null
+      const webinarSlug = isExternal ? null : webinar.slug
+      const webinarTitle = isExternal ? webinar.externalWebinarName || 'Webinar' : webinar.title
+
+      const countdownLink = webinarSlug ? `${baseUrl}/countdown/${webinarSlug}?r=${reg.id}` : null
       const accessLink = countdownLink
-      const replayLink = webinar.slug && webinar.hasReplay ? `${baseUrl}/room/${webinar.slug}?r=${reg.id}` : null
-      const referralLink = webinar.slug && reg.referralCode ? `${baseUrl}/w/${webinar.slug}?ref=${reg.referralCode}` : null
+      const replayLink = webinarSlug && webinar.hasReplay ? `${baseUrl}/room/${webinarSlug}?r=${reg.id}` : null
+      const referralLink = webinarSlug && reg.referralCode ? `${baseUrl}/w/${webinarSlug}?ref=${reg.referralCode}` : null
 
       // Determine attendance status label
       let attendanceStatus = 'Registered'
-      if (reg.attended) attendanceStatus = 'Attended'
-      else if (reg.watchedReplay) attendanceStatus = 'Watched Replay'
-      else if (reg.firstJoinedAt) attendanceStatus = 'Partly Attended'
-      else attendanceStatus = 'Missed'
+      if (!isExternal) {
+        if (reg.attended) attendanceStatus = 'Attended'
+        else if (reg.watchedReplay) attendanceStatus = 'Watched Replay'
+        else if (reg.firstJoinedAt) attendanceStatus = 'Partly Attended'
+        else attendanceStatus = 'Missed'
+      }
 
       const watchTime = reg.replayWatchTime ? `${reg.replayWatchTime} minutes` : '0 minutes'
 
       const ctx: MergeTagContext = {
         name: reg.name,
         email: reg.email,
-        webinarTitle: webinar.title,
+        webinarTitle: webinarTitle,
         webinarTime: reg.scheduledStartTime?.toLocaleString('en-US', { timeZone: reg.timezone || 'America/New_York' }) || '',
         accessLink,
         countdownLink,
@@ -430,7 +495,7 @@ export async function processPendingFollowUpEmails() {
       const { html, text } = prepareEmailHtml(send.template.htmlBody, ctx, send.id, 'followup')
       const subject = rawSubject
         .replace(/\{\{name\}\}/gi, reg.name)
-        .replace(/\{\{webinar_title\}\}/gi, webinar.title)
+        .replace(/\{\{webinar_title\}\}/gi, webinarTitle)
 
       const sent = await sendEmail({
         to: send.to,

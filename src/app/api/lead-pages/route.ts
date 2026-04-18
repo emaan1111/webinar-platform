@@ -50,19 +50,33 @@ export async function GET(req: Request) {
       },
       include: {
         webinar: {
-          select: { id: true, title: true, internalName: true }
+          select: { 
+            id: true, 
+            title: true, 
+            internalName: true
+          }
         },
         template: {
           select: { name: true }
+        },
+        splitTestVariants: {
+          include: {
+            splitTest: true
+          }
         }
       },
       orderBy: [{ folder: 'asc' as const }, { updatedAt: 'desc' as const }] as any
     });
 
+    const leadPagesWithTestFlags = leadPages.map((lp: any) => ({
+      ...lp,
+      isActiveABTest: lp.splitTestVariants?.some((v: any) => v.splitTest?.isActive)
+    }));
+
     // If date filter is applied, calculate filtered views/conversions
     if (dateFrom || dateTo) {
       const leadPagesWithFilteredStats = await Promise.all(
-        leadPages.map(async (lp) => {
+        leadPagesWithTestFlags.map(async (lp) => {
           // Count views (page visits to this lead page)
           const viewsWhere: any = {
             pageId: lp.id,
@@ -103,7 +117,7 @@ export async function GET(req: Request) {
       });
     }
 
-    return NextResponse.json(leadPages, {
+    return NextResponse.json(leadPagesWithTestFlags, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
       }

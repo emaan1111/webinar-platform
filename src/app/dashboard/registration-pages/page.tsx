@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Eye, Users, TrendingUp, Calendar, FileText, Edit, Copy, Trash2, Plus } from 'lucide-react';
+import { Eye, Users, TrendingUp, Calendar, FileText, Edit, Copy, Trash2, Plus, FlaskConical } from 'lucide-react';
 
 interface Template {
   id: string;
@@ -13,6 +13,7 @@ interface Template {
   description: string | null;
   thumbnail: string | null;
   isSystem: boolean;
+  isActiveABTest?: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -196,6 +197,15 @@ export default function TemplatesPage() {
                                 {template.isSystem && (
                                   <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
                                     System
+                                  </span>
+                                )}
+                                {template.isActiveABTest && (
+                                  <span 
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-orange-200 bg-orange-50 text-orange-600 text-[10px] font-bold uppercase tracking-wider cursor-help w-max"
+                                    title="Currently active in a Split Test"
+                                  >
+                                    <FlaskConical className="w-3 h-3" />
+                                    In Split Test
                                   </span>
                                 )}
                               </div>

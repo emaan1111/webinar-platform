@@ -20,7 +20,10 @@ import {
   Trash2,
   Code,
   Copy,
-  Check
+  Check,
+  Mail,
+  Bell,
+  Send
 } from 'lucide-react'
 
 interface ExternalWebinar {
@@ -262,6 +265,52 @@ export default function ExternalWebinarDetailPage() {
             </CardBody>
           </Card>
         </div>
+
+        {/* Email Management */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Mail className="w-5 h-5" /> Email Management
+            </h2>
+          </CardHeader>
+          <CardBody>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Link href={`/dashboard/external-webinars/${id}/confirmation-email`}>
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer">
+                  <div className="p-2 bg-blue-100 rounded-lg">
+                    <Mail className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Confirmation Email</p>
+                    <p className="text-xs text-gray-500">Sent on registration</p>
+                  </div>
+                </div>
+              </Link>
+              <Link href={`/dashboard/external-webinars/${id}/reminder-emails`}>
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-yellow-300 hover:bg-yellow-50 transition-colors cursor-pointer">
+                  <div className="p-2 bg-yellow-100 rounded-lg">
+                    <Bell className="w-5 h-5 text-yellow-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Reminder Emails</p>
+                    <p className="text-xs text-gray-500">Before webinar starts</p>
+                  </div>
+                </div>
+              </Link>
+              <Link href={`/dashboard/external-webinars/${id}/followup-emails`}>
+                <div className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-green-300 hover:bg-green-50 transition-colors cursor-pointer">
+                  <div className="p-2 bg-green-100 rounded-lg">
+                    <Send className="w-5 h-5 text-green-600" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-900">Follow-Up Emails</p>
+                    <p className="text-xs text-gray-500">After webinar ends</p>
+                  </div>
+                </div>
+              </Link>
+            </div>
+          </CardBody>
+        </Card>
 
         {/* Settings */}
         <Card>

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button';
 import {
   Plus, Edit, Trash2, ExternalLink, Copy, Users, Calendar, Clock,
   ChevronDown, ChevronRight, Folder, FolderOpen, Pencil,
-  Check, X
+  Check, X, FlaskConical
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -217,7 +217,18 @@ export default function LeadPagesDashboard() {
     return (
       <tr key={page.id} className="hover:bg-gray-50">
         <td className="px-4 py-4">
-          <div className="font-medium text-gray-900">{page.name}</div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="font-medium text-gray-900">{page.name}</span>
+            {page.isActiveABTest && (
+              <div 
+                className="flex items-center gap-1.5 px-2 py-0.5 rounded-full border border-orange-200 bg-orange-50 text-orange-600 text-[10px] font-bold uppercase tracking-wider cursor-help w-max"
+                title="Currently active in a Split Test"
+              >
+                <FlaskConical className="w-3 h-3" />
+                In Split Test
+              </div>
+            )}
+          </div>
           {dateFilter !== 'all' && (
             <div className="text-xs text-gray-400 mt-0.5">Filtered stats applied</div>
           )}
