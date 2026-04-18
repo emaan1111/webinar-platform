@@ -313,6 +313,177 @@ export async function GET(request: Request) {
       }
     })
 
+    // --- Also fetch External Webinar Registrations ---
+    const extWhereClause: any = {}
+    
+    if (webinarId) {
+      // If filtering by a specific internal webinarId, skip external (they won't match)
+      // But if it starts with 'ext_', filter by externalWebinarId
+      if (webinarId.startsWith('ext_')) {
+        extWhereClause.externalWebinarId = webinarId.replace('ext_', '')
+      }
+    }
+
+    if (status && status !== 'all') {
+      extWhereClause.attended = status === 'attended'
+    }
+
+    // Only query external registrations when not filtering by an internal webinarId
+    const shouldIncludeExternal = !webinarId || webinarId.startsWith('ext_')
+
+    if (shouldIncludeExternal) {
+      const externalRegs = await prisma.externalWebinarRegistration.findMany({
+        where: extWhereClause,
+        include: {
+          externalWebinar: {
+            select: {
+              id: true,
+              name: true,
+              externalWebinarName: true,
+              webinarDurationMinutes: true,
+              mostlyAttendedThreshold: true,
+            }
+          }
+        },
+        orderBy: { registeredAt: 'desc' }
+      })
+
+      // Filter test users
+      let filteredExtRegs = externalRegs.filter((reg: any) => {
+        const name = reg.name || ''
+        const email = reg.email || ''
+        return !isTestUser(name, email)
+      })
+
+      // Apply search filter
+      if (search) {
+        const searchLower = search.toLowerCase()
+        filteredExtRegs = filteredExtRegs.filter((reg: any) =>
+          reg.name?.toLowerCase().includes(searchLower) ||
+          reg.email?.toLowerCase().includes(searchLower) ||
+          reg.phone?.toLowerCase().includes(searchLower)
+        )
+      }
+
+      const formatWatchTimeExt = (minutes: number) => {
+        const totalSeconds = minutes * 60
+        const hours = Math.floor(totalSeconds / 3600)
+        const mins = Math.floor((totalSeconds % 3600) / 60)
+        const secs = totalSeconds % 60
+        if (hours > 0) {
+          return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+        }
+        return `${mins}:${secs.toString().padStart(2, '0')}`
+      }
+
+      const externalAttendees = filteredExtRegs.map((reg: any) => {
+        const ew = reg.externalWebinar
+        const webinarDuration = ew?.webinarDurationMinutes || 60
+        const watchTimeMinutes = reg.watchTimeMinutes || 0
+        const watchTimeSeconds = watchTimeMinutes * 60
+        const threshold = ew?.mostlyAttendedThreshold || 70
+        const watchPercentage = webinarDuration > 0 ? (watchTimeMinutes / webinarDuration) * 100 : 0
+
+        // Engagement score based on watch time
+        let engagementScore = 0
+        if (watchPercentage >= threshold) {
+          engagementScore = 90 + Math.min(Math.floor(watchPercentage - threshold), 10)
+        } else if (watchPercentage >= 50) {
+          engagementScore = 70 + Math.floor((watchPercentage - 50) * 0.8)
+        } else if (watchPercentage >= 20) {
+          engagementScore = 40 + Math.floor((watchPercentage - 20) * 1.0)
+        } else if (watchTimeMinutes > 0) {
+          engagementScore = Math.floor(watchPercentage * 2)
+        }
+
+        // Determine webinar status
+        let webinarStatus = 'Unknown'
+        if (reg.scheduledStartTime) {
+          const now = new Date()
+          const scheduledStart = new Date(reg.scheduledStartTime)
+          const scheduledEnd = new Date(scheduledStart.getTime() + webinarDuration * 60 * 1000)
+          if (now < scheduledStart) {
+            webinarStatus = 'Upcoming'
+          } else if (now >= scheduledStart && now <= scheduledEnd) {
+            webinarStatus = 'Currently Happening'
+          } else {
+            webinarStatus = reg.attended ? 'Attended' : 'No Show'
+          }
+        } else {
+          webinarStatus = reg.attended ? 'Attended' : (watchTimeMinutes > 0 ? 'Attended' : 'No Show')
+        }
+
+        const leadPageName = reg.leadPageId ? leadPagesMap.get(reg.leadPageId) || null : null
+
+        return {
+          id: `ext_${reg.id}`,
+          name: reg.name || 'Unknown',
+          email: reg.email || 'Unknown',
+          phone: reg.phone,
+          timezone: reg.timezone,
+          country: reg.country,
+          webinarId: `ext_${ew?.id}`,
+          webinarTitle: `${ew?.externalWebinarName || ew?.name || 'External Webinar'}`,
+          registeredAt: reg.registeredAt,
+          scheduledAt: reg.scheduledStartTime,
+          webinarStatus,
+          attended: reg.attended,
+          joinedAt: reg.joinedAt,
+          leftAt: reg.leftAt,
+          lastSeenAt: null,
+          engagementScore,
+          gdprConsent: false,
+          privacyConsent: reg.privacyConsent,
+          marketingConsent: reg.marketingConsent,
+          // Analytics fields
+          registrationDevice: 'unknown',
+          leadPageName,
+          watchedReplay: false,
+          replayWatchTime: 0,
+          replayWatchTimeFormatted: '0:00',
+          replayClickedCTA: false,
+          replayDevice: null,
+          totalWatchTime: watchTimeSeconds,
+          totalWatchTimeFormatted: formatWatchTimeExt(watchTimeMinutes),
+          lastWatchedPosition: watchTimeSeconds,
+          lastWatchedPositionFormatted: formatWatchTimeExt(watchTimeMinutes),
+          lastSessionDevice: null,
+          lastSessionBrowser: null,
+          lastSessionOS: null,
+          totalEngagements: 0,
+          sessionCount: reg.attended ? 1 : 0,
+          // Offer analytics
+          viewedOffer: false,
+          clickedOffer: false,
+          // Muted/Unmuted
+          totalMutedTime: 0,
+          totalUnmutedTime: 0,
+          totalMutedTimeFormatted: '0:00',
+          totalUnmutedTimeFormatted: '0:00',
+          watchedMostlyMuted: false,
+          // Purchase data
+          hasPurchased: false,
+          purchaseCount: 0,
+          lastPurchaseAt: null,
+          lastPurchaseAmount: null,
+          lastPurchaseCurrency: null,
+          lastPurchaseProduct: null,
+          totalPurchaseAmount: 0,
+          purchaseCurrency: null,
+          // Sessions (none for external)
+          sessions: [],
+          // Extra: source indicator
+          source: 'external',
+          attendanceTag: reg.appliedTag || null,
+        }
+      })
+
+      attendees.push(...externalAttendees)
+
+      // Re-sort by registeredAt desc after merging
+      attendees.sort((a: any, b: any) => new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime())
+    }
+
     return NextResponse.json({ attendees }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'

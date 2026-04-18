@@ -170,13 +170,102 @@ export async function GET(request: NextRequest) {
         };
     });
 
+    // --- Also include External Webinar Registrations ---
+    const externalRegs = await prisma.externalWebinarRegistration.findMany({
+      where: {
+        registeredAt: {
+          gte: start,
+          lt: end,
+        },
+      },
+      include: {
+        externalWebinar: {
+          select: {
+            name: true,
+            externalWebinarName: true,
+            webinarDurationMinutes: true,
+          }
+        }
+      },
+      orderBy: { registeredAt: 'desc' }
+    });
+
+    // Filter external registrations by metric
+    const filteredExternalRegs = externalRegs.filter((reg: any) => {
+      const watchTimeMinutes = reg.watchTimeMinutes || 0;
+      const attendedLive = reg.attended;
+      const hasReplay = !reg.attended && watchTimeMinutes > 0;
+      const isEngaged = watchTimeMinutes >= engagementMinutes;
+
+      switch (metric) {
+        case 'registrations':
+          return true;
+        case 'totalAttendees':
+          return attendedLive || hasReplay;
+        case 'liveAttendees':
+          return attendedLive;
+        case 'replayAttendees':
+          return hasReplay;
+        case 'engagedTotal':
+          return isEngaged;
+        case 'engagedLive':
+          return isEngaged && attendedLive;
+        case 'engagedReplay':
+          return isEngaged && hasReplay;
+        default:
+          return false;
+      }
+    });
+
+    // Format external registrations
+    const externalDetails = filteredExternalRegs.map((reg: any) => {
+      const watchTimeMinutes = reg.watchTimeMinutes || 0;
+      const watchTimeSeconds = watchTimeMinutes * 60;
+      const formatDuration = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        return `${h}h ${m}m ${s}s`;
+      };
+
+      const attendedStatus = reg.attended ? 'Attended Live' :
+        (watchTimeMinutes > 0 ? 'Watched Replay' : 'Missed');
+
+      return {
+        id: `ext_${reg.id}`,
+        name: reg.name,
+        email: reg.email,
+        phone: reg.phone || '-',
+        timezone: reg.timezone || '-',
+        webinarTitle: reg.externalWebinar?.externalWebinarName || reg.externalWebinar?.name || 'External Webinar',
+        registeredAt: reg.registeredAt,
+        attendedAt: reg.joinedAt,
+        totalTimeStayed: formatDuration(watchTimeSeconds),
+        totalTimeSeconds: watchTimeSeconds,
+        sawOffer: 'N/A',
+        replayWatched: (!reg.attended && watchTimeMinutes > 0) ? 'Yes' : 'No',
+        status: attendedStatus,
+        leftAt: reg.leftAt,
+        engagement: 0,
+        chatCount: 0,
+        reactionCount: 0,
+        lastWatchedPosition: formatDuration(watchTimeSeconds),
+        source: 'external',
+      };
+    });
+
+    // Merge and sort
+    const allDetails = [...details, ...externalDetails].sort((a: any, b: any) =>
+      new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime()
+    );
+
     return NextResponse.json({
         success: true,
-        data: details,
+        data: allDetails,
         meta: {
             date,
             metric,
-            count: details.length
+            count: allDetails.length
         }
     }, {
       headers: {

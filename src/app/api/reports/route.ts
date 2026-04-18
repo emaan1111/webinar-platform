@@ -229,7 +229,7 @@ export async function GET(request: NextRequest) {
 
       // Calculate metrics
       const visitors = pageVisits.length;
-      const registrationCount = registrations.length;
+      let registrationCount = registrations.length;
       let liveAttendees = 0;
       let replayAttendees = 0;
       let engagedTotal = 0;
@@ -238,6 +238,7 @@ export async function GET(request: NextRequest) {
       let salesTotal = 0;
       let salesLive = 0;
       let salesReplay = 0;
+      let missedTotal = 0;
 
       for (const reg of registrations) {
         // Check if attended live
@@ -288,7 +289,52 @@ export async function GET(request: NextRequest) {
           }
         }
       }
-      
+
+      // --- Include External Webinar Registrations in reports ---
+      const extRegs = await prisma.externalWebinarRegistration.findMany({
+        where: {
+          registeredAt: {
+            gte: currentDate,
+            lt: nextDate,
+          },
+        },
+        include: {
+          externalWebinar: {
+            select: {
+              webinarDurationMinutes: true,
+            }
+          }
+        }
+      });
+
+      const filteredExtRegs = extRegs.filter((reg: any) => {
+        return !isTestUser(reg.name || '', reg.email || '')
+      });
+
+      registrationCount += filteredExtRegs.length;
+
+      for (const extReg of filteredExtRegs) {
+        const watchTimeMinutes = extReg.watchTimeMinutes || 0;
+
+        if (extReg.attended) {
+          liveAttendees++;
+        } else if (watchTimeMinutes > 0) {
+          replayAttendees++;
+        } else {
+          missedTotal++;
+        }
+
+        // Check engagement
+        if (watchTimeMinutes >= engagementMinutes) {
+          engagedTotal++;
+          if (extReg.attended) {
+            engagedLive++;
+          } else if (watchTimeMinutes > 0) {
+            engagedReplay++;
+          }
+        }
+      }
+
       // Calculate total attendees (live + replay)
       const totalAttendees = liveAttendees + replayAttendees;
 

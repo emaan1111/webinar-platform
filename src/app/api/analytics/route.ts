@@ -76,6 +76,24 @@ export async function GET(request: Request) {
       }
     })
 
+    // Also fetch external webinar registrations
+    const externalRegistrations = await prisma.externalWebinarRegistration.findMany({
+      where: {
+        registeredAt: {
+          gte: startDate
+        }
+      },
+      include: {
+        externalWebinar: {
+          select: {
+            id: true,
+            name: true,
+            externalWebinarName: true,
+          }
+        }
+      }
+    })
+
     // Get chat messages for engagement
     const chatMessages = await prisma.chatMessage.findMany({
       where: {
@@ -88,14 +106,15 @@ export async function GET(request: Request) {
       }
     })
 
-    // Calculate metrics
-    const totalRegistrations = registrations.length
-    const totalAttendees = registrations.filter(r => r.attended).length
+    // Calculate metrics (including external registrations)
+    const totalRegistrations = registrations.length + externalRegistrations.length
+    const totalAttendees = registrations.filter(r => r.attended).length + 
+      externalRegistrations.filter(r => r.attended || (r.watchTimeMinutes || 0) > 0).length
     const attendanceRate = totalRegistrations > 0 
       ? ((totalAttendees / totalRegistrations) * 100).toFixed(1)
       : '0'
 
-    // Registration trends by month
+    // Registration trends by month (combined)
     const registrationsByMonth: { [key: string]: { registrations: number, attendees: number } } = {}
     
     registrations.forEach(reg => {
@@ -109,13 +128,24 @@ export async function GET(request: Request) {
       }
     })
 
+    externalRegistrations.forEach(reg => {
+      const month = new Date(reg.registeredAt).toLocaleDateString('en-US', { month: 'short' })
+      if (!registrationsByMonth[month]) {
+        registrationsByMonth[month] = { registrations: 0, attendees: 0 }
+      }
+      registrationsByMonth[month].registrations++
+      if (reg.attended || (reg.watchTimeMinutes || 0) > 0) {
+        registrationsByMonth[month].attendees++
+      }
+    })
+
     const registrationTrends = Object.entries(registrationsByMonth).map(([date, data]) => ({
       date,
       registrations: data.registrations,
       attendees: data.attendees
     }))
 
-    // Attendance by webinar
+    // Attendance by webinar (internal)
     const attendanceByWebinar = webinars.map(webinar => {
       const webinarRegs = registrations.filter(r => r.webinarId === webinar.id)
       const attended = webinarRegs.filter(r => r.attended).length
@@ -126,6 +156,29 @@ export async function GET(request: Request) {
         attended,
         noShow
       }
+    })
+
+    // Add external webinars to attendance breakdown
+    const extWebinarMap = new Map<string, { name: string, attended: number, noShow: number }>()
+    externalRegistrations.forEach(reg => {
+      const ewId = reg.externalWebinar?.id || 'unknown'
+      const ewName = reg.externalWebinar?.externalWebinarName || reg.externalWebinar?.name || 'External Webinar'
+      if (!extWebinarMap.has(ewId)) {
+        extWebinarMap.set(ewId, { name: ewName, attended: 0, noShow: 0 })
+      }
+      const entry = extWebinarMap.get(ewId)!
+      if (reg.attended || (reg.watchTimeMinutes || 0) > 0) {
+        entry.attended++
+      } else {
+        entry.noShow++
+      }
+    })
+    extWebinarMap.forEach((val) => {
+      attendanceByWebinar.push({
+        webinar: val.name,
+        attended: val.attended,
+        noShow: val.noShow,
+      })
     })
 
     // Engagement breakdown (mock data for now)
