@@ -153,11 +153,29 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
   const platform = extWebinar.platform as 'webinarjam' | 'everwebinar'
   
   // Fetch all registrants from WebinarJam
-  const { webinar, registrants } = await getWebinarRegistrants(
-    extWebinar.externalWebinarId,
-    { platform, dateRange: 8 } // Last 30 days
-  )
+  // Using 0 (All Time) ensures we don't miss attendees who registered >30 days ago
+  let fetchMore = true;
+  let page = 1;
+  let allRegistrants: WebinarJamRegistrant[] = [];
+  
+  while (fetchMore) {
+    const { registrants } = await getWebinarRegistrants(
+      extWebinar.externalWebinarId,
+      { platform, dateRange: 0, page } // 0 = all time
+    )
+    
+    if (registrants && registrants.length > 0) {
+      allRegistrants = [...allRegistrants, ...registrants]
+      page++
+      // Prevent infinite loop in case of API bug, stop after 20 pages (10k registrants)
+      if (page > 20) fetchMore = false;
+    } else {
+      fetchMore = false;
+    }
+  }
 
+  const registrants = allRegistrants;
+  
   if (registrants.length === 0) {
     console.log(`📋 ${extWebinar.name}: No registrants found`)
     return { total: 0, new: 0, attendanceUpdated: 0, facebookSent: 0, tagsApplied: 0, smsSent: 0 }
@@ -174,7 +192,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
   // Get existing registrations
   const existingRegs = await prisma.externalWebinarRegistration.findMany({
     where: { externalWebinarId: extWebinar.id },
-    select: { email: true, attended: true, watchTimeMinutes: true, attendanceTagsApplied: true, postSessionSmsSent: true, registeredAt: true }
+    select: { email: true, attended: true, watchTimeMinutes: true, attendanceTagsApplied: true, postSessionSmsSent: true, registeredAt: true, scheduledStartTime: true }
   })
   const existingEmails = new Map(existingRegs.map(r => [r.email.toLowerCase(), r]))
 
@@ -236,13 +254,23 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       if (existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended) {
         await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended)
         attendanceUpdated++
+        // Reset tag status so tags are re-evaluated based on new watch time
+        existing.attendanceTagsApplied = false
       }
 
       // Apply attendance tags if not already applied and enough time has passed
       const delayHours = extWebinar.attendanceTagDelayHours ?? 24
-      const registeredAt = existing.registeredAt || new Date(0)
-      const hoursSinceRegistration = (Date.now() - new Date(registeredAt).getTime()) / (1000 * 60 * 60)
-      const canTagNow = hoursSinceRegistration >= delayHours
+      
+      let canTagNow = false
+      if (existing.scheduledStartTime) {
+        const webinarEndMs = new Date(existing.scheduledStartTime).getTime() + ((extWebinar.webinarDurationMinutes || 60) * 60 * 1000)
+        const delayMs = delayHours * 60 * 60 * 1000
+        canTagNow = Date.now() >= (webinarEndMs + delayMs)
+      } else {
+        const registeredAt = existing.registeredAt || new Date(0)
+        const hoursSinceRegistration = (Date.now() - new Date(registeredAt).getTime()) / (1000 * 60 * 60)
+        canTagNow = hoursSinceRegistration >= delayHours
+      }
       
       if (!existing.attendanceTagsApplied && canTagNow) {
         const tagResult = await applyAttendanceTags(extWebinar, email, watchTimeMinutes)
@@ -318,6 +346,7 @@ async function updateAttendance(
     data: {
       watchTimeMinutes,
       attended,
+      attendanceTagsApplied: false,
       joinedAt: attended ? new Date() : undefined,
       updatedAt: new Date(),
     }

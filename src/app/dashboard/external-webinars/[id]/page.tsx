@@ -23,7 +23,9 @@ import {
   Check,
   Mail,
   Bell,
-  Send
+  Send,
+  ClipboardCopy,
+  ChevronDown
 } from 'lucide-react'
 
 interface ExternalWebinar {
@@ -63,6 +65,14 @@ export default function ExternalWebinarDetailPage() {
   const [error, setError] = useState('')
   const [copiedEmbed, setCopiedEmbed] = useState(false)
 
+  // Copy emails from internal webinar
+  const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
+  const [showCopyPanel, setShowCopyPanel] = useState(false)
+  const [selectedSourceId, setSelectedSourceId] = useState('')
+  const [copyTypes, setCopyTypes] = useState<string[]>(['confirmation', 'reminder', 'followup'])
+  const [copying, setCopying] = useState(false)
+  const [copyResult, setCopyResult] = useState('')
+
   const [formData, setFormData] = useState({
     name: '',
     isActive: true,
@@ -83,7 +93,45 @@ export default function ExternalWebinarDetailPage() {
 
   useEffect(() => {
     fetchWebinar()
+    fetchInternalWebinars()
   }, [id])
+
+  const fetchInternalWebinars = async () => {
+    try {
+      const res = await fetch('/api/webinars')
+      if (!res.ok) return
+      const data = await res.json()
+      setInternalWebinars((data.webinars || []).map((w: any) => ({ id: w.id, title: w.title })))
+    } catch {}
+  }
+
+  const handleCopyEmails = async () => {
+    if (!selectedSourceId) return
+    setCopying(true)
+    setCopyResult('')
+    try {
+      const res = await fetch(`/api/external-webinars/${id}/copy-emails`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceWebinarId: selectedSourceId, types: copyTypes }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Copy failed')
+      setCopyResult(data.message)
+      setShowCopyPanel(false)
+      setSelectedSourceId('')
+    } catch (err: any) {
+      setCopyResult(`Error: ${err.message}`)
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  const toggleCopyType = (type: string) => {
+    setCopyTypes((prev) =>
+      prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
+    )
+  }
 
   const fetchWebinar = async () => {
     try {
@@ -269,11 +317,83 @@ export default function ExternalWebinarDetailPage() {
         {/* Email Management */}
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Mail className="w-5 h-5" /> Email Management
-            </h2>
+            <div className="flex items-center justify-between w-full">
+              <h2 className="text-lg font-semibold flex items-center gap-2">
+                <Mail className="w-5 h-5" /> Email Management
+              </h2>
+              <button
+                onClick={() => setShowCopyPanel(!showCopyPanel)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
+              >
+                <ClipboardCopy className="w-4 h-4" />
+                Copy from Webinar
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${showCopyPanel ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
           </CardHeader>
           <CardBody>
+            {showCopyPanel && (
+              <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
+                <p className="text-sm font-medium text-purple-900">Copy email templates from an internal webinar</p>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Source Webinar</label>
+                  <select
+                    value={selectedSourceId}
+                    onChange={(e) => setSelectedSourceId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                  >
+                    <option value="">Select a webinar...</option>
+                    {internalWebinars.map((w) => (
+                      <option key={w.id} value={w.id}>{w.title}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Template Types</label>
+                  <div className="flex gap-3">
+                    {[
+                      { key: 'confirmation', label: 'Confirmation' },
+                      { key: 'reminder', label: 'Reminders' },
+                      { key: 'followup', label: 'Follow-Ups' },
+                    ].map((t) => (
+                      <label key={t.key} className="flex items-center gap-1.5 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={copyTypes.includes(t.key)}
+                          onChange={() => toggleCopyType(t.key)}
+                          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        {t.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleCopyEmails}
+                    disabled={copying || !selectedSourceId || copyTypes.length === 0}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    {copying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ClipboardCopy className="w-4 h-4" />}
+                    {copying ? 'Copying...' : 'Copy Templates'}
+                  </button>
+                  <button
+                    onClick={() => { setShowCopyPanel(false); setCopyResult('') }}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+            {copyResult && (
+              <div className={`mb-4 p-3 text-sm rounded-lg border ${
+                copyResult.startsWith('Error') ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'
+              }`}>
+                {copyResult}
+                <button onClick={() => setCopyResult('')} className="ml-2 font-medium underline">Dismiss</button>
+              </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Link href={`/dashboard/external-webinars/${id}/confirmation-email`}>
                 <div className="flex items-center gap-3 p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-colors cursor-pointer">
