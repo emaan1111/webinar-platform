@@ -262,15 +262,19 @@ export default function AttendeesPage() {
   }, [])
 
   useEffect(() => {
-    fetch('/api/webinars')
-      .then(res => res.json())
-      .then(data => {
-        const list = data.webinars ?? data
-        if (Array.isArray(list)) {
-          setWebinars(list.map((w: any) => ({ id: w.id, title: w.internalName || w.title })))
-        }
-      })
-      .catch(error => console.error('Failed to fetch webinars:', error))
+    Promise.all([
+      fetch('/api/webinars').then(res => res.json()).catch(() => ({ webinars: [] })),
+      fetch('/api/external-webinars').then(res => res.json()).catch(() => [])
+    ]).then(([internalData, externalData]) => {
+      const internalList = internalData.webinars ?? internalData
+      const internal = Array.isArray(internalList)
+        ? internalList.map((w: any) => ({ id: w.id, title: w.internalName || w.title }))
+        : []
+      const external = Array.isArray(externalData)
+        ? externalData.map((w: any) => ({ id: `ext_${w.id}`, title: `${w.externalWebinarName || w.name} (External)` }))
+        : []
+      setWebinars([...internal, ...external])
+    }).catch(error => console.error('Failed to fetch webinars:', error))
   }, [])
 
   const filteredAttendees = attendees.filter(attendee => {

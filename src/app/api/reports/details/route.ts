@@ -13,6 +13,10 @@ export async function GET(request: NextRequest) {
     const metric = searchParams.get('metric');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
     const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
+    const internalWebinarIds = webinarIds.filter(id => !id.startsWith('ext_'));
+    const extWebinarIds = webinarIds.filter(id => id.startsWith('ext_')).map(id => id.replace('ext_', ''));
+    const hasInternalFilter = internalWebinarIds.length > 0;
+    const hasExternalFilter = extWebinarIds.length > 0;
 
     if ((!date && (!startDateParam || !endDateParam)) || !metric) {
       return NextResponse.json(
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest) {
           gte: start,
           lt: end
         },
-        ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
+        ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
       },
       include: {
         webinar: {
@@ -171,13 +175,21 @@ export async function GET(request: NextRequest) {
     });
 
     // --- Also include External Webinar Registrations ---
-    const externalRegs = await prisma.externalWebinarRegistration.findMany({
-      where: {
-        registeredAt: {
-          gte: start,
-          lt: end,
-        },
+    // Skip if only internal IDs are selected
+    const includeExternal = webinarIds.length === 0 || hasExternalFilter;
+    let externalDetails: any[] = [];
+    if (includeExternal) {
+    const extWhere: any = {
+      registeredAt: {
+        gte: start,
+        lt: end,
       },
+    };
+    if (extWebinarIds.length > 0) {
+      extWhere.externalWebinarId = { in: extWebinarIds };
+    }
+    const externalRegs = await prisma.externalWebinarRegistration.findMany({
+      where: extWhere,
       include: {
         externalWebinar: {
           select: {
@@ -218,7 +230,7 @@ export async function GET(request: NextRequest) {
     });
 
     // Format external registrations
-    const externalDetails = filteredExternalRegs.map((reg: any) => {
+    externalDetails = filteredExternalRegs.map((reg: any) => {
       const watchTimeMinutes = reg.watchTimeMinutes || 0;
       const watchTimeSeconds = watchTimeMinutes * 60;
       const formatDuration = (seconds: number) => {
@@ -253,6 +265,7 @@ export async function GET(request: NextRequest) {
         source: 'external',
       };
     });
+    } // end if (includeExternal)
 
     // Merge and sort
     const allDetails = [...details, ...externalDetails].sort((a: any, b: any) =>

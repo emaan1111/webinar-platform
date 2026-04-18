@@ -476,15 +476,23 @@ export default function ReportsPage() {
   }, [])
 
   useEffect(() => {
-    // Fetch webinars list
+    // Fetch internal + external webinars list
     const fetchWebinars = async () => {
       try {
-        const response = await fetch('/api/webinars')
-        if (response.ok) {
-          const data = await response.json()
-          const list = data.webinars ?? data
-          setWebinars(Array.isArray(list) ? list.map((w: any) => ({ id: w.id, title: w.internalName || w.title })) : [])
-        }
+        const [internalRes, externalRes] = await Promise.all([
+          fetch('/api/webinars').catch(() => null),
+          fetch('/api/external-webinars').catch(() => null)
+        ])
+        const internalData = internalRes?.ok ? await internalRes.json() : { webinars: [] }
+        const externalData = externalRes?.ok ? await externalRes.json() : []
+        const internalList = internalData.webinars ?? internalData
+        const internal = Array.isArray(internalList)
+          ? internalList.map((w: any) => ({ id: w.id, title: w.internalName || w.title }))
+          : []
+        const external = Array.isArray(externalData)
+          ? externalData.map((w: any) => ({ id: `ext_${w.id}`, title: `${w.externalWebinarName || w.name} (External)` }))
+          : []
+        setWebinars([...internal, ...external])
       } catch (error) {
         console.error('Error fetching webinars:', error)
       }

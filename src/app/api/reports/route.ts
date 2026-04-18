@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
     const to = searchParams.get('to');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
     const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
+    const internalWebinarIds = webinarIds.filter(id => !id.startsWith('ext_'));
+    const extWebinarFilterIds = webinarIds.filter(id => id.startsWith('ext_')).map(id => id.replace('ext_', ''));
     const timezone = searchParams.get('timezone') || 'UTC';
 
     if (!from || !to) {
@@ -170,7 +172,7 @@ export async function GET(request: NextRequest) {
             gte: currentDate,
             lt: nextDate
           },
-          ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {}))
         },
         include: {
           user: {
@@ -222,7 +224,7 @@ export async function GET(request: NextRequest) {
             lt: nextDate
           },
           pageType: 'registration',
-          ...(webinarIds.length > 0 ? { webinarId: { in: webinarIds } } : {})
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {}))
         },
         distinct: ['visitorId'] // Count unique visitors
       });
@@ -291,21 +293,31 @@ export async function GET(request: NextRequest) {
       }
 
       // --- Include External Webinar Registrations in reports ---
-      const extRegs = await prisma.externalWebinarRegistration.findMany({
-        where: {
+      // If filtering by only internal webinar IDs, skip external regs
+      // If filtering by ext_ IDs, filter to those
+      // If no filter, include all
+      if (webinarIds.length > 0 && extWebinarFilterIds.length === 0) {
+        // Only internal IDs selected, skip external
+      } else {
+        const extWhere: any = {
           registeredAt: {
             gte: currentDate,
             lt: nextDate,
           },
-        },
-        include: {
-          externalWebinar: {
-            select: {
-              webinarDurationMinutes: true,
+        };
+        if (extWebinarFilterIds.length > 0) {
+          extWhere.externalWebinarId = { in: extWebinarFilterIds };
+        }
+        const extRegs = await prisma.externalWebinarRegistration.findMany({
+          where: extWhere,
+          include: {
+            externalWebinar: {
+              select: {
+                webinarDurationMinutes: true,
+              }
             }
           }
-        }
-      });
+        });
 
       const filteredExtRegs = extRegs.filter((reg: any) => {
         return !isTestUser(reg.name || '', reg.email || '')
@@ -334,6 +346,7 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+      } // end of else (external webinar filter)
 
       // Calculate total attendees (live + replay)
       const totalAttendees = liveAttendees + replayAttendees;
