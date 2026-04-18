@@ -219,6 +219,13 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const attendedLive = registrant.attended_live === 1 || registrant.attended_live === '1' || String(registrant.attended_live).toLowerCase() === 'yes'
     const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
     const attended = attendedLive || attendedReplay
+
+    // Derive scheduledStartTime from date_live (the session date the registrant was scheduled for)
+    let scheduledStartTime: Date | null = null
+    if (registrant.date_live) {
+      const parsed = new Date(registrant.date_live)
+      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
+    }
     
     if (!existing) {
       // Get linked lead page and split test info (1 external webinar = 1 lead page)
@@ -227,7 +234,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime)
       if (isNew) {
         newCount++
         
@@ -267,10 +274,13 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     } else {
       // Existing registration - update attendance if changed
       if (existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended) {
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended)
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
         attendanceUpdated++
         // Reset tag status so tags are re-evaluated based on new watch time
         existing.attendanceTagsApplied = false
+      } else if (!existing.scheduledStartTime && scheduledStartTime) {
+        // Backfill scheduledStartTime for existing registrations that are missing it
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
       }
 
       // Apply attendance tags if not already applied and enough time has passed
@@ -318,7 +328,8 @@ async function createRegistration(
   registrant: WebinarJamRegistrant,
   watchTimeMinutes: number,
   attended: boolean,
-  leadPageId: string | null
+  leadPageId: string | null,
+  scheduledStartTime: Date | null
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -333,6 +344,7 @@ async function createRegistration(
         leadPageId, // Link to the associated lead page
         attended,
         watchTimeMinutes,
+        scheduledStartTime,
         privacyConsent: true,
       }
     })
@@ -352,7 +364,8 @@ async function updateAttendance(
   externalWebinarId: string,
   email: string,
   watchTimeMinutes: number,
-  attended: boolean
+  attended: boolean,
+  scheduledStartTime?: Date | null
 ): Promise<void> {
   await prisma.externalWebinarRegistration.update({
     where: {
@@ -363,6 +376,7 @@ async function updateAttendance(
       attended,
       attendanceTagsApplied: false,
       joinedAt: attended ? new Date() : undefined,
+      ...(scheduledStartTime ? { scheduledStartTime } : {}),
       updatedAt: new Date(),
     }
   })
