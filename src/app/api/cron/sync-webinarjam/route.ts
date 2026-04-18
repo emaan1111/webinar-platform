@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendFacebookRegistration } from '@/lib/facebook'
 import {
@@ -36,11 +38,21 @@ export async function POST(request: NextRequest) {
   const startTime = Date.now()
   
   try {
-    // Verify cron secret
+    // Verify auth: accept either cron secret OR authenticated dashboard session
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
     
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+    let authorized = false
+    if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+      authorized = true
+    }
+    if (!authorized) {
+      const session = await getServerSession(authOptions)
+      if (session?.user) {
+        authorized = true
+      }
+    }
+    if (!authorized && cronSecret) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
