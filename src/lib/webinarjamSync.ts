@@ -165,8 +165,8 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     }
   }
   
-  // Fetch recent registrants from WebinarJam (last 7 days only)
-  // We only sync recent registrations, not historic ones
+  // Fetch recent registrants only (date_range=2 covers ~last 2 days)
+  // Auto cron runs every 5 mins, so a small window is sufficient
   let fetchMore = true;
   let page = 1;
   let allRegistrants: WebinarJamRegistrant[] = [];
@@ -174,7 +174,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
   while (fetchMore) {
     const { registrants: pageRegistrants } = await getWebinarRegistrants(
       extWebinar.externalWebinarId,
-      { platform, dateRange: 5, page } // 5 = last 7 days
+      { platform, dateRange: 2, page }
     )
     
     if (pageRegistrants && pageRegistrants.length > 0) {
