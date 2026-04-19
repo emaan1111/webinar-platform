@@ -165,28 +165,36 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     }
   }
   
-  // Fetch recent registrants only (date_range=2 covers ~last 2 days)
-  // Auto cron runs every 5 mins, so a small window is sufficient
-  let fetchMore = true;
-  let page = 1;
+  // EverWebinar API date_range values are non-overlapping windows (1=today, 2=yesterday, etc.)
+  // Fetch both today and yesterday to catch all recent registrations
   let allRegistrants: WebinarJamRegistrant[] = [];
   
-  while (fetchMore) {
-    const { registrants: pageRegistrants } = await getWebinarRegistrants(
-      extWebinar.externalWebinarId,
-      { platform, dateRange: 2, page }
-    )
-    
-    if (pageRegistrants && pageRegistrants.length > 0) {
-      allRegistrants = [...allRegistrants, ...pageRegistrants]
-      page++
-      if (page > 10) fetchMore = false;
-    } else {
-      fetchMore = false;
+  for (const dateRange of [1, 2] as const) {
+    let page = 1;
+    let fetchMore = true;
+    while (fetchMore) {
+      const { registrants: pageRegistrants } = await getWebinarRegistrants(
+        extWebinar.externalWebinarId,
+        { platform, dateRange, page }
+      )
+      if (pageRegistrants && pageRegistrants.length > 0) {
+        allRegistrants = [...allRegistrants, ...pageRegistrants]
+        page++
+        if (page > 10) fetchMore = false;
+      } else {
+        fetchMore = false;
+      }
     }
   }
   
-  const registrants = allRegistrants;
+  // Deduplicate by email (API may return same email across date ranges)
+  const seen = new Set<string>();
+  const registrants = allRegistrants.filter(r => {
+    const key = r.email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 
   if (registrants.length === 0) {
     return { total: 0, new: 0, attendanceUpdated: 0, facebookSent: 0, tagsApplied: 0, smsSent: 0 }

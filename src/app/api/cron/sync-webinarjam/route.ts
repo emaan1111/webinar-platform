@@ -164,29 +164,36 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
 }> {
   const platform = extWebinar.platform as 'webinarjam' | 'everwebinar'
   
-  // Fetch recent registrants from WebinarJam (last 7 days only)
-  // We only sync recent registrations, not historic ones
-  let fetchMore = true;
-  let page = 1;
+  // EverWebinar API date_range values are non-overlapping windows (1=today, 2=yesterday, etc.)
+  // Fetch ranges 1-5 to cover last ~7 days for manual catch-up sync
   let allRegistrants: WebinarJamRegistrant[] = [];
   
-  while (fetchMore) {
-    const { registrants } = await getWebinarRegistrants(
-      extWebinar.externalWebinarId,
-      { platform, dateRange: 5, page } // 5 = last 7 days
-    )
-    
-    if (registrants && registrants.length > 0) {
-      allRegistrants = [...allRegistrants, ...registrants]
-      page++
-      // Prevent infinite loop in case of API bug, stop after 10 pages
-      if (page > 10) fetchMore = false;
-    } else {
-      fetchMore = false;
+  for (const dateRange of [1, 2, 3, 4, 5] as const) {
+    let page = 1;
+    let fetchMore = true;
+    while (fetchMore) {
+      const { registrants } = await getWebinarRegistrants(
+        extWebinar.externalWebinarId,
+        { platform, dateRange, page }
+      )
+      if (registrants && registrants.length > 0) {
+        allRegistrants = [...allRegistrants, ...registrants]
+        page++
+        if (page > 10) fetchMore = false;
+      } else {
+        fetchMore = false;
+      }
     }
   }
 
-  const registrants = allRegistrants;
+  // Deduplicate by email (API may return same email across date ranges)
+  const seen = new Set<string>();
+  const registrants = allRegistrants.filter(r => {
+    const key = r.email.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
   
   if (registrants.length === 0) {
     console.log(`📋 ${extWebinar.name}: No registrants found`)
