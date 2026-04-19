@@ -396,26 +396,18 @@ export async function GET(request: Request) {
           engagementScore = Math.floor(watchPercentage * 2)
         }
 
-        // Determine webinar status
-        let webinarStatus = 'Unknown'
-        if (reg.scheduledStartTime) {
-          const now = new Date()
-          const scheduledStart = new Date(reg.scheduledStartTime)
-          const scheduledEnd = new Date(scheduledStart.getTime() + webinarDuration * 60 * 1000)
-          if (now < scheduledStart) {
-            webinarStatus = 'Upcoming'
-          } else if (now >= scheduledStart && now <= scheduledEnd) {
-            webinarStatus = 'Currently Happening'
-          } else if (reg.attended || watchTimeMinutes > 0) {
-            webinarStatus = 'Attended'
-          } else {
-            // Session ended but they didn't attend — only mark "No Show" if enough time has passed
-            // (24h after session end) to account for JIT sessions where scheduledStartTime is signup time
-            const hoursSinceEnd = (now.getTime() - scheduledEnd.getTime()) / (1000 * 60 * 60)
-            webinarStatus = hoursSinceEnd >= 24 ? 'No Show' : 'Registered'
-          }
-        } else {
-          webinarStatus = reg.attended ? 'Attended' : (watchTimeMinutes > 0 ? 'Attended' : 'Registered')
+        // Determine webinar status for external registrants
+        // We can't reliably determine session timing from scheduledStartTime alone
+        // (it may be signup_date, not actual session time for JIT/evergreen schedules)
+        // So we rely on the attendance data from the API sync
+        let webinarStatus = 'Registered'
+        if (reg.attended || watchTimeMinutes > 0) {
+          webinarStatus = 'Attended'
+        } else if (reg.attendanceTagsApplied) {
+          // Sync has confirmed their session ended and applied a tag
+          webinarStatus = reg.appliedTag?.toLowerCase().includes('missed') || 
+                          reg.appliedTag?.toLowerCase().includes('no show') 
+                          ? 'No Show' : 'No Show'
         }
 
         const leadPageName = reg.leadPageId ? leadPagesMap.get(reg.leadPageId) || null : null

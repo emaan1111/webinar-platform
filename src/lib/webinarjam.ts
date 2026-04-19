@@ -45,6 +45,7 @@ export interface WebinarJamRegistrant {
   // Webinar info
   webinar: string | number
   schedule: string | number
+  event?: string // Actual scheduled session time (e.g., "Sun, 5 Apr 2026, 07:00 PM")
   signup_date: string
   
   // Live attendance - API may return number (0/1) or string ("Yes"/"No")
