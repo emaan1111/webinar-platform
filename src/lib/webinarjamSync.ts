@@ -15,6 +15,7 @@ import {
   getRegistrantPhone,
   parseWatchTime,
   parseRegistrationDate,
+  parseDateInTimezone,
   getAttendanceCategory,
   WebinarJamRegistrant,
   WebinarJamSchedule,
@@ -146,9 +147,10 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
 }> {
   const platform = extWebinar.platform as 'webinarjam' | 'everwebinar'
   
-  // Fetch webinar details to get schedules (with timezone info for JIT/scheduled sessions)
+  // Fetch webinar details to get schedules and timezone
   const webinarDetails = await getWebinarDetails(extWebinar.externalWebinarId, platform)
   const schedules = webinarDetails?.schedules || []
+  const webinarTimezone = webinarDetails?.timezone || null
   
   // Build schedule ID → end time (UTC) map
   // This handles JIT schedules correctly - each has date + time + timezone
@@ -234,18 +236,14 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const attended = attendedLive || attendedReplay
 
     // Derive scheduledStartTime: event (actual session time) > date_live (attended time) > signup_date (fallback)
+    // All API dates are in the webinar's timezone, so parse them timezone-aware
     let scheduledStartTime: Date | null = null
-    if (registrant.event) {
-      const parsed = new Date(registrant.event)
-      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
+    scheduledStartTime = parseDateInTimezone(registrant.event, webinarTimezone)
+    if (!scheduledStartTime) {
+      scheduledStartTime = parseDateInTimezone(registrant.date_live, webinarTimezone)
     }
-    if (!scheduledStartTime && registrant.date_live) {
-      const parsed = new Date(registrant.date_live)
-      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
-    }
-    if (!scheduledStartTime && registrant.signup_date) {
-      const parsed = new Date(registrant.signup_date)
-      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
+    if (!scheduledStartTime) {
+      scheduledStartTime = parseDateInTimezone(registrant.signup_date, webinarTimezone)
     }
     
     if (!existing) {
@@ -255,7 +253,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, webinarTimezone)
       if (isNew) {
         newCount++
         
@@ -312,23 +310,25 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         // LIVE or MISSED: Use scheduled session end time, or date_live + duration as fallback
         sessionEndTime = scheduledEndTime
         if (!sessionEndTime && registrant.date_live) {
-          const liveDateParsed = new Date(registrant.date_live)
-          if (!isNaN(liveDateParsed.getTime())) {
+          const liveDateParsed = parseDateInTimezone(registrant.date_live, webinarTimezone)
+          if (liveDateParsed) {
             sessionEndTime = new Date(liveDateParsed.getTime() + (webinarDuration * 60 * 1000))
           }
         }
-        // For JIT/non-attended: use signup_date + duration as last resort
-        if (!sessionEndTime && registrant.signup_date) {
-          const signupParsed = new Date(registrant.signup_date)
-          if (!isNaN(signupParsed.getTime())) {
-            sessionEndTime = new Date(signupParsed.getTime() + (webinarDuration * 60 * 1000))
+        // For JIT/non-attended: use event or signup_date + duration as last resort
+        if (!sessionEndTime) {
+          const eventOrSignup = parseDateInTimezone(registrant.event, webinarTimezone) 
+            || parseDateInTimezone(registrant.signup_date, webinarTimezone)
+          if (eventOrSignup) {
+            sessionEndTime = new Date(eventOrSignup.getTime() + (webinarDuration * 60 * 1000))
           }
         }
       } else if (registrant.date_replay) {
         // REPLAY: Use when they started replay + duration
-        // (They can watch replay days later, so we wait until they've had time to finish)
-        const replayDate = new Date(registrant.date_replay)
-        sessionEndTime = new Date(replayDate.getTime() + (webinarDuration * 60 * 1000))
+        const replayDate = parseDateInTimezone(registrant.date_replay, webinarTimezone)
+        if (replayDate) {
+          sessionEndTime = new Date(replayDate.getTime() + (webinarDuration * 60 * 1000))
+        }
       }
       
       const sessionHasEnded = sessionEndTime ? Date.now() > sessionEndTime.getTime() : false
@@ -399,7 +399,8 @@ async function createRegistration(
   watchTimeMinutes: number,
   attended: boolean,
   leadPageId: string | null,
-  scheduledStartTime: Date | null
+  scheduledStartTime: Date | null,
+  webinarTimezone: string | null
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -409,7 +410,7 @@ async function createRegistration(
         email: registrant.email.toLowerCase(),
         phone: getRegistrantPhone(registrant),
         externalUserId: String(registrant.webinar),
-        registeredAt: parseRegistrationDate(registrant.signup_date),
+        registeredAt: parseDateInTimezone(registrant.signup_date, webinarTimezone) || new Date(),
         registrationSource: 'api_sync',
         leadPageId,
         attended,
