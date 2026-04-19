@@ -165,11 +165,28 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     }
   }
   
-  // Fetch all registrants from WebinarJam (last 30 days)
-  const { registrants } = await getWebinarRegistrants(
-    extWebinar.externalWebinarId,
-    { platform, dateRange: 8 }
-  )
+  // Fetch recent registrants from WebinarJam (last 7 days only)
+  // We only sync recent registrations, not historic ones
+  let fetchMore = true;
+  let page = 1;
+  let allRegistrants: WebinarJamRegistrant[] = [];
+  
+  while (fetchMore) {
+    const { registrants: pageRegistrants } = await getWebinarRegistrants(
+      extWebinar.externalWebinarId,
+      { platform, dateRange: 5, page } // 5 = last 7 days
+    )
+    
+    if (pageRegistrants && pageRegistrants.length > 0) {
+      allRegistrants = [...allRegistrants, ...pageRegistrants]
+      page++
+      if (page > 10) fetchMore = false;
+    } else {
+      fetchMore = false;
+    }
+  }
+  
+  const registrants = allRegistrants;
 
   if (registrants.length === 0) {
     return { total: 0, new: 0, attendanceUpdated: 0, facebookSent: 0, tagsApplied: 0, smsSent: 0 }
@@ -190,7 +207,8 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       watchTimeMinutes: true, 
       attendanceTagsApplied: true, 
       postSessionSmsSent: true,
-      appliedTag: true
+      appliedTag: true,
+      scheduledStartTime: true
     }
   })
   const existingEmails = new Map(existingRegs.map(r => [r.email.toLowerCase(), r]))
@@ -202,7 +220,17 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     
     // Parse attendance data
     const watchTimeMinutes = parseWatchTime(registrant.time_live) + parseWatchTime(registrant.time_replay)
-    const attended = registrant.attended_live === 1 || registrant.attended_replay === 1
+    // API may return number (1) or string ("Yes") for attended fields
+    const attendedLive = registrant.attended_live === 1 || registrant.attended_live === '1' || String(registrant.attended_live).toLowerCase() === 'yes'
+    const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
+    const attended = attendedLive || attendedReplay
+
+    // Derive scheduledStartTime from date_live
+    let scheduledStartTime: Date | null = null
+    if (registrant.date_live) {
+      const parsed = new Date(registrant.date_live)
+      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
+    }
     
     if (!existing) {
       // Get linked lead page and split test info (1 external webinar = 1 lead page)
@@ -211,7 +239,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime)
       if (isNew) {
         newCount++
         
@@ -251,8 +279,11 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     } else {
       // Existing registration - update attendance if changed
       if (existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended) {
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended)
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
         attendanceUpdated++
+      } else if (!existing.scheduledStartTime && scheduledStartTime) {
+        // Backfill scheduledStartTime for existing records missing it
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
       }
 
       // Determine when this registrant's session ended
@@ -263,7 +294,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       
       let sessionEndTime: Date | null = null
       
-      if (registrant.attended_live === 1 || !registrant.date_replay) {
+      if (attendedLive || !registrant.date_replay) {
         // LIVE or MISSED: Use scheduled session end time
         // The live webinar ends at the same time for everyone regardless of when they joined
         sessionEndTime = scheduledEndTime
@@ -341,7 +372,8 @@ async function createRegistration(
   registrant: WebinarJamRegistrant,
   watchTimeMinutes: number,
   attended: boolean,
-  leadPageId: string | null
+  leadPageId: string | null,
+  scheduledStartTime: Date | null
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -356,6 +388,7 @@ async function createRegistration(
         leadPageId,
         attended,
         watchTimeMinutes,
+        scheduledStartTime,
         privacyConsent: true,
       }
     })
@@ -374,7 +407,8 @@ async function updateAttendance(
   externalWebinarId: string,
   email: string,
   watchTimeMinutes: number,
-  attended: boolean
+  attended: boolean,
+  scheduledStartTime?: Date | null
 ): Promise<void> {
   await prisma.externalWebinarRegistration.update({
     where: {
@@ -384,6 +418,7 @@ async function updateAttendance(
       watchTimeMinutes,
       attended,
       joinedAt: attended ? new Date() : undefined,
+      ...(scheduledStartTime ? { scheduledStartTime } : {}),
       updatedAt: new Date(),
     }
   })

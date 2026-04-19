@@ -164,8 +164,8 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
 }> {
   const platform = extWebinar.platform as 'webinarjam' | 'everwebinar'
   
-  // Fetch all registrants from WebinarJam
-  // Using 0 (All Time) ensures we don't miss attendees who registered >30 days ago
+  // Fetch recent registrants from WebinarJam (last 7 days only)
+  // We only sync recent registrations, not historic ones
   let fetchMore = true;
   let page = 1;
   let allRegistrants: WebinarJamRegistrant[] = [];
@@ -173,14 +173,14 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
   while (fetchMore) {
     const { registrants } = await getWebinarRegistrants(
       extWebinar.externalWebinarId,
-      { platform, dateRange: 0, page } // 0 = all time
+      { platform, dateRange: 5, page } // 5 = last 7 days
     )
     
     if (registrants && registrants.length > 0) {
       allRegistrants = [...allRegistrants, ...registrants]
       page++
-      // Prevent infinite loop in case of API bug, stop after 20 pages (10k registrants)
-      if (page > 20) fetchMore = false;
+      // Prevent infinite loop in case of API bug, stop after 10 pages
+      if (page > 10) fetchMore = false;
     } else {
       fetchMore = false;
     }
