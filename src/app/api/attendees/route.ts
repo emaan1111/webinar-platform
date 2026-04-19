@@ -406,11 +406,16 @@ export async function GET(request: Request) {
             webinarStatus = 'Upcoming'
           } else if (now >= scheduledStart && now <= scheduledEnd) {
             webinarStatus = 'Currently Happening'
+          } else if (reg.attended || watchTimeMinutes > 0) {
+            webinarStatus = 'Attended'
           } else {
-            webinarStatus = reg.attended ? 'Attended' : 'No Show'
+            // Session ended but they didn't attend — only mark "No Show" if enough time has passed
+            // (24h after session end) to account for JIT sessions where scheduledStartTime is signup time
+            const hoursSinceEnd = (now.getTime() - scheduledEnd.getTime()) / (1000 * 60 * 60)
+            webinarStatus = hoursSinceEnd >= 24 ? 'No Show' : 'Registered'
           }
         } else {
-          webinarStatus = reg.attended ? 'Attended' : (watchTimeMinutes > 0 ? 'Attended' : 'No Show')
+          webinarStatus = reg.attended ? 'Attended' : (watchTimeMinutes > 0 ? 'Attended' : 'Registered')
         }
 
         const leadPageName = reg.leadPageId ? leadPagesMap.get(reg.leadPageId) || null : null
