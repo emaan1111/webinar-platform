@@ -233,10 +233,14 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
     const attended = attendedLive || attendedReplay
 
-    // Derive scheduledStartTime from date_live
+    // Derive scheduledStartTime from date_live (actual session time) or signup_date (fallback)
     let scheduledStartTime: Date | null = null
     if (registrant.date_live) {
       const parsed = new Date(registrant.date_live)
+      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
+    }
+    if (!scheduledStartTime && registrant.signup_date) {
+      const parsed = new Date(registrant.signup_date)
       if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
     }
     
@@ -295,17 +299,27 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       }
 
       // Determine when this registrant's session ended
-      // Use SCHEDULE time for live/missed (webinar ends same time for everyone)
-      // Use date_replay for replay watchers (they can watch anytime)
       const registrantScheduleId = String(registrant.schedule)
       const scheduledEndTime = scheduleEndTimes.get(registrantScheduleId) || null
       
       let sessionEndTime: Date | null = null
       
       if (attendedLive || !registrant.date_replay) {
-        // LIVE or MISSED: Use scheduled session end time
-        // The live webinar ends at the same time for everyone regardless of when they joined
+        // LIVE or MISSED: Use scheduled session end time, or date_live + duration as fallback
         sessionEndTime = scheduledEndTime
+        if (!sessionEndTime && registrant.date_live) {
+          const liveDateParsed = new Date(registrant.date_live)
+          if (!isNaN(liveDateParsed.getTime())) {
+            sessionEndTime = new Date(liveDateParsed.getTime() + (webinarDuration * 60 * 1000))
+          }
+        }
+        // For JIT/non-attended: use signup_date + duration as last resort
+        if (!sessionEndTime && registrant.signup_date) {
+          const signupParsed = new Date(registrant.signup_date)
+          if (!isNaN(signupParsed.getTime())) {
+            sessionEndTime = new Date(signupParsed.getTime() + (webinarDuration * 60 * 1000))
+          }
+        }
       } else if (registrant.date_replay) {
         // REPLAY: Use when they started replay + duration
         // (They can watch replay days later, so we wait until they've had time to finish)

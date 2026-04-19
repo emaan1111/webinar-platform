@@ -227,10 +227,14 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
     const attended = attendedLive || attendedReplay
 
-    // Derive scheduledStartTime from date_live (the session date the registrant was scheduled for)
+    // Derive scheduledStartTime from date_live (actual session time) or signup_date (fallback)
     let scheduledStartTime: Date | null = null
     if (registrant.date_live) {
       const parsed = new Date(registrant.date_live)
+      if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
+    }
+    if (!scheduledStartTime && registrant.signup_date) {
+      const parsed = new Date(registrant.signup_date)
       if (!isNaN(parsed.getTime())) scheduledStartTime = parsed
     }
     
