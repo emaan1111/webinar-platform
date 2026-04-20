@@ -283,8 +283,9 @@ export async function GET(
     console.log('[Attendee Profile API] Registration found:', registration ? 'Yes' : 'No')
 
     if (!registration) {
-      console.log('[Attendee Profile API] Registration not found for ID:', id)
-      return NextResponse.json({ error: 'Attendee not found' }, { status: 404 })
+      // Try external webinar registration
+      console.log('[Attendee Profile API] Checking external registrations for ID:', id)
+      return await getExternalAttendeeProfile(id, session.user.email!)
     }
 
     // Verify user is admin
@@ -611,4 +612,205 @@ export async function GET(
       { status: 500 }
     )
   }
+}
+
+/**
+ * Fetch profile for an external webinar registration.
+ * Returns a response shaped like the regular attendee profile,
+ * with empty arrays for features that don't exist on external registrations.
+ */
+async function getExternalAttendeeProfile(id: string, userEmail: string) {
+  const extReg = await prisma.externalWebinarRegistration.findUnique({
+    where: { id },
+    include: {
+      externalWebinar: {
+        select: {
+          id: true,
+          name: true,
+          externalWebinarName: true,
+        }
+      },
+      confirmationEmailSends: {
+        where: { status: 'SENT' },
+        select: {
+          id: true, to: true, subject: true, status: true,
+          sentAt: true, openedAt: true, clickedAt: true,
+          openCount: true, clickCount: true,
+          template: { select: { name: true } },
+          events: {
+            where: { type: 'CLICK', url: { not: null } },
+            select: { url: true, createdAt: true },
+            orderBy: { createdAt: 'desc' }
+          }
+        },
+        orderBy: { sentAt: 'desc' }
+      },
+      reminderEmailSends: {
+        where: { status: 'SENT' },
+        select: {
+          id: true, to: true, subject: true, status: true,
+          sentAt: true, openedAt: true, clickedAt: true,
+          openCount: true, clickCount: true, abVariant: true, isResend: true,
+          template: { select: { name: true, minutesBefore: true } },
+          events: {
+            where: { type: 'CLICK', url: { not: null } },
+            select: { url: true, createdAt: true },
+            orderBy: { createdAt: 'desc' }
+          }
+        },
+        orderBy: { sentAt: 'desc' }
+      },
+      followUpEmailSends: {
+        where: { status: 'SENT' },
+        select: {
+          id: true, to: true, subject: true, status: true,
+          sentAt: true, openedAt: true, clickedAt: true,
+          openCount: true, clickCount: true, abVariant: true, isResend: true,
+          template: { select: { name: true, delayMinutes: true, audienceType: true } },
+          events: {
+            where: { type: 'CLICK', url: { not: null } },
+            select: { url: true, createdAt: true },
+            orderBy: { createdAt: 'desc' }
+          }
+        },
+        orderBy: { sentAt: 'desc' }
+      },
+    }
+  })
+
+  if (!extReg) {
+    console.log('[Attendee Profile API] External registration not found for ID:', id)
+    return NextResponse.json({ error: 'Attendee not found' }, { status: 404 })
+  }
+
+  // Verify user is admin
+  const user = await prisma.user.findUnique({ where: { email: userEmail } })
+  if (!user || user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Build email history from external registration email sends
+  const emailHistory = [
+    ...extReg.confirmationEmailSends.map((send: any) => ({
+      id: send.id,
+      emailType: 'confirmation',
+      templateName: send.template?.name || 'Confirmation Email',
+      subject: send.subject,
+      to: send.to,
+      status: send.status,
+      sentAt: send.sentAt?.toISOString() || null,
+      openedAt: send.openedAt?.toISOString() || null,
+      clickedAt: send.clickedAt?.toISOString() || null,
+      openCount: send.openCount || 0,
+      clickCount: send.clickCount || 0,
+      abVariant: null,
+      isResend: false,
+      timingLabel: null,
+      audienceLabel: null,
+      clicks: send.events.map((event: any) => ({
+        url: event.url,
+        clickedAt: event.createdAt.toISOString()
+      }))
+    })),
+    ...extReg.reminderEmailSends.map((send: any) => ({
+      id: send.id,
+      emailType: 'reminder',
+      templateName: send.template?.name || 'Reminder Email',
+      subject: send.subject,
+      to: send.to,
+      status: send.status,
+      sentAt: send.sentAt?.toISOString() || null,
+      openedAt: send.openedAt?.toISOString() || null,
+      clickedAt: send.clickedAt?.toISOString() || null,
+      openCount: send.openCount || 0,
+      clickCount: send.clickCount || 0,
+      abVariant: send.abVariant || null,
+      isResend: Boolean(send.isResend),
+      timingLabel: send.template?.minutesBefore != null
+        ? formatRelativeMinutes(send.template.minutesBefore, 'before')
+        : null,
+      audienceLabel: null,
+      clicks: send.events.map((event: any) => ({
+        url: event.url,
+        clickedAt: event.createdAt.toISOString()
+      }))
+    })),
+    ...extReg.followUpEmailSends.map((send: any) => ({
+      id: send.id,
+      emailType: 'followup',
+      templateName: send.template?.name || 'Follow-Up Email',
+      subject: send.subject,
+      to: send.to,
+      status: send.status,
+      sentAt: send.sentAt?.toISOString() || null,
+      openedAt: send.openedAt?.toISOString() || null,
+      clickedAt: send.clickedAt?.toISOString() || null,
+      openCount: send.openCount || 0,
+      clickCount: send.clickCount || 0,
+      abVariant: send.abVariant || null,
+      isResend: Boolean(send.isResend),
+      timingLabel: send.template?.delayMinutes != null
+        ? formatRelativeMinutes(send.template.delayMinutes, 'after')
+        : null,
+      audienceLabel: send.template?.audienceType
+        ? formatAudienceLabel(send.template.audienceType)
+        : null,
+      clicks: send.events.map((event: any) => ({
+        url: event.url,
+        clickedAt: event.createdAt.toISOString()
+      }))
+    }))
+  ]
+    .filter((send) => send.sentAt)
+    .sort((a, b) => new Date(b.sentAt!).getTime() - new Date(a.sentAt!).getTime())
+
+  // Engagement score for external: simpler calculation
+  let engagementScore = 0
+  if (extReg.attended) engagementScore += 30
+  if (extReg.watchTimeMinutes > 10) engagementScore += 20
+  engagementScore = Math.min(100, engagementScore)
+
+  const profile = {
+    id: extReg.id,
+    name: extReg.name,
+    email: extReg.email,
+    phone: extReg.phone,
+    timezone: extReg.timezone,
+    country: extReg.country,
+    webinarTitle: extReg.externalWebinar.externalWebinarName || extReg.externalWebinar.name,
+    registeredAt: extReg.registeredAt.toISOString(),
+    scheduledAt: extReg.scheduledStartTime?.toISOString() || null,
+    attended: extReg.attended,
+    joinedAt: extReg.joinedAt?.toISOString() || null,
+    leftAt: extReg.leftAt?.toISOString() || null,
+    totalWatchTime: (extReg.watchTimeMinutes || 0) * 60, // convert to seconds for consistency
+    engagementScore,
+    hasPurchased: false,
+    emailUnsubscribed: false,
+    emailUnsubscribedAt: null,
+    emailHistory,
+    isExternal: true, // flag so the UI knows this is an external registration
+
+    // Empty arrays for features not available on external registrations
+    purchases: [],
+    reminders: [],
+    clickFunnelsTags: [],
+    chatMessages: [],
+    reactions: [],
+    ctaClicks: [],
+    pageVisits: [],
+    watchSessions: [],
+    referrals: [],
+    referralCode: null,
+    referredBy: null,
+    referrerName: null,
+    registrationSource: {
+      splitTest: null,
+      splitTestVariant: null,
+      leadPage: null
+    }
+  }
+
+  console.log('[Attendee Profile API] External profile data prepared for:', extReg.email)
+  return NextResponse.json({ profile })
 }
