@@ -12,8 +12,6 @@
 const WEBINARJAM_API_BASE = 'https://api.webinarjam.com/webinarjam'
 const EVERWEBINAR_API_BASE = 'https://api.webinarjam.com/everwebinar'
 
-import { fromZonedTime } from 'date-fns-tz'
-
 const apiKey = process.env.WEBINARJAM_API_KEY
 
 // WebinarJam API response types
@@ -395,29 +393,16 @@ export function parseWatchTime(timeStr: string | undefined | null): number {
 }
 
 /**
- * Parse a date string from the EverWebinar/WebinarJam API in the webinar's timezone.
+ * Parse a date string from the EverWebinar/WebinarJam API.
  * 
- * API date strings like "Sun, 19 Apr 2026, 07:00 PM" have NO timezone offset,
- * so they must be interpreted in the webinar's configured timezone to get correct UTC.
- * Without this, the date would be parsed as UTC on Railway, causing 4-5 hour errors.
+ * API date strings like "Sun, 19 Apr 2026, 07:00 PM" have no timezone offset.
+ * EverWebinar evergreen schedules show times in each registrant's local timezone,
+ * so we cannot accurately convert to UTC. We parse as-is (server local / UTC on Railway).
  */
-export function parseDateInTimezone(dateStr: string | undefined | null, timezone: string | undefined | null): Date | null {
+export function parseApiDate(dateStr: string | undefined | null): Date | null {
   if (!dateStr) return null
-  
-  const naive = new Date(dateStr)
-  if (isNaN(naive.getTime())) return null
-  
-  if (!timezone) return naive // No timezone info, best we can do
-  
-  try {
-    // fromZonedTime reads the local time components (getHours, etc.) from naive
-    // and interprets them as being in the specified timezone, returning UTC.
-    // Since new Date(dateStr) preserves the wall-clock values as local time,
-    // this works correctly regardless of the server's timezone.
-    return fromZonedTime(naive, timezone)
-  } catch {
-    return naive // Fallback if timezone is invalid
-  }
+  const parsed = new Date(dateStr)
+  return isNaN(parsed.getTime()) ? null : parsed
 }
 
 /**

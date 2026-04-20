@@ -6,12 +6,11 @@ import { sendFacebookRegistration } from '@/lib/facebook'
 import {
   isWebinarJamConfigured,
   getWebinarRegistrants,
-  getWebinarDetails,
   getRegistrantFullName,
   getRegistrantPhone,
   parseWatchTime,
   parseRegistrationDate,
-  parseDateInTimezone,
+  parseApiDate,
   getAttendanceCategory,
   WebinarJamRegistrant,
 } from '@/lib/webinarjam'
@@ -166,10 +165,6 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
 }> {
   const platform = extWebinar.platform as 'webinarjam' | 'everwebinar'
   
-  // Fetch webinar details to get the timezone (API dates have no timezone offset)
-  const webinarDetails = await getWebinarDetails(extWebinar.externalWebinarId, platform)
-  const webinarTimezone = webinarDetails?.timezone || null
-  
   // EverWebinar API date_range values are non-overlapping windows (1=today, 2=yesterday, etc.)
   // Fetch ranges 1-5 to cover last ~7 days for manual catch-up sync
   let allRegistrants: WebinarJamRegistrant[] = [];
@@ -234,14 +229,14 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const attended = attendedLive || attendedReplay
 
     // Derive scheduledStartTime: event (actual session time) > date_live (attended time) > signup_date (fallback)
-    // All API dates are in the webinar's timezone, so parse them timezone-aware
+    // API dates are in the registrant's local timezone; we parse as-is since we can't know their exact tz
     let scheduledStartTime: Date | null = null
-    scheduledStartTime = parseDateInTimezone(registrant.event, webinarTimezone)
+    scheduledStartTime = parseApiDate(registrant.event)
     if (!scheduledStartTime) {
-      scheduledStartTime = parseDateInTimezone(registrant.date_live, webinarTimezone)
+      scheduledStartTime = parseApiDate(registrant.date_live)
     }
     if (!scheduledStartTime) {
-      scheduledStartTime = parseDateInTimezone(registrant.signup_date, webinarTimezone)
+      scheduledStartTime = parseApiDate(registrant.signup_date)
     }
     
     if (!existing) {
@@ -251,7 +246,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, webinarTimezone)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime)
       if (isNew) {
         newCount++
         
@@ -346,8 +341,7 @@ async function createRegistration(
   watchTimeMinutes: number,
   attended: boolean,
   leadPageId: string | null,
-  scheduledStartTime: Date | null,
-  webinarTimezone: string | null
+  scheduledStartTime: Date | null
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -357,7 +351,7 @@ async function createRegistration(
         email: registrant.email.toLowerCase(),
         phone: getRegistrantPhone(registrant),
         externalUserId: String(registrant.webinar),
-        registeredAt: parseDateInTimezone(registrant.signup_date, webinarTimezone) || new Date(),
+        registeredAt: parseApiDate(registrant.signup_date) || new Date(),
         registrationSource: 'api_sync',
         leadPageId, // Link to the associated lead page
         attended,
