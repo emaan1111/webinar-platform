@@ -12,6 +12,8 @@
 const WEBINARJAM_API_BASE = 'https://api.webinarjam.com/webinarjam'
 const EVERWEBINAR_API_BASE = 'https://api.webinarjam.com/everwebinar'
 
+import { fromZonedTime } from 'date-fns-tz'
+
 const apiKey = process.env.WEBINARJAM_API_KEY
 
 // WebinarJam API response types
@@ -393,16 +395,165 @@ export function parseWatchTime(timeStr: string | undefined | null): number {
 }
 
 /**
+ * Map US state name → IANA timezone.
+ * Covers the most common states; defaults to America/New_York for unknown.
+ */
+const US_STATE_TIMEZONES: Record<string, string> = {
+  // Eastern
+  'Connecticut': 'America/New_York', 'Delaware': 'America/New_York',
+  'Florida': 'America/New_York', 'Georgia': 'America/New_York',
+  'Maine': 'America/New_York', 'Maryland': 'America/New_York',
+  'Massachusetts': 'America/New_York', 'Michigan': 'America/New_York',
+  'New Hampshire': 'America/New_York', 'New Jersey': 'America/New_York',
+  'New York': 'America/New_York', 'North Carolina': 'America/New_York',
+  'Ohio': 'America/New_York', 'Pennsylvania': 'America/New_York',
+  'Rhode Island': 'America/New_York', 'South Carolina': 'America/New_York',
+  'Vermont': 'America/New_York', 'Virginia': 'America/New_York',
+  'West Virginia': 'America/New_York', 'District of Columbia': 'America/New_York',
+  // Central
+  'Alabama': 'America/Chicago', 'Arkansas': 'America/Chicago',
+  'Illinois': 'America/Chicago', 'Iowa': 'America/Chicago',
+  'Kansas': 'America/Chicago', 'Kentucky': 'America/Chicago',
+  'Louisiana': 'America/Chicago', 'Minnesota': 'America/Chicago',
+  'Mississippi': 'America/Chicago', 'Missouri': 'America/Chicago',
+  'Nebraska': 'America/Chicago', 'North Dakota': 'America/Chicago',
+  'Oklahoma': 'America/Chicago', 'South Dakota': 'America/Chicago',
+  'Tennessee': 'America/Chicago', 'Texas': 'America/Chicago',
+  'Wisconsin': 'America/Chicago',
+  // Mountain
+  'Arizona': 'America/Phoenix', 'Colorado': 'America/Denver',
+  'Idaho': 'America/Boise', 'Montana': 'America/Denver',
+  'New Mexico': 'America/Denver', 'Utah': 'America/Denver',
+  'Wyoming': 'America/Denver',
+  // Pacific
+  'California': 'America/Los_Angeles', 'Nevada': 'America/Los_Angeles',
+  'Oregon': 'America/Los_Angeles', 'Washington': 'America/Los_Angeles',
+  // Non-contiguous
+  'Alaska': 'America/Anchorage', 'Hawaii': 'Pacific/Honolulu',
+}
+
+/**
+ * Map Canadian province name → IANA timezone.
+ */
+const CA_PROVINCE_TIMEZONES: Record<string, string> = {
+  'Ontario': 'America/Toronto', 'Quebec': 'America/Toronto',
+  'British Columbia': 'America/Vancouver',
+  'Alberta': 'America/Edmonton', 'Saskatchewan': 'America/Regina',
+  'Manitoba': 'America/Winnipeg',
+  'Nova Scotia': 'America/Halifax', 'New Brunswick': 'America/Halifax',
+  'Prince Edward Island': 'America/Halifax',
+  'Newfoundland and Labrador': 'America/St_Johns',
+}
+
+/**
+ * Map country name → IANA timezone for single/primary-timezone countries.
+ */
+const COUNTRY_TIMEZONES: Record<string, string> = {
+  'United Kingdom': 'Europe/London',
+  'United Arab Emirates': 'Asia/Dubai',
+  'Saudi Arabia': 'Asia/Riyadh',
+  'India': 'Asia/Kolkata',
+  'Pakistan': 'Asia/Karachi',
+  'Bangladesh': 'Asia/Dhaka',
+  'Egypt': 'Africa/Cairo',
+  'South Africa': 'Africa/Johannesburg',
+  'Nigeria': 'Africa/Lagos',
+  'Kenya': 'Africa/Nairobi',
+  'Germany': 'Europe/Berlin',
+  'France': 'Europe/Paris',
+  'Italy': 'Europe/Rome',
+  'Spain': 'Europe/Madrid',
+  'Netherlands': 'Europe/Amsterdam',
+  'Belgium': 'Europe/Brussels',
+  'Sweden': 'Europe/Stockholm',
+  'Norway': 'Europe/Oslo',
+  'Denmark': 'Europe/Copenhagen',
+  'Ireland': 'Europe/Dublin',
+  'Turkey': 'Europe/Istanbul',
+  'Japan': 'Asia/Tokyo',
+  'South Korea': 'Asia/Seoul',
+  'Singapore': 'Asia/Singapore',
+  'Malaysia': 'Asia/Kuala_Lumpur',
+  'Philippines': 'Asia/Manila',
+  'Thailand': 'Asia/Bangkok',
+  'Indonesia': 'Asia/Jakarta',
+  'New Zealand': 'Pacific/Auckland',
+  'Qatar': 'Asia/Qatar',
+  'Kuwait': 'Asia/Kuwait',
+  'Bahrain': 'Asia/Bahrain',
+  'Oman': 'Asia/Muscat',
+  'Jordan': 'Asia/Amman',
+  'Lebanon': 'Asia/Beirut',
+  'Israel': 'Asia/Jerusalem',
+  'Morocco': 'Africa/Casablanca',
+  'Tunisia': 'Africa/Tunis',
+  'Algeria': 'Africa/Algiers',
+  'Iraq': 'Asia/Baghdad',
+  'Sri Lanka': 'Asia/Colombo',
+  'Nepal': 'Asia/Kathmandu',
+}
+
+/**
+ * Guess IANA timezone from a registrant's country and state.
+ * Returns null if we can't determine the timezone.
+ */
+export function guessTimezoneFromLocation(
+  country: { id: number; name: string } | string | undefined | null,
+  state: { id: number; name: string } | string | undefined | null
+): string | null {
+  const countryName = typeof country === 'object' && country ? country.name : (country || '')
+  const stateName = typeof state === 'object' && state ? state.name : (state || '')
+  
+  if (!countryName) return null
+  
+  // US: use state for timezone
+  if (countryName === 'United States') {
+    return US_STATE_TIMEZONES[stateName] || 'America/New_York' // default to ET for unknown US states
+  }
+  
+  // Canada: use province
+  if (countryName === 'Canada') {
+    return CA_PROVINCE_TIMEZONES[stateName] || 'America/Toronto' // default to ET for unknown provinces
+  }
+  
+  // Australia: multi-timezone, use state if available
+  if (countryName === 'Australia') {
+    const AU_STATES: Record<string, string> = {
+      'New South Wales': 'Australia/Sydney', 'Victoria': 'Australia/Melbourne',
+      'Queensland': 'Australia/Brisbane', 'Western Australia': 'Australia/Perth',
+      'South Australia': 'Australia/Adelaide', 'Tasmania': 'Australia/Hobart',
+      'Australian Capital Territory': 'Australia/Sydney',
+      'Northern Territory': 'Australia/Darwin',
+    }
+    return AU_STATES[stateName] || 'Australia/Sydney'
+  }
+  
+  // Single-timezone countries
+  return COUNTRY_TIMEZONES[countryName] || null
+}
+
+/**
  * Parse a date string from the EverWebinar/WebinarJam API.
  * 
  * API date strings like "Sun, 19 Apr 2026, 07:00 PM" have no timezone offset.
- * EverWebinar evergreen schedules show times in each registrant's local timezone,
- * so we cannot accurately convert to UTC. We parse as-is (server local / UTC on Railway).
+ * EverWebinar evergreen schedules show times in each registrant's local timezone.
+ * If we can determine the registrant's timezone from their country/state, we convert
+ * to UTC properly. Otherwise we parse as-is (interpreted as server local time).
  */
-export function parseApiDate(dateStr: string | undefined | null): Date | null {
+export function parseApiDate(dateStr: string | undefined | null, timezone?: string | null): Date | null {
   if (!dateStr) return null
-  const parsed = new Date(dateStr)
-  return isNaN(parsed.getTime()) ? null : parsed
+  const naive = new Date(dateStr)
+  if (isNaN(naive.getTime())) return null
+  
+  if (!timezone) return naive
+  
+  try {
+    // fromZonedTime: interpret the wall-clock time (from naive's local components) as
+    // being in the registrant's timezone and convert to UTC
+    return fromZonedTime(naive, timezone)
+  } catch {
+    return naive
+  }
 }
 
 /**

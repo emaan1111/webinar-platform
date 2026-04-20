@@ -16,6 +16,7 @@ import {
   parseWatchTime,
   parseRegistrationDate,
   parseApiDate,
+  guessTimezoneFromLocation,
   getAttendanceCategory,
   WebinarJamRegistrant,
   WebinarJamSchedule,
@@ -234,15 +235,17 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
     const attended = attendedLive || attendedReplay
 
+    // Derive registrant's timezone from their country/state for accurate UTC conversion
+    const registrantTz = guessTimezoneFromLocation(registrant.country, registrant.state)
+    
     // Derive scheduledStartTime: event (actual session time) > date_live (attended time) > signup_date (fallback)
-    // API dates are in the registrant's local timezone; we parse as-is since we can't know their exact tz
     let scheduledStartTime: Date | null = null
-    scheduledStartTime = parseApiDate(registrant.event)
+    scheduledStartTime = parseApiDate(registrant.event, registrantTz)
     if (!scheduledStartTime) {
-      scheduledStartTime = parseApiDate(registrant.date_live)
+      scheduledStartTime = parseApiDate(registrant.date_live, registrantTz)
     }
     if (!scheduledStartTime) {
-      scheduledStartTime = parseApiDate(registrant.signup_date)
+      scheduledStartTime = parseApiDate(registrant.signup_date, registrantTz)
     }
     
     if (!existing) {
@@ -252,7 +255,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, registrantTz)
       if (isNew) {
         newCount++
         
@@ -309,22 +312,22 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         // LIVE or MISSED: Use scheduled session end time, or date_live + duration as fallback
         sessionEndTime = scheduledEndTime
         if (!sessionEndTime && registrant.date_live) {
-          const liveDateParsed = parseApiDate(registrant.date_live)
+          const liveDateParsed = parseApiDate(registrant.date_live, registrantTz)
           if (liveDateParsed) {
             sessionEndTime = new Date(liveDateParsed.getTime() + (webinarDuration * 60 * 1000))
           }
         }
         // For JIT/non-attended: use event or signup_date + duration as last resort
         if (!sessionEndTime) {
-          const eventOrSignup = parseApiDate(registrant.event) 
-            || parseApiDate(registrant.signup_date)
+          const eventOrSignup = parseApiDate(registrant.event, registrantTz) 
+            || parseApiDate(registrant.signup_date, registrantTz)
           if (eventOrSignup) {
             sessionEndTime = new Date(eventOrSignup.getTime() + (webinarDuration * 60 * 1000))
           }
         }
       } else if (registrant.date_replay) {
         // REPLAY: Use when they started replay + duration
-        const replayDate = parseApiDate(registrant.date_replay)
+        const replayDate = parseApiDate(registrant.date_replay, registrantTz)
         if (replayDate) {
           sessionEndTime = new Date(replayDate.getTime() + (webinarDuration * 60 * 1000))
         }
@@ -398,7 +401,8 @@ async function createRegistration(
   watchTimeMinutes: number,
   attended: boolean,
   leadPageId: string | null,
-  scheduledStartTime: Date | null
+  scheduledStartTime: Date | null,
+  registrantTz?: string | null
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -408,7 +412,7 @@ async function createRegistration(
         email: registrant.email.toLowerCase(),
         phone: getRegistrantPhone(registrant),
         externalUserId: String(registrant.webinar),
-        registeredAt: parseApiDate(registrant.signup_date) || new Date(),
+        registeredAt: parseApiDate(registrant.signup_date, registrantTz) || new Date(),
         registrationSource: 'api_sync',
         leadPageId,
         attended,
