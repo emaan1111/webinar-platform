@@ -255,15 +255,20 @@ export default function AttendeeProfilePage() {
     return `${minutes}:${secs.toString().padStart(2, '0')}`
   }
 
-  const formatDateTime = (dateString: string) => {
+  const formatDateTime = (dateString: string, timezone?: string | null) => {
     const date = new Date(dateString)
-    return date.toLocaleString('en-US', {
+    const options: Intl.DateTimeFormatOptions = {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
       hour: '2-digit',
-      minute: '2-digit'
-    })
+      minute: '2-digit',
+    }
+    if (timezone) {
+      options.timeZone = timezone
+      options.timeZoneName = 'short'
+    }
+    return date.toLocaleString('en-US', options)
   }
 
   const getEmailTypeLabel = (emailType: string) => {
@@ -560,6 +565,11 @@ export default function AttendeeProfilePage() {
             <div>
               <h1 className="text-3xl font-bold text-gray-900">{profile.name}</h1>
               <p className="text-sm text-gray-500">{profile.webinarTitle}</p>
+              {profile.scheduledAt && (
+                <p className="text-sm text-gray-500">
+                  Scheduled: {formatDateTime(profile.scheduledAt, profile.timezone)}
+                </p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -882,9 +892,22 @@ export default function AttendeeProfilePage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-gray-900">Registered</p>
-                <p className="text-xs text-gray-500">{formatDateTime(profile.registeredAt)}</p>
+                <p className="text-xs text-gray-500">{formatDateTime(profile.registeredAt, profile.timezone)}</p>
               </div>
             </div>
+
+            {/* Scheduled Session */}
+            {profile.scheduledAt && (
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center">
+                  <Clock className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-gray-900">Scheduled Session</p>
+                  <p className="text-xs text-gray-500">{formatDateTime(profile.scheduledAt, profile.timezone)}</p>
+                </div>
+              </div>
+            )}
 
             {/* Watch Sessions */}
             {profile.watchSessions.map((session, index) => (

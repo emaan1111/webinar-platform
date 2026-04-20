@@ -565,6 +565,15 @@ export function getRegistrantFullName(registrant: WebinarJamRegistrant): string 
 }
 
 /**
+ * Get country name from registrant's country field (can be object or string)
+ */
+export function getRegistrantCountry(registrant: WebinarJamRegistrant): string | undefined {
+  if (!registrant.country) return undefined
+  if (typeof registrant.country === 'object') return registrant.country.name || undefined
+  return registrant.country || undefined
+}
+
+/**
  * Get full phone with country code
  */
 export function getRegistrantPhone(registrant: WebinarJamRegistrant): string | undefined {

@@ -8,6 +8,7 @@ import {
   getWebinarRegistrants,
   getRegistrantFullName,
   getRegistrantPhone,
+  getRegistrantCountry,
   parseWatchTime,
   parseRegistrationDate,
   parseApiDate,
@@ -358,6 +359,8 @@ async function createRegistration(
         registeredAt: parseApiDate(registrant.signup_date, registrantTz) || new Date(),
         registrationSource: 'api_sync',
         leadPageId, // Link to the associated lead page
+        timezone: registrantTz || undefined,
+        country: getRegistrantCountry(registrant) || undefined,
         attended,
         watchTimeMinutes,
         scheduledStartTime,
