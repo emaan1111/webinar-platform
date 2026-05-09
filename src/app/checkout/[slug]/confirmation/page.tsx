@@ -40,6 +40,7 @@ export default function ConfirmationPage() {
   const params = useParams<{ slug: string }>()
   const search = useSearchParams()
   const orderId = search.get('orderId')
+  const orderToken = search.get('token')
 
   const [order, setOrder] = useState<Order | null>(null)
   const [loading, setLoading] = useState(true)
@@ -53,7 +54,9 @@ export default function ConfirmationPage() {
     let cancelled = false
 
     const load = async () => {
-      const res = await fetch(`/api/orders/${orderId}`)
+      const res = await fetch(
+        `/api/orders/${orderId}?token=${encodeURIComponent(orderToken || '')}`
+      )
       const data = await res.json()
       if (cancelled) return
       const ord: Order | null = data.order || null
@@ -71,7 +74,7 @@ export default function ConfirmationPage() {
     return () => {
       cancelled = true
     }
-  }, [orderId, retries])
+  }, [orderId, retries, orderToken])
 
   if (!orderId) {
     return (

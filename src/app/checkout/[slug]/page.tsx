@@ -62,6 +62,7 @@ export default function CheckoutPage() {
 
   const [clientSecret, setClientSecret] = useState<string | null>(null)
   const [orderId, setOrderId] = useState<string | null>(null)
+  const [orderToken, setOrderToken] = useState<string | null>(null)
   const [creatingIntent, setCreatingIntent] = useState(false)
 
   useEffect(() => {
@@ -108,12 +109,14 @@ export default function CheckoutPage() {
             country: form.country,
           },
           orderId,
+          orderToken,
         }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed')
       setClientSecret(data.clientSecret)
       setOrderId(data.orderId)
+      setOrderToken(data.orderToken)
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -275,6 +278,7 @@ export default function CheckoutPage() {
                 <OrderForm
                   funnelSlug={slug}
                   orderId={orderId!}
+                  orderToken={orderToken!}
                   nextStepOrder={nextStepOrder}
                 />
               </StripeProvider>

@@ -92,10 +92,22 @@ async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent) {
       })
     }
 
-    // Create order item if this is the initial charge (upsells already create items inline).
-    if (productId && source === 'initial') {
+    // Create order item for ANY successful charge (initial OR upsell/downsell).
+    // For upsells, the inline /api/checkout/upsell handler usually creates the
+    // item — but when the charge requires 3DS, the inline path returns
+    // requires_action without an OrderItem and the customer completes 3DS in
+    // the browser. The webhook is what fires on success in that case, so it
+    // must create the item too. Dedupe on (orderId, funnelStepId) so the
+    // happy path doesn't double-insert.
+    if (productId) {
       const alreadyItem = await tx.orderItem.findFirst({
-        where: { orderId, paymentId: payment.id },
+        where: {
+          orderId,
+          OR: [
+            { paymentId: payment.id },
+            funnelStepId ? { funnelStepId } : { funnelStepId: 'never-matches' },
+          ],
+        },
       })
       if (!alreadyItem) {
         await tx.orderItem.create({

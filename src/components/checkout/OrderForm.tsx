@@ -8,10 +8,11 @@ import { Loader2, Lock } from 'lucide-react'
 interface Props {
   funnelSlug: string
   orderId: string
+  orderToken: string
   nextStepOrder: number | null // order # of the step to advance to after success
 }
 
-export function OrderForm({ funnelSlug, orderId, nextStepOrder }: Props) {
+export function OrderForm({ funnelSlug, orderId, orderToken, nextStepOrder }: Props) {
   const stripe = useStripe()
   const elements = useElements()
   const router = useRouter()
@@ -25,10 +26,11 @@ export function OrderForm({ funnelSlug, orderId, nextStepOrder }: Props) {
     setSubmitting(true)
     setError(null)
 
+    const qs = `orderId=${encodeURIComponent(orderId)}&token=${encodeURIComponent(orderToken)}`
     const returnUrl =
       nextStepOrder != null
-        ? `${window.location.origin}/checkout/${funnelSlug}/step/${nextStepOrder}?orderId=${orderId}`
-        : `${window.location.origin}/checkout/${funnelSlug}/confirmation?orderId=${orderId}`
+        ? `${window.location.origin}/checkout/${funnelSlug}/step/${nextStepOrder}?${qs}`
+        : `${window.location.origin}/checkout/${funnelSlug}/confirmation?${qs}`
 
     const { error: stripeError } = await stripe.confirmPayment({
       elements,
@@ -47,8 +49,8 @@ export function OrderForm({ funnelSlug, orderId, nextStepOrder }: Props) {
     // No redirect needed - confirm succeeded inline.
     router.push(
       nextStepOrder != null
-        ? `/checkout/${funnelSlug}/step/${nextStepOrder}?orderId=${orderId}`
-        : `/checkout/${funnelSlug}/confirmation?orderId=${orderId}`
+        ? `/checkout/${funnelSlug}/step/${nextStepOrder}?${qs}`
+        : `/checkout/${funnelSlug}/confirmation?${qs}`
     )
   }
 

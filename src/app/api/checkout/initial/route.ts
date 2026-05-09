@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { stripe, findOrCreateStripeCustomer } from '@/lib/stripe'
+import { signOrderToken, verifyOrderToken } from '@/lib/orderToken'
 
 /**
  * POST /api/checkout/initial
@@ -21,6 +22,7 @@ export async function POST(req: Request) {
       phone,
       address,
       orderId,
+      orderToken,
     } = body
 
     if (!funnelSlug || !email) {
@@ -61,8 +63,13 @@ export async function POST(req: Request) {
       phone,
     })
 
-    // Reuse order if id passed (idempotent retry); otherwise create
-    let order = orderId ? await prisma.order.findUnique({ where: { id: orderId } }) : null
+    // Reuse order if a valid (signed) orderId is passed (retry path).
+    // Without the signed token we ignore it — otherwise an attacker could
+    // hijack another customer's order by guessing the id.
+    let order =
+      orderId && verifyOrderToken(orderId, orderToken)
+        ? await prisma.order.findUnique({ where: { id: orderId } })
+        : null
     if (!order) {
       order = await prisma.order.create({
         data: {
@@ -125,6 +132,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       orderId: order.id,
+      orderToken: signOrderToken(order.id),
       clientSecret: paymentIntent.client_secret,
       product: {
         id: product.id,

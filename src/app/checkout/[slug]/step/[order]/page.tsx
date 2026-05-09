@@ -53,6 +53,11 @@ export default function FunnelStepPage() {
   const slug = params.slug
   const orderNum = parseInt(params.order)
   const orderId = search.get('orderId')
+  const orderToken = search.get('token')
+  const qs =
+    orderId && orderToken
+      ? `orderId=${encodeURIComponent(orderId)}&token=${encodeURIComponent(orderToken)}`
+      : ''
 
   const [funnel, setFunnel] = useState<Funnel | null>(null)
   const [loading, setLoading] = useState(true)
@@ -75,7 +80,7 @@ export default function FunnelStepPage() {
     )
   }
 
-  if (!funnel || !orderId) {
+  if (!funnel || !orderId || !orderToken) {
     return (
       <div className="flex min-h-screen items-center justify-center px-4">
         <p className="text-gray-600">Order not found.</p>
@@ -85,12 +90,12 @@ export default function FunnelStepPage() {
 
   const step = funnel.steps.find((s) => s.order === orderNum)
   if (!step) {
-    router.replace(`/checkout/${slug}/confirmation?orderId=${orderId}`)
+    router.replace(`/checkout/${slug}/confirmation?${qs}`)
     return null
   }
 
   if (step.type === 'CONFIRMATION') {
-    router.replace(`/checkout/${slug}/confirmation?orderId=${orderId}`)
+    router.replace(`/checkout/${slug}/confirmation?${qs}`)
     return null
   }
 
@@ -105,9 +110,9 @@ export default function FunnelStepPage() {
     }
     const nextStep = funnel.steps.find((s) => s.order === nextOrder)
     if (!nextStep || nextStep.type === 'CONFIRMATION') {
-      router.push(`/checkout/${slug}/confirmation?orderId=${orderId}`)
+      router.push(`/checkout/${slug}/confirmation?${qs}`)
     } else {
-      router.push(`/checkout/${slug}/step/${nextOrder}?orderId=${orderId}`)
+      router.push(`/checkout/${slug}/step/${nextOrder}?${qs}`)
     }
   }
 
@@ -123,7 +128,7 @@ export default function FunnelStepPage() {
       const res = await fetch('/api/checkout/upsell', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, stepId: step.id }),
+        body: JSON.stringify({ orderId, stepId: step.id, orderToken }),
       })
       const data = await res.json()
 
