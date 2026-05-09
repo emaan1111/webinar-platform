@@ -31,7 +31,10 @@ import {
   ExternalLink,
   BookOpen,
   PanelTop,
-  ClipboardCheck
+  ClipboardCheck,
+  Package,
+  Layers,
+  ShoppingBag
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -57,6 +60,9 @@ const navigation = [
   { name: 'Referrals', href: '/dashboard/referrals', icon: UserPlus },
   { name: 'Reports', href: '/dashboard/reports', icon: FileBarChart },
   { name: 'Sales', href: '/dashboard/sales', icon: ShoppingCart },
+  { name: 'Products', href: '/dashboard/products', icon: Package },
+  { name: 'Funnels', href: '/dashboard/funnels', icon: Layers },
+  { name: 'Orders', href: '/dashboard/orders', icon: ShoppingBag },
   { name: 'Facebook Ads', href: '/dashboard/ads', icon: DollarSign },
   { name: 'Chat Moderation', href: '/dashboard/chat', icon: MessageSquare },
   { name: 'Reactions', href: '/dashboard/reactions', icon: Heart },

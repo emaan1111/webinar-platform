@@ -1644,3 +1644,196 @@ model PopupLead {
   @@index([createdAt])
   @@map("popup_leads")
 }
+
+// =============================================================
+// Stripe checkout system: products, funnels, orders, payments
+// =============================================================
+
+model Product {
+  id            String   @id @default(cuid())
+  name          String
+  description   String?
+  priceInCents  Int
+  currency      String   @default("usd")
+  imageUrl      String?
+  stripePriceId String?
+  isActive      Boolean  @default(true)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  funnelSteps FunnelStep[]
+  orderItems  OrderItem[]
+
+  @@map("products")
+}
+
+model Funnel {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+
+  successRedirectUrl String?
+
+  brandColor   String?
+  brandLogoUrl String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps  FunnelStep[]
+  orders Order[]
+
+  @@map("funnels")
+}
+
+enum FunnelStepType {
+  ORDER_FORM
+  UPSELL
+  DOWNSELL
+  CONFIRMATION
+}
+
+model FunnelStep {
+  id       String         @id @default(cuid())
+  funnelId String
+  funnel   Funnel         @relation(fields: [funnelId], references: [id], onDelete: Cascade)
+  type     FunnelStepType
+  order    Int
+
+  productId String?
+  product   Product? @relation(fields: [productId], references: [id])
+
+  headline      String?
+  subheadline   String?
+  description   String?
+  videoUrl      String?
+  imageUrl      String?
+  yesButtonText String?
+  noButtonText  String?
+
+  // step.order to jump to when user declines (for upsell -> downsell, etc.)
+  // null = go to next step in sequence
+  declineNextOrder Int?
+
+  config Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orderItems OrderItem[]
+
+  @@unique([funnelId, order])
+  @@index([funnelId])
+  @@map("funnel_steps")
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  PARTIALLY_PAID
+  FAILED
+  REFUNDED
+}
+
+model Order {
+  id       String  @id @default(cuid())
+  funnelId String?
+  funnel   Funnel? @relation(fields: [funnelId], references: [id])
+
+  email     String
+  firstName String?
+  lastName  String?
+  phone     String?
+
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  country      String?
+
+  stripeCustomerId      String?
+  stripePaymentMethodId String?
+
+  status     OrderStatus @default(PENDING)
+  totalCents Int         @default(0)
+  currency   String      @default("usd")
+
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items    OrderItem[]
+  payments Payment[]
+
+  @@index([email])
+  @@index([stripeCustomerId])
+  @@index([funnelId])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+
+  funnelStepId String?
+  funnelStep   FunnelStep? @relation(fields: [funnelStepId], references: [id])
+
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id])
+
+  priceCents Int
+  quantity   Int    @default(1)
+  currency   String @default("usd")
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+enum PaymentStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id      String @id @default(cuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  stripePaymentIntentId String? @unique
+  stripeChargeId        String?
+
+  amountCents Int
+  currency    String @default("usd")
+  status      PaymentStatus @default(PENDING)
+
+  // upsell | initial | downsell - to trace which step generated this payment
+  source String?
+
+  failureReason String?
+  rawPayload    Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items OrderItem[]
+
+  @@index([orderId])
+  @@map("payments")
+}
