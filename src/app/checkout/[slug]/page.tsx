@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import { Loader2 } from 'lucide-react'
 import { StripeProvider } from '@/components/checkout/StripeProvider'
 import { OrderForm } from '@/components/checkout/OrderForm'
+import { CustomHtmlOrderFormWithStripe } from '@/components/checkout/CustomHtmlStep'
 
 interface Product {
   id: string
@@ -20,6 +21,8 @@ interface Step {
   type: 'ORDER_FORM' | 'UPSELL' | 'DOWNSELL' | 'CONFIRMATION'
   order: number
   product: Product | null
+  customHtml: string | null
+  customCss: string | null
 }
 
 interface Funnel {
@@ -75,6 +78,29 @@ export default function CheckoutPage() {
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [slug])
+
+  // If the order form step has custom HTML, pre-create the PaymentIntent so
+  // the Stripe Element can mount alongside the user's HTML (single-page flow).
+  useEffect(() => {
+    if (!funnel) return
+    const step = funnel.steps.find((s) => s.type === 'ORDER_FORM')
+    if (!step?.customHtml || clientSecret || creatingIntent) return
+    setCreatingIntent(true)
+    fetch('/api/checkout/initial', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ funnelSlug: slug }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) throw new Error(data.error)
+        setClientSecret(data.clientSecret)
+        setOrderId(data.orderId)
+        setOrderToken(data.orderToken)
+      })
+      .catch((e) => setError(e.message))
+      .finally(() => setCreatingIntent(false))
+  }, [funnel, slug, clientSecret, creatingIntent])
 
   const orderFormStep = funnel?.steps.find((s) => s.type === 'ORDER_FORM')
   const product = orderFormStep?.product || null
@@ -157,6 +183,32 @@ export default function CheckoutPage() {
   }
 
   const brand = funnel.brandColor || '#2563eb'
+
+  // Branch: custom HTML order form. The user designs their own page; we just
+  // render their HTML inside the Stripe <Elements> provider and let
+  // CustomHtmlOrderFormWithStripe wire it up.
+  if (orderFormStep?.customHtml) {
+    if (!clientSecret || !orderId || !orderToken) {
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+        </div>
+      )
+    }
+    return (
+      <StripeProvider clientSecret={clientSecret}>
+        <CustomHtmlOrderFormWithStripe
+          html={orderFormStep.customHtml}
+          css={orderFormStep.customCss}
+          product={product}
+          funnelSlug={slug}
+          orderId={orderId}
+          orderToken={orderToken}
+          nextStepOrder={nextStepOrder}
+        />
+      </StripeProvider>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

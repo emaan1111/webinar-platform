@@ -1720,6 +1720,11 @@ model FunnelStep {
   // null = go to next step in sequence
   declineNextOrder Int?
 
+  // Optional custom HTML/CSS for the step. When customHtml is set we render
+  // it verbatim and hydrate via data-* hooks (see CustomHtmlStep component).
+  customHtml String? @db.Text
+  customCss  String? @db.Text
+
   config Json?
 
   createdAt DateTime @default(now())

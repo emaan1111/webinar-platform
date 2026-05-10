@@ -84,12 +84,36 @@ async function handlePaymentIntentSucceeded(intent: Stripe.PaymentIntent) {
           },
         })
 
-    // Persist saved payment method for one-click upsells
+    // Persist saved payment method for one-click upsells. Also backfill
+    // customer info from billing_details if the order email is still a
+    // placeholder (custom-HTML order forms create the order before they
+    // collect contact info).
+    const orderRow = await tx.order.findUnique({ where: { id: orderId } })
+    const billingFromCharge =
+      (intent as any)?.charges?.data?.[0]?.billing_details ||
+      (intent as any)?.last_payment_error?.payment_method?.billing_details ||
+      null
+    const isPlaceholderEmail = orderRow?.email?.startsWith('pending+') === true
+
+    const updateData: any = {}
     if (intent.payment_method && typeof intent.payment_method === 'string') {
-      await tx.order.update({
-        where: { id: orderId },
-        data: { stripePaymentMethodId: intent.payment_method },
-      })
+      updateData.stripePaymentMethodId = intent.payment_method
+    }
+    if (isPlaceholderEmail && billingFromCharge) {
+      if (billingFromCharge.email) updateData.email = billingFromCharge.email
+      if (billingFromCharge.name) {
+        const parts = String(billingFromCharge.name).trim().split(/\s+/)
+        if (parts.length >= 2) {
+          if (!orderRow?.firstName) updateData.firstName = parts[0]
+          if (!orderRow?.lastName) updateData.lastName = parts.slice(1).join(' ')
+        } else if (!orderRow?.firstName) {
+          updateData.firstName = parts[0]
+        }
+      }
+      if (!orderRow?.phone && billingFromCharge.phone) updateData.phone = billingFromCharge.phone
+    }
+    if (Object.keys(updateData).length > 0) {
+      await tx.order.update({ where: { id: orderId }, data: updateData })
     }
 
     // Create order item for ANY successful charge (initial OR upsell/downsell).

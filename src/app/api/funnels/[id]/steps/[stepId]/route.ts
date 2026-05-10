@@ -23,6 +23,8 @@ export async function PATCH(
       'yesButtonText',
       'noButtonText',
       'declineNextOrder',
+      'customHtml',
+      'customCss',
     ] as const
 
     for (const f of fields) {

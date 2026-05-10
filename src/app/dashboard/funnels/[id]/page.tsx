@@ -28,6 +28,8 @@ interface Step {
   yesButtonText: string | null
   noButtonText: string | null
   declineNextOrder: number | null
+  customHtml: string | null
+  customCss: string | null
 }
 
 interface Funnel {
@@ -281,6 +283,96 @@ export default function FunnelEditorPage() {
             </div>
           </CardBody>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <h2 id="custom-html-reference" className="text-xl font-bold">
+              Custom HTML reference
+            </h2>
+          </CardHeader>
+          <CardBody>
+            <p className="text-sm text-gray-600">
+              When you set <code className="rounded bg-gray-100 px-1">Custom HTML</code> on a step, your HTML replaces our default design.
+              Hook our form behavior into your design using <code className="rounded bg-gray-100 px-1">data-*</code> attributes.
+              Card data still goes through Stripe&apos;s iframe, so PCI scope (SAQ A) is preserved.
+            </p>
+
+            <div className="mt-4 grid grid-cols-1 gap-6 md:grid-cols-2">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Order form (ORDER_FORM)</h3>
+                <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                  <li><code className="rounded bg-gray-100 px-1">{`<input data-checkout-field="email">`}</code></li>
+                  <li><code className="rounded bg-gray-100 px-1">{`<input data-checkout-field="firstName|lastName|phone">`}</code></li>
+                  <li><code className="rounded bg-gray-100 px-1">{`<input data-checkout-field="line1|line2|city|state|postalCode|country">`}</code></li>
+                  <li><code className="rounded bg-gray-100 px-1">{`<div data-stripe-payment></div>`}</code> — Stripe card iframe mounts here</li>
+                  <li><code className="rounded bg-gray-100 px-1">{`<button data-checkout-submit>...`}</code> — submit handler</li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-gray-900">Upsell / Downsell</h3>
+                <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                  <li><code className="rounded bg-gray-100 px-1">{`<button data-checkout-yes>...`}</code> — one-click charge saved card</li>
+                  <li><code className="rounded bg-gray-100 px-1">{`<button data-checkout-no>...`}</code> — skip / decline</li>
+                </ul>
+              </div>
+
+              <div className="md:col-span-2">
+                <h3 className="text-sm font-semibold text-gray-900">Shared on every step</h3>
+                <ul className="mt-2 space-y-1 text-xs text-gray-700">
+                  <li><code className="rounded bg-gray-100 px-1">data-checkout-product-name</code> — element&apos;s text replaced with product name</li>
+                  <li><code className="rounded bg-gray-100 px-1">data-checkout-product-price</code> — element&apos;s text replaced with formatted price</li>
+                  <li><code className="rounded bg-gray-100 px-1">data-checkout-error</code> — error messages render here (hidden when empty)</li>
+                  <li><code className="rounded bg-gray-100 px-1">data-checkout-processing</code> — shown only while submitting (loading state)</li>
+                </ul>
+              </div>
+            </div>
+
+            <details className="mt-6">
+              <summary className="cursor-pointer text-sm font-semibold text-blue-700">
+                Example: minimal order form
+              </summary>
+              <pre className="mt-2 overflow-x-auto rounded-lg bg-gray-900 p-4 text-xs text-gray-100">{`<div style="max-width:480px;margin:60px auto;padding:24px;border-radius:12px;background:#fff;box-shadow:0 4px 24px rgba(0,0,0,.06)">
+  <h1 style="font-size:24px;margin:0 0 4px">Buy <span data-checkout-product-name></span></h1>
+  <p style="color:#666;margin:0 0 24px"><span data-checkout-product-price></span></p>
+
+  <input data-checkout-field="email" placeholder="Email address" style="width:100%;padding:12px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px" />
+  <input data-checkout-field="firstName" placeholder="First name" style="width:100%;padding:12px;margin-bottom:8px;border:1px solid #ccc;border-radius:6px" />
+
+  <div data-stripe-payment style="margin:12px 0"></div>
+
+  <div data-checkout-error style="display:none;color:#c00;font-size:14px;margin-bottom:8px"></div>
+  <div data-checkout-processing style="display:none;color:#666;font-size:14px;margin-bottom:8px">Processing…</div>
+
+  <button data-checkout-submit style="width:100%;padding:14px;background:#16a34a;color:#fff;border:0;border-radius:6px;font-size:16px;font-weight:600;cursor:pointer">
+    Complete order
+  </button>
+</div>`}</pre>
+            </details>
+
+            <details className="mt-3">
+              <summary className="cursor-pointer text-sm font-semibold text-blue-700">
+                Example: minimal upsell page
+              </summary>
+              <pre className="mt-2 overflow-x-auto rounded-lg bg-gray-900 p-4 text-xs text-gray-100">{`<div style="max-width:560px;margin:60px auto;text-align:center">
+  <h1>Wait — add <span data-checkout-product-name></span> for just <span data-checkout-product-price></span>?</h1>
+  <p>One click and we'll add it to your order with the card you already used.</p>
+
+  <div data-checkout-error style="display:none;color:#c00"></div>
+  <div data-checkout-processing style="display:none">Adding to your order…</div>
+
+  <button data-checkout-yes style="padding:14px 28px;background:#16a34a;color:#fff;border:0;border-radius:6px;font-size:16px;cursor:pointer">
+    Yes, add it to my order
+  </button>
+  <div style="margin-top:12px">
+    <button data-checkout-no style="background:none;border:0;color:#666;text-decoration:underline;cursor:pointer">
+      No thanks
+    </button>
+  </div>
+</div>`}</pre>
+            </details>
+          </CardBody>
+        </Card>
       </div>
     </DashboardLayout>
   )
@@ -443,6 +535,63 @@ function StepCard({
                 </Field>
               </>
             )}
+
+            {/* Custom HTML / CSS for full design control. Applies to order
+                form, upsell, and downsell steps. */}
+            <div className="md:col-span-2 mt-2 rounded-lg border border-dashed border-gray-300 bg-gray-50 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">
+                    Custom HTML {step.customHtml ? '· active' : '· default design'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Optional. Use data-* attributes to hook our form into your design.
+                    {' '}
+                    <a
+                      href="#custom-html-reference"
+                      onClick={(e) => {
+                        e.preventDefault()
+                        document.getElementById('custom-html-reference')?.scrollIntoView({ behavior: 'smooth' })
+                      }}
+                      className="text-blue-600 underline"
+                    >
+                      Reference
+                    </a>
+                  </div>
+                </div>
+                {step.customHtml && (
+                  <button
+                    type="button"
+                    onClick={() => onUpdate({ customHtml: null, customCss: null })}
+                    className="text-xs text-red-600 underline"
+                  >
+                    Reset to default design
+                  </button>
+                )}
+              </div>
+              <Field label="HTML">
+                <textarea
+                  value={step.customHtml || ''}
+                  onChange={(e) => onUpdate({ customHtml: e.target.value || null })}
+                  rows={10}
+                  className={`${inputCls} font-mono text-xs`}
+                  placeholder={
+                    isOrderForm
+                      ? '<div>\n  <input data-checkout-field="email" placeholder="Email" />\n  <div data-stripe-payment></div>\n  <button data-checkout-submit>Complete order</button>\n</div>'
+                      : '<div>\n  <h1>Wait, add this for <span data-checkout-product-price></span></h1>\n  <button data-checkout-yes>Yes, add it</button>\n  <button data-checkout-no>No thanks</button>\n</div>'
+                  }
+                />
+              </Field>
+              <Field label="CSS (optional)">
+                <textarea
+                  value={step.customCss || ''}
+                  onChange={(e) => onUpdate({ customCss: e.target.value || null })}
+                  rows={6}
+                  className={`${inputCls} font-mono text-xs`}
+                  placeholder="body { background: #fafafa; } button { padding: 12px 24px; }"
+                />
+              </Field>
+            </div>
           </div>
         )}
       </div>

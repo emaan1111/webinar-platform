@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { Loader2, Check } from 'lucide-react'
 import { loadStripe } from '@stripe/stripe-js'
+import { CustomHtmlStep } from '@/components/checkout/CustomHtmlStep'
 
 interface Product {
   id: string
@@ -26,6 +27,8 @@ interface Step {
   yesButtonText: string | null
   noButtonText: string | null
   declineNextOrder: number | null
+  customHtml: string | null
+  customCss: string | null
   product: Product | null
 }
 
@@ -163,6 +166,27 @@ export default function FunnelStepPage() {
 
   const brand = funnel.brandColor || '#16a34a'
   const isUpsell = step.type === 'UPSELL'
+
+  // Custom HTML branch: render the user's designed page, with our React
+  // wiring attached via data-* hooks.
+  if (step.customHtml) {
+    return (
+      <CustomHtmlStep
+        mode={step.type === 'UPSELL' ? 'UPSELL' : 'DOWNSELL'}
+        html={step.customHtml}
+        css={step.customCss}
+        product={product}
+        funnelSlug={slug}
+        orderId={orderId!}
+        orderToken={orderToken!}
+        stepId={step.id}
+        onYes={handleYes}
+        onNo={() => goToNext(true)}
+        processing={processing}
+        error={error}
+      />
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">

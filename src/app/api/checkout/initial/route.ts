@@ -25,12 +25,14 @@ export async function POST(req: Request) {
       orderToken,
     } = body
 
-    if (!funnelSlug || !email) {
-      return NextResponse.json(
-        { error: 'funnelSlug and email are required' },
-        { status: 400 }
-      )
+    if (!funnelSlug) {
+      return NextResponse.json({ error: 'funnelSlug is required' }, { status: 400 })
     }
+
+    // Email may be empty for custom-HTML order forms that pre-mount the Stripe
+    // Element before collecting customer info. We accept a placeholder and let
+    // the client backfill via /api/checkout/update-order before confirming.
+    const customerEmail: string = email || `pending+${Date.now()}@checkout.pending`
 
     const funnel = await prisma.funnel.findUnique({
       where: { slug: funnelSlug },
@@ -58,7 +60,7 @@ export async function POST(req: Request) {
 
     // Create or fetch Stripe customer
     const customer = await findOrCreateStripeCustomer({
-      email,
+      email: customerEmail,
       name: [firstName, lastName].filter(Boolean).join(' ') || undefined,
       phone,
     })
@@ -74,7 +76,7 @@ export async function POST(req: Request) {
       order = await prisma.order.create({
         data: {
           funnelId: funnel.id,
-          email,
+          email: customerEmail,
           firstName: firstName || null,
           lastName: lastName || null,
           phone: phone || null,
@@ -93,7 +95,9 @@ export async function POST(req: Request) {
       await prisma.order.update({
         where: { id: order.id },
         data: {
-          email,
+          // Only overwrite a real email; placeholder values shouldn't replace
+          // a real one that may already exist on a retry.
+          email: email || order.email,
           firstName: firstName || order.firstName,
           lastName: lastName || order.lastName,
           phone: phone || order.phone,
