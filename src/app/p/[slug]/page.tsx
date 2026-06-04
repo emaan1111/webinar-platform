@@ -67,10 +67,10 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
             (function() {
                 // Server-injected tracking params - available globally
                 window.__WEBINAR_TRACKING__ = {
-                    splitTestId: '${splitTestId || ''}' || null,
-                    variantId: '${variantId || ''}' || null,
-                    leadPageId: '${leadPage.id}',
-                    appOrigin: '${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}'
+                    splitTestId: ${JSON.stringify(splitTestId || null)},
+                    variantId: ${JSON.stringify(variantId || null)},
+                    leadPageId: ${JSON.stringify(leadPage.id)},
+                    appOrigin: ${JSON.stringify(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')}
                 };
                 
                 // Helper to add tracking params to a URL
@@ -323,10 +323,10 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
           <script>
             // Inject tracking params early - before React or other frameworks run
             window.__WEBINAR_TRACKING__ = {
-                splitTestId: '${splitTestId || ''}' || null,
-                variantId: '${variantId || ''}' || null,
-                leadPageId: '${leadPage.id}',
-                appOrigin: '${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}'
+                splitTestId: ${JSON.stringify(splitTestId || null)},
+                variantId: ${JSON.stringify(variantId || null)},
+                leadPageId: ${JSON.stringify(leadPage.id)},
+                appOrigin: ${JSON.stringify(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000')}
             };
             
             // Polyfill URLSearchParams.get to return tracking params in srcDoc iframes
@@ -435,9 +435,9 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
             
             // Server-injected tracking params - available globally
             window.__WEBINAR_TRACKING__ = {
-                splitTestId: params.get('st') || '${splitTestId || ''}' || null,
-                variantId: params.get('v') || '${variantId || ''}' || null,
-                leadPageId: '${leadPage.id}'
+                splitTestId: params.get('st') || ${JSON.stringify(splitTestId || null)},
+                variantId: params.get('v') || ${JSON.stringify(variantId || null)},
+                leadPageId: ${JSON.stringify(leadPage.id)}
             };
             
             // Helper to add tracking params to a URL

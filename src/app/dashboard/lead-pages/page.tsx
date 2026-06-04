@@ -8,11 +8,22 @@ import { Button } from '@/components/ui/Button';
 import {
   Plus, Edit, Trash2, ExternalLink, Copy, Users, Calendar, Clock,
   ChevronDown, ChevronRight, Folder, FolderOpen, Pencil,
-  Check, X, FlaskConical
+  Check, X, FlaskConical, Search, ArrowUpDown, List, FolderTree
 } from 'lucide-react';
 import Link from 'next/link';
 
 type DateFilterType = 'all' | 'last1h' | 'last24h' | 'today' | 'last7d' | 'last30d' | 'custom';
+type SortKey = 'name' | 'created' | 'views' | 'conversions' | 'convRate';
+type SortDir = 'asc' | 'desc';
+type ViewMode = 'folders' | 'flat';
+
+const sortOptions: { value: SortKey; label: string }[] = [
+  { value: 'created', label: 'Date created' },
+  { value: 'name', label: 'Name' },
+  { value: 'views', label: 'Views' },
+  { value: 'conversions', label: 'Conversions' },
+  { value: 'convRate', label: 'Conversion rate' },
+];
 
 const dateFilterOptions: { value: DateFilterType; label: string }[] = [
   { value: 'all', label: 'All Time' },
@@ -41,6 +52,14 @@ export default function LeadPagesDashboard() {
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
 
+  // Search / sort / view
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortKey, setSortKey] = useState<SortKey>('created');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [showSortDropdown, setShowSortDropdown] = useState(false);
+  const [viewMode, setViewMode] = useState<ViewMode>('folders');
+  const sortDropdownRef = useRef<HTMLDivElement>(null);
+
   // Folder UI State
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
   const [renamingFolder, setRenamingFolder] = useState<string | null>(null);
@@ -62,10 +81,45 @@ export default function LeadPagesDashboard() {
         setFolderPickerPageId(null);
         setNewFolderInput('');
       }
+      if (sortDropdownRef.current && !sortDropdownRef.current.contains(e.target as Node)) {
+        setShowSortDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  // Persist preferences
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('leadPagesPrefs');
+      if (saved) {
+        const p = JSON.parse(saved);
+        if (p.sortKey) setSortKey(p.sortKey);
+        if (p.sortDir) setSortDir(p.sortDir);
+        if (p.viewMode) setViewMode(p.viewMode);
+      }
+    } catch {}
+  }, []);
+  useEffect(() => {
+    try {
+      localStorage.setItem('leadPagesPrefs', JSON.stringify({ sortKey, sortDir, viewMode }));
+    } catch {}
+  }, [sortKey, sortDir, viewMode]);
+
+  // Auto-switch to flat view while searching, restore on clear
+  const prevViewModeRef = useRef<ViewMode>('folders');
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      if (viewMode !== 'flat') {
+        prevViewModeRef.current = viewMode;
+        setViewMode('flat');
+      }
+    } else if (prevViewModeRef.current && prevViewModeRef.current !== viewMode) {
+      setViewMode(prevViewModeRef.current);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery]);
 
   // Fetch webinars for filter
   useEffect(() => {
@@ -191,16 +245,66 @@ export default function LeadPagesDashboard() {
     setRenamingFolder(null);
   };
 
-  // --- Derived folder structure ---
+  // --- Search / sort ---
+  const statsFor = (p: any) => {
+    if (dateFilter !== 'all' && p.filteredViews !== undefined) {
+      return { views: p.filteredViews ?? 0, conversions: p.filteredConversions ?? 0 };
+    }
+    return { views: p.views ?? 0, conversions: p.conversions ?? 0 };
+  };
+
+  const matchesSearch = (p: any) => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    const haystack = [
+      p.name,
+      p.slug,
+      p.folder,
+      p.template?.name,
+      p.webinar?.internalName,
+      p.webinar?.title,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  };
+
+  const compareFn = (a: any, b: any) => {
+    const dir = sortDir === 'asc' ? 1 : -1;
+    let av: any, bv: any;
+    switch (sortKey) {
+      case 'name':
+        av = (a.name || '').toLowerCase();
+        bv = (b.name || '').toLowerCase();
+        return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+      case 'views':
+        return (statsFor(a).views - statsFor(b).views) * dir;
+      case 'conversions':
+        return (statsFor(a).conversions - statsFor(b).conversions) * dir;
+      case 'convRate': {
+        const ar = statsFor(a).views ? statsFor(a).conversions / statsFor(a).views : 0;
+        const br = statsFor(b).views ? statsFor(b).conversions / statsFor(b).views : 0;
+        return (ar - br) * dir;
+      }
+      case 'created':
+      default: {
+        const ad = new Date(a.createdAt || 0).getTime();
+        const bd = new Date(b.createdAt || 0).getTime();
+        return (ad - bd) * dir;
+      }
+    }
+  };
+
+  const visiblePages = leadPages.filter(matchesSearch).slice().sort(compareFn);
+
+  // --- Derived folder structure (from filtered+sorted set) ---
   const allFolders = Array.from(
-    new Set(leadPages.map(p => p.folder).filter(Boolean))
+    new Set(visiblePages.map(p => p.folder).filter(Boolean))
   ).sort() as string[];
 
   const groupedPages: Record<string, any[]> = {};
   for (const folder of allFolders) {
-    groupedPages[folder] = leadPages.filter(p => p.folder === folder);
+    groupedPages[folder] = visiblePages.filter(p => p.folder === folder);
   }
-  groupedPages[UNCATEGORIZED] = leadPages.filter(p => !p.folder);
+  groupedPages[UNCATEGORIZED] = visiblePages.filter(p => !p.folder);
 
   const toggleFolder = (folder: string) => {
     setCollapsedFolders(prev => {
@@ -479,6 +583,27 @@ export default function LeadPagesDashboard() {
         </Link>
       </div>
 
+      {/* Search bar */}
+      <div className="mb-3 relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search by name, slug, folder, webinar, or template…"
+          className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-300 focus:outline-none"
+        />
+        {searchQuery && (
+          <button
+            onClick={() => setSearchQuery('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+            title="Clear search"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Filters bar */}
       <div className="mb-6 flex items-center gap-3 flex-wrap">
         {/* Date filter */}
@@ -549,9 +674,72 @@ export default function LeadPagesDashboard() {
           </div>
         )}
 
-        {(dateFilter !== 'all' || webinarFilter !== 'all') && (
+        {/* Sort */}
+        <div className="relative" ref={sortDropdownRef}>
           <button
-            onClick={() => { setDateFilter('all'); setWebinarFilter('all'); }}
+            onClick={() => setShowSortDropdown(s => !s)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ArrowUpDown className="w-4 h-4 text-purple-600" />
+            <span className="text-sm font-medium">
+              Sort: {sortOptions.find(o => o.value === sortKey)?.label} ({sortDir === 'asc' ? '↑' : '↓'})
+            </span>
+            <ChevronDown className="w-4 h-4 text-gray-400" />
+          </button>
+
+          {showSortDropdown && (
+            <div className="absolute z-20 mt-2 w-56 bg-white rounded-lg shadow-lg border border-gray-200 py-1">
+              {sortOptions.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    if (sortKey === opt.value) {
+                      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+                    } else {
+                      setSortKey(opt.value);
+                      setSortDir(opt.value === 'name' ? 'asc' : 'desc');
+                    }
+                    setShowSortDropdown(false);
+                  }}
+                  className={`w-full px-4 py-2 text-left text-sm hover:bg-gray-50 flex justify-between items-center ${
+                    sortKey === opt.value ? 'bg-purple-50 text-purple-700 font-medium' : 'text-gray-700'
+                  }`}
+                >
+                  <span>{opt.label}</span>
+                  {sortKey === opt.value && (
+                    <span className="text-xs">{sortDir === 'asc' ? '↑' : '↓'}</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* View toggle */}
+        <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
+          <button
+            onClick={() => setViewMode('folders')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+              viewMode === 'folders' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            title="Group by folder"
+          >
+            <FolderTree className="w-4 h-4" /> Folders
+          </button>
+          <button
+            onClick={() => setViewMode('flat')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+              viewMode === 'flat' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            title="Flat list"
+          >
+            <List className="w-4 h-4" /> List
+          </button>
+        </div>
+
+        {(dateFilter !== 'all' || webinarFilter !== 'all' || searchQuery) && (
+          <button
+            onClick={() => { setDateFilter('all'); setWebinarFilter('all'); setSearchQuery(''); }}
             className="text-sm text-gray-500 hover:text-gray-700 underline"
           >
             Clear filters
@@ -559,7 +747,9 @@ export default function LeadPagesDashboard() {
         )}
 
         <span className="text-sm text-gray-400 ml-auto">
-          {leadPages.length} page{leadPages.length !== 1 ? 's' : ''}
+          {searchQuery || dateFilter !== 'all' || webinarFilter !== 'all'
+            ? `${visiblePages.length} of ${leadPages.length}`
+            : `${leadPages.length}`} page{leadPages.length !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -576,6 +766,36 @@ export default function LeadPagesDashboard() {
             <Button>Create Lead Page</Button>
           </Link>
         </Card>
+      ) : visiblePages.length === 0 ? (
+        <Card className="p-8 text-center">
+          <Search className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+          <p className="text-gray-600 font-medium mb-1">No pages match your search</p>
+          <p className="text-sm text-gray-500 mb-4">Try a different keyword or clear the filters.</p>
+          <Button variant="outline" onClick={() => { setSearchQuery(''); setDateFilter('all'); setWebinarFilter('all'); }}>
+            Clear filters
+          </Button>
+        </Card>
+      ) : viewMode === 'flat' ? (
+        <div className="overflow-x-auto border border-gray-200 rounded-lg">
+          <table className="w-full min-w-[1050px] text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-2.5 text-left font-medium text-gray-500 uppercase text-xs">Page</th>
+                <th className="px-4 py-2.5 text-left font-medium text-gray-500 uppercase text-xs">Slug</th>
+                <th className="px-4 py-2.5 text-left font-medium text-gray-500 uppercase text-xs">Linked Webinar</th>
+                <th className="px-4 py-2.5 text-left font-medium text-gray-500 uppercase text-xs">Folder</th>
+                <th className="px-4 py-2.5 text-left font-medium text-gray-500 uppercase text-xs">Template</th>
+                <th className="px-4 py-2.5 text-right font-medium text-gray-500 uppercase text-xs">Views</th>
+                <th className="px-4 py-2.5 text-right font-medium text-gray-500 uppercase text-xs">Conv</th>
+                <th className="px-4 py-2.5 text-right font-medium text-gray-500 uppercase text-xs">Conv %</th>
+                <th className="px-4 py-2.5 text-right font-medium text-gray-500 uppercase text-xs">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {visiblePages.map(renderPageRow)}
+            </tbody>
+          </table>
+        </div>
       ) : (
         <div>
           {foldersToRender.map(renderFolderSection)}

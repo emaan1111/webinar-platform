@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:ui": "vitest run src/components/ui",
-    "start": "node .next/standalone/server.js",
+    "start": "prisma migrate deploy && node .next/standalone/server.js",
     "start:railway": "PORT=${PORT:-8080} HOSTNAME=0.0.0.0 node .next/standalone/server.js",
     "start:replit": "next start -p 5000 -H 0.0.0.0",
     "lint": "next lint",

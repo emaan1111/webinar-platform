@@ -285,7 +285,9 @@ export async function GET(
     if (!registration) {
       // Try external webinar registration
       console.log('[Attendee Profile API] Checking external registrations for ID:', id)
-      return await getExternalAttendeeProfile(id, session.user.email!)
+      // Check if it's an external ID (starts with ext_)
+      const externalId = id.startsWith('ext_') ? id.substring(4) : id;
+      return await getExternalAttendeeProfile(externalId, session.user.email!)
     }
 
     // Verify user is admin
@@ -771,7 +773,7 @@ async function getExternalAttendeeProfile(id: string, userEmail: string) {
   engagementScore = Math.min(100, engagementScore)
 
   const profile = {
-    id: extReg.id,
+    id: `ext_${extReg.id}`,
     name: extReg.name,
     email: extReg.email,
     phone: extReg.phone,

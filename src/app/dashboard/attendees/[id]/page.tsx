@@ -194,6 +194,7 @@ interface AttendeeProfile {
       slug: string
     } | null
   }
+  isExternal?: boolean
 }
 
 export default function AttendeeProfilePage() {
@@ -630,11 +631,18 @@ export default function AttendeeProfilePage() {
                 setEditingPurchaseId(null)
                 setShowPurchaseForm((open) => !open)
               }}
+              disabled={profile.isExternal}
             >
               <Plus className="w-4 h-4 mr-2" />
               {showPurchaseForm ? 'Close Form' : 'Add Purchase'}
             </Button>
           </div>
+
+          {profile.isExternal && (
+            <div className="mt-2 text-sm text-amber-600 bg-amber-50 p-2 rounded-md">
+              Adding purchases is not supported for external webinar attendees.
+            </div>
+          )}
 
           {showPurchaseForm && (
             <div className="mt-4 space-y-4">

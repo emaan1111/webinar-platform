@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ChevronRight, ExternalLink } from 'lucide-react';
 import Link from 'next/link';
+import LeadPagePreview from '@/components/dashboard/LeadPagePreview';
 
 export default function NewLeadPage() {
   const router = useRouter();
@@ -257,6 +258,8 @@ export default function NewLeadPage() {
                             <li>Ensure your buttons have <code>onclick="openModal()"</code> or use the class <code>cta-button</code> to trigger the popup.</li>
                         </ul>
                     </div>
+
+                    <LeadPagePreview html={form.htmlContent} />
                   </div>
               )}
           </div>

@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { ChevronRight, Loader2, Trash2, RotateCcw, Sparkles, History, Undo2 } from 'lucide-react';
 import Link from 'next/link';
+import LeadPagePreview from '@/components/dashboard/LeadPagePreview';
 
 type SaveMeta = {
   saveSource: string;
@@ -147,6 +148,10 @@ export default function EditLeadPage() {
     setAiLoading(true);
     setAiError('');
 
+    // Abort if the request hangs so the button can't spin forever.
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 110000);
+
     try {
       const res = await fetch(`/api/lead-pages/${id}/ai-edit`, {
         method: 'POST',
@@ -155,18 +160,24 @@ export default function EditLeadPage() {
           instruction: aiPrompt,
           currentHtml: form.htmlContent,
         }),
+        signal: controller.signal,
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data?.error || 'Failed to generate preview');
+        throw new Error(data?.error || `Request failed (${res.status})`);
       }
 
       setAiPreviewHtml(data.html || '');
       setAiSummary(data.summary || 'AI generated an updated version.');
     } catch (e: any) {
-      setAiError(e?.message || 'Failed to generate preview');
+      if (e?.name === 'AbortError') {
+        setAiError('The AI took too long to respond. This usually means the page is very large — try editing a smaller section.');
+      } else {
+        setAiError(e?.message || 'Failed to generate preview');
+      }
     } finally {
+      clearTimeout(timeout);
       setAiLoading(false);
     }
   };
@@ -390,6 +401,8 @@ export default function EditLeadPage() {
                             <li>Ensure your buttons have <code>onclick="openModal()"</code> or use the class <code>cta-button</code> to trigger the popup.</li>
                         </ul>
                     </div>
+
+                    <LeadPagePreview html={form.htmlContent} />
 
                     <div className="mt-6 border rounded-xl p-4 bg-purple-50/40 space-y-4">
                       <div className="flex items-center gap-2 text-purple-900">
