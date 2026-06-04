@@ -35,6 +35,7 @@ export default function EditLeadPage() {
   const [resettingStats, setResettingStats] = useState(false);
 
   const [aiPrompt, setAiPrompt] = useState('');
+  const [aiProvider, setAiProvider] = useState<'openai' | 'anthropic'>('openai');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
   const [aiPreviewHtml, setAiPreviewHtml] = useState('');
@@ -159,6 +160,7 @@ export default function EditLeadPage() {
         body: JSON.stringify({
           instruction: aiPrompt,
           currentHtml: form.htmlContent,
+          provider: aiProvider,
         }),
         signal: controller.signal,
       });
@@ -405,9 +407,23 @@ export default function EditLeadPage() {
                     <LeadPagePreview html={form.htmlContent} />
 
                     <div className="mt-6 border rounded-xl p-4 bg-purple-50/40 space-y-4">
-                      <div className="flex items-center gap-2 text-purple-900">
-                        <Sparkles className="w-4 h-4" />
-                        <h3 className="font-semibold">AI Assistant for Custom Code</h3>
+                      <div className="flex items-center justify-between gap-2 text-purple-900">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="w-4 h-4" />
+                          <h3 className="font-semibold">AI Assistant for Custom Code</h3>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <label htmlFor="ai-provider" className="text-xs font-medium text-gray-600">AI model</label>
+                          <select
+                            id="ai-provider"
+                            className="text-xs border rounded-md px-2 py-1 bg-white"
+                            value={aiProvider}
+                            onChange={(e) => setAiProvider(e.target.value as 'openai' | 'anthropic')}
+                          >
+                            <option value="openai">OpenAI (GPT-4o mini)</option>
+                            <option value="anthropic">Claude (Opus 4.7)</option>
+                          </select>
+                        </div>
                       </div>
 
                       <div>
