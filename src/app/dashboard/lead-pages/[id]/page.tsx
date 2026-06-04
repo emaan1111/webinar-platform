@@ -5,8 +5,24 @@ import { useRouter, useParams } from 'next/navigation';
 import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { ChevronRight, Loader2, Trash2, RotateCcw } from 'lucide-react';
+import { ChevronRight, Loader2, Trash2, RotateCcw, Sparkles, History, Undo2 } from 'lucide-react';
 import Link from 'next/link';
+
+type SaveMeta = {
+  saveSource: string;
+  aiPrompt: string;
+  aiSummary: string;
+} | null;
+
+type LeadPageVersion = {
+  id: string;
+  source: string;
+  changeSummary: string | null;
+  prompt: string | null;
+  createdByEmail: string | null;
+  createdAt: string;
+  charCount: number;
+};
 
 export default function EditLeadPage() {
   const params = useParams();
@@ -16,6 +32,17 @@ export default function EditLeadPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [resettingStats, setResettingStats] = useState(false);
+
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [aiPreviewHtml, setAiPreviewHtml] = useState('');
+  const [aiSummary, setAiSummary] = useState('');
+  const [pendingSaveMeta, setPendingSaveMeta] = useState<SaveMeta>(null);
+
+  const [versions, setVersions] = useState<LeadPageVersion[]>([]);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [restoringVersionId, setRestoringVersionId] = useState<string | null>(null);
   
   const [form, setForm] = useState({
     name: '',
@@ -28,6 +55,21 @@ export default function EditLeadPage() {
   
   const [webinars, setWebinars] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
+
+  const fetchVersions = async () => {
+    setVersionsLoading(true);
+    try {
+      const res = await fetch(`/api/lead-pages/${id}/versions`);
+      if (res.ok) {
+        const data = await res.json();
+        setVersions(Array.isArray(data) ? data : []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setVersionsLoading(false);
+    }
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -55,6 +97,7 @@ export default function EditLeadPage() {
            setWebinars(Array.isArray(data) ? data : (data.webinars || []));
         }
         if (tRes.ok) setTemplates(await tRes.json());
+        await fetchVersions();
       } catch (e) {
         console.error(e);
       } finally {
@@ -70,10 +113,14 @@ export default function EditLeadPage() {
       const res = await fetch(`/api/lead-pages/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form)
+        body: JSON.stringify({
+          ...form,
+          ...(pendingSaveMeta || {}),
+        })
       });
       
       if (res.ok) {
+        setPendingSaveMeta(null);
         router.push('/dashboard/lead-pages');
         router.refresh();
       } else {
@@ -83,6 +130,84 @@ export default function EditLeadPage() {
       console.error(e);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleGenerateAiPreview = async () => {
+    if (!aiPrompt.trim()) {
+      setAiError('Enter an instruction for the AI assistant first.');
+      return;
+    }
+
+    if (!form.htmlContent.trim()) {
+      setAiError('Your custom HTML is empty. Add HTML first, then ask AI to edit it.');
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError('');
+
+    try {
+      const res = await fetch(`/api/lead-pages/${id}/ai-edit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          instruction: aiPrompt,
+          currentHtml: form.htmlContent,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data?.error || 'Failed to generate preview');
+      }
+
+      setAiPreviewHtml(data.html || '');
+      setAiSummary(data.summary || 'AI generated an updated version.');
+    } catch (e: any) {
+      setAiError(e?.message || 'Failed to generate preview');
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleApplyAiPreview = () => {
+    if (!aiPreviewHtml.trim()) return;
+
+    setForm((prev) => ({ ...prev, htmlContent: aiPreviewHtml }));
+    setPendingSaveMeta({
+      saveSource: 'ai_assistant',
+      aiPrompt,
+      aiSummary: aiSummary || 'Applied AI preview',
+    });
+    setAiError('');
+  };
+
+  const handleRestoreVersion = async (versionId: string) => {
+    const confirmed = confirm('Restore this version? Your current unsaved HTML will be replaced.');
+    if (!confirmed) return;
+
+    setRestoringVersionId(versionId);
+    try {
+      const res = await fetch(`/api/lead-pages/${id}/versions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ versionId }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to restore version');
+
+      setForm((prev) => ({
+        ...prev,
+        htmlContent: data.htmlContent || '',
+      }));
+      setPendingSaveMeta(null);
+      await fetchVersions();
+    } catch (e: any) {
+      alert(e?.message || 'Failed to restore version');
+    } finally {
+      setRestoringVersionId(null);
     }
   };
 
@@ -252,7 +377,10 @@ export default function EditLeadPage() {
                     <textarea 
                        className="w-full p-2 border rounded-md font-mono text-sm h-64"
                        value={form.htmlContent}
-                       onChange={e => setForm({...form, htmlContent: e.target.value})}
+                       onChange={e => {
+                         setForm({...form, htmlContent: e.target.value});
+                         setPendingSaveMeta(null);
+                       }}
                        placeholder="<html>...</html>"
                     />
                     <div className="bg-blue-50 p-4 rounded-md mt-4 text-sm text-blue-800">
@@ -261,6 +389,117 @@ export default function EditLeadPage() {
                             <li>The system will automatically inject the registration modal logic.</li>
                             <li>Ensure your buttons have <code>onclick="openModal()"</code> or use the class <code>cta-button</code> to trigger the popup.</li>
                         </ul>
+                    </div>
+
+                    <div className="mt-6 border rounded-xl p-4 bg-purple-50/40 space-y-4">
+                      <div className="flex items-center gap-2 text-purple-900">
+                        <Sparkles className="w-4 h-4" />
+                        <h3 className="font-semibold">AI Assistant for Custom Code</h3>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium mb-1">What should be changed?</label>
+                        <textarea
+                          className="w-full p-2 border rounded-md text-sm h-24"
+                          placeholder="Example: Change headline to 'Limited Time Offer', update price to $27, and replace the book image URL with https://..."
+                          value={aiPrompt}
+                          onChange={(e) => setAiPrompt(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button type="button" onClick={handleGenerateAiPreview} disabled={aiLoading || !aiPrompt.trim()}>
+                          {aiLoading ? 'Generating Preview...' : 'Generate AI Preview'}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={handleApplyAiPreview}
+                          disabled={!aiPreviewHtml.trim()}
+                        >
+                          Apply Preview to Editor
+                        </Button>
+                        {pendingSaveMeta && (
+                          <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded-md">
+                            AI changes applied. Click Save Changes to publish.
+                          </span>
+                        )}
+                      </div>
+
+                      {aiError && (
+                        <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md p-2">
+                          {aiError}
+                        </div>
+                      )}
+
+                      {aiSummary && (
+                        <div className="text-sm text-purple-900 bg-white border border-purple-200 rounded-md p-2">
+                          <strong>AI Summary:</strong> {aiSummary}
+                        </div>
+                      )}
+
+                      {aiPreviewHtml && (
+                        <div className="grid gap-4 lg:grid-cols-2">
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-1">AI Generated HTML (Preview)</p>
+                            <textarea
+                              className="w-full p-2 border rounded-md font-mono text-xs h-56 bg-white"
+                              value={aiPreviewHtml}
+                              onChange={(e) => setAiPreviewHtml(e.target.value)}
+                            />
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-700 mb-1">Rendered Preview</p>
+                            <div className="h-56 overflow-auto rounded-md border bg-white">
+                              <iframe
+                                title="AI HTML Preview"
+                                srcDoc={aiPreviewHtml}
+                                className="h-full w-full"
+                                sandbox="allow-same-origin allow-scripts allow-forms"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-6 border rounded-xl p-4 bg-gray-50 space-y-3">
+                      <div className="flex items-center gap-2 text-gray-900">
+                        <History className="w-4 h-4" />
+                        <h3 className="font-semibold">Version History</h3>
+                      </div>
+
+                      {versionsLoading ? (
+                        <div className="text-sm text-gray-500">Loading versions...</div>
+                      ) : versions.length === 0 ? (
+                        <div className="text-sm text-gray-500">No saved versions yet. A version is created each time custom HTML is saved.</div>
+                      ) : (
+                        <div className="space-y-2 max-h-72 overflow-auto pr-1">
+                          {versions.map((version) => (
+                            <div key={version.id} className="flex items-center justify-between rounded-md border bg-white p-3 text-sm">
+                              <div className="min-w-0">
+                                <p className="font-medium text-gray-900 truncate">{version.changeSummary || 'Saved version'}</p>
+                                <p className="text-xs text-gray-500 truncate">
+                                  {new Date(version.createdAt).toLocaleString()} • {version.source} • {version.charCount} chars
+                                  {version.createdByEmail ? ` • ${version.createdByEmail}` : ''}
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRestoreVersion(version.id)}
+                                disabled={restoringVersionId === version.id}
+                              >
+                                <span className="flex items-center gap-1">
+                                  <Undo2 className="w-3 h-3" />
+                                  {restoringVersionId === version.id ? 'Restoring...' : 'Restore'}
+                                </span>
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
               )}

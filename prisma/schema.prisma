@@ -28,6 +28,7 @@ model User {
   sessions         Session[]
   hostedWebinars   Webinar[]         @relation("HostedWebinars")
   popups           Popup[]
+  leadPageVersions LeadPageVersion[]
 
   @@map("users")
 }
@@ -974,8 +975,27 @@ model LeadPage {
   webinar           Webinar?           @relation(fields: [webinarId], references: [id])
   externalWebinar   ExternalWebinar?   @relation(fields: [externalWebinarId], references: [id])
   splitTestVariants SplitTestVariant[]
+  versions          LeadPageVersion[]
 
   @@map("lead_pages")
+}
+
+model LeadPageVersion {
+  id            String    @id @default(cuid())
+  leadPageId    String
+  htmlContent   String
+  source        String    @default("manual")
+  changeSummary String?
+  prompt        String?
+  createdById   String?
+  createdByEmail String?
+  createdAt     DateTime  @default(now())
+  leadPage      LeadPage  @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
+  createdBy     User?     @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([leadPageId, createdAt])
+  @@index([createdById])
+  @@map("lead_page_versions")
 }
 
 model SplitTest {

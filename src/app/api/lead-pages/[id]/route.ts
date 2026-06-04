@@ -31,7 +31,31 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   try {
     const { id } = await params;
     const body = await req.json();
-    const { name, slug, type, webinarId, templateId, htmlContent, folder } = body;
+    const {
+      name,
+      slug,
+      type,
+      webinarId,
+      templateId,
+      htmlContent,
+      folder,
+      saveSource,
+      aiPrompt,
+      aiSummary,
+    } = body;
+
+    const existing = await prisma.leadPage.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        type: true,
+        htmlContent: true,
+      },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: 'Not Found' }, { status: 404 });
+    }
 
     const leadPage = await prisma.leadPage.update({
       where: { id },
@@ -46,6 +70,24 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         ...(folder !== undefined ? { folder: folder || null } : {}),
       } as any
     });
+
+    const nextHtml = type === 'CUSTOM' ? (htmlContent || '') : '';
+    const prevHtml = existing.type === 'CUSTOM' ? (existing.htmlContent || '') : '';
+    const htmlChanged = type === 'CUSTOM' && nextHtml !== prevHtml;
+
+    if (htmlChanged) {
+      await prisma.leadPageVersion.create({
+        data: {
+          leadPageId: id,
+          htmlContent: nextHtml,
+          source: typeof saveSource === 'string' && saveSource.trim() ? saveSource.trim() : 'manual',
+          prompt: typeof aiPrompt === 'string' && aiPrompt.trim() ? aiPrompt.trim() : null,
+          changeSummary: typeof aiSummary === 'string' && aiSummary.trim() ? aiSummary.trim() : 'Manual save',
+          createdById: (session.user as any)?.id || null,
+          createdByEmail: session.user?.email || null,
+        },
+      });
+    }
 
     return NextResponse.json(leadPage);
   } catch (error) {
