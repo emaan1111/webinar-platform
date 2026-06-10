@@ -23,6 +23,7 @@ export default function ImagesPage() {
   const [images, setImages] = useState<Image[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -50,29 +51,41 @@ export default function ImagesPage() {
   const handleUpload = async (files: FileList | null) => {
     if (!files || files.length === 0) return
 
+    const fileList = Array.from(files)
     setUploading(true)
-    const file = files[0]
+    setUploadProgress({ current: 0, total: fileList.length })
 
-    const formData = new FormData()
-    formData.append('file', file)
+    const errors: string[] = []
 
-    try {
-      const response = await fetch('/api/images', {
-        method: 'POST',
-        body: formData
-      })
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i]
+      setUploadProgress({ current: i + 1, total: fileList.length })
 
-      if (response.ok) {
-        await fetchImages()
-      } else {
-        const error = await response.json()
-        alert(`Upload failed: ${error.error}`)
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const response = await fetch('/api/images', {
+          method: 'POST',
+          body: formData
+        })
+
+        if (!response.ok) {
+          const error = await response.json()
+          errors.push(`${file.name}: ${error.error}`)
+        }
+      } catch (error) {
+        console.error('Error uploading image:', error)
+        errors.push(`${file.name}: Failed to upload`)
       }
-    } catch (error) {
-      console.error('Error uploading image:', error)
-      alert('Failed to upload image')
-    } finally {
-      setUploading(false)
+    }
+
+    await fetchImages()
+    setUploading(false)
+    setUploadProgress(null)
+
+    if (errors.length > 0) {
+      alert(`Some images failed to upload:\n\n${errors.join('\n')}`)
     }
   }
 
@@ -151,7 +164,7 @@ export default function ImagesPage() {
     e.stopPropagation()
     setDragActive(false)
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       handleUpload(e.dataTransfer.files)
     }
   }
@@ -186,17 +199,21 @@ export default function ImagesPage() {
           >
             <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
             <p className="text-lg font-medium text-gray-700 mb-2">
-              Drop your image here, or click to browse
+              Drop your images here, or click to browse
             </p>
             <p className="text-sm text-gray-500 mb-4">
-              Supports: JPG, PNG, GIF, WebP, SVG (Max 10MB)
+              Supports: JPG, PNG, GIF, WebP, SVG (Max 10MB each). You can select multiple at once.
             </p>
             <input
               type="file"
               id="file-upload"
               className="hidden"
               accept="image/*"
-              onChange={(e) => handleUpload(e.target.files)}
+              multiple
+              onChange={(e) => {
+                handleUpload(e.target.files)
+                e.target.value = ''
+              }}
               disabled={uploading}
             />
             <label
@@ -206,12 +223,14 @@ export default function ImagesPage() {
               {uploading ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Uploading...
+                  {uploadProgress && uploadProgress.total > 1
+                    ? `Uploading ${uploadProgress.current} of ${uploadProgress.total}...`
+                    : 'Uploading...'}
                 </>
               ) : (
                 <>
                   <Upload className="h-4 w-4 mr-2" />
-                  Choose File
+                  Choose Files
                 </>
               )}
             </label>
