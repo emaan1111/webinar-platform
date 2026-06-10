@@ -307,6 +307,24 @@ export default function SplitTestsDashboard() {
                             <div className="col-span-3 font-medium flex items-center gap-2 overflow-hidden">
                                 <span className={`w-2 h-2 rounded-full flex-shrink-0 ${v.weight > 0 ? 'bg-blue-500' : 'bg-gray-300'}`}></span>
                                 <span className="truncate" title={v.leadPage.name}>{v.leadPage.name}</span>
+                                <div className="flex items-center gap-1 flex-shrink-0 ml-auto">
+                                    <a
+                                        href={`/p/${v.leadPage.slug}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title="Preview page in a new tab"
+                                        className="p-1 rounded text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition"
+                                    >
+                                        <ExternalLink className="w-3.5 h-3.5" />
+                                    </a>
+                                    <Link
+                                        href={`/dashboard/lead-pages/${v.leadPageId}`}
+                                        title="Edit page"
+                                        className="p-1 rounded text-gray-400 hover:text-purple-600 hover:bg-purple-50 transition"
+                                    >
+                                        <Edit className="w-3.5 h-3.5" />
+                                    </Link>
+                                </div>
                             </div>
                             <div className="col-span-1 text-center text-gray-500">
                                 {v.weight}%
