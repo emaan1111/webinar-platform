@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Plus, Trash, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { type LeadPage } from '@prisma/client';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 
 export default function EditSplitTest() {
   const router = useRouter();
@@ -90,6 +91,12 @@ export default function EditSplitTest() {
 
     if (totalWeight !== 100) {
         setError('Total weight must equal 100%');
+        setLoading(false);
+        return;
+    }
+
+    if (variants.some(v => !v.leadPageId)) {
+        setError('Please select a lead page for every variant');
         setLoading(false);
         return;
     }
@@ -211,19 +218,17 @@ export default function EditSplitTest() {
                 <div key={index} className="flex gap-4 items-start p-4 bg-gray-50 rounded-lg border border-gray-100">
                     <div className="flex-1">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Lead Page</label>
-                        <select
-                            required
+                        <SearchableSelect
                             value={variant.leadPageId}
-                            onChange={(e) => handleVariantChange(index, 'leadPageId', e.target.value)}
-                            className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white"
-                        >
-                            <option value="">Select a page...</option>
-                            {leadPages.map(page => (
-                                <option key={page.id} value={page.id}>
-                                    {page.name} (/p/{page.slug})
-                                </option>
-                            ))}
-                        </select>
+                            onChange={(val) => handleVariantChange(index, 'leadPageId', val)}
+                            placeholder="Select a page..."
+                            emptyMessage="No lead pages found"
+                            options={leadPages.map(page => ({
+                                value: page.id,
+                                label: page.name,
+                                sublabel: `(/p/${page.slug})`,
+                            }))}
+                        />
                     </div>
                     <div className="w-24">
                         <label className="block text-xs font-medium text-gray-500 mb-1">Weight %</label>
