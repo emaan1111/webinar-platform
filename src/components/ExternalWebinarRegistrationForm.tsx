@@ -35,6 +35,12 @@ interface RegistrationFormProps {
    * Lead page ID for tracking (optional)
    */
   leadPageId?: string
+
+  /**
+   * Split test tracking IDs (optional)
+   */
+  splitTestId?: string
+  splitTestVariantId?: string
   
   /**
    * Callback when registration succeeds
@@ -66,6 +72,8 @@ export default function ExternalWebinarRegistrationForm({
   webinarId,
   apiBaseUrl = '/',
   leadPageId,
+  splitTestId,
+  splitTestVariantId,
   onSuccess,
   onError,
   buttonText = 'Register Now',
@@ -136,6 +144,9 @@ export default function ExternalWebinarRegistrationForm({
 
       const scheduleToUse = selectedSchedule || schedules[0]?.id
       const selectedScheduleData = schedules.find(s => s.id === scheduleToUse)
+      const searchParams = new URLSearchParams(window.location.search)
+      const effectiveSplitTestId = splitTestId || searchParams.get('st') || searchParams.get('splitTestId') || undefined
+      const effectiveSplitTestVariantId = splitTestVariantId || searchParams.get('v') || searchParams.get('splitTestVariantId') || undefined
 
       const response = await fetch(`${apiBaseUrl}api/external-webinars/${webinarId}/register`, {
         method: 'POST',
@@ -148,6 +159,8 @@ export default function ExternalWebinarRegistrationForm({
           scheduledStartTime: selectedScheduleData?.label,
           timezone: userTimezone,
           leadPageId,
+          splitTestId: effectiveSplitTestId,
+          splitTestVariantId: effectiveSplitTestVariantId,
         }),
       })
 

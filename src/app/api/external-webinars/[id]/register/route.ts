@@ -49,6 +49,8 @@ export async function POST(
       privacyConsent = true,
       marketingConsent = false,
       leadPageId,
+      splitTestId,
+      splitTestVariantId,
       // If true, also register in WebinarJam via API
       registerInWebinarJam = true,
     } = body
@@ -169,6 +171,48 @@ export async function POST(
         where: { id: leadPageId },
         data: { conversions: { increment: 1 } }
       }).catch(() => {}) // Non-blocking
+    }
+
+    // Track split test conversion for external webinar registrations.
+    // Priority: explicit IDs from request payload, then fallback to lead page mapping.
+    let resolvedSplitTestId: string | undefined = splitTestId
+    let resolvedVariantId: string | undefined = splitTestVariantId
+
+    if (!resolvedSplitTestId || !resolvedVariantId) {
+      if (leadPageId) {
+        const splitVariant = await prisma.splitTestVariant.findFirst({
+          where: { leadPageId },
+          select: { id: true, splitTestId: true }
+        })
+
+        if (splitVariant) {
+          resolvedSplitTestId = splitVariant.splitTestId
+          resolvedVariantId = splitVariant.id
+        }
+      }
+    }
+
+    if (resolvedSplitTestId && resolvedVariantId) {
+      await prisma.$transaction([
+        prisma.splitTestVariant.update({
+          where: { id: resolvedVariantId },
+          data: { conversions: { increment: 1 } }
+        }),
+        prisma.splitTest.update({
+          where: { id: resolvedSplitTestId },
+          data: { conversions: { increment: 1 } }
+        }),
+        prisma.splitTestEvent.create({
+          data: {
+            splitTestId: resolvedSplitTestId,
+            variantId: resolvedVariantId,
+            type: 'CONVERSION',
+            visitorId: `ext_${email.toLowerCase()}`,
+          }
+        })
+      ]).catch((err) => {
+        console.error('Failed to track split test conversion for external webinar registration:', err)
+      })
     }
 
     // Send to Facebook CAPI if enabled

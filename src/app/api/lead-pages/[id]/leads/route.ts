@@ -22,7 +22,7 @@ export async function GET(
     // Get the lead page to verify it exists
     const leadPage = await prisma.leadPage.findUnique({
       where: { id },
-      select: { id: true, slug: true, webinarId: true }
+      select: { id: true, slug: true, webinarId: true, externalWebinarId: true }
     });
 
     if (!leadPage) {
@@ -79,6 +79,30 @@ export async function GET(
       });
     }
 
+    // Strategy 3: External webinar registrations (WebinarJam / EverWebinar).
+    // These live in a separate table and never appear in the internal Registration
+    // model. They carry a leadPageId (set by the register endpoint and the sync job),
+    // and for this app an external webinar maps 1:1 to a lead page, so we also match
+    // on the linked externalWebinarId to catch registrations whose leadPageId wasn't
+    // attributed (e.g. synced before the page was linked).
+    const externalOr: any[] = [{ leadPageId: id }];
+    if (leadPage.externalWebinarId) {
+      externalOr.push({ externalWebinarId: leadPage.externalWebinarId });
+    }
+
+    const externalRegistrations = await prisma.externalWebinarRegistration.findMany({
+      where: { OR: externalOr },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        registeredAt: true,
+        attended: true,
+      },
+      orderBy: { registeredAt: 'desc' }
+    });
+
     // Combine and dedupe by registration ID
     const registrationMap = new Map<string, any>();
     
@@ -101,6 +125,21 @@ export async function GET(
     for (const reg of registrationsFromVariants) {
       if (!registrationMap.has(reg.id)) {
         registrationMap.set(reg.id, reg);
+      }
+    }
+
+    // Add external webinar registrations
+    for (const reg of externalRegistrations) {
+      if (!registrationMap.has(reg.id)) {
+        registrationMap.set(reg.id, {
+          id: reg.id,
+          name: reg.name,
+          email: reg.email,
+          phone: reg.phone,
+          registeredAt: reg.registeredAt,
+          attended: reg.attended,
+          hasPurchased: false,
+        });
       }
     }
 
