@@ -117,6 +117,7 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
   const [submitText, setSubmitText] = useState(initialData?.submitText || 'Submit')
   const [successMessage, setSuccessMessage] = useState(initialData?.successMessage || 'Thank you for your submission!')
   const [redirectUrl, setRedirectUrl] = useState(initialData?.redirectUrl || '')
+  const [webhookUrl, setWebhookUrl] = useState(initialData?.webhookUrl || '')
   const [useCustomHtml, setUseCustomHtml] = useState(initialData?.useCustomHtml || false)
   const [customHtml, setCustomHtml] = useState(initialData?.customHtml || '')
 
@@ -219,6 +220,7 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
       submitText,
       successMessage,
       redirectUrl: redirectUrl || null,
+      webhookUrl: webhookUrl.trim() || null,
     })
   }
 
@@ -597,6 +599,22 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                       className="w-full border rounded-lg px-3 py-2 text-sm"
                       placeholder="https://example.com/thank-you (leave empty for no redirect)"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Webhook URL (send leads to another app)</label>
+                    <input
+                      type="url"
+                      value={webhookUrl}
+                      onChange={e => setWebhookUrl(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm"
+                      placeholder="https://hooks.zapier.com/... (leave empty to disable)"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Each new lead is sent as a POST request with a JSON payload containing all form fields
+                      (keyed by field label) under <code className="bg-gray-100 px-1 rounded">fields</code>.
+                      Checkbox fields are sent as <code className="bg-gray-100 px-1 rounded">true</code> or{' '}
+                      <code className="bg-gray-100 px-1 rounded">false</code>.
+                    </p>
                   </div>
                 </div>
               )}

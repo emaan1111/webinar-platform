@@ -48,7 +48,7 @@ export async function PUT(
   }
 
   const body = await request.json()
-  const { name, description, fields, layout, styles, customHtml, useCustomHtml, submitText, successMessage, redirectUrl, isActive } = body
+  const { name, description, fields, layout, styles, customHtml, useCustomHtml, submitText, successMessage, redirectUrl, webhookUrl, isActive } = body
 
   const popup = await prisma.popup.update({
     where: { id: params.id },
@@ -63,6 +63,7 @@ export async function PUT(
       ...(submitText !== undefined && { submitText }),
       ...(successMessage !== undefined && { successMessage }),
       ...(redirectUrl !== undefined && { redirectUrl }),
+      ...(webhookUrl !== undefined && { webhookUrl }),
       ...(isActive !== undefined && { isActive }),
       updatedAt: new Date(),
     },

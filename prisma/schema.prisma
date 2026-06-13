@@ -1636,6 +1636,7 @@ model Popup {
   submitText     String   @default("Submit")
   successMessage String   @default("Thank you for your submission!")
   redirectUrl    String? // Custom on-submit redirect URL
+  webhookUrl     String? // Outgoing webhook: POST each captured lead to this URL
   isActive       Boolean  @default(true)
   userId         String
   createdAt      DateTime @default(now())
