@@ -37,19 +37,30 @@ async function sendLeadWebhook(popup: { id: string; name: string; slug: string; 
     if (!mappedIds.has(key)) payloadFields[key] = value
   }
 
+  // Field values are duplicated at the top level because many receivers
+  // (CRMs, automation tools) only read top-level keys like "email"
+  const payload: Record<string, any> = {
+    event: 'popup.lead.created',
+    leadId: lead.id,
+    popupId: popup.id,
+    popupName: popup.name,
+    popupSlug: popup.slug,
+    pageUrl: lead.pageUrl,
+    submittedAt: lead.createdAt,
+    fields: payloadFields,
+    ...payloadFields,
+  }
+  if (payload.email === undefined) {
+    const emailField = fields.find(f => f.type === 'email')
+    if (emailField && data[emailField.id] !== undefined) {
+      payload.email = data[emailField.id]
+    }
+  }
+
   const res = await fetch(popup.webhookUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      event: 'popup.lead.created',
-      leadId: lead.id,
-      popupId: popup.id,
-      popupName: popup.name,
-      popupSlug: popup.slug,
-      pageUrl: lead.pageUrl,
-      submittedAt: lead.createdAt,
-      fields: payloadFields,
-    }),
+    body: JSON.stringify(payload),
     signal: AbortSignal.timeout(8000),
   })
   if (!res.ok) {

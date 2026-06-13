@@ -611,7 +611,7 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Each new lead is sent as a POST request with a JSON payload containing all form fields
-                      (keyed by field label) under <code className="bg-gray-100 px-1 rounded">fields</code>.
+                      keyed by field label, plus a lowercase <code className="bg-gray-100 px-1 rounded">email</code> key.
                       Checkbox fields are sent as <code className="bg-gray-100 px-1 rounded">true</code> or{' '}
                       <code className="bg-gray-100 px-1 rounded">false</code>.
                     </p>
