@@ -105,20 +105,33 @@ function nextOccurrenceInTz(t: { h: number; m: number }, tz: string, now: Date):
   return occ
 }
 
+type ClassifiedSchedules = {
+  // EverWebinar's "Just in time" block id, if the webinar has one (its time is dynamic,
+  // so we don't show it as a fixed recurring slot — we register the "starting soon" option
+  // into it instead).
+  jitScheduleId: string | null
+  // Real recurring daily blocks (e.g. "Every day, 11:00 AM"), as next occurrences in the
+  // visitor's local timezone.
+  recurring: RecurringSession[]
+}
+
+/** True when an API schedule's comment marks it as a dynamic just-in-time block. */
+function isJustInTimeBlock(comment?: string | null): boolean {
+  return /just[\s-]?in[\s-]?time/i.test(comment || '')
+}
+
 /**
- * Upcoming recurring sessions for the webinar, in the visitor's timezone.
- *
- * EverWebinar/WebinarJam evergreen schedules are recurring daily blocks whose times are
- * shown in each registrant's LOCAL timezone (e.g. "11:00" means 11 AM their time). We read
- * the time-of-day from the API and compute its next occurrence in the visitor's tz. Stored
- * schedules (rare) are treated as real fixed instants.
+ * Fetch the webinar's schedules and split them into the dynamic "just in time" block vs the
+ * real recurring daily blocks. EverWebinar evergreen times are shown in each registrant's
+ * LOCAL timezone (e.g. an "11:00" block shows as 11 AM their time), so each recurring block
+ * becomes its next occurrence in the visitor's tz. Stored schedules (rare) are fixed instants.
  */
-async function getUpcomingRecurring(
+async function fetchClassifiedSchedules(
   externalWebinar: { externalWebinarId: string; platform: string; schedules: any[] },
   now: Date,
   userTimezone: string
-): Promise<RecurringSession[]> {
-  let apiSchedules: Array<{ schedule: string | number; date?: string; time?: string }> = []
+): Promise<ClassifiedSchedules> {
+  let apiSchedules: Array<{ schedule: string | number; date?: string; time?: string; comment?: string }> = []
 
   if (isWebinarJamConfigured()) {
     const wjWebinar = await getWebinarDetails(
@@ -128,10 +141,15 @@ async function getUpcomingRecurring(
     if (wjWebinar?.schedules) apiSchedules = wjWebinar.schedules as any
   }
 
+  let jitScheduleId: string | null = null
   const sessions: RecurringSession[] = []
 
   if (apiSchedules.length > 0) {
     for (const s of apiSchedules) {
+      if (isJustInTimeBlock(s.comment)) {
+        if (!jitScheduleId) jitScheduleId = String(s.schedule)
+        continue
+      }
       const tod = extractTimeOfDay(s)
       if (!tod) continue
       const occ = nextOccurrenceInTz(tod, userTimezone, now)
@@ -151,7 +169,7 @@ async function getUpcomingRecurring(
 
   // De-dupe identical instants and sort ascending.
   const seen = new Set<number>()
-  return sessions
+  const recurring = sessions
     .filter((s) => {
       const key = s.scheduledAt.getTime()
       if (seen.has(key)) return false
@@ -159,6 +177,8 @@ async function getUpcomingRecurring(
       return true
     })
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
+
+  return { jitScheduleId, recurring }
 }
 
 /**
@@ -233,17 +253,24 @@ export async function GET(
         }
       }
 
-      // 2. A single "starting soon" just-in-time option (registers into EverWebinar's
-      //    JIT session via schedule id "0").
+      // Fetch + classify the webinar's schedules once (dynamic JIT block vs daily blocks).
+      const { jitScheduleId, recurring } = await fetchClassifiedSchedules(
+        externalWebinar,
+        now,
+        userTimezone
+      )
+
+      // 2. A single "starting soon" just-in-time option. Register it into EverWebinar's real
+      //    "Just in time" block when the webinar has one; otherwise fall back to schedule "0".
       if (externalWebinar.showJustInTime) {
         const lead = externalWebinar.jitLeadMinutes ?? 15
         const jitAt = roundUpMinutes(addMinutes(now, lead), 5)
-        scheduleOptions.push(makeOption(`x|j|${jitAt.getTime()}`, jitAt, true, userTimezone))
+        const jitId = jitScheduleId || 'j'
+        scheduleOptions.push(makeOption(`x|${jitId}|${jitAt.getTime()}`, jitAt, true, userTimezone))
         responseIsJIT = true
       }
 
-      // 3. Recurring EverWebinar sessions (e.g. daily 11 AM), in the visitor's local time.
-      const recurring = await getUpcomingRecurring(externalWebinar, now, userTimezone)
+      // 3. Recurring EverWebinar daily blocks (e.g. 11 AM, 7 PM), in the visitor's local time.
       const cap = externalWebinar.recurringSlotsToShow ?? recurring.length
       const expanded = expandRecurring(recurring, cap).slice(0, cap)
       for (const session of expanded) {
