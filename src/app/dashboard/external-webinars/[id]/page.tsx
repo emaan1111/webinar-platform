@@ -45,6 +45,15 @@ interface ExternalWebinar {
   mostlyAttendedThreshold: number
   autoSendPostSessionSMS: boolean
   postSessionSMSBody?: string
+  // Combined seamless picker
+  combineScheduleSources?: boolean
+  liveZoomEnabled?: boolean
+  liveZoomLink?: string
+  liveZoomAt?: string
+  liveZoomTimezone?: string
+  showJustInTime?: boolean
+  jitLeadMinutes?: number
+  recurringSlotsToShow?: number | null
   lastSyncAt?: string
   createdAt: string
   _count: {
@@ -52,6 +61,22 @@ interface ExternalWebinar {
     leadPages: number
     schedules: number
   }
+}
+
+// Stored UTC ISO -> "YYYY-MM-DDTHH:mm" for <input type="datetime-local"> in the host's local tz.
+function isoToDatetimeLocal(iso?: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ''
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+// datetime-local value (host's local tz) -> UTC ISO string for storage.
+function datetimeLocalToIso(value?: string): string | null {
+  if (!value) return null
+  const d = new Date(value)
+  return isNaN(d.getTime()) ? null : d.toISOString()
 }
 
 export default function ExternalWebinarDetailPage() {
@@ -89,6 +114,14 @@ export default function ExternalWebinarDetailPage() {
     webinarDurationMinutes: 60,
     autoSendPostSessionSMS: false,
     postSessionSMSBody: '',
+    // Combined seamless picker
+    combineScheduleSources: false,
+    liveZoomEnabled: false,
+    liveZoomLink: '',
+    liveZoomAt: '', // datetime-local string in host's local timezone
+    showJustInTime: false,
+    jitLeadMinutes: 15,
+    recurringSlotsToShow: '' as number | '' | string,
   })
 
   useEffect(() => {
@@ -156,6 +189,13 @@ export default function ExternalWebinarDetailPage() {
         webinarDurationMinutes: data.webinarDurationMinutes ?? 60,
         autoSendPostSessionSMS: data.autoSendPostSessionSMS ?? false,
         postSessionSMSBody: data.postSessionSMSBody || '',
+        combineScheduleSources: data.combineScheduleSources ?? false,
+        liveZoomEnabled: data.liveZoomEnabled ?? false,
+        liveZoomLink: data.liveZoomLink || '',
+        liveZoomAt: isoToDatetimeLocal(data.liveZoomAt),
+        showJustInTime: data.showJustInTime ?? false,
+        jitLeadMinutes: data.jitLeadMinutes ?? 15,
+        recurringSlotsToShow: data.recurringSlotsToShow ?? '',
       })
     } catch (err: any) {
       setError(err.message)
@@ -167,10 +207,19 @@ export default function ExternalWebinarDetailPage() {
   const handleSave = async () => {
     setSaving(true)
     try {
+      const payload = {
+        ...formData,
+        liveZoomAt: datetimeLocalToIso(formData.liveZoomAt),
+        liveZoomTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        recurringSlotsToShow:
+          formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
+            ? null
+            : Number(formData.recurringSlotsToShow),
+      }
       const response = await fetch(`/api/external-webinars/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -476,6 +525,116 @@ export default function ExternalWebinarDetailPage() {
                 <span className="text-sm">Send to Facebook CAPI</span>
               </label>
             </div>
+          </CardBody>
+        </Card>
+
+        {/* Session Times / Combined Seamless Picker */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Calendar className="w-5 h-5" /> Session Times
+            </h2>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <label className="flex items-start gap-2">
+              <input
+                type="checkbox"
+                checked={formData.combineScheduleSources}
+                onChange={(e) => setFormData({ ...formData, combineScheduleSources: e.target.checked })}
+                className="mt-1"
+              />
+              <span className="text-sm">
+                <span className="font-medium">Combine session times into one seamless picker</span>
+                <span className="block text-gray-500">
+                  Mix a live Zoom session, a "starting soon" time, and your recurring EverWebinar
+                  times into one list. Registrants just pick a time — they can&apos;t tell which is
+                  live and which is evergreen. All times show in the visitor&apos;s local timezone.
+                </span>
+              </span>
+            </label>
+
+            {formData.combineScheduleSources && (
+              <div className="space-y-6 pl-6 border-l-2 border-gray-100">
+                {/* Live Zoom session */}
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.liveZoomEnabled}
+                      onChange={(e) => setFormData({ ...formData, liveZoomEnabled: e.target.checked })}
+                    />
+                    <span className="text-sm font-medium">Include a live Zoom session</span>
+                  </label>
+                  {formData.liveZoomEnabled && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Date &amp; Time (your timezone)</label>
+                        <input
+                          type="datetime-local"
+                          value={formData.liveZoomAt}
+                          onChange={(e) => setFormData({ ...formData, liveZoomAt: e.target.value })}
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Tip: use a clean time (e.g. :00 or :30) so it blends in with the other options.
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Zoom Join Link</label>
+                        <input
+                          type="url"
+                          value={formData.liveZoomLink}
+                          onChange={(e) => setFormData({ ...formData, liveZoomLink: e.target.value })}
+                          placeholder="https://zoom.us/j/..."
+                          className="w-full px-3 py-2 border rounded-lg"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Just-in-time "starting soon" option */}
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.showJustInTime}
+                      onChange={(e) => setFormData({ ...formData, showJustInTime: e.target.checked })}
+                    />
+                    <span className="text-sm font-medium">Include a &quot;starting soon&quot; just-in-time option</span>
+                  </label>
+                  {formData.showJustInTime && (
+                    <div className="max-w-xs">
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Starts how many minutes from now</label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={formData.jitLeadMinutes}
+                        onChange={(e) => setFormData({ ...formData, jitLeadMinutes: parseInt(e.target.value) || 15 })}
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Registers into EverWebinar&apos;s just-in-time session.</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recurring EverWebinar sessions */}
+                <div className="max-w-xs">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Recurring EverWebinar times to show</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={formData.recurringSlotsToShow as number | ''}
+                    onChange={(e) => setFormData({ ...formData, recurringSlotsToShow: e.target.value })}
+                    placeholder="All upcoming"
+                    className="w-full px-3 py-2 border rounded-lg"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    e.g. set to 1 to show just the next session (like a daily 11 AM). Leave blank for all upcoming.
+                  </p>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
 

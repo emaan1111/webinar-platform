@@ -120,6 +120,15 @@ export async function PUT(
       postSessionSMSBody,
       // Facebook CAPI
       sendToFacebookCAPI,
+      // Combined seamless picker (live Zoom + JIT + recurring)
+      combineScheduleSources,
+      liveZoomEnabled,
+      liveZoomLink,
+      liveZoomAt,
+      liveZoomTimezone,
+      showJustInTime,
+      jitLeadMinutes,
+      recurringSlotsToShow,
     } = body
 
     const externalWebinar = await prisma.externalWebinar.update({
@@ -149,6 +158,19 @@ export async function PUT(
         ...(postSessionSMSMinWatchedMinutes !== undefined && { postSessionSMSMinWatchedMinutes }),
         ...(postSessionSMSBody !== undefined && { postSessionSMSBody }),
         ...(sendToFacebookCAPI !== undefined && { sendToFacebookCAPI }),
+        ...(combineScheduleSources !== undefined && { combineScheduleSources }),
+        ...(liveZoomEnabled !== undefined && { liveZoomEnabled }),
+        ...(liveZoomLink !== undefined && { liveZoomLink: liveZoomLink || null }),
+        ...(liveZoomAt !== undefined && { liveZoomAt: liveZoomAt ? new Date(liveZoomAt) : null }),
+        ...(liveZoomTimezone !== undefined && { liveZoomTimezone: liveZoomTimezone || null }),
+        ...(showJustInTime !== undefined && { showJustInTime }),
+        ...(jitLeadMinutes !== undefined && { jitLeadMinutes }),
+        ...(recurringSlotsToShow !== undefined && {
+          recurringSlotsToShow:
+            recurringSlotsToShow === null || recurringSlotsToShow === ''
+              ? null
+              : Number(recurringSlotsToShow),
+        }),
         updatedAt: new Date(),
       }
     })

@@ -118,45 +118,88 @@ export async function POST(
     let liveRoomUrl: string | undefined
     let replayRoomUrl: string | undefined
 
-    if (registerInWebinarJam && isWebinarJamConfigured()) {
-      // Find the schedule to use
-      const schedule = externalWebinar.schedules.find(s => s.id === scheduleId)
-      const externalScheduleId = schedule?.externalScheduleId || scheduleId
+    // The combined picker encodes each option's identity + exact start time in its id:
+    //   x|z|<ms>      = the live Zoom session  (send to the Zoom link, skip EverWebinar)
+    //   x|j|<ms>      = just-in-time session   (EverWebinar schedule 0)
+    //   x|<sid>|<ms>  = a recurring EverWebinar session (schedule <sid>)
+    // Decoding here records the exact chosen time and avoids ambiguity when several
+    // recurring days share one EverWebinar schedule id.
+    let isZoomPick = scheduleId === 'zoom'
+    let wjScheduleId: string | undefined
+    let decodedStartTime: Date | null = null
+    let localScheduleId: string | null = scheduleId || null
 
-      if (externalScheduleId) {
-        const wjResult = await registerUserToWebinar(
-          externalWebinar.externalWebinarId,
-          externalScheduleId,
-          {
-            firstName,
-            lastName,
-            email: email.toLowerCase(),
-            phone,
-          },
-          externalWebinar.platform as 'webinarjam' | 'everwebinar'
-        )
-
-        if (wjResult.success) {
-          liveRoomUrl = wjResult.liveRoomUrl
-          replayRoomUrl = wjResult.replayRoomUrl
-          console.log(`✅ Registered ${email} in ${externalWebinar.platform}`)
-        } else {
-          console.warn(`⚠️ WebinarJam registration failed: ${wjResult.error}`)
-          // Don't fail the local registration if WJ fails
-        }
+    if (typeof scheduleId === 'string' && scheduleId.startsWith('x|')) {
+      const [, kind, millisStr] = scheduleId.split('|')
+      const millis = Number(millisStr)
+      if (!Number.isNaN(millis)) decodedStartTime = new Date(millis)
+      if (kind === 'z') {
+        isZoomPick = true
+        localScheduleId = 'zoom'
+      } else if (kind === 'j') {
+        wjScheduleId = '0'
+        localScheduleId = '0'
+      } else {
+        wjScheduleId = kind
+        localScheduleId = kind
       }
+    } else if (!isZoomPick) {
+      // Legacy / non-combined option: id is the local schedule id or external id directly.
+      const schedule = externalWebinar.schedules.find(s => s.id === scheduleId)
+      wjScheduleId = schedule?.externalScheduleId || scheduleId
+    }
+
+    if (isZoomPick) {
+      liveRoomUrl = externalWebinar.liveZoomLink || undefined
+      if (!liveRoomUrl) {
+        console.warn(`⚠️ Live Zoom pick for ${externalWebinar.name} but no liveZoomLink configured`)
+      }
+      console.log(`✅ ${email} picked the live Zoom session for ${externalWebinar.name}`)
+    } else if (registerInWebinarJam && isWebinarJamConfigured() && wjScheduleId) {
+      const wjResult = await registerUserToWebinar(
+        externalWebinar.externalWebinarId,
+        wjScheduleId,
+        {
+          firstName,
+          lastName,
+          email: email.toLowerCase(),
+          phone,
+        },
+        externalWebinar.platform as 'webinarjam' | 'everwebinar'
+      )
+
+      if (wjResult.success) {
+        liveRoomUrl = wjResult.liveRoomUrl
+        replayRoomUrl = wjResult.replayRoomUrl
+        console.log(`✅ Registered ${email} in ${externalWebinar.platform}`)
+      } else {
+        console.warn(`⚠️ WebinarJam registration failed: ${wjResult.error}`)
+        // Don't fail the local registration if WJ fails
+      }
+    }
+
+    // Resolve the start time: Zoom uses the fixed live time, combined options use the time
+    // encoded in the id, otherwise parse the submitted value (guarding a non-date label).
+    let resolvedStartTime: Date | null = null
+    if (isZoomPick && externalWebinar.liveZoomAt) {
+      resolvedStartTime = new Date(externalWebinar.liveZoomAt)
+    } else if (decodedStartTime) {
+      resolvedStartTime = decodedStartTime
+    } else if (scheduledStartTime) {
+      const parsed = new Date(scheduledStartTime)
+      resolvedStartTime = Number.isNaN(parsed.getTime()) ? null : parsed
     }
 
     // Create local registration
     const registration = await prisma.externalWebinarRegistration.create({
       data: {
         externalWebinarId: id,
-        scheduleId: scheduleId || null,
+        scheduleId: localScheduleId,
         name,
         email: email.toLowerCase(),
         phone,
         timezone,
-        scheduledStartTime: scheduledStartTime ? new Date(scheduledStartTime) : null,
+        scheduledStartTime: resolvedStartTime,
         registrationSource: leadPageId ? 'lead_page' : 'manual',
         leadPageId,
         externalUserId,
@@ -302,6 +345,9 @@ export async function POST(
           email: registration.email,
           webinarTitle,
           webinarTime: registration.scheduledStartTime?.toLocaleString() || null,
+          // For a live-Zoom pick this is the Zoom link (EverWebinar won't email them);
+          // for a normal pick it's the EverWebinar room link if the API returned one.
+          accessLink: liveRoomUrl || null,
         }
 
         const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
