@@ -73,38 +73,91 @@ function roundUpMinutes(date: Date, step: number): Date {
 
 type RecurringSession = { externalScheduleId: string; scheduledAt: Date }
 
-/** Upcoming recurring/scheduled sessions for the webinar (live API first, then stored). */
+/**
+ * Pull "HH:mm" time-of-day from an API schedule. The EverWebinar/WebinarJam API returns
+ * `date` as a combined "YYYY-MM-DD HH:mm" string (no separate `time`/`timezone`), but we
+ * also tolerate a separate `time` field or an ISO "YYYY-MM-DDTHH:mm".
+ */
+function extractTimeOfDay(s: { date?: string; time?: string }): { h: number; m: number } | null {
+  let timeStr = s.time
+  if (!timeStr && s.date) {
+    if (s.date.includes(' ')) timeStr = s.date.split(' ')[1]
+    else if (s.date.includes('T')) timeStr = s.date.split('T')[1]
+  }
+  if (!timeStr) return null
+  const [h, m] = timeStr.split(':').map((n) => parseInt(n, 10))
+  if (Number.isNaN(h) || Number.isNaN(m)) return null
+  return { h, m }
+}
+
+/** Next upcoming occurrence of a daily time-of-day, in the visitor's timezone. */
+function nextOccurrenceInTz(t: { h: number; m: number }, tz: string, now: Date): Date {
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const zonedNow = toZonedTime(now, tz)
+  const build = (y: number, mo: number, d: number) =>
+    fromZonedTime(`${y}-${pad(mo + 1)}-${pad(d)}T${pad(t.h)}:${pad(t.m)}:00`, tz)
+  let occ = build(zonedNow.getFullYear(), zonedNow.getMonth(), zonedNow.getDate())
+  if (occ.getTime() <= now.getTime() + 60_000) {
+    const tomorrow = new Date(zonedNow)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    occ = build(tomorrow.getFullYear(), tomorrow.getMonth(), tomorrow.getDate())
+  }
+  return occ
+}
+
+/**
+ * Upcoming recurring sessions for the webinar, in the visitor's timezone.
+ *
+ * EverWebinar/WebinarJam evergreen schedules are recurring daily blocks whose times are
+ * shown in each registrant's LOCAL timezone (e.g. "11:00" means 11 AM their time). We read
+ * the time-of-day from the API and compute its next occurrence in the visitor's tz. Stored
+ * schedules (rare) are treated as real fixed instants.
+ */
 async function getUpcomingRecurring(
   externalWebinar: { externalWebinarId: string; platform: string; schedules: any[] },
-  now: Date
+  now: Date,
+  userTimezone: string
 ): Promise<RecurringSession[]> {
-  let apiSchedules: Array<{ schedule: string | number; date: string; time: string; timezone: string }> = []
+  let apiSchedules: Array<{ schedule: string | number; date?: string; time?: string }> = []
 
   if (isWebinarJamConfigured()) {
     const wjWebinar = await getWebinarDetails(
       externalWebinar.externalWebinarId,
       externalWebinar.platform as 'webinarjam' | 'everwebinar'
     )
-    if (wjWebinar?.schedules) apiSchedules = wjWebinar.schedules
+    if (wjWebinar?.schedules) apiSchedules = wjWebinar.schedules as any
   }
 
-  const raw =
-    apiSchedules.length > 0
-      ? apiSchedules.map((s) => ({
-          // The platform returns date/time in the webinar's own timezone — interpret it
-          // there (not the server's tz) so the true UTC instant is correct.
-          externalScheduleId: String(s.schedule),
-          scheduledAt: s.timezone
-            ? fromZonedTime(`${s.date}T${s.time}`, s.timezone)
-            : new Date(`${s.date}T${s.time}`),
-        }))
-      : externalWebinar.schedules.map((s) => ({
-          externalScheduleId: s.externalScheduleId || s.id,
-          scheduledAt: s.scheduledAt ? new Date(s.scheduledAt) : null,
-        }))
+  const sessions: RecurringSession[] = []
 
-  return raw
-    .filter((s): s is RecurringSession => !!s.scheduledAt && !isBefore(s.scheduledAt, now))
+  if (apiSchedules.length > 0) {
+    for (const s of apiSchedules) {
+      const tod = extractTimeOfDay(s)
+      if (!tod) continue
+      const occ = nextOccurrenceInTz(tod, userTimezone, now)
+      if (!Number.isNaN(occ.getTime())) {
+        sessions.push({ externalScheduleId: String(s.schedule), scheduledAt: occ })
+      }
+    }
+  } else {
+    for (const s of externalWebinar.schedules) {
+      if (!s.scheduledAt) continue
+      const at = new Date(s.scheduledAt)
+      if (!Number.isNaN(at.getTime()) && !isBefore(at, now)) {
+        sessions.push({ externalScheduleId: s.externalScheduleId || s.id, scheduledAt: at })
+      }
+    }
+  }
+
+  // De-dupe identical instants and sort ascending.
+  const seen = new Set<number>()
+  return sessions
+    .filter((s) => {
+      const key = s.scheduledAt.getTime()
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
     .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime())
 }
 
@@ -190,7 +243,7 @@ export async function GET(
       }
 
       // 3. Recurring EverWebinar sessions (e.g. daily 11 AM), in the visitor's local time.
-      const recurring = await getUpcomingRecurring(externalWebinar, now)
+      const recurring = await getUpcomingRecurring(externalWebinar, now, userTimezone)
       const cap = externalWebinar.recurringSlotsToShow ?? recurring.length
       const expanded = expandRecurring(recurring, cap).slice(0, cap)
       for (const session of expanded) {
@@ -280,7 +333,8 @@ export async function GET(
             ? schedule.scheduledAt
             : new Date(schedule.scheduledAt)
 
-          // Skip past sessions
+          // Skip unparseable or past sessions (guards against the API's combined date format)
+          if (Number.isNaN(scheduledUTC.getTime())) continue
           if (isBefore(scheduledUTC, now)) continue
 
           // Convert to user's timezone for display
