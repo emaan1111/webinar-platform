@@ -89,6 +89,7 @@ export default function ExternalWebinarDetailPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [copiedEmbed, setCopiedEmbed] = useState(false)
+  const [copiedPopup, setCopiedPopup] = useState(false)
 
   // Copy emails from internal webinar
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
@@ -249,6 +250,57 @@ export default function ExternalWebinarDetailPage() {
       alert('Error: ' + err.message)
     }
   }
+
+  const appOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://emaanpowerclasses.com'
+
+  // Full inline popup snippet (iframe modal) — paste into ClickFunnels/WordPress/etc.
+  const popupSnippet = `<!-- Webinar Registration Modal (Popup) -->
+<script>
+(function() {
+  function openWebinarModal() {
+    var overlay = document.createElement('div');
+    overlay.id = 'webinar-modal-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;animation:fadeIn 0.2s ease-out;';
+    var container = document.createElement('div');
+    container.style.cssText = 'width:100%;max-width:600px;max-height:95vh;background:transparent;border-radius:16px;overflow:hidden;animation:slideUp 0.3s ease-out;';
+    var iframe = document.createElement('iframe');
+    iframe.src = '${appOrigin}/embed-modal-external/${id}';
+    iframe.style.cssText = 'width:100%;height:95vh;max-height:700px;border:none;background:transparent;display:block;';
+    iframe.setAttribute('allow', 'clipboard-write');
+    overlay.onclick = function(e) {
+      if (e.target === overlay) {
+        overlay.style.animation = 'fadeOut 0.2s ease-out';
+        setTimeout(function() { overlay.remove(); }, 200);
+      }
+    };
+    window.addEventListener('message', function(e) {
+      if (e.data === 'closeWebinarModal') {
+        overlay.style.animation = 'fadeOut 0.2s ease-out';
+        setTimeout(function() { overlay.remove(); }, 200);
+      }
+    });
+    if (!document.getElementById('webinar-modal-styles')) {
+      var style = document.createElement('style');
+      style.id = 'webinar-modal-styles';
+      style.textContent = '@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } } @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } } @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }';
+      document.head.appendChild(style);
+    }
+    container.appendChild(iframe);
+    overlay.appendChild(container);
+    document.body.appendChild(overlay);
+  }
+  window.openWebinarModal = openWebinarModal;
+})();
+</script>
+
+<!-- Use this button anywhere on your page -->
+<button
+  onclick="openWebinarModal()"
+  style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); color: white; padding: 14px 32px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 16px; box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4); transition: all 0.2s;"
+  onmouseover="this.style.transform='translateY(-2px)';this.style.boxShadow='0 6px 20px rgba(139, 92, 246, 0.5)';"
+  onmouseout="this.style.transform='translateY(0)';this.style.boxShadow='0 4px 14px rgba(139, 92, 246, 0.4)';">
+  Register for Webinar
+</button>`
 
   if (loading) {
     return (
@@ -861,6 +913,32 @@ export default function ExternalWebinarDetailPage() {
                   title="Copy to clipboard"
                 >
                   {copiedEmbed ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Popup Modal (iframe — recommended)
+              </label>
+              <p className="text-xs text-gray-500 mb-2">
+                Full inline snippet: a button that opens the registration in a centered popup.
+                Shows the combined live-Zoom + just-in-time + recurring times in the visitor&apos;s timezone.
+              </p>
+              <div className="relative">
+                <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-72">
+{popupSnippet}
+                </pre>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(popupSnippet)
+                    setCopiedPopup(true)
+                    setTimeout(() => setCopiedPopup(false), 2000)
+                  }}
+                  className="absolute top-2 right-2 p-2 bg-gray-700 hover:bg-gray-600 rounded text-white transition-colors"
+                  title="Copy to clipboard"
+                >
+                  {copiedPopup ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                 </button>
               </div>
             </div>
