@@ -45,7 +45,7 @@ interface RegistrationFormProps {
   /**
    * Callback when registration succeeds
    */
-  onSuccess?: (data: { registrationId: string; liveRoomUrl?: string; scheduledTime?: string; name?: string }) => void
+  onSuccess?: (data: { registrationId: string; liveRoomUrl?: string; scheduledTime?: string; name?: string; isJIT?: boolean }) => void
   
   /**
    * Callback on error
@@ -178,6 +178,7 @@ export default function ExternalWebinarRegistrationForm({
           liveRoomUrl: result.registration?.liveRoomUrl,
           scheduledTime: selectedScheduleData?.label,
           name: name.trim(),
+          isJIT: selectedScheduleData?.isJIT,
         })
       }
     } catch (err) {

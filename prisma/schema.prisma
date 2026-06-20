@@ -1381,6 +1381,10 @@ model ExternalWebinarRegistration {
   externalUserId         String? // User ID from WebinarJam
   externalRegistrationId String? // Registration ID from WebinarJam
 
+  // Join links captured at registration (so the countdown page can auto-enter the room)
+  liveRoomUrl   String? // EverWebinar live room (or Zoom link for a live-Zoom pick)
+  replayRoomUrl String?
+
   // Registration tracking
   registeredAt       DateTime  @default(now())
   scheduledStartTime DateTime?

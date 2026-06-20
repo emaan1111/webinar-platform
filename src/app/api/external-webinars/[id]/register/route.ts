@@ -203,6 +203,8 @@ export async function POST(
         registrationSource: leadPageId ? 'lead_page' : 'manual',
         leadPageId,
         externalUserId,
+        liveRoomUrl: liveRoomUrl || null,
+        replayRoomUrl: replayRoomUrl || null,
         privacyConsent,
         marketingConsent,
       }

@@ -34,20 +34,36 @@ function ExternalEmbedModalInner() {
     }
   }
 
-  const handleSuccess = (data: { registrationId: string; scheduledTime?: string; name?: string }) => {
-    if (!redirectUrl || typeof window === 'undefined') return
-    let target = redirectUrl
-    try {
-      const u = new URL(redirectUrl)
-      if (data.registrationId) u.searchParams.set('reg', data.registrationId)
-      if (data.scheduledTime) u.searchParams.set('t', data.scheduledTime)
-      if (data.name) u.searchParams.set('name', data.name)
-      target = u.toString()
-    } catch {
-      // redirectUrl wasn't a valid absolute URL — use it as-is
+  const handleSuccess = (data: {
+    registrationId: string
+    scheduledTime?: string
+    name?: string
+    isJIT?: boolean
+  }) => {
+    if (typeof window === 'undefined') return
+
+    // "Just in time" picks start within minutes, so send them to the countdown page that
+    // auto-enters the room. Scheduled / Zoom picks go to the configured thank-you page.
+    let target: string | null = null
+    if (data.isJIT && data.registrationId) {
+      target = `${window.location.origin}/countdown-external/${id}?reg=${encodeURIComponent(data.registrationId)}`
+    } else if (redirectUrl) {
+      target = redirectUrl
+      try {
+        const u = new URL(redirectUrl)
+        if (data.registrationId) u.searchParams.set('reg', data.registrationId)
+        if (data.scheduledTime) u.searchParams.set('t', data.scheduledTime)
+        if (data.name) u.searchParams.set('name', data.name)
+        target = u.toString()
+      } catch {
+        // redirectUrl wasn't a valid absolute URL — use it as-is
+      }
     }
-    // Navigate the parent page (the funnel page) to the thank-you page. Tell the parent
-    // via postMessage first (works with our popup snippet), then fall back to top/self.
+
+    if (!target) return // no redirect configured for this pick → stay in popup
+
+    // Navigate the parent page (the funnel page). Tell the parent via postMessage first
+    // (works with our popup snippet), then fall back to top/self navigation.
     try { window.parent.postMessage({ type: 'webinarRedirect', url: target }, '*') } catch {}
     try {
       if (window.top) window.top.location.href = target
