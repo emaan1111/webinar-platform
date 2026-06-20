@@ -90,6 +90,7 @@ export default function ExternalWebinarDetailPage() {
   const [error, setError] = useState('')
   const [copiedEmbed, setCopiedEmbed] = useState(false)
   const [copiedPopup, setCopiedPopup] = useState(false)
+  const [redirectUrl, setRedirectUrl] = useState('')
 
   // Copy emails from internal webinar
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
@@ -264,7 +265,7 @@ export default function ExternalWebinarDetailPage() {
     var container = document.createElement('div');
     container.style.cssText = 'width:100%;max-width:600px;max-height:95vh;background:transparent;border-radius:16px;overflow:hidden;animation:slideUp 0.3s ease-out;';
     var iframe = document.createElement('iframe');
-    iframe.src = '${appOrigin}/embed-modal-external/${id}';
+    iframe.src = '${appOrigin}/embed-modal-external/${id}${redirectUrl ? '?redirect=' + encodeURIComponent(redirectUrl) : ''}';
     iframe.style.cssText = 'width:100%;height:95vh;max-height:700px;border:none;background:transparent;display:block;';
     iframe.setAttribute('allow', 'clipboard-write');
     overlay.onclick = function(e) {
@@ -277,6 +278,8 @@ export default function ExternalWebinarDetailPage() {
       if (e.data === 'closeWebinarModal') {
         overlay.style.animation = 'fadeOut 0.2s ease-out';
         setTimeout(function() { overlay.remove(); }, 200);
+      } else if (e.data && e.data.type === 'webinarRedirect' && e.data.url) {
+        window.location.href = e.data.url;
       }
     });
     if (!document.getElementById('webinar-modal-styles')) {
@@ -925,6 +928,42 @@ export default function ExternalWebinarDetailPage() {
                 Full inline snippet: a button that opens the registration in a centered popup.
                 Shows the combined live-Zoom + just-in-time + recurring times in the visitor&apos;s timezone.
               </p>
+
+              <div className="mb-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Redirect after registration (optional)
+                </label>
+                <input
+                  type="url"
+                  value={redirectUrl}
+                  onChange={(e) => setRedirectUrl(e.target.value)}
+                  placeholder="https://your-site.com/thank-you"
+                  className="w-full px-3 py-2 border rounded-lg text-sm"
+                />
+                <div className="flex items-center gap-2 mt-2 flex-wrap">
+                  <button
+                    type="button"
+                    onClick={() => setRedirectUrl(`${appOrigin}/thank-you-external/${id}`)}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800"
+                  >
+                    Use built-in thank-you page
+                  </button>
+                  {redirectUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setRedirectUrl('')}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear (stay in popup)
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-400 mt-1">
+                  Leave blank to show the &quot;You&apos;re registered&quot; message inside the popup. The
+                  chosen time &amp; name are appended to your URL as <code>?t=</code> &amp; <code>?name=</code>.
+                </p>
+              </div>
+
               <div className="relative">
                 <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-72">
 {popupSnippet}

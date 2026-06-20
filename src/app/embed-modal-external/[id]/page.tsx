@@ -25,10 +25,35 @@ function ExternalEmbedModalInner() {
   const showPhone = searchParams.get('phone') === 'true'
   const heading = searchParams.get('heading') || 'Save Your Seat'
   const subheading = searchParams.get('subheading') || 'Pick a time that works for you — we’ll email you the details.'
+  // Where to send the visitor after they register (absolute URL). Empty = stay in popup.
+  const redirectUrl = searchParams.get('redirect') || undefined
 
   const handleClose = () => {
     if (typeof window !== 'undefined' && window.parent !== window) {
       window.parent.postMessage('closeWebinarModal', '*')
+    }
+  }
+
+  const handleSuccess = (data: { registrationId: string; scheduledTime?: string; name?: string }) => {
+    if (!redirectUrl || typeof window === 'undefined') return
+    let target = redirectUrl
+    try {
+      const u = new URL(redirectUrl)
+      if (data.registrationId) u.searchParams.set('reg', data.registrationId)
+      if (data.scheduledTime) u.searchParams.set('t', data.scheduledTime)
+      if (data.name) u.searchParams.set('name', data.name)
+      target = u.toString()
+    } catch {
+      // redirectUrl wasn't a valid absolute URL — use it as-is
+    }
+    // Navigate the parent page (the funnel page) to the thank-you page. Tell the parent
+    // via postMessage first (works with our popup snippet), then fall back to top/self.
+    try { window.parent.postMessage({ type: 'webinarRedirect', url: target }, '*') } catch {}
+    try {
+      if (window.top) window.top.location.href = target
+      else window.location.href = target
+    } catch {
+      window.location.href = target
     }
   }
 
@@ -66,6 +91,7 @@ function ExternalEmbedModalInner() {
               splitTestVariantId={splitTestVariantId}
               buttonText={buttonText}
               showPhone={showPhone}
+              onSuccess={handleSuccess}
             />
           </div>
         </div>
