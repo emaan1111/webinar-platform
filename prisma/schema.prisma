@@ -1309,18 +1309,18 @@ model ExternalWebinar {
   jitTimes String[] @default(["11:00", "14:00", "18:00"]) // Times in HH:MM format (user's local)
 
   // Combined seamless picker (live Zoom + just-in-time + recurring EverWebinar times).
-  // When combineScheduleSources is false the picker behaves exactly as before (legacy either/or).
-  combineScheduleSources Boolean  @default(false)
+  // Defaults ON so new external webinars use the seamless picker out of the box.
+  combineScheduleSources Boolean  @default(true)
   // One real LIVE Zoom session mixed into the picker, indistinguishable from evergreen options.
   liveZoomEnabled        Boolean  @default(false)
   liveZoomLink           String? // Zoom join URL the registrant is sent to for the live session
   liveZoomAt             DateTime? // Start time of the live Zoom session (stored UTC)
   liveZoomTimezone       String? // Timezone the host entered liveZoomAt in (for reference/labels)
-  // A single "starting soon" just-in-time option (registers into EverWebinar's JIT session, schedule=0).
-  showJustInTime         Boolean  @default(false)
+  // A single "starting soon" just-in-time option (registers into EverWebinar's JIT block).
+  showJustInTime         Boolean  @default(true)
   jitLeadMinutes         Int      @default(15) // Minutes from now the JIT option starts
   // How many upcoming recurring EverWebinar sessions (e.g. daily 11 AM) to show. null = all upcoming.
-  recurringSlotsToShow   Int?
+  recurringSlotsToShow   Int?     @default(2)
 
   // Facebook CAPI
   sendToFacebookCAPI Boolean @default(true)
