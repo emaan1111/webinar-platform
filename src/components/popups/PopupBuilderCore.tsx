@@ -4,7 +4,8 @@ import { useState, useRef, useCallback } from 'react'
 import {
   GripVertical, Plus, Trash2, ChevronDown, ChevronUp, Eye, Code2,
   Type, Mail, Phone, Calendar, Hash, AlignLeft, List, ToggleLeft,
-  Save, ArrowLeft, Palette, Settings2
+  Save, ArrowLeft, Palette, Settings2, Image as ImageIcon, Heading, Upload, Loader2,
+  AlignCenter, AlignRight
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import PopupPreview from './PopupPreview'
@@ -22,6 +23,16 @@ const FIELD_TYPES = [
   { type: 'select', label: 'Dropdown', icon: List },
   { type: 'checkbox', label: 'Checkbox', icon: ToggleLeft },
 ]
+
+// Content elements (not form inputs) — image, heading, text.
+const CONTENT_TYPES = [
+  { type: 'image', label: 'Image', icon: ImageIcon },
+  { type: 'heading', label: 'Heading', icon: Heading },
+  { type: 'paragraph', label: 'Text', icon: AlignLeft },
+]
+const CONTENT_TYPE_SET = new Set(['image', 'heading', 'paragraph'])
+const isContentType = (t: string) => CONTENT_TYPE_SET.has(t)
+const ALL_ELEMENT_TYPES = [...FIELD_TYPES, ...CONTENT_TYPES]
 
 const COUNTRY_CODES = [
   { code: '+1', country: 'US/CA' },
@@ -60,6 +71,8 @@ export interface PopupField {
   options: string // comma-separated for select
   width: 'full' | 'half'
   position: number
+  content?: string // image URL, or heading/paragraph text (content elements)
+  align?: 'left' | 'center' | 'right'
 }
 
 export interface PopupStyles {
@@ -132,6 +145,8 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
         options: f.options || '',
         width: f.width || 'full',
         position: f.position ?? i,
+        content: f.content || '',
+        align: f.align || 'left',
       }))
     }
     return [
@@ -174,19 +189,44 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
   }
 
   const addField = (type: string) => {
-    const typeLabel = FIELD_TYPES.find(t => t.type === type)?.label || type
+    const typeLabel = ALL_ELEMENT_TYPES.find(t => t.type === type)?.label || type
+    const contentDefaults: Record<string, string> = {
+      heading: 'Your headline here',
+      paragraph: 'Add your supporting text here.',
+      image: '',
+    }
     const newField: PopupField = {
-      id: `field_${Date.now()}`,
+      id: `${isContentType(type) ? type : 'field'}_${Date.now()}`,
       type,
-      label: typeLabel,
-      placeholder: `Enter ${typeLabel.toLowerCase()}`,
+      label: isContentType(type) ? typeLabel : typeLabel,
+      placeholder: isContentType(type) ? '' : `Enter ${typeLabel.toLowerCase()}`,
       required: false,
       options: type === 'select' ? 'Option 1, Option 2, Option 3' : '',
       width: 'full',
       position: fields.length,
+      content: contentDefaults[type] ?? '',
+      align: type === 'heading' ? 'center' : 'left',
     }
     setFields([...fields, newField])
     setExpandedField(newField.id)
+  }
+
+  // ─── Image upload (content image element) ───
+  const [uploadingFieldId, setUploadingFieldId] = useState<string | null>(null)
+  const uploadImage = async (fieldId: string, file: File) => {
+    setUploadingFieldId(fieldId)
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const res = await fetch('/api/images', { method: 'POST', body: fd })
+      if (!res.ok) throw new Error('Upload failed')
+      const img = await res.json()
+      if (img?.url) updateField(fieldId, { content: img.url })
+    } catch {
+      alert('Image upload failed. You can paste an image URL instead.')
+    } finally {
+      setUploadingFieldId(null)
+    }
   }
 
   const updateField = (id: string, updates: Partial<PopupField>) => {
@@ -346,83 +386,172 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                           {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
                         </div>
 
-                        {/* Expanded field settings */}
+                        {/* Expanded element settings */}
                         {isExpanded && (
                           <div className="border-t px-3 py-3 space-y-3 bg-white rounded-b-lg">
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Label</label>
-                                <input
-                                  type="text"
-                                  value={field.label}
-                                  onChange={e => updateField(field.id, { label: e.target.value })}
-                                  className="w-full border rounded px-2 py-1.5 text-sm"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Placeholder</label>
-                                <input
-                                  type="text"
-                                  value={field.placeholder}
-                                  onChange={e => updateField(field.id, { placeholder: e.target.value })}
-                                  className="w-full border rounded px-2 py-1.5 text-sm"
-                                />
-                              </div>
-                            </div>
+                            {isContentType(field.type) ? (
+                              <>
+                                {field.type === 'image' ? (
+                                  <div className="space-y-2">
+                                    {field.content ? (
+                                      // eslint-disable-next-line @next/next/no-img-element
+                                      <img src={field.content} alt="" className="max-h-32 rounded border mx-auto" />
+                                    ) : (
+                                      <div className="h-24 rounded border border-dashed flex items-center justify-center text-xs text-gray-400">
+                                        No image yet
+                                      </div>
+                                    )}
+                                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border rounded-lg cursor-pointer hover:bg-gray-50">
+                                      {uploadingFieldId === field.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+                                      {uploadingFieldId === field.id ? 'Uploading…' : 'Upload image'}
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        className="hidden"
+                                        onChange={e => { const f = e.target.files?.[0]; if (f) uploadImage(field.id, f) }}
+                                      />
+                                    </label>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Or paste image URL</label>
+                                      <input
+                                        type="url"
+                                        value={field.content || ''}
+                                        onChange={e => updateField(field.id, { content: e.target.value })}
+                                        placeholder="https://..."
+                                        className="w-full border rounded px-2 py-1.5 text-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                                      {field.type === 'heading' ? 'Heading text' : 'Text'}
+                                    </label>
+                                    <textarea
+                                      value={field.content || ''}
+                                      onChange={e => updateField(field.id, { content: e.target.value })}
+                                      rows={field.type === 'heading' ? 2 : 4}
+                                      className="w-full border rounded px-2 py-1.5 text-sm"
+                                    />
+                                  </div>
+                                )}
 
-                            <div className="grid grid-cols-2 gap-3">
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Field ID</label>
-                                <input
-                                  type="text"
-                                  value={field.id}
-                                  onChange={e => {
-                                    const newId = e.target.value.replace(/[^a-zA-Z0-9_]/g, '')
-                                    if (newId && !fields.some(f => f.id === newId && f.id !== field.id)) {
-                                      const updated = fields.map(f => f.id === field.id ? { ...f, id: newId } : f)
-                                      setFields(updated)
-                                      setExpandedField(newId)
-                                    }
-                                  }}
-                                  className="w-full border rounded px-2 py-1.5 text-sm font-mono"
-                                />
-                              </div>
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Width</label>
-                                <select
-                                  value={field.width}
-                                  onChange={e => updateField(field.id, { width: e.target.value as 'full' | 'half' })}
-                                  className="w-full border rounded px-2 py-1.5 text-sm"
-                                >
-                                  <option value="full">Full Width</option>
-                                  <option value="half">Half Width</option>
-                                </select>
-                              </div>
-                            </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Alignment</label>
+                                    <div className="flex gap-1">
+                                      {(['left', 'center', 'right'] as const).map(a => {
+                                        const Icon = a === 'left' ? AlignLeft : a === 'center' ? AlignCenter : AlignRight
+                                        return (
+                                          <button
+                                            key={a}
+                                            type="button"
+                                            onClick={() => updateField(field.id, { align: a })}
+                                            className={`flex-1 flex items-center justify-center py-1.5 border rounded ${
+                                              (field.align || 'left') === a ? 'bg-blue-50 border-blue-400 text-blue-600' : 'text-gray-500 hover:bg-gray-50'
+                                            }`}
+                                          >
+                                            <Icon className="w-4 h-4" />
+                                          </button>
+                                        )
+                                      })}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Width</label>
+                                    <select
+                                      value={field.width}
+                                      onChange={e => updateField(field.id, { width: e.target.value as 'full' | 'half' })}
+                                      className="w-full border rounded px-2 py-1.5 text-sm"
+                                    >
+                                      <option value="full">Full Width</option>
+                                      <option value="half">Half Width</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Label</label>
+                                    <input
+                                      type="text"
+                                      value={field.label}
+                                      onChange={e => updateField(field.id, { label: e.target.value })}
+                                      className="w-full border rounded px-2 py-1.5 text-sm"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Placeholder</label>
+                                    <input
+                                      type="text"
+                                      value={field.placeholder}
+                                      onChange={e => updateField(field.id, { placeholder: e.target.value })}
+                                      className="w-full border rounded px-2 py-1.5 text-sm"
+                                    />
+                                  </div>
+                                </div>
 
-                            {field.type === 'select' && (
-                              <div>
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Options (comma-separated)</label>
-                                <input
-                                  type="text"
-                                  value={field.options}
-                                  onChange={e => updateField(field.id, { options: e.target.value })}
-                                  className="w-full border rounded px-2 py-1.5 text-sm"
-                                  placeholder="Option 1, Option 2, Option 3"
-                                />
-                              </div>
+                                <div className="grid grid-cols-2 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Field ID</label>
+                                    <input
+                                      type="text"
+                                      value={field.id}
+                                      onChange={e => {
+                                        const newId = e.target.value.replace(/[^a-zA-Z0-9_]/g, '')
+                                        if (newId && !fields.some(f => f.id === newId && f.id !== field.id)) {
+                                          const updated = fields.map(f => f.id === field.id ? { ...f, id: newId } : f)
+                                          setFields(updated)
+                                          setExpandedField(newId)
+                                        }
+                                      }}
+                                      className="w-full border rounded px-2 py-1.5 text-sm font-mono"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Width</label>
+                                    <select
+                                      value={field.width}
+                                      onChange={e => updateField(field.id, { width: e.target.value as 'full' | 'half' })}
+                                      className="w-full border rounded px-2 py-1.5 text-sm"
+                                    >
+                                      <option value="full">Full Width</option>
+                                      <option value="half">Half Width</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                {field.type === 'select' && (
+                                  <div>
+                                    <label className="block text-xs font-medium text-gray-600 mb-1">Options (comma-separated)</label>
+                                    <input
+                                      type="text"
+                                      value={field.options}
+                                      onChange={e => updateField(field.id, { options: e.target.value })}
+                                      className="w-full border rounded px-2 py-1.5 text-sm"
+                                      placeholder="Option 1, Option 2, Option 3"
+                                    />
+                                  </div>
+                                )}
+                              </>
                             )}
 
                             <div className="flex items-center justify-between pt-1">
-                              <label className="flex items-center gap-2 cursor-pointer">
-                                <input
-                                  type="checkbox"
-                                  checked={field.required}
-                                  onChange={e => updateField(field.id, { required: e.target.checked })}
-                                  className="rounded text-blue-600"
-                                />
-                                <span className="text-sm text-gray-600">Required field</span>
-                              </label>
+                              {isContentType(field.type) ? (
+                                <span />
+                              ) : (
+                                <label className="flex items-center gap-2 cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={field.required}
+                                    onChange={e => updateField(field.id, { required: e.target.checked })}
+                                    className="rounded text-blue-600"
+                                  />
+                                  <span className="text-sm text-gray-600">Required field</span>
+                                </label>
+                              )}
                               <button
                                 onClick={() => removeField(field.id)}
                                 className="text-red-500 hover:text-red-700 text-sm flex items-center gap-1"
@@ -436,6 +565,26 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                       </div>
                     )
                   })}
+
+                  {/* Add content elements */}
+                  <div className="pt-2">
+                    <div className="text-xs font-medium text-gray-500 mb-2 uppercase">Add Content</div>
+                    <div className="grid grid-cols-4 gap-2">
+                      {CONTENT_TYPES.map(ct => {
+                        const Icon = ct.icon
+                        return (
+                          <button
+                            key={ct.type}
+                            onClick={() => addField(ct.type)}
+                            className="flex flex-col items-center gap-1 p-3 border rounded-lg hover:bg-violet-50 hover:border-violet-300 transition-colors text-sm"
+                          >
+                            <Icon className="w-4 h-4 text-violet-500" />
+                            <span className="text-xs text-gray-600">{ct.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
 
                   {/* Add field buttons */}
                   <div className="pt-2">

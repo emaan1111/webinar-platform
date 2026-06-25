@@ -92,10 +92,45 @@ export default function PopupPreview({
       {/* Body */}
       <div style={{ background: styles.bodyBg, padding: '20px' }}>
         <div className="flex flex-wrap gap-3">
-          {fields.map(field => (
+          {fields.map(field => {
+            const w = field.width === 'half' ? 'calc(50% - 6px)' : '100%'
+            const ta = (field.align || 'left') as 'left' | 'center' | 'right'
+
+            if (field.type === 'image') {
+              return (
+                <div key={field.id} style={{ width: w, textAlign: ta }}>
+                  {field.content ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={field.content} alt="" style={{ maxWidth: '100%', borderRadius: '8px', display: 'inline-block' }} />
+                  ) : (
+                    <div style={{ height: 80, borderRadius: 8, border: '1px dashed #d1d5db', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 12 }}>Image</div>
+                  )}
+                </div>
+              )
+            }
+            if (field.type === 'heading') {
+              return (
+                <div key={field.id} style={{ width: w }}>
+                  <div style={{ textAlign: ta, color: styles.labelColor, fontWeight: 700, fontSize: `${Math.max(16, Number(styles.headerFontSize) - 2)}px`, fontFamily: styles.fontFamily }}>
+                    {field.content}
+                  </div>
+                </div>
+              )
+            }
+            if (field.type === 'paragraph') {
+              return (
+                <div key={field.id} style={{ width: w }}>
+                  <div style={{ textAlign: ta, color: styles.labelColor, fontSize: `${styles.labelFontSize}px`, whiteSpace: 'pre-wrap', opacity: 0.9 }}>
+                    {field.content}
+                  </div>
+                </div>
+              )
+            }
+
+            return (
             <div
               key={field.id}
-              style={{ width: field.width === 'half' ? 'calc(50% - 6px)' : '100%' }}
+              style={{ width: w }}
             >
               <label
                 style={{
@@ -217,7 +252,8 @@ export default function PopupPreview({
                 />
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
 
         {/* Submit button */}

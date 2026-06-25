@@ -25,6 +25,8 @@ interface PopupConfig {
     required: boolean
     options: string
     width: 'full' | 'half'
+    content?: string
+    align?: 'left' | 'center' | 'right'
   }>
   styles: {
     popupBg: string
@@ -73,6 +75,7 @@ export default function PopupEmbedPage() {
         // Initialize form data
         const initial: Record<string, any> = {}
         data.fields?.forEach((f: any) => {
+          if (['image', 'heading', 'paragraph'].includes(f.type)) return // content elements, not inputs
           initial[f.id] = f.type === 'checkbox' ? false : ''
           if (f.type === 'phone') {
             initial[f.id + '_code'] = '+1'
@@ -103,6 +106,7 @@ export default function PopupEmbedPage() {
     // Merge phone codes with phone numbers
     const submitData: Record<string, any> = {}
     config.fields.forEach(field => {
+      if (['image', 'heading', 'paragraph'].includes(field.type)) return // content elements, not data
       if (field.type === 'phone') {
         submitData[field.id] = (formData[field.id + '_code'] || '+1') + ' ' + (formData[field.id] || '')
       } else {
@@ -266,17 +270,48 @@ export default function PopupEmbedPage() {
           )}
 
           <div className="flex flex-wrap gap-3">
-            {config.fields.map(field => (
-              <div 
+            {config.fields.map(field => {
+              const w = field.width === 'half' ? 'calc(50% - 6px)' : '100%'
+              const ta = (field.align || 'left') as 'left' | 'center' | 'right'
+
+              if (field.type === 'image') {
+                return field.content ? (
+                  <div key={field.id} style={{ width: w, textAlign: ta }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={field.content} alt="" style={{ maxWidth: '100%', borderRadius: '8px', display: 'inline-block' }} />
+                  </div>
+                ) : null
+              }
+              if (field.type === 'heading') {
+                return (
+                  <div key={field.id} style={{ width: w }}>
+                    <div style={{ textAlign: ta, color: s.labelColor || '#111827', fontWeight: 700, fontSize: `${Math.max(16, Number(s.headerFontSize || 20) - 2)}px` }}>
+                      {field.content}
+                    </div>
+                  </div>
+                )
+              }
+              if (field.type === 'paragraph') {
+                return (
+                  <div key={field.id} style={{ width: w }}>
+                    <div style={{ textAlign: ta, color: s.labelColor || '#374151', fontSize: `${s.labelFontSize || 14}px`, whiteSpace: 'pre-wrap', opacity: 0.9 }}>
+                      {field.content}
+                    </div>
+                  </div>
+                )
+              }
+
+              return (
+              <div
                 key={field.id}
-                style={{ width: field.width === 'half' ? 'calc(50% - 6px)' : '100%' }}
+                style={{ width: w }}
               >
                 {field.type !== 'checkbox' && (
-                  <label 
+                  <label
                     className="block mb-1 font-medium"
-                    style={{ 
-                      color: s.labelColor || '#374151', 
-                      fontSize: `${s.labelFontSize || 14}px` 
+                    style={{
+                      color: s.labelColor || '#374151',
+                      fontSize: `${s.labelFontSize || 14}px`
                     }}
                   >
                     {field.label}
@@ -402,7 +437,8 @@ export default function PopupEmbedPage() {
                   />
                 )}
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {/* Submit Button */}
