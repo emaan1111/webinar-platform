@@ -28,6 +28,59 @@ export interface EmaanLeadInput {
   customFields?: Record<string, CustomFieldValue>
 }
 
+/**
+ * Decide which Emaan webhook URLs a single registration should be pushed to.
+ *
+ * Combines the webinar's own per-webinar URL with any matching global routes,
+ * each gated by Zoom-only scope, and de-duplicates by URL so the same endpoint
+ * is never hit twice for one registration (which would double-fire workflows).
+ */
+export interface EmaanRouteLike {
+  webhookUrl: string
+  scope: string // "ALL" | "ZOOM_ONLY"
+  appliesTo: string // "ALL" | "INTERNAL" | "EXTERNAL"
+  isActive: boolean
+}
+
+export interface ResolveEmaanTargetsInput {
+  kind: 'internal' | 'external'
+  isZoom: boolean
+  /** The webinar's own emaanWebhookUrl (per-webinar targeting). */
+  perWebinarUrl?: string | null
+  /** The webinar's own scope; defaults to ALL when absent (internal webinars). */
+  perWebinarScope?: string | null
+  /** Broad rules from settings (data/emaan-routes.json). */
+  globalRoutes: EmaanRouteLike[]
+}
+
+/** A ZOOM_ONLY scope only allows Zoom-session registrations; anything else allows all. */
+function scopeAllows(scope: string | null | undefined, isZoom: boolean): boolean {
+  return scope === 'ZOOM_ONLY' ? isZoom : true
+}
+
+export function resolveEmaanTargets(input: ResolveEmaanTargetsInput): string[] {
+  const { kind, isZoom, perWebinarUrl, perWebinarScope, globalRoutes } = input
+  const urls = new Set<string>()
+
+  if (perWebinarUrl && perWebinarUrl.trim() && scopeAllows(perWebinarScope, isZoom)) {
+    urls.add(perWebinarUrl.trim())
+  }
+
+  for (const route of globalRoutes || []) {
+    if (!route?.isActive || !route.webhookUrl || !route.webhookUrl.trim()) continue
+    const appliesTo = (route.appliesTo || 'ALL').toUpperCase()
+    const matchesKind =
+      appliesTo === 'ALL' ||
+      (appliesTo === 'INTERNAL' && kind === 'internal') ||
+      (appliesTo === 'EXTERNAL' && kind === 'external')
+    if (!matchesKind) continue
+    if (!scopeAllows(route.scope, isZoom)) continue
+    urls.add(route.webhookUrl.trim())
+  }
+
+  return [...urls]
+}
+
 /** Only allow the emaan lead-webhook shape; reject anything that isn't an http(s) URL. */
 function isValidWebhookUrl(url: string): boolean {
   try {

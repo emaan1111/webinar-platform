@@ -55,16 +55,18 @@ export default function SettingsLandingPage() {
 
         <Card>
           <CardHeader>
-            <h2 className="text-lg font-semibold text-gray-900">SMS Settings</h2>
+            <h2 className="text-lg font-semibold text-gray-900">📧 Emaan Email Integration</h2>
           </CardHeader>
           <CardBody>
             <p className="text-sm text-gray-600">
-              Control which timezones receive SMS messages. Block specific regions to reduce costs.
+              Push webinar registrations into your Emaan app (contact → list → tag → workflow). Set
+              global rules for all webinars, or all internal / all external — gated by Zoom-only when
+              you want it.
             </p>
             <div className="mt-6">
-              <Link href="/dashboard/settings/sms">
+              <Link href="/dashboard/settings/emaan">
                 <Button>
-                  Manage SMS Settings
+                  Manage Emaan Integration
                 </Button>
               </Link>
             </div>

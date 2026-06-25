@@ -11,7 +11,8 @@ import { sendEmail } from '@/lib/email'
 import { generateICS } from '@/lib/calendarUtils'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
 import { appendUnsubscribeFooter, getUnsubscribeLink, prepareEmailHtml, replaceMergeTags } from '@/lib/emailTracking'
-import { pushLeadToEmaan } from '@/lib/emaan'
+import { pushLeadToEmaan, resolveEmaanTargets } from '@/lib/emaan'
+import { readEmaanRoutes } from '@/lib/emaanSettings'
 
 const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
   Promise.resolve()
@@ -609,24 +610,6 @@ export async function POST(
       console.log('ℹ️ CRM integration disabled for this webinar');
     }
 
-    // Push to Emaan email-management (contact → list → tag → workflow).
-    // Internal webinars are all-or-nothing: any registration pushes when a URL
-    // is set. List/tag/workflow live on the emaan endpoint behind the token.
-    if (webinar.emaanWebhookUrl) {
-      runInBackground('Emaan push', () =>
-        pushLeadToEmaan({
-          webhookUrl: webinar.emaanWebhookUrl!,
-          name: registration.name,
-          email: registration.email,
-          phone: registration.phone,
-          customFields: {
-            webinar_name: webinar.title,
-            webinar_time: registration.scheduledStartTime?.toISOString(),
-          },
-        })
-      )
-    }
-
     // Apply timing reminder tag immediately as well (if needed)
     if (registration.scheduledStartTime && crmIntegration !== 'NONE') {
       const webinarStart = new Date(registration.scheduledStartTime);
@@ -711,6 +694,36 @@ export async function POST(
 
     // NON-CRITICAL integration work happens in background
     runInBackground('Post-registration integrations', async () => {
+      // Push to Emaan email-management (contact → list → tag → workflow).
+      // Targets = this webinar's own URL (per-webinar, all-or-nothing) + any
+      // matching global routes, gated by scope. Internal Zoom detection uses the
+      // chosen schedule's isZoomSession flag. De-duplicated by URL.
+      try {
+        const emaanGlobalRoutes = await readEmaanRoutes()
+        const emaanTargets = resolveEmaanTargets({
+          kind: 'internal',
+          isZoom: schedule?.isZoomSession === true,
+          perWebinarUrl: webinar.emaanWebhookUrl,
+          perWebinarScope: 'ALL', // internal per-webinar field has no scope
+          globalRoutes: emaanGlobalRoutes,
+        })
+        for (const webhookUrl of emaanTargets) {
+          await pushLeadToEmaan({
+            webhookUrl,
+            name: registration.name,
+            email: registration.email,
+            phone: registration.phone,
+            customFields: {
+              webinar_name: webinar.title,
+              webinar_time: registration.scheduledStartTime?.toISOString(),
+              session_type: schedule?.isZoomSession ? 'zoom' : 'webinar',
+            },
+          })
+        }
+      } catch (err) {
+        console.error('Emaan dispatch error:', err)
+      }
+
       // 1. Server-Side Split Test & Lead Page Tracking
       // More reliable than client-side beacons
       if (splitTestId && variantId) {
