@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
+import { COMMON_TIMEZONES, timezoneLabel } from '@/lib/timezones'
 
 const COUNTRY_CODES = [
   { code: '+1', country: 'US' }, { code: '+44', country: 'UK' }, { code: '+91', country: 'IN' },
@@ -12,11 +13,6 @@ const COUNTRY_CODES = [
   { code: '+62', country: 'ID' }, { code: '+52', country: 'MX' }, { code: '+39', country: 'IT' },
   { code: '+34', country: 'ES' }, { code: '+82', country: 'KR' },
 ]
-
-const ALL_TIMEZONES: string[] =
-  typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function'
-    ? (Intl as any).supportedValuesOf('timeZone')
-    : ['America/New_York', 'Europe/London', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Australia/Sydney']
 
 function detectTz(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York' } catch { return 'America/New_York' }
@@ -386,8 +382,8 @@ export default function PopupEmbedPage() {
                     <div>
                       <label className="block mb-1 font-medium" style={lblStyle}>Your Timezone</label>
                       <select value={userTimezone} onChange={e => setUserTimezone(e.target.value)} style={inputStyle}>
-                        {!ALL_TIMEZONES.includes(userTimezone) && <option value={userTimezone}>{userTimezone.replace(/_/g, ' ')}</option>}
-                        {ALL_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+                        {!COMMON_TIMEZONES.includes(userTimezone) && <option value={userTimezone}>{timezoneLabel(userTimezone)}</option>}
+                        {COMMON_TIMEZONES.map(tz => <option key={tz} value={tz}>{timezoneLabel(tz)}</option>)}
                       </select>
                     </div>
                     <div>

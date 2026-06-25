@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, FormEvent } from 'react'
+import { COMMON_TIMEZONES, timezoneLabel } from '@/lib/timezones'
 
 interface Schedule {
   id: string
@@ -19,17 +20,6 @@ interface SchedulesResponse {
   thankYouUrl?: string | null
   schedules: Schedule[]
 }
-
-// Full IANA timezone list when the browser supports it, else a sensible curated fallback.
-const ALL_TIMEZONES: string[] =
-  typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function'
-    ? (Intl as any).supportedValuesOf('timeZone')
-    : [
-        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-        'America/Toronto', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Africa/Cairo',
-        'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Singapore',
-        'Asia/Jakarta', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland',
-      ]
 
 function detectTimezone(): string {
   try {
@@ -309,11 +299,11 @@ export default function ExternalWebinarRegistrationForm({
             onChange={(e) => setUserTimezone(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
           >
-            {!ALL_TIMEZONES.includes(userTimezone) && (
-              <option value={userTimezone}>{userTimezone.replace(/_/g, ' ')}</option>
+            {!COMMON_TIMEZONES.includes(userTimezone) && (
+              <option value={userTimezone}>{timezoneLabel(userTimezone)}</option>
             )}
-            {ALL_TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+            {COMMON_TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{timezoneLabel(tz)}</option>
             ))}
           </select>
           <p className="text-xs text-gray-500 mt-1">Times below are shown in this timezone.</p>
