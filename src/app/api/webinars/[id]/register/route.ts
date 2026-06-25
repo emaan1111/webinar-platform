@@ -11,6 +11,7 @@ import { sendEmail } from '@/lib/email'
 import { generateICS } from '@/lib/calendarUtils'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
 import { appendUnsubscribeFooter, getUnsubscribeLink, prepareEmailHtml, replaceMergeTags } from '@/lib/emailTracking'
+import { pushLeadToEmaan } from '@/lib/emaan'
 
 const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
   Promise.resolve()
@@ -179,6 +180,8 @@ export async function POST(
         replayAttendedTag: true,
         // CRM Integration
         crmIntegration: true,
+        // Emaan email-management integration
+        emaanWebhookUrl: true,
       }
     })
     
@@ -604,6 +607,24 @@ export async function POST(
       }
     } else {
       console.log('ℹ️ CRM integration disabled for this webinar');
+    }
+
+    // Push to Emaan email-management (contact → list → tag → workflow).
+    // Internal webinars are all-or-nothing: any registration pushes when a URL
+    // is set. List/tag/workflow live on the emaan endpoint behind the token.
+    if (webinar.emaanWebhookUrl) {
+      runInBackground('Emaan push', () =>
+        pushLeadToEmaan({
+          webhookUrl: webinar.emaanWebhookUrl!,
+          name: registration.name,
+          email: registration.email,
+          phone: registration.phone,
+          customFields: {
+            webinar_name: webinar.title,
+            webinar_time: registration.scheduledStartTime?.toISOString(),
+          },
+        })
+      )
     }
 
     // Apply timing reminder tag immediately as well (if needed)

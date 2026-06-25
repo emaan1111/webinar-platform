@@ -151,6 +151,9 @@ export default function ExternalWebinarDetailPage() {
     jitLeadMinutes: 15,
     recurringSlotsToShow: '' as number | '' | string,
     thankYouUrl: '',
+    // Emaan email-management integration
+    emaanWebhookUrl: '',
+    emaanSyncScope: 'ALL' as 'ALL' | 'ZOOM_ONLY',
   })
 
   useEffect(() => {
@@ -227,6 +230,8 @@ export default function ExternalWebinarDetailPage() {
         jitLeadMinutes: data.jitLeadMinutes ?? 15,
         recurringSlotsToShow: data.recurringSlotsToShow ?? '',
         thankYouUrl: data.thankYouUrl || '',
+        emaanWebhookUrl: data.emaanWebhookUrl || '',
+        emaanSyncScope: data.emaanSyncScope === 'ZOOM_ONLY' ? 'ZOOM_ONLY' : 'ALL',
       })
     } catch (err: any) {
       setError(err.message)
@@ -818,6 +823,79 @@ export default function ExternalWebinarDetailPage() {
                 <span className="text-sm font-medium text-gray-700">None</span>
               </label>
             </div>
+          </CardBody>
+        </Card>
+
+        {/* Emaan Email Management */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-lg font-semibold">📧 Emaan Email Management</h2>
+          </CardHeader>
+          <CardBody className="space-y-4">
+            <p className="text-sm text-gray-500">
+              Push each registration into your Emaan app as a contact. In Emaan, create a
+              lead-webhook endpoint with the list, tag and workflow you want, then paste its URL
+              here. Adding the contact to that list / tag automatically starts any matching Emaan
+              workflow.
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Emaan webhook URL
+              </label>
+              <input
+                type="url"
+                value={formData.emaanWebhookUrl}
+                onChange={(e) => setFormData({ ...formData, emaanWebhookUrl: e.target.value })}
+                placeholder="https://your-emaan-app.com/webhooks/in/<token>"
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Leave blank to disable. The list, tag and workflow are configured on the Emaan
+                endpoint behind this token.
+              </p>
+            </div>
+
+            {formData.emaanWebhookUrl.trim() && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Which sessions should push to Emaan?
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="emaanSyncScope"
+                      value="ALL"
+                      checked={formData.emaanSyncScope === 'ALL'}
+                      onChange={() => setFormData({ ...formData, emaanSyncScope: 'ALL' })}
+                      className="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium text-gray-700">All sessions</span>
+                      <span className="block text-gray-500">
+                        Every registration — EverWebinar (evergreen / just-in-time) and the live Zoom session.
+                      </span>
+                    </span>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="emaanSyncScope"
+                      value="ZOOM_ONLY"
+                      checked={formData.emaanSyncScope === 'ZOOM_ONLY'}
+                      onChange={() => setFormData({ ...formData, emaanSyncScope: 'ZOOM_ONLY' })}
+                      className="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                    />
+                    <span className="text-sm">
+                      <span className="font-medium text-gray-700">Live Zoom session only</span>
+                      <span className="block text-gray-500">
+                        Only registrants who pick the live Zoom session are pushed to Emaan.
+                      </span>
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
 

@@ -130,6 +130,9 @@ export async function PUT(
       jitLeadMinutes,
       recurringSlotsToShow,
       thankYouUrl,
+      // Emaan email-management integration
+      emaanWebhookUrl,
+      emaanSyncScope,
     } = body
 
     const externalWebinar = await prisma.externalWebinar.update({
@@ -173,6 +176,10 @@ export async function PUT(
               : Number(recurringSlotsToShow),
         }),
         ...(thankYouUrl !== undefined && { thankYouUrl: thankYouUrl || null }),
+        ...(emaanWebhookUrl !== undefined && { emaanWebhookUrl: emaanWebhookUrl || null }),
+        ...(emaanSyncScope !== undefined && {
+          emaanSyncScope: emaanSyncScope === 'ZOOM_ONLY' ? 'ZOOM_ONLY' : 'ALL',
+        }),
         updatedAt: new Date(),
       }
     })

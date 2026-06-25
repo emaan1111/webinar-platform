@@ -127,6 +127,10 @@ model Webinar {
   registrationTagId                  Int?
   replayAttendedTagId                Int?
   crmIntegration                     CrmIntegration              @default(CLICKFUNNELS)
+  // Emaan email-management integration. Blank = off. When set, each new
+  // registration is POSTed to this emaan lead-webhook URL (contact → list →
+  // tag → workflow are configured on the emaan endpoint behind the token).
+  emaanWebhookUrl                    String?
   sendCalendarInvite                 Boolean                     @default(true)
   reminderEmailSource                String                      @default("internal") // "internal" | "cf_mautic"
   offers                             Offer[]
@@ -1331,6 +1335,14 @@ model ExternalWebinar {
 
   // CRM Integration
   crmIntegration CrmIntegration @default(CLICKFUNNELS)
+
+  // Emaan email-management integration. Blank = off. When set, registrations are
+  // POSTed to this emaan lead-webhook URL (the contact's list/tag/workflow are
+  // configured on the emaan endpoint behind the token). emaanSyncScope decides
+  // which sessions push: "ALL" = every session (EverWebinar + live Zoom),
+  // "ZOOM_ONLY" = only the live Zoom session.
+  emaanWebhookUrl String?
+  emaanSyncScope  String  @default("ALL") // "ALL" | "ZOOM_ONLY"
 
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())

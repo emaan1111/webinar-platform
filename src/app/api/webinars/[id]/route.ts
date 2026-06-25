@@ -133,6 +133,8 @@ export async function PATCH(
       'mostlyAttendedThreshold',
       // CRM Integration
       'crmIntegration',
+      // Emaan email-management integration
+      'emaanWebhookUrl',
       'autoSendPostSessionSMS',
       'postSessionSMSMinutesAfter',
       'postSessionSMSMinWatchedMinutes',
@@ -174,7 +176,12 @@ export async function PATCH(
         if (field === 'autoSendPostSessionSMS') {
           value = value === 'true' || value === true
         }
-        
+
+        // Treat a blank emaan webhook URL as "off" (null) rather than "".
+        if (field === 'emaanWebhookUrl') {
+          value = typeof value === 'string' && value.trim() ? value.trim() : null
+        }
+
         webinarData[field] = value
       }
     }

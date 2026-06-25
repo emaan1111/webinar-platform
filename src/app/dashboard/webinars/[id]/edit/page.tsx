@@ -79,6 +79,8 @@ export default function EditWebinarPage() {
     replayAttendedTag: '',
     // CRM Integration
     crmIntegration: 'CLICKFUNNELS' as 'CLICKFUNNELS' | 'MAUTIC' | 'NONE',
+    // Emaan email-management integration
+    emaanWebhookUrl: '',
     // Post-Session SMS Automation
     autoSendPostSessionSMS: false,
     postSessionSMSMinutesAfter: 0,
@@ -207,6 +209,8 @@ export default function EditWebinarPage() {
         replayAttendedTag: webinar.replayAttendedTag || '',
         // CRM Integration
         crmIntegration: webinar.crmIntegration || 'CLICKFUNNELS',
+        // Emaan email-management integration
+        emaanWebhookUrl: webinar.emaanWebhookUrl || '',
         // Post-Session SMS Automation
         autoSendPostSessionSMS: webinar.autoSendPostSessionSMS || false,
         postSessionSMSMinutesAfter: webinar.postSessionSMSMinutesAfter || 0,
@@ -1635,6 +1639,37 @@ export default function EditWebinarPage() {
                       />
                       <span className="text-sm font-medium text-gray-700">None</span>
                     </label>
+                  </div>
+                </div>
+
+                {/* Emaan Email Management */}
+                <div className="pt-6 border-t border-gray-100">
+                  <div className="mb-4">
+                    <h3 className="text-sm font-semibold text-gray-900">📧 Emaan Email Management</h3>
+                    <p className="text-xs text-gray-500">
+                      Push each registration into your Emaan app as a contact. In Emaan, create a
+                      lead-webhook endpoint with the list, tag and workflow you want, then paste its
+                      URL here — adding the contact to that list / tag automatically starts any
+                      matching Emaan workflow.
+                    </p>
+                  </div>
+                  <div>
+                    <label htmlFor="emaanWebhookUrl" className="block text-xs font-medium text-gray-700 mb-1">
+                      Emaan webhook URL
+                    </label>
+                    <input
+                      type="url"
+                      id="emaanWebhookUrl"
+                      name="emaanWebhookUrl"
+                      value={formData.emaanWebhookUrl || ''}
+                      onChange={handleInputChange}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                      placeholder="https://your-emaan-app.com/webhooks/in/<token>"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Leave blank to disable. The list, tag and workflow are configured on the Emaan
+                      endpoint behind this token.
+                    </p>
                   </div>
                 </div>
 

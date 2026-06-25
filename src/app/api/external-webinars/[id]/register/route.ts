@@ -6,6 +6,7 @@ import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { sendEmail } from '@/lib/email'
 import { replaceMergeTags, prepareEmailHtml, MergeTagContext } from '@/lib/emailTracking'
+import { pushLeadToEmaan } from '@/lib/emaan'
 
 /**
  * External Webinar Registration API
@@ -348,6 +349,30 @@ export async function POST(
       }
     }
     // If crmIntegration is 'NONE', skip CRM sync
+
+    // Push to Emaan email-management (contact → list → tag → workflow).
+    // Scope decides which sessions push: ALL = every session, ZOOM_ONLY = only
+    // the live Zoom pick (isZoomPick is true for the live Zoom session).
+    if (externalWebinar.emaanWebhookUrl) {
+      const scope = externalWebinar.emaanSyncScope || 'ALL'
+      const shouldPush = scope === 'ALL' || (scope === 'ZOOM_ONLY' && isZoomPick)
+      if (shouldPush) {
+        // Fire-and-forget: a failed/slow push must not block the registration.
+        pushLeadToEmaan({
+          webhookUrl: externalWebinar.emaanWebhookUrl,
+          name,
+          email: email.toLowerCase(),
+          phone: fullPhone,
+          customFields: {
+            webinar_name: externalWebinar.externalWebinarName || externalWebinar.name,
+            webinar_time: registration.scheduledStartTime?.toISOString(),
+            session_type: isZoomPick ? 'zoom' : 'everwebinar',
+          },
+        }).catch(err => console.error('Emaan push error:', err))
+      } else {
+        console.log(`ℹ️ Emaan push skipped (scope=${scope}, isZoom=${isZoomPick})`)
+      }
+    }
 
     console.log(`✅ External webinar registration: ${email} → ${externalWebinar.name}`)
 
