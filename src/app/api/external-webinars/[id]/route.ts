@@ -129,6 +129,7 @@ export async function PUT(
       showJustInTime,
       jitLeadMinutes,
       recurringSlotsToShow,
+      thankYouUrl,
     } = body
 
     const externalWebinar = await prisma.externalWebinar.update({
@@ -171,6 +172,7 @@ export async function PUT(
               ? null
               : Number(recurringSlotsToShow),
         }),
+        ...(thankYouUrl !== undefined && { thankYouUrl: thankYouUrl || null }),
         updatedAt: new Date(),
       }
     })

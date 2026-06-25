@@ -394,6 +394,7 @@ export async function GET(
       platform: externalWebinar.platform,
       isJIT: responseIsJIT,
       userTimezone,
+      thankYouUrl: externalWebinar.thankYouUrl || null,
       schedules: scheduleOptions,
     }, { headers: corsHeaders })
 

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz'
 import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
@@ -63,20 +64,45 @@ interface ExternalWebinar {
   }
 }
 
-// Stored UTC ISO -> "YYYY-MM-DDTHH:mm" for <input type="datetime-local"> in the host's local tz.
-function isoToDatetimeLocal(iso?: string | null): string {
+// Full IANA timezone list (browser-provided) with a curated fallback.
+const ALL_TIMEZONES: string[] =
+  typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function'
+    ? (Intl as any).supportedValuesOf('timeZone')
+    : [
+        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+        'Europe/London', 'Europe/Paris', 'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata',
+        'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney',
+      ]
+
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+  } catch {
+    return 'America/New_York'
+  }
+}
+
+// Stored UTC ISO -> "YYYY-MM-DDTHH:mm" in the chosen timezone (for <input type="datetime-local">).
+function isoToDatetimeLocal(iso: string | null | undefined, tz: string): string {
   if (!iso) return ''
   const d = new Date(iso)
   if (isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+  try {
+    return formatInTimeZone(d, tz, "yyyy-MM-dd'T'HH:mm")
+  } catch {
+    return ''
+  }
 }
 
-// datetime-local value (host's local tz) -> UTC ISO string for storage.
-function datetimeLocalToIso(value?: string): string | null {
+// "YYYY-MM-DDTHH:mm" entered in the chosen timezone -> UTC ISO string for storage.
+function datetimeLocalToIso(value: string | undefined, tz: string): string | null {
   if (!value) return null
-  const d = new Date(value)
-  return isNaN(d.getTime()) ? null : d.toISOString()
+  try {
+    const d = fromZonedTime(value, tz)
+    return isNaN(d.getTime()) ? null : d.toISOString()
+  } catch {
+    return null
+  }
 }
 
 export default function ExternalWebinarDetailPage() {
@@ -90,7 +116,6 @@ export default function ExternalWebinarDetailPage() {
   const [error, setError] = useState('')
   const [copiedEmbed, setCopiedEmbed] = useState(false)
   const [copiedPopup, setCopiedPopup] = useState(false)
-  const [redirectUrl, setRedirectUrl] = useState('')
 
   // Copy emails from internal webinar
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
@@ -120,10 +145,12 @@ export default function ExternalWebinarDetailPage() {
     combineScheduleSources: false,
     liveZoomEnabled: false,
     liveZoomLink: '',
-    liveZoomAt: '', // datetime-local string in host's local timezone
+    liveZoomAt: '', // datetime-local string, interpreted in liveZoomTimezone
+    liveZoomTimezone: detectTimezone(),
     showJustInTime: false,
     jitLeadMinutes: 15,
     recurringSlotsToShow: '' as number | '' | string,
+    thankYouUrl: '',
   })
 
   useEffect(() => {
@@ -194,10 +221,12 @@ export default function ExternalWebinarDetailPage() {
         combineScheduleSources: data.combineScheduleSources ?? false,
         liveZoomEnabled: data.liveZoomEnabled ?? false,
         liveZoomLink: data.liveZoomLink || '',
-        liveZoomAt: isoToDatetimeLocal(data.liveZoomAt),
+        liveZoomAt: isoToDatetimeLocal(data.liveZoomAt, data.liveZoomTimezone || detectTimezone()),
+        liveZoomTimezone: data.liveZoomTimezone || detectTimezone(),
         showJustInTime: data.showJustInTime ?? false,
         jitLeadMinutes: data.jitLeadMinutes ?? 15,
         recurringSlotsToShow: data.recurringSlotsToShow ?? '',
+        thankYouUrl: data.thankYouUrl || '',
       })
     } catch (err: any) {
       setError(err.message)
@@ -211,8 +240,7 @@ export default function ExternalWebinarDetailPage() {
     try {
       const payload = {
         ...formData,
-        liveZoomAt: datetimeLocalToIso(formData.liveZoomAt),
-        liveZoomTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        liveZoomAt: datetimeLocalToIso(formData.liveZoomAt, formData.liveZoomTimezone),
         recurringSlotsToShow:
           formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
             ? null
@@ -265,7 +293,7 @@ export default function ExternalWebinarDetailPage() {
     var container = document.createElement('div');
     container.style.cssText = 'width:100%;max-width:600px;max-height:95vh;background:transparent;border-radius:16px;overflow:hidden;animation:slideUp 0.3s ease-out;';
     var iframe = document.createElement('iframe');
-    iframe.src = '${appOrigin}/embed-modal-external/${id}${redirectUrl ? '?redirect=' + encodeURIComponent(redirectUrl) : ''}';
+    iframe.src = '${appOrigin}/embed-modal-external/${id}';
     iframe.style.cssText = 'width:100%;height:95vh;max-height:700px;border:none;background:transparent;display:block;';
     iframe.setAttribute('allow', 'clipboard-write');
     overlay.onclick = function(e) {
@@ -621,18 +649,36 @@ export default function ExternalWebinarDetailPage() {
                     <span className="text-sm font-medium">Include a live Zoom session</span>
                   </label>
                   {formData.liveZoomEnabled && (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Date &amp; Time (your timezone)</label>
-                        <input
-                          type="datetime-local"
-                          value={formData.liveZoomAt}
-                          onChange={(e) => setFormData({ ...formData, liveZoomAt: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-lg"
-                        />
-                        <p className="text-xs text-gray-500 mt-1">
-                          Tip: use a clean time (e.g. :00 or :30) so it blends in with the other options.
-                        </p>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Date &amp; Time</label>
+                          <input
+                            type="datetime-local"
+                            value={formData.liveZoomAt}
+                            onChange={(e) => setFormData({ ...formData, liveZoomAt: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-lg"
+                          />
+                          <p className="text-xs text-gray-500 mt-1">
+                            Tip: use a clean time (e.g. :00 or :30) so it blends in.
+                          </p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
+                          <select
+                            value={formData.liveZoomTimezone}
+                            onChange={(e) => setFormData({ ...formData, liveZoomTimezone: e.target.value })}
+                            className="w-full px-3 py-2 border rounded-lg"
+                          >
+                            {!ALL_TIMEZONES.includes(formData.liveZoomTimezone) && (
+                              <option value={formData.liveZoomTimezone}>{formData.liveZoomTimezone.replace(/_/g, ' ')}</option>
+                            )}
+                            {ALL_TIMEZONES.map((tz) => (
+                              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+                            ))}
+                          </select>
+                          <p className="text-xs text-gray-500 mt-1">The time you set is in this timezone.</p>
+                        </div>
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Zoom Join Link</label>
@@ -686,6 +732,43 @@ export default function ExternalWebinarDetailPage() {
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     e.g. set to 1 to show just the next session (like a daily 11 AM). Leave blank for all upcoming.
+                  </p>
+                </div>
+
+                {/* Thank-you page (dynamic — changes apply without re-pasting the embed) */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Thank-you page after registration
+                  </label>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <input
+                      type="url"
+                      value={formData.thankYouUrl}
+                      onChange={(e) => setFormData({ ...formData, thankYouUrl: e.target.value })}
+                      placeholder="https://your-site.com/thank-you"
+                      className="flex-1 min-w-[260px] px-3 py-2 border rounded-lg"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, thankYouUrl: `${appOrigin}/thank-you-external/${id}` })}
+                      className="text-xs font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                    >
+                      Use built-in page
+                    </button>
+                    {formData.thankYouUrl && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, thankYouUrl: '' })}
+                        className="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Scheduled &amp; Zoom picks redirect here after registering (the chosen time &amp; name are
+                    appended as <code>?t=</code> &amp; <code>?name=</code>). Just-in-time picks always go to the
+                    countdown page. Leave blank to stay in the popup. Saved here — no need to re-paste the embed.
                   </p>
                 </div>
               </div>
@@ -927,42 +1010,9 @@ export default function ExternalWebinarDetailPage() {
               <p className="text-xs text-gray-500 mb-2">
                 Full inline snippet: a button that opens the registration in a centered popup.
                 Shows the combined live-Zoom + just-in-time + recurring times in the visitor&apos;s timezone.
+                Paste it once — the Zoom settings, thank-you page and times are all read live, so
+                changing them above never requires re-pasting this code.
               </p>
-
-              <div className="mb-3 p-3 rounded-lg bg-gray-50 border border-gray-200">
-                <label className="block text-xs font-medium text-gray-600 mb-1">
-                  Redirect after registration (optional)
-                </label>
-                <input
-                  type="url"
-                  value={redirectUrl}
-                  onChange={(e) => setRedirectUrl(e.target.value)}
-                  placeholder="https://your-site.com/thank-you"
-                  className="w-full px-3 py-2 border rounded-lg text-sm"
-                />
-                <div className="flex items-center gap-2 mt-2 flex-wrap">
-                  <button
-                    type="button"
-                    onClick={() => setRedirectUrl(`${appOrigin}/thank-you-external/${id}`)}
-                    className="text-xs font-medium text-blue-600 hover:text-blue-800"
-                  >
-                    Use built-in thank-you page
-                  </button>
-                  {redirectUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setRedirectUrl('')}
-                      className="text-xs text-gray-500 hover:text-gray-700"
-                    >
-                      Clear (stay in popup)
-                    </button>
-                  )}
-                </div>
-                <p className="text-xs text-gray-400 mt-1">
-                  Leave blank to show the &quot;You&apos;re registered&quot; message inside the popup. The
-                  chosen time &amp; name are appended to your URL as <code>?t=</code> &amp; <code>?name=</code>.
-                </p>
-              </div>
 
               <div className="relative">
                 <pre className="bg-gray-900 text-green-400 p-4 rounded-lg text-xs overflow-x-auto whitespace-pre-wrap break-all max-h-72">

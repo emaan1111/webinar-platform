@@ -16,7 +16,27 @@ interface SchedulesResponse {
   platform: string
   isJIT: boolean
   userTimezone: string
+  thankYouUrl?: string | null
   schedules: Schedule[]
+}
+
+// Full IANA timezone list when the browser supports it, else a sensible curated fallback.
+const ALL_TIMEZONES: string[] =
+  typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function'
+    ? (Intl as any).supportedValuesOf('timeZone')
+    : [
+        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
+        'America/Toronto', 'Europe/London', 'Europe/Paris', 'Europe/Berlin', 'Africa/Cairo',
+        'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Dhaka', 'Asia/Singapore',
+        'Asia/Jakarta', 'Asia/Tokyo', 'Australia/Sydney', 'Pacific/Auckland',
+      ]
+
+function detectTimezone(): string {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
+  } catch {
+    return 'America/New_York'
+  }
 }
 
 interface RegistrationFormProps {
@@ -45,7 +65,7 @@ interface RegistrationFormProps {
   /**
    * Callback when registration succeeds
    */
-  onSuccess?: (data: { registrationId: string; liveRoomUrl?: string; scheduledTime?: string; name?: string; isJIT?: boolean }) => void
+  onSuccess?: (data: { registrationId: string; liveRoomUrl?: string; scheduledTime?: string; name?: string; isJIT?: boolean; thankYouUrl?: string | null }) => void
   
   /**
    * Callback on error
@@ -91,9 +111,10 @@ export default function ExternalWebinarRegistrationForm({
   const [loadingSchedules, setLoadingSchedules] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [thankYouUrl, setThankYouUrl] = useState<string | null>(null)
 
-  // Get user's timezone
-  const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  // User's timezone — auto-detected, but the registrant can change it (re-fetches times).
+  const [userTimezone, setUserTimezone] = useState<string>(detectTimezone)
 
   // Fetch available schedules on mount
   useEffect(() => {
@@ -111,6 +132,7 @@ export default function ExternalWebinarRegistrationForm({
         setSchedules(data.schedules)
         setWebinarName(data.webinarName)
         setIsJIT(data.isJIT)
+        setThankYouUrl(data.thankYouUrl ?? null)
         
         // Auto-select first schedule if only one
         if (data.schedules.length === 1) {
@@ -179,6 +201,7 @@ export default function ExternalWebinarRegistrationForm({
           scheduledTime: selectedScheduleData?.label,
           name: name.trim(),
           isJIT: selectedScheduleData?.isJIT,
+          thankYouUrl,
         })
       }
     } catch (err) {
@@ -279,6 +302,29 @@ export default function ExternalWebinarRegistrationForm({
         </div>
       )}
 
+      {/* Timezone selector — auto-detected, editable. Changing it re-fetches the times. */}
+      {!loadingSchedules && schedules.length > 0 && (
+        <div>
+          <label htmlFor="tz" className="block text-sm font-medium text-gray-700 mb-1">
+            Your Timezone
+          </label>
+          <select
+            id="tz"
+            value={userTimezone}
+            onChange={(e) => setUserTimezone(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          >
+            {!ALL_TIMEZONES.includes(userTimezone) && (
+              <option value={userTimezone}>{userTimezone.replace(/_/g, ' ')}</option>
+            )}
+            {ALL_TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Times below are shown in this timezone.</p>
+        </div>
+      )}
+
       {/* Schedule selector */}
       {schedules.length > 1 && (
         <div>
@@ -299,9 +345,6 @@ export default function ExternalWebinarRegistrationForm({
               </option>
             ))}
           </select>
-          <p className="text-xs text-gray-500 mt-1">
-            Times shown in your local timezone ({userTimezone})
-          </p>
         </div>
       )}
 
@@ -310,9 +353,6 @@ export default function ExternalWebinarRegistrationForm({
         <div className="bg-gray-50 p-3 rounded-md">
           <p className="text-sm text-gray-600">
             <span className="font-medium">Date & Time:</span> {schedules[0].label}
-          </p>
-          <p className="text-xs text-gray-500">
-            (Shown in your local timezone: {userTimezone})
           </p>
         </div>
       )}
