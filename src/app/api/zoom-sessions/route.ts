@@ -66,7 +66,7 @@ export async function GET() {
             w.webinar?.title ||
             'Unknown webinar',
         })),
-        registrantCount: await countRoster(s.webinars),
+        registrantCount: await countRoster(s.scheduledAt, s.webinars),
       }))
     )
 

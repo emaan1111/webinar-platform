@@ -122,6 +122,8 @@ export default function SessionsPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [slots, setSlots] = useState<{ time: string; count: number }[]>([])
+  const [slotsLoading, setSlotsLoading] = useState(false)
 
   const loadSessions = useCallback(async () => {
     setLoading(true)
@@ -161,6 +163,32 @@ export default function SessionsPage() {
       setRosterLoading(false)
     }
   }, [])
+
+  // Suggest real registered time slots for the selected webinars (avoids empty sessions).
+  useEffect(() => {
+    if (!modalOpen) return
+    if (form.external.length === 0 && form.internal.length === 0) {
+      setSlots([])
+      return
+    }
+    setSlotsLoading(true)
+    const params = new URLSearchParams()
+    if (form.external.length) params.set('external', form.external.join(','))
+    if (form.internal.length) params.set('internal', form.internal.join(','))
+    fetch(`/api/zoom-sessions/slots?${params.toString()}`)
+      .then((r) => r.json())
+      .then((d) => setSlots(d.slots || []))
+      .catch(() => setSlots([]))
+      .finally(() => setSlotsLoading(false))
+  }, [modalOpen, form.external, form.internal])
+
+  const applySlot = (iso: string) => {
+    setForm((f) => ({
+      ...f,
+      date: formatInTimeZone(new Date(iso), f.timezone, 'yyyy-MM-dd'),
+      time: formatInTimeZone(new Date(iso), f.timezone, 'HH:mm'),
+    }))
+  }
 
   const fmtSessionTime = (iso: string, tz: string) => {
     try {
@@ -439,7 +467,8 @@ export default function SessionsPage() {
                     <div className="py-12 text-center text-gray-500">Loading registrants…</div>
                   ) : filteredRoster.length === 0 ? (
                     <div className="py-12 text-center text-gray-500">
-                      No registrants yet. Associate one or more webinars to this session to populate the roster.
+                      No one registered for this session's time across the associated webinars. Check that the
+                      session's date/time/timezone matches the slot registrants picked, and that webinars are linked.
                     </div>
                   ) : (
                     <table className="w-full text-sm">
@@ -560,8 +589,8 @@ export default function SessionsPage() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 -mt-2">
-                The date/time/timezone describe when the Zoom call happens. The roster is everyone registered
-                through the associated webinars below.
+                Set this to the time registrants picked for this session. The roster = registrants of the
+                associated webinars who chose this exact slot (not the webinar's whole list).
               </p>
 
               <div>
@@ -604,6 +633,46 @@ export default function SessionsPage() {
                   )}
                 </div>
               </div>
+
+              {(form.external.length > 0 || form.internal.length > 0) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Registered times in the selected webinars
+                  </label>
+                  {slotsLoading ? (
+                    <div className="text-xs text-gray-400">Loading times…</div>
+                  ) : slots.length === 0 ? (
+                    <div className="text-xs text-gray-400">
+                      No upcoming registered times for the selected webinars.
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {slots.map((s) => {
+                        const slotDate = formatInTimeZone(new Date(s.time), form.timezone, 'yyyy-MM-dd')
+                        const slotTime = formatInTimeZone(new Date(s.time), form.timezone, 'HH:mm')
+                        const active = form.date === slotDate && form.time === slotTime
+                        return (
+                          <button
+                            key={s.time}
+                            type="button"
+                            onClick={() => applySlot(s.time)}
+                            className={`px-2.5 py-1 rounded-full text-xs border transition-colors ${
+                              active
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'bg-white text-gray-700 border-gray-200 hover:border-blue-400'
+                            }`}
+                          >
+                            {formatInTimeZone(new Date(s.time), form.timezone, 'EEE MMM d, h:mm a')} · {s.count}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+                  <p className="text-xs text-gray-400 mt-1">
+                    Click a time to set this session to a slot that actually has registrants.
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
