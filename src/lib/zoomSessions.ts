@@ -32,15 +32,15 @@ export function linkedIds(webinars: WebinarLink[]) {
   return { external, internal }
 }
 
-// Roster for a Zoom session = registrants of the linked webinars whose chosen
-// time matches the session's exact start time (a session has a unique time).
-export async function loadRoster(scheduledAt: Date, webinars: WebinarLink[]): Promise<ZoomRosterRow[]> {
+// Roster for a Zoom session = every registrant of the webinars associated with
+// it. The association is the source of truth (no time matching).
+export async function loadRoster(webinars: WebinarLink[]): Promise<ZoomRosterRow[]> {
   const { external, internal } = linkedIds(webinars)
   const rows: ZoomRosterRow[] = []
 
   if (external.length) {
     const ext = await prisma.externalWebinarRegistration.findMany({
-      where: { externalWebinarId: { in: external }, scheduledStartTime: scheduledAt },
+      where: { externalWebinarId: { in: external } },
       select: {
         id: true, name: true, email: true, phone: true, country: true, timezone: true,
         registeredAt: true, attended: true,
@@ -60,7 +60,7 @@ export async function loadRoster(scheduledAt: Date, webinars: WebinarLink[]): Pr
 
   if (internal.length) {
     const int = await prisma.registration.findMany({
-      where: { webinarId: { in: internal }, scheduledStartTime: scheduledAt },
+      where: { webinarId: { in: internal } },
       select: {
         id: true, name: true, email: true, phone: true, country: true, timezone: true,
         registeredAt: true, attended: true,
@@ -82,17 +82,17 @@ export async function loadRoster(scheduledAt: Date, webinars: WebinarLink[]): Pr
 }
 
 // Count of the roster (cheaper than loading rows — used for the list view).
-export async function countRoster(scheduledAt: Date, webinars: WebinarLink[]): Promise<number> {
+export async function countRoster(webinars: WebinarLink[]): Promise<number> {
   const { external, internal } = linkedIds(webinars)
   let total = 0
   if (external.length) {
     total += await prisma.externalWebinarRegistration.count({
-      where: { externalWebinarId: { in: external }, scheduledStartTime: scheduledAt },
+      where: { externalWebinarId: { in: external } },
     })
   }
   if (internal.length) {
     total += await prisma.registration.count({
-      where: { webinarId: { in: internal }, scheduledStartTime: scheduledAt },
+      where: { webinarId: { in: internal } },
     })
   }
   return total

@@ -399,6 +399,9 @@ export default function SessionsPage() {
                         {fmtSessionTime(selected.scheduledAt, selected.timezone)} · {filteredRoster.length} registrant
                         {filteredRoster.length === 1 ? '' : 's'}
                       </p>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        Session ID: <code className="font-mono">{selected.id}</code>
+                      </p>
                     </div>
                     <Button variant="secondary" onClick={exportCSV} disabled={filteredRoster.length === 0}>
                       <Download className="w-4 h-4 mr-2" />
@@ -436,7 +439,7 @@ export default function SessionsPage() {
                     <div className="py-12 text-center text-gray-500">Loading registrants…</div>
                   ) : filteredRoster.length === 0 ? (
                     <div className="py-12 text-center text-gray-500">
-                      No registrants match this session's time across the linked webinars.
+                      No registrants yet. Associate one or more webinars to this session to populate the roster.
                     </div>
                   ) : (
                     <table className="w-full text-sm">
@@ -557,7 +560,8 @@ export default function SessionsPage() {
                 </div>
               </div>
               <p className="text-xs text-gray-500 -mt-2">
-                Set this to the exact time registrants picked — the roster matches registrations at this instant.
+                The date/time/timezone describe when the Zoom call happens. The roster is everyone registered
+                through the associated webinars below.
               </p>
 
               <div>

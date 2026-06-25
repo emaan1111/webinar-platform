@@ -66,7 +66,7 @@ export async function GET(_request: Request, { params }: { params: { id: string 
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    const roster = await loadRoster(zoomSession.scheduledAt, zoomSession.webinars)
+    const roster = await loadRoster(zoomSession.webinars)
     return NextResponse.json({ session: shapeSession(zoomSession), roster })
   } catch (error) {
     console.error('Error fetching zoom session:', error)
