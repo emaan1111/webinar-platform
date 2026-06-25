@@ -49,11 +49,27 @@ export async function GET(request: Request) {
       whereClause.scheduledStartTime = { lt: now }
     }
 
-    // Is this registration's session the webinar's configured live Zoom session?
+    // A registration counts as a Zoom session (for the "Zoom sessions only"
+    // filter) when its external webinar has a Zoom time configured — i.e. a zoom
+    // time was set on the webinar (liveZoomAt/liveZoomLink) — or the registrant
+    // captured a Zoom room link. This matches "the ones we get from setting a
+    // zoom time in webinars", rather than only the single exact live-Zoom slot.
     const isZoomReg = (reg: {
-      scheduledStartTime: Date | null
       liveRoomUrl: string | null
       externalWebinar?: { liveZoomAt: Date | null; liveZoomLink: string | null } | null
+    }) => {
+      const ew = reg.externalWebinar
+      const webinarHasZoom = !!(ew?.liveZoomAt || ew?.liveZoomLink)
+      const hasZoomUrl = !!reg.liveRoomUrl && reg.liveRoomUrl.toLowerCase().includes('zoom')
+      return webinarHasZoom || hasZoomUrl
+    }
+
+    // The actual live-Zoom slot = this session's time matches the webinar's
+    // configured liveZoomAt (used for the "Zoom" badge + surfacing the link).
+    const isLiveZoomSlot = (reg: {
+      scheduledStartTime: Date | null
+      liveRoomUrl: string | null
+      externalWebinar?: { liveZoomAt: Date | null } | null
     }) => {
       const liveAt = reg.externalWebinar?.liveZoomAt
       const matchesLiveZoom =
@@ -65,9 +81,9 @@ export async function GET(request: Request) {
     const zoomLinkFor = (reg: {
       liveRoomUrl: string | null
       externalWebinar?: { liveZoomLink: string | null } | null
-    }, isZoom: boolean) => {
+    }, liveSlot: boolean) => {
       if (reg.liveRoomUrl && reg.liveRoomUrl.toLowerCase().includes('zoom')) return reg.liveRoomUrl
-      if (isZoom && reg.externalWebinar?.liveZoomLink) return reg.externalWebinar.liveZoomLink
+      if (liveSlot && reg.externalWebinar?.liveZoomLink) return reg.externalWebinar.liveZoomLink
       return null
     }
 
@@ -105,6 +121,7 @@ export async function GET(request: Request) {
       const rows = registrants
         .map((r) => {
           const isZoom = isZoomReg(r)
+          const liveSlot = isLiveZoomSlot(r)
           return {
             id: r.id,
             name: r.name,
@@ -117,7 +134,7 @@ export async function GET(request: Request) {
             watchTimeMinutes: r.watchTimeMinutes,
             webinarId: r.externalWebinar?.id || null,
             webinarTitle: webinarName(r.externalWebinar),
-            zoomLink: zoomLinkFor(r, isZoom),
+            zoomLink: zoomLinkFor(r, liveSlot),
             isZoom,
           }
         })
@@ -158,6 +175,7 @@ export async function GET(request: Request) {
       if (!reg.scheduledStartTime) continue
       const isZoom = isZoomReg(reg)
       if (zoomOnly && !isZoom) continue
+      const liveSlot = isLiveZoomSlot(reg)
 
       const key = reg.scheduledStartTime.toISOString()
       let group = groups.get(key)
@@ -166,8 +184,9 @@ export async function GET(request: Request) {
         groups.set(key, group)
       }
       group.total += 1
-      if (isZoom) group.isZoom = true
-      const link = zoomLinkFor(reg, isZoom)
+      // Badge a group as "Zoom" only when it is the actual configured live-Zoom slot.
+      if (liveSlot) group.isZoom = true
+      const link = zoomLinkFor(reg, liveSlot)
       if (link) group.zoomLinks.add(link)
 
       const wid = reg.externalWebinar?.id
