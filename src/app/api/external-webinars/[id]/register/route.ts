@@ -133,7 +133,6 @@ export async function POST(
     let isZoomPick = scheduleId === 'zoom'
     let wjScheduleId: string | undefined
     let decodedStartTime: Date | null = null
-    let localScheduleId: string | null = scheduleId || null
 
     if (typeof scheduleId === 'string' && scheduleId.startsWith('x|')) {
       const [, kind, millisStr] = scheduleId.split('|')
@@ -141,18 +140,30 @@ export async function POST(
       if (!Number.isNaN(millis)) decodedStartTime = new Date(millis)
       if (kind === 'z') {
         isZoomPick = true
-        localScheduleId = 'zoom'
       } else if (kind === 'j') {
         wjScheduleId = '0'
-        localScheduleId = '0'
       } else {
         wjScheduleId = kind
-        localScheduleId = kind
       }
     } else if (!isZoomPick) {
       // Legacy / non-combined option: id is the local schedule id or external id directly.
       const schedule = externalWebinar.schedules.find(s => s.id === scheduleId)
       wjScheduleId = schedule?.externalScheduleId || scheduleId
+    }
+
+    // The registration's scheduleId is a foreign key to a local ExternalWebinarSchedule row.
+    // Picker options carry external/synthetic ids (WebinarJam schedule numbers, 'zoom', JIT '0'),
+    // which are NOT local row ids — writing one straight into the FK violates the constraint and
+    // fails the whole registration. Resolve to a real local row when one exists, else store null.
+    // The exact chosen time and room link are preserved separately (scheduledStartTime, liveRoomUrl).
+    let localScheduleId: string | null = null
+    if (!isZoomPick) {
+      const localMatch =
+        externalWebinar.schedules.find(s => s.id === scheduleId) ||
+        (wjScheduleId
+          ? externalWebinar.schedules.find(s => s.externalScheduleId === wjScheduleId)
+          : undefined)
+      localScheduleId = localMatch?.id ?? null
     }
 
     if (isZoomPick) {
