@@ -150,6 +150,7 @@ model Webinar {
   followUpEmails                     FollowUpEmailTemplate[]
   sales                              WebinarSale[]
   schedules                          WebinarSchedule[]
+  zoomSessionLinks                   ZoomSessionWebinar[]
   host                               User                        @relation("HostedWebinars", fields: [hostId], references: [id])
 
   @@map("webinars")
@@ -1351,6 +1352,7 @@ model ExternalWebinar {
   leadPages     LeadPage[]
   registrations ExternalWebinarRegistration[]
   schedules     ExternalWebinarSchedule[]
+  zoomSessionLinks ZoomSessionWebinar[]
 
   confirmationEmails ConfirmationEmailTemplate[]
   reminderEmails     ReminderEmailTemplate[]
@@ -1899,4 +1901,45 @@ model Payment {
 
   @@index([orderId])
   @@map("payments")
+}
+
+// Admin-created live Zoom session. Has its own link/time/timezone and is linked
+// to one or more webinars (external and/or internal). The roster for a session
+// is the registrants of the linked webinars whose chosen time matches the
+// session's exact start time. Reporting/management only — does not change the
+// registrant-facing flow.
+model ZoomSession {
+  id          String   @id @default(cuid())
+  name        String
+  zoomLink    String?
+  scheduledAt DateTime // stored UTC
+  timezone    String   @default("America/New_York") // tz the host entered the time in
+  notes       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+
+  webinars ZoomSessionWebinar[]
+
+  @@index([scheduledAt])
+  @@map("zoom_sessions")
+}
+
+// Join row linking a ZoomSession to a webinar. Exactly one of externalWebinarId
+// / webinarId is set (webinarType records which).
+model ZoomSessionWebinar {
+  id                String  @id @default(cuid())
+  zoomSessionId     String
+  webinarType       String // "external" | "internal"
+  externalWebinarId String?
+  webinarId         String?
+
+  zoomSession     ZoomSession      @relation(fields: [zoomSessionId], references: [id], onDelete: Cascade)
+  externalWebinar ExternalWebinar? @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  webinar         Webinar?         @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+
+  @@unique([zoomSessionId, externalWebinarId])
+  @@unique([zoomSessionId, webinarId])
+  @@index([zoomSessionId])
+  @@map("zoom_session_webinars")
 }
