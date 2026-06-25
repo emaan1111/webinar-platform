@@ -8,14 +8,15 @@ import { Button } from '@/components/ui/Button';
 import {
   Plus, Edit, Trash2, ExternalLink, Copy, Users, Calendar, Clock,
   ChevronDown, ChevronRight, Folder, FolderOpen, Pencil,
-  Check, X, FlaskConical, Search, ArrowUpDown, List, FolderTree
+  Check, X, FlaskConical, Search, ArrowUpDown, List, FolderTree,
+  LayoutGrid, ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
 
 type DateFilterType = 'all' | 'last1h' | 'last24h' | 'today' | 'last7d' | 'last30d' | 'custom';
 type SortKey = 'name' | 'created' | 'views' | 'conversions' | 'convRate';
 type SortDir = 'asc' | 'desc';
-type ViewMode = 'folders' | 'flat';
+type ViewMode = 'tiles' | 'folders' | 'flat';
 
 const sortOptions: { value: SortKey; label: string }[] = [
   { value: 'created', label: 'Date created' },
@@ -57,8 +58,11 @@ export default function LeadPagesDashboard() {
   const [sortKey, setSortKey] = useState<SortKey>('created');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>('folders');
+  const [viewMode, setViewMode] = useState<ViewMode>('tiles');
   const sortDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Tiles (Finder-style) navigation: which folder is currently "opened" (null = root grid)
+  const [currentFolder, setCurrentFolder] = useState<string | null>(null);
 
   // Folder UI State
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set());
@@ -92,7 +96,7 @@ export default function LeadPagesDashboard() {
   // Persist preferences
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('leadPagesPrefs');
+      const saved = localStorage.getItem('leadPagesPrefs_v2');
       if (saved) {
         const p = JSON.parse(saved);
         if (p.sortKey) setSortKey(p.sortKey);
@@ -103,12 +107,12 @@ export default function LeadPagesDashboard() {
   }, []);
   useEffect(() => {
     try {
-      localStorage.setItem('leadPagesPrefs', JSON.stringify({ sortKey, sortDir, viewMode }));
+      localStorage.setItem('leadPagesPrefs_v2', JSON.stringify({ sortKey, sortDir, viewMode }));
     } catch {}
   }, [sortKey, sortDir, viewMode]);
 
   // Auto-switch to flat view while searching, restore on clear
-  const prevViewModeRef = useRef<ViewMode>('folders');
+  const prevViewModeRef = useRef<ViewMode>('tiles');
   useEffect(() => {
     if (searchQuery.trim()) {
       if (viewMode !== 'flat') {
@@ -314,9 +318,82 @@ export default function LeadPagesDashboard() {
     });
   };
 
+  // Reusable "Move to folder" picker (used in table rows and in tiles)
+  const renderFolderPicker = (page: any, align: 'left' | 'right' = 'left') => {
+    const isPickerOpen = folderPickerPageId === page.id;
+    return (
+      <div className="relative inline-block" ref={isPickerOpen ? folderPickerRef : undefined}>
+        <button
+          onClick={() => {
+            setFolderPickerPageId(isPickerOpen ? null : page.id);
+            setNewFolderInput('');
+          }}
+          className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors max-w-[150px] ${
+            page.folder
+              ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
+              : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+          }`}
+        >
+          <Folder className="w-3 h-3 flex-shrink-0" />
+          <span className="truncate">{page.folder || 'No folder'}</span>
+          <ChevronDown className="w-3 h-3 flex-shrink-0" />
+        </button>
+
+        {isPickerOpen && (
+          <div className={`absolute z-30 top-full ${align === 'right' ? 'right-0' : 'left-0'} mt-1 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1`}>
+            <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+              Move to folder
+            </div>
+            {page.folder && (
+              <button
+                onClick={() => assignFolder(page.id, null)}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-gray-500 italic"
+              >
+                No folder (remove)
+              </button>
+            )}
+            {allFolders.filter(f => f !== page.folder).map(folder => (
+              <button
+                key={folder}
+                onClick={() => assignFolder(page.id, folder)}
+                className="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 text-gray-700 flex items-center gap-2"
+              >
+                <Folder className="w-3.5 h-3.5 text-purple-400" />
+                <span className="truncate">{folder}</span>
+              </button>
+            ))}
+            <div className="border-t mt-1 pt-1 px-3 pb-2">
+              <p className="text-xs text-gray-400 mb-1.5">New folder</p>
+              <div className="flex gap-1">
+                <input
+                  type="text"
+                  value={newFolderInput}
+                  onChange={e => setNewFolderInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && newFolderInput.trim()) {
+                      assignFolder(page.id, newFolderInput.trim());
+                    }
+                  }}
+                  placeholder="Folder name..."
+                  className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-purple-400 focus:outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={() => newFolderInput.trim() && assignFolder(page.id, newFolderInput.trim())}
+                  className="p-1 bg-purple-600 text-white rounded hover:bg-purple-700"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderPageRow = (page: any) => {
     const stats = getDisplayStats(page);
-    const isPickerOpen = folderPickerPageId === page.id;
 
     return (
       <tr key={page.id} className="hover:bg-gray-50">
@@ -349,73 +426,7 @@ export default function LeadPagesDashboard() {
         </td>
         {/* Folder picker cell */}
         <td className="px-4 py-4 relative">
-          <div className="relative inline-block" ref={isPickerOpen ? folderPickerRef : undefined}>
-            <button
-              onClick={() => {
-                setFolderPickerPageId(isPickerOpen ? null : page.id);
-                setNewFolderInput('');
-              }}
-              className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium transition-colors ${
-                page.folder
-                  ? 'bg-purple-50 text-purple-700 hover:bg-purple-100'
-                  : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-              }`}
-            >
-              <Folder className="w-3 h-3" />
-              {page.folder || 'No folder'}
-              <ChevronDown className="w-3 h-3" />
-            </button>
-
-            {isPickerOpen && (
-              <div className="absolute z-30 top-full left-0 mt-1 w-52 bg-white rounded-lg shadow-xl border border-gray-200 py-1">
-                <div className="px-3 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Move to folder
-                </div>
-                {page.folder && (
-                  <button
-                    onClick={() => assignFolder(page.id, null)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 text-gray-500 italic"
-                  >
-                    No folder (remove)
-                  </button>
-                )}
-                {allFolders.filter(f => f !== page.folder).map(folder => (
-                  <button
-                    key={folder}
-                    onClick={() => assignFolder(page.id, folder)}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-purple-50 text-gray-700 flex items-center gap-2"
-                  >
-                    <Folder className="w-3.5 h-3.5 text-purple-400" />
-                    {folder}
-                  </button>
-                ))}
-                <div className="border-t mt-1 pt-1 px-3 pb-2">
-                  <p className="text-xs text-gray-400 mb-1.5">New folder</p>
-                  <div className="flex gap-1">
-                    <input
-                      type="text"
-                      value={newFolderInput}
-                      onChange={e => setNewFolderInput(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key === 'Enter' && newFolderInput.trim()) {
-                          assignFolder(page.id, newFolderInput.trim());
-                        }
-                      }}
-                      placeholder="Folder name..."
-                      className="flex-1 px-2 py-1 text-xs border border-gray-200 rounded focus:ring-1 focus:ring-purple-400 focus:outline-none"
-                      autoFocus
-                    />
-                    <button
-                      onClick={() => newFolderInput.trim() && assignFolder(page.id, newFolderInput.trim())}
-                      className="p-1 bg-purple-600 text-white rounded hover:bg-purple-700"
-                    >
-                      <Check className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
+          {renderFolderPicker(page, 'left')}
         </td>
         <td className="px-4 py-4 text-gray-700 text-sm">
           {page.template?.name || 'Custom HTML'}
@@ -556,6 +567,186 @@ export default function LeadPagesDashboard() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+    );
+  };
+
+  // --- Tiles (Finder-style) renderers ---
+
+  const renderPageTile = (page: any) => {
+    const stats = getDisplayStats(page);
+    return (
+      <div
+        key={page.id}
+        className="group bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-purple-200 transition-all p-4 flex flex-col"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
+            <Link
+              href={`/dashboard/lead-pages/${page.id}`}
+              className="block font-semibold text-gray-900 hover:text-purple-700 truncate"
+            >
+              {page.name}
+            </Link>
+            <code className="text-[11px] font-mono text-purple-600">/p/{page.slug}</code>
+          </div>
+          {page.isActiveABTest && (
+            <div
+              className="flex-shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full border border-orange-200 bg-orange-50 text-orange-600 text-[9px] font-bold uppercase tracking-wider"
+              title="Currently active in a Split Test"
+            >
+              <FlaskConical className="w-2.5 h-2.5" /> Test
+            </div>
+          )}
+        </div>
+
+        <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+          <div className="truncate">
+            <span className="text-gray-400">Webinar:</span>{' '}
+            {page.webinar ? (page.webinar.internalName || page.webinar.title) : <span className="italic text-gray-400">None</span>}
+          </div>
+          <div className="truncate">
+            <span className="text-gray-400">Template:</span> {page.template?.name || 'Custom HTML'}
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2 rounded-lg bg-gray-50 p-2 text-center">
+          <div>
+            <div className="text-sm font-semibold text-gray-900">{stats.views}</div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Views</div>
+          </div>
+          <button
+            onClick={() => handleShowLeads(page.id, page.name)}
+            className="rounded hover:bg-purple-50 transition-colors"
+            title="View leads"
+          >
+            <div className="text-sm font-semibold text-purple-600">{stats.conversions}</div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Leads</div>
+          </button>
+          <div>
+            <div className="text-sm font-semibold text-gray-900">{getConversionRate(page)}</div>
+            <div className="text-[10px] text-gray-400 uppercase tracking-wide">Rate</div>
+          </div>
+        </div>
+
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-1.5">
+          {renderFolderPicker(page, 'left')}
+          <div className="ml-auto flex items-center gap-0.5">
+            <button
+              onClick={() => copyToClipboard(`${window.location.origin}/p/${page.slug}`)}
+              title="Copy link"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <Copy className="w-4 h-4" />
+            </button>
+            <a
+              href={`/p/${page.slug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Open page"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+            >
+              <ExternalLink className="w-4 h-4" />
+            </a>
+            <Link
+              href={`/dashboard/lead-pages/${page.id}`}
+              title="Edit"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-purple-700 hover:bg-purple-50"
+            >
+              <Edit className="w-4 h-4" />
+            </Link>
+            <button
+              onClick={() => handleDelete(page.id, page.name)}
+              title="Delete"
+              className="p-1.5 rounded-lg text-gray-500 hover:text-red-600 hover:bg-red-50"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderFolderTile = (folderKey: string) => {
+    const pages = groupedPages[folderKey] || [];
+    const isUncat = folderKey === UNCATEGORIZED;
+    const isRenaming = renamingFolder === folderKey;
+    const totals = pages.reduce(
+      (acc, p) => {
+        const s = getDisplayStats(p);
+        acc.views += s.views || 0;
+        acc.conversions += s.conversions || 0;
+        return acc;
+      },
+      { views: 0, conversions: 0 }
+    );
+
+    return (
+      <div key={folderKey} className="group relative">
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => { if (!isRenaming) setCurrentFolder(folderKey); }}
+          onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !isRenaming) setCurrentFolder(folderKey); }}
+          className="cursor-pointer bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-purple-200 hover:-translate-y-0.5 transition-all p-4"
+        >
+          <div className="flex items-center justify-between mb-3">
+            <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
+              isUncat ? 'bg-gray-100' : 'bg-purple-50 group-hover:bg-purple-100'
+            }`}>
+              <Folder className={`w-6 h-6 ${isUncat ? 'text-gray-400' : 'text-purple-500'}`} />
+            </div>
+            <span className="text-xs font-medium text-gray-400">
+              {pages.length} page{pages.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {isRenaming ? (
+            <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
+              <input
+                autoFocus
+                type="text"
+                value={renameValue}
+                onChange={e => setRenameValue(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') renameFolder(folderKey, renameValue);
+                  if (e.key === 'Escape') setRenamingFolder(null);
+                }}
+                className="flex-1 min-w-0 px-2 py-0.5 text-sm border border-purple-300 rounded focus:ring-1 focus:ring-purple-400 focus:outline-none bg-white"
+              />
+              <button onClick={() => renameFolder(folderKey, renameValue)} className="p-1 text-green-600 hover:text-green-800">
+                <Check className="w-4 h-4" />
+              </button>
+              <button onClick={() => setRenamingFolder(null)} className="p-1 text-gray-400 hover:text-gray-600">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <h3 className="font-semibold text-gray-900 truncate">
+              {isUncat ? 'Uncategorized' : folderKey}
+            </h3>
+          )}
+
+          <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
+            <span>{totals.views} views</span>
+            <span>{totals.conversions} leads</span>
+          </div>
+        </div>
+
+        {!isUncat && !isRenaming && (
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setRenamingFolder(folderKey);
+              setRenameValue(folderKey);
+            }}
+            className="absolute top-3 right-3 p-1.5 rounded-lg text-gray-300 hover:text-purple-600 hover:bg-purple-50 opacity-0 group-hover:opacity-100 transition"
+            title="Rename folder"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
     );
@@ -718,13 +909,22 @@ export default function LeadPagesDashboard() {
         {/* View toggle */}
         <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
           <button
+            onClick={() => setViewMode('tiles')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
+              viewMode === 'tiles' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
+            }`}
+            title="Browse folders as tiles"
+          >
+            <LayoutGrid className="w-4 h-4" /> Tiles
+          </button>
+          <button
             onClick={() => setViewMode('folders')}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
               viewMode === 'folders' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
             }`}
             title="Group by folder"
           >
-            <FolderTree className="w-4 h-4" /> Folders
+            <FolderTree className="w-4 h-4" /> Sections
           </button>
           <button
             onClick={() => setViewMode('flat')}
@@ -775,6 +975,57 @@ export default function LeadPagesDashboard() {
             Clear filters
           </Button>
         </Card>
+      ) : viewMode === 'tiles' ? (
+        <div>
+          {currentFolder ? (
+            /* Inside a folder */
+            <>
+              <div className="flex items-center gap-2 mb-4 text-sm flex-wrap">
+                <button
+                  onClick={() => setCurrentFolder(null)}
+                  className="flex items-center gap-1 text-gray-500 hover:text-purple-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" /> All Pages
+                </button>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
+                <span className="font-semibold text-gray-800 flex items-center gap-1.5">
+                  <FolderOpen className="w-4 h-4 text-purple-500" />
+                  {currentFolder === UNCATEGORIZED ? 'Uncategorized' : currentFolder}
+                </span>
+                <span className="text-gray-400">
+                  · {(groupedPages[currentFolder]?.length || 0)} page{(groupedPages[currentFolder]?.length || 0) !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {(groupedPages[currentFolder]?.length || 0) === 0 ? (
+                <Card className="p-8 text-center">
+                  <Folder className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">This folder is empty.</p>
+                  <button
+                    onClick={() => setCurrentFolder(null)}
+                    className="mt-3 text-sm text-purple-600 hover:underline"
+                  >
+                    ← Back to all pages
+                  </button>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {groupedPages[currentFolder].map(renderPageTile)}
+                </div>
+              )}
+            </>
+          ) : allFolders.length === 0 ? (
+            /* No folders yet — show all pages directly as tiles */
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              {visiblePages.map(renderPageTile)}
+            </div>
+          ) : (
+            /* Root — folder grid */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {allFolders.map(renderFolderTile)}
+              {groupedPages[UNCATEGORIZED]?.length > 0 && renderFolderTile(UNCATEGORIZED)}
+            </div>
+          )}
+        </div>
       ) : viewMode === 'flat' ? (
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="w-full min-w-[1050px] text-sm">
