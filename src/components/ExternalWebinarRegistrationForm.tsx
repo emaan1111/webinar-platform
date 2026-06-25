@@ -297,6 +297,61 @@ export default function ExternalWebinarRegistrationForm({
         </div>
       )}
 
+      {/* Timezone selector — auto-detected, editable. Changing it re-fetches the times. */}
+      {!loadingSchedules && schedules.length > 0 && (
+        <div>
+          <label htmlFor="tz" className="block text-sm font-medium text-gray-700 mb-1">
+            Your Timezone
+          </label>
+          <select
+            id="tz"
+            value={userTimezone}
+            onChange={(e) => setUserTimezone(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          >
+            {!ALL_TIMEZONES.includes(userTimezone) && (
+              <option value={userTimezone}>{userTimezone.replace(/_/g, ' ')}</option>
+            )}
+            {ALL_TIMEZONES.map((tz) => (
+              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-500 mt-1">Times below are shown in this timezone.</p>
+        </div>
+      )}
+
+      {/* Schedule selector */}
+      {schedules.length > 1 && (
+        <div>
+          <label htmlFor="schedule" className="block text-sm font-medium text-gray-700 mb-1">
+            Select a Time *
+          </label>
+          <select
+            id="schedule"
+            value={selectedSchedule}
+            onChange={(e) => setSelectedSchedule(e.target.value)}
+            required
+            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          >
+            <option value="">Choose a time...</option>
+            {schedules.map((schedule) => (
+              <option key={`${schedule.id}-${schedule.label}`} value={schedule.id}>
+                {schedule.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Single schedule - just show the time */}
+      {schedules.length === 1 && (
+        <div className="bg-gray-50 p-3 rounded-md">
+          <p className="text-sm text-gray-600">
+            <span className="font-medium">Date & Time:</span> {schedules[0].label}
+          </p>
+        </div>
+      )}
+
       {/* Name field */}
       <div>
         <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">
@@ -355,61 +410,6 @@ export default function ExternalWebinarRegistrationForm({
               placeholder="555 123 4567"
             />
           </div>
-        </div>
-      )}
-
-      {/* Timezone selector — auto-detected, editable. Changing it re-fetches the times. */}
-      {!loadingSchedules && schedules.length > 0 && (
-        <div>
-          <label htmlFor="tz" className="block text-sm font-medium text-gray-700 mb-1">
-            Your Timezone
-          </label>
-          <select
-            id="tz"
-            value={userTimezone}
-            onChange={(e) => setUserTimezone(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-          >
-            {!ALL_TIMEZONES.includes(userTimezone) && (
-              <option value={userTimezone}>{userTimezone.replace(/_/g, ' ')}</option>
-            )}
-            {ALL_TIMEZONES.map((tz) => (
-              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
-            ))}
-          </select>
-          <p className="text-xs text-gray-500 mt-1">Times below are shown in this timezone.</p>
-        </div>
-      )}
-
-      {/* Schedule selector */}
-      {schedules.length > 1 && (
-        <div>
-          <label htmlFor="schedule" className="block text-sm font-medium text-gray-700 mb-1">
-            Select a Time *
-          </label>
-          <select
-            id="schedule"
-            value={selectedSchedule}
-            onChange={(e) => setSelectedSchedule(e.target.value)}
-            required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value="">Choose a time...</option>
-            {schedules.map((schedule) => (
-              <option key={`${schedule.id}-${schedule.label}`} value={schedule.id}>
-                {schedule.label}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Single schedule - just show the time */}
-      {schedules.length === 1 && (
-        <div className="bg-gray-50 p-3 rounded-md">
-          <p className="text-sm text-gray-600">
-            <span className="font-medium">Date & Time:</span> {schedules[0].label}
-          </p>
         </div>
       )}
 
