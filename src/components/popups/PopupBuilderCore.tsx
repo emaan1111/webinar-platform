@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import {
   GripVertical, Plus, Trash2, ChevronDown, ChevronUp, Eye, Code2,
   Type, Mail, Phone, Calendar, Hash, AlignLeft, List, ToggleLeft,
   Save, ArrowLeft, Palette, Settings2, Image as ImageIcon, Heading, Upload, Loader2,
-  AlignCenter, AlignRight
+  AlignCenter, AlignRight, Clock
 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import PopupPreview from './PopupPreview'
@@ -30,9 +30,13 @@ const CONTENT_TYPES = [
   { type: 'heading', label: 'Heading', icon: Heading },
   { type: 'paragraph', label: 'Text', icon: AlignLeft },
 ]
-const CONTENT_TYPE_SET = new Set(['image', 'heading', 'paragraph'])
+// Webinar-only element (shows the linked webinar's times + timezone picker).
+const WEBINAR_TYPES = [
+  { type: 'webinarTimes', label: 'Webinar Times', icon: Clock },
+]
+const CONTENT_TYPE_SET = new Set(['image', 'heading', 'paragraph', 'webinarTimes'])
 const isContentType = (t: string) => CONTENT_TYPE_SET.has(t)
-const ALL_ELEMENT_TYPES = [...FIELD_TYPES, ...CONTENT_TYPES]
+const ALL_ELEMENT_TYPES = [...FIELD_TYPES, ...CONTENT_TYPES, ...WEBINAR_TYPES]
 
 const COUNTRY_CODES = [
   { code: '+1', country: 'US/CA' },
@@ -133,6 +137,22 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
   const [webhookUrl, setWebhookUrl] = useState(initialData?.webhookUrl || '')
   const [useCustomHtml, setUseCustomHtml] = useState(initialData?.useCustomHtml || false)
   const [customHtml, setCustomHtml] = useState(initialData?.customHtml || '')
+  const [externalWebinarId, setExternalWebinarId] = useState<string>(initialData?.externalWebinarId || '')
+  const [webinars, setWebinars] = useState<{ id: string; name: string }[]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch('/api/external-webinars')
+        if (!r.ok) return
+        const d = await r.json()
+        const list = Array.isArray(d) ? d : (d.webinars || d.externalWebinars || [])
+        if (!cancelled) setWebinars(list.map((w: any) => ({ id: w.id, name: w.name || w.externalWebinarName || w.id })))
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [])
 
   const [fields, setFields] = useState<PopupField[]>(() => {
     if (initialData?.fields && Array.isArray(initialData.fields)) {
@@ -194,11 +214,13 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
       heading: 'Your headline here',
       paragraph: 'Add your supporting text here.',
       image: '',
+      webinarTimes: '',
     }
+    const labelOverrides: Record<string, string> = { webinarTimes: 'Select a Time' }
     const newField: PopupField = {
       id: `${isContentType(type) ? type : 'field'}_${Date.now()}`,
       type,
-      label: isContentType(type) ? typeLabel : typeLabel,
+      label: labelOverrides[type] || typeLabel,
       placeholder: isContentType(type) ? '' : `Enter ${typeLabel.toLowerCase()}`,
       required: false,
       options: type === 'select' ? 'Option 1, Option 2, Option 3' : '',
@@ -261,6 +283,7 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
       successMessage,
       redirectUrl: redirectUrl || null,
       webhookUrl: webhookUrl.trim() || null,
+      externalWebinarId: externalWebinarId || null,
     })
   }
 
@@ -391,7 +414,23 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                           <div className="border-t px-3 py-3 space-y-3 bg-white rounded-b-lg">
                             {isContentType(field.type) ? (
                               <>
-                                {field.type === 'image' ? (
+                                {field.type === 'webinarTimes' ? (
+                                  <div className="space-y-2">
+                                    <p className="text-sm text-gray-600">
+                                      Shows the linked webinar&apos;s available times + a timezone selector.
+                                      {externalWebinarId ? '' : ' Link a webinar in the Settings tab to activate it.'}
+                                    </p>
+                                    <div>
+                                      <label className="block text-xs font-medium text-gray-600 mb-1">Label</label>
+                                      <input
+                                        type="text"
+                                        value={field.label}
+                                        onChange={e => updateField(field.id, { label: e.target.value })}
+                                        className="w-full border rounded px-2 py-1.5 text-sm"
+                                      />
+                                    </div>
+                                  </div>
+                                ) : field.type === 'image' ? (
                                   <div className="space-y-2">
                                     {field.content ? (
                                       // eslint-disable-next-line @next/next/no-img-element
@@ -436,6 +475,7 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                                   </div>
                                 )}
 
+                                {field.type !== 'webinarTimes' && (
                                 <div className="grid grid-cols-2 gap-3">
                                   <div>
                                     <label className="block text-xs font-medium text-gray-600 mb-1">Alignment</label>
@@ -469,6 +509,7 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                                     </select>
                                   </div>
                                 </div>
+                                )}
                               </>
                             ) : (
                               <>
@@ -570,15 +611,18 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
                   <div className="pt-2">
                     <div className="text-xs font-medium text-gray-500 mb-2 uppercase">Add Content</div>
                     <div className="grid grid-cols-4 gap-2">
-                      {CONTENT_TYPES.map(ct => {
+                      {[...CONTENT_TYPES, ...WEBINAR_TYPES].map(ct => {
                         const Icon = ct.icon
+                        const isWebinar = ct.type === 'webinarTimes'
                         return (
                           <button
                             key={ct.type}
                             onClick={() => addField(ct.type)}
-                            className="flex flex-col items-center gap-1 p-3 border rounded-lg hover:bg-violet-50 hover:border-violet-300 transition-colors text-sm"
+                            className={`flex flex-col items-center gap-1 p-3 border rounded-lg transition-colors text-sm ${
+                              isWebinar ? 'hover:bg-emerald-50 hover:border-emerald-300' : 'hover:bg-violet-50 hover:border-violet-300'
+                            }`}
                           >
-                            <Icon className="w-4 h-4 text-violet-500" />
+                            <Icon className={`w-4 h-4 ${isWebinar ? 'text-emerald-500' : 'text-violet-500'}`} />
                             <span className="text-xs text-gray-600">{ct.label}</span>
                           </button>
                         )
@@ -721,6 +765,25 @@ export default function PopupBuilderCore({ initialData, onSave, saving, isEdit }
               {/* ─── Settings Tab ─── */}
               {activeTab === 'settings' && (
                 <div className="space-y-4">
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+                    <label className="flex items-center gap-2 text-sm font-medium text-emerald-900 mb-1">
+                      <Clock className="w-4 h-4" /> Connect to a webinar
+                    </label>
+                    <select
+                      value={externalWebinarId}
+                      onChange={e => setExternalWebinarId(e.target.value)}
+                      className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
+                    >
+                      <option value="">Not a webinar popup (capture leads only)</option>
+                      {webinars.map(w => (
+                        <option key={w.id} value={w.id}>{w.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-emerald-700 mt-1">
+                      When connected, add a <strong>Webinar Times</strong> element and submit registers people
+                      into this webinar (just-in-time → countdown, scheduled/Zoom → thank-you).
+                    </p>
+                  </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Submit Button Text</label>
                     <input

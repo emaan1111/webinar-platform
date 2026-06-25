@@ -13,6 +13,17 @@ const COUNTRY_CODES = [
   { code: '+34', country: 'ES' }, { code: '+82', country: 'KR' },
 ]
 
+const ALL_TIMEZONES: string[] =
+  typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function'
+    ? (Intl as any).supportedValuesOf('timeZone')
+    : ['America/New_York', 'Europe/London', 'Asia/Karachi', 'Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Australia/Sydney']
+
+function detectTz(): string {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York' } catch { return 'America/New_York' }
+}
+
+interface ScheduleOption { id: string; label: string; isJIT: boolean }
+
 interface PopupConfig {
   id: string
   slug: string
@@ -52,6 +63,7 @@ interface PopupConfig {
   redirectUrl: string | null
   useCustomHtml: boolean
   customHtml: string | null
+  externalWebinarId?: string | null
 }
 
 export default function PopupEmbedPage() {
@@ -64,6 +76,11 @@ export default function PopupEmbedPage() {
   const [success, setSuccess] = useState(false)
   const [formError, setFormError] = useState('')
   const [formData, setFormData] = useState<Record<string, any>>({})
+  // Webinar registration popup state (when config.externalWebinarId is set)
+  const [schedules, setSchedules] = useState<ScheduleOption[]>([])
+  const [userTimezone, setUserTimezone] = useState<string>(detectTz())
+  const [selectedSchedule, setSelectedSchedule] = useState('')
+  const [webinarThankYouUrl, setWebinarThankYouUrl] = useState<string | null>(null)
 
   useEffect(() => {
     async function fetchConfig() {
@@ -91,6 +108,31 @@ export default function PopupEmbedPage() {
     fetchConfig()
   }, [slug])
 
+  // For webinar popups: fetch this webinar's times in the visitor's timezone (re-fetch on tz change).
+  useEffect(() => {
+    const ext = config?.externalWebinarId
+    if (!ext) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/external-webinars/${ext}/schedules?timezone=${encodeURIComponent(userTimezone)}`)
+        if (!r.ok) return
+        const d = await r.json()
+        if (cancelled) return
+        setSchedules(d.schedules || [])
+        setWebinarThankYouUrl(d.thankYouUrl || null)
+        if ((d.schedules || []).length === 1) setSelectedSchedule(d.schedules[0].id)
+      } catch {}
+    })()
+    return () => { cancelled = true }
+  }, [config?.externalWebinarId, userTimezone])
+
+  const doRedirect = (url: string) => {
+    if (typeof window === 'undefined') return
+    if (window.parent !== window) window.parent.postMessage({ type: 'popupRedirect', url }, '*')
+    try { if (window.top) window.top.location.href = url; else window.location.href = url } catch { window.location.href = url }
+  }
+
   const handleClose = () => {
     if (window.parent !== window) {
       window.parent.postMessage('closePopupModal', '*')
@@ -102,6 +144,64 @@ export default function PopupEmbedPage() {
     if (!config) return
     setFormError('')
     setSubmitting(true)
+
+    // ─── Webinar registration popup ───
+    if (config.externalWebinarId) {
+      try {
+        const emailField = config.fields.find(f => f.type === 'email')
+        const phoneField = config.fields.find(f => f.type === 'phone')
+        const nameField = config.fields.find(f => f.type === 'text') ||
+          config.fields.find(f => /name/i.test(f.id) || /name/i.test(f.label))
+        const name = (nameField ? formData[nameField.id] : '') || ''
+        const email = (emailField ? formData[emailField.id] : '') || ''
+        const phone = phoneField ? (formData[phoneField.id] || '') : ''
+        const phoneCode = phoneField ? (formData[phoneField.id + '_code'] || '+1') : undefined
+        const scheduleToUse = selectedSchedule || schedules[0]?.id
+
+        if (!name || !email) { setFormError('Name and email are required'); setSubmitting(false); return }
+        if (!scheduleToUse) { setFormError('Please select a time'); setSubmitting(false); return }
+
+        const res = await fetch(`/api/external-webinars/${config.externalWebinarId}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name, email,
+            phone: phone || undefined,
+            phoneCountryCode: phone ? phoneCode : undefined,
+            scheduleId: scheduleToUse,
+            timezone: userTimezone,
+          }),
+        })
+        const result = await res.json()
+        if (!res.ok) { setFormError(result.error || 'Registration failed'); setSubmitting(false); return }
+
+        const regId = result.registration?.id
+        const sel = schedules.find(s => s.id === scheduleToUse)
+        if (sel?.isJIT && regId) {
+          doRedirect(`${window.location.origin}/countdown-external/${config.externalWebinarId}?reg=${encodeURIComponent(regId)}`)
+          return
+        }
+        if (webinarThankYouUrl) {
+          let target = webinarThankYouUrl
+          try {
+            const u = new URL(webinarThankYouUrl)
+            if (regId) u.searchParams.set('reg', regId)
+            if (sel?.label) u.searchParams.set('t', sel.label)
+            if (name) u.searchParams.set('name', name)
+            target = u.toString()
+          } catch {}
+          doRedirect(target)
+          return
+        }
+        setSuccess(true)
+        setSubmitting(false)
+        return
+      } catch {
+        setFormError('Something went wrong. Please try again.')
+        setSubmitting(false)
+        return
+      }
+    }
 
     // Merge phone codes with phone numbers
     const submitData: Record<string, any> = {}
@@ -274,6 +374,34 @@ export default function PopupEmbedPage() {
               const w = field.width === 'half' ? 'calc(50% - 6px)' : '100%'
               const ta = (field.align || 'left') as 'left' | 'center' | 'right'
 
+              if (field.type === 'webinarTimes') {
+                const inputStyle = {
+                  width: '100%', padding: '10px 14px', borderRadius: '10px',
+                  background: s.inputBg || '#fff', border: `1px solid ${s.inputBorderColor || '#d1d5db'}`,
+                  color: s.inputTextColor || '#111827', fontSize: `${s.inputFontSize || 14}px`,
+                } as React.CSSProperties
+                const lblStyle = { color: s.labelColor || '#374151', fontSize: `${s.labelFontSize || 14}px` }
+                return (
+                  <div key={field.id} style={{ width: '100%' }} className="space-y-3">
+                    <div>
+                      <label className="block mb-1 font-medium" style={lblStyle}>Your Timezone</label>
+                      <select value={userTimezone} onChange={e => setUserTimezone(e.target.value)} style={inputStyle}>
+                        {!ALL_TIMEZONES.includes(userTimezone) && <option value={userTimezone}>{userTimezone.replace(/_/g, ' ')}</option>}
+                        {ALL_TIMEZONES.map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block mb-1 font-medium" style={lblStyle}>
+                        {field.label || 'Select a Time'} <span className="text-red-500 ml-1">*</span>
+                      </label>
+                      <select value={selectedSchedule} onChange={e => setSelectedSchedule(e.target.value)} required style={inputStyle}>
+                        <option value="">{schedules.length ? 'Choose a time…' : 'Loading times…'}</option>
+                        {schedules.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                )
+              }
               if (field.type === 'image') {
                 return field.content ? (
                   <div key={field.id} style={{ width: w, textAlign: ta }}>

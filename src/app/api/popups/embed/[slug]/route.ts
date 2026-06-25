@@ -27,6 +27,7 @@ export async function GET(
     submitText: popup.submitText,
     successMessage: popup.successMessage,
     redirectUrl: popup.redirectUrl,
+    externalWebinarId: popup.externalWebinarId,
   }, {
     headers: {
       'Access-Control-Allow-Origin': '*',

@@ -325,10 +325,9 @@ export async function processPendingReminderEmails() {
       const webinarTitle = isExternal ? webinar.externalWebinarName || 'Webinar' : webinar.title
 
       const countdownLink = webinarSlug ? `${baseUrl}/countdown/${webinarSlug}?r=${reg.id}` : null
-      // A live-Zoom pick (combined picker) is not registered in EverWebinar, so EverWebinar
-      // won't email it the room link — deliver the Zoom link ourselves.
-      const isZoomPick = isExternal && reg.scheduleId === 'zoom'
-      const accessLink = isZoomPick ? (webinar.liveZoomLink || null) : countdownLink
+      // External registrants get their stored room link (the EverWebinar room, or the Zoom link
+      // for a live-Zoom pick that's never registered in EverWebinar); internal use the countdown.
+      const accessLink = isExternal ? (reg.liveRoomUrl || webinar.liveZoomLink || null) : countdownLink
       const calendarLink = webinarSlug ? `${baseUrl}/api/calendar/${webinarSlug}?r=${reg.id}` : null
       const referralLink = webinarSlug && reg.referralCode ? `${baseUrl}/w/${webinarSlug}?ref=${reg.referralCode}` : null
 

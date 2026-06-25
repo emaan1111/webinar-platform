@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const userId = (session.user as any).id
   const body = await request.json()
 
-  const { name, description, fields, layout, styles, customHtml, useCustomHtml, submitText, successMessage, redirectUrl, webhookUrl } = body
+  const { name, description, fields, layout, styles, customHtml, useCustomHtml, submitText, successMessage, redirectUrl, webhookUrl, externalWebinarId } = body
 
   if (!name || !fields || !Array.isArray(fields)) {
     return NextResponse.json({ error: 'Name and fields are required' }, { status: 400 })
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
       successMessage: successMessage || 'Thank you for your submission!',
       redirectUrl: redirectUrl || null,
       webhookUrl: webhookUrl || null,
+      externalWebinarId: externalWebinarId || null,
       userId,
     },
   })

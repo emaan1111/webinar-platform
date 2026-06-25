@@ -1655,6 +1655,9 @@ model Popup {
   styles         Json? // Style config: colors, fonts, sizes, spacing per section
   customHtml     String?  @db.Text // Optional: user-provided custom HTML
   useCustomHtml  Boolean  @default(false)
+  // When set, the popup is a webinar registration popup: a "Webinar time picker" element
+  // shows this webinar's times and submit registers into EverWebinar (JIT->countdown, etc.).
+  externalWebinarId String?
   submitText     String   @default("Submit")
   successMessage String   @default("Thank you for your submission!")
   redirectUrl    String? // Custom on-submit redirect URL

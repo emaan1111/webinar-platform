@@ -96,6 +96,19 @@ export default function PopupPreview({
             const w = field.width === 'half' ? 'calc(50% - 6px)' : '100%'
             const ta = (field.align || 'left') as 'left' | 'center' | 'right'
 
+            if (field.type === 'webinarTimes') {
+              return (
+                <div key={field.id} style={{ width: w }}>
+                  <label style={{ color: styles.labelColor, fontSize: `${styles.labelFontSize}px`, fontWeight: 500, display: 'block', marginBottom: '4px' }}>
+                    {field.label || 'Select a Time'} <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <select disabled style={{ width: '100%', background: styles.inputBg, border: `1px solid ${styles.inputBorderColor}`, borderRadius: '6px', padding: '8px 12px', fontSize: `${styles.inputFontSize}px`, color: styles.inputTextColor }}>
+                    <option>Saturday, June 20 at 11:00 AM</option>
+                  </select>
+                  <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '4px' }}>↑ Live webinar times + timezone selector</div>
+                </div>
+              )
+            }
             if (field.type === 'image') {
               return (
                 <div key={field.id} style={{ width: w, textAlign: ta }}>
