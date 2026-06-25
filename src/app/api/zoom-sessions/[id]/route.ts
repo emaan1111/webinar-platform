@@ -115,6 +115,17 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       include: webinarLinkInclude,
     })
 
+    // Keep the snapshot on external webinars that use this session as their live
+    // Zoom in sync (their picker/register/email read these copied fields).
+    await prisma.externalWebinar.updateMany({
+      where: { liveZoomSessionId: params.id },
+      data: {
+        liveZoomAt: updated.scheduledAt,
+        liveZoomLink: updated.zoomLink,
+        liveZoomTimezone: updated.timezone,
+      },
+    })
+
     return NextResponse.json({ session: shapeSession(updated) })
   } catch (error) {
     console.error('Error updating zoom session:', error)

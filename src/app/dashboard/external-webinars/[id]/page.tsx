@@ -52,6 +52,7 @@ interface ExternalWebinar {
   liveZoomLink?: string
   liveZoomAt?: string
   liveZoomTimezone?: string
+  liveZoomSessionId?: string | null
   showJustInTime?: boolean
   jitLeadMinutes?: number
   recurringSlotsToShow?: number | null
@@ -105,6 +106,15 @@ function datetimeLocalToIso(value: string | undefined, tz: string): string | nul
   }
 }
 
+// Format a Zoom session's stored UTC time in its own timezone for display.
+function fmtZoomSession(iso: string, tz: string): string {
+  try {
+    return formatInTimeZone(new Date(iso), tz, "EEE, MMM d, yyyy 'at' h:mm a zzz")
+  } catch {
+    return new Date(iso).toLocaleString()
+  }
+}
+
 export default function ExternalWebinarDetailPage() {
   const router = useRouter()
   const params = useParams()
@@ -119,6 +129,9 @@ export default function ExternalWebinarDetailPage() {
 
   // Copy emails from internal webinar
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
+  const [zoomSessions, setZoomSessions] = useState<
+    { id: string; name: string; scheduledAt: string; timezone: string; zoomLink: string | null }[]
+  >([])
   const [showCopyPanel, setShowCopyPanel] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState('')
   const [copyTypes, setCopyTypes] = useState<string[]>(['confirmation', 'reminder', 'followup'])
@@ -147,6 +160,7 @@ export default function ExternalWebinarDetailPage() {
     liveZoomLink: '',
     liveZoomAt: '', // datetime-local string, interpreted in liveZoomTimezone
     liveZoomTimezone: detectTimezone(),
+    liveZoomSessionId: '',
     showJustInTime: false,
     jitLeadMinutes: 15,
     recurringSlotsToShow: '' as number | '' | string,
@@ -159,6 +173,7 @@ export default function ExternalWebinarDetailPage() {
   useEffect(() => {
     fetchWebinar()
     fetchInternalWebinars()
+    fetchZoomSessions()
   }, [id])
 
   const fetchInternalWebinars = async () => {
@@ -167,6 +182,23 @@ export default function ExternalWebinarDetailPage() {
       if (!res.ok) return
       const data = await res.json()
       setInternalWebinars((data.webinars || []).map((w: any) => ({ id: w.id, title: w.title })))
+    } catch {}
+  }
+
+  const fetchZoomSessions = async () => {
+    try {
+      const res = await fetch('/api/zoom-sessions')
+      if (!res.ok) return
+      const data = await res.json()
+      setZoomSessions(
+        (data.sessions || []).map((s: any) => ({
+          id: s.id,
+          name: s.name,
+          scheduledAt: s.scheduledAt,
+          timezone: s.timezone,
+          zoomLink: s.zoomLink ?? null,
+        }))
+      )
     } catch {}
   }
 
@@ -226,6 +258,7 @@ export default function ExternalWebinarDetailPage() {
         liveZoomLink: data.liveZoomLink || '',
         liveZoomAt: isoToDatetimeLocal(data.liveZoomAt, data.liveZoomTimezone || detectTimezone()),
         liveZoomTimezone: data.liveZoomTimezone || detectTimezone(),
+        liveZoomSessionId: data.liveZoomSessionId || '',
         showJustInTime: data.showJustInTime ?? false,
         jitLeadMinutes: data.jitLeadMinutes ?? 15,
         recurringSlotsToShow: data.recurringSlotsToShow ?? '',
@@ -246,6 +279,7 @@ export default function ExternalWebinarDetailPage() {
       const payload = {
         ...formData,
         liveZoomAt: datetimeLocalToIso(formData.liveZoomAt, formData.liveZoomTimezone),
+        liveZoomSessionId: formData.liveZoomSessionId || null,
         recurringSlotsToShow:
           formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
             ? null
@@ -654,47 +688,47 @@ export default function ExternalWebinarDetailPage() {
                     <span className="text-sm font-medium">Include a live Zoom session</span>
                   </label>
                   {formData.liveZoomEnabled && (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Date &amp; Time</label>
-                          <input
-                            type="datetime-local"
-                            value={formData.liveZoomAt}
-                            onChange={(e) => setFormData({ ...formData, liveZoomAt: e.target.value })}
-                            className="w-full px-3 py-2 border rounded-lg"
-                          />
-                          <p className="text-xs text-gray-500 mt-1">
-                            Tip: use a clean time (e.g. :00 or :30) so it blends in.
-                          </p>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Timezone</label>
-                          <select
-                            value={formData.liveZoomTimezone}
-                            onChange={(e) => setFormData({ ...formData, liveZoomTimezone: e.target.value })}
-                            className="w-full px-3 py-2 border rounded-lg"
-                          >
-                            {!ALL_TIMEZONES.includes(formData.liveZoomTimezone) && (
-                              <option value={formData.liveZoomTimezone}>{formData.liveZoomTimezone.replace(/_/g, ' ')}</option>
-                            )}
-                            {ALL_TIMEZONES.map((tz) => (
-                              <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>
-                            ))}
-                          </select>
-                          <p className="text-xs text-gray-500 mt-1">The time you set is in this timezone.</p>
-                        </div>
-                      </div>
+                    <div className="space-y-3">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Zoom Join Link</label>
-                        <input
-                          type="url"
-                          value={formData.liveZoomLink}
-                          onChange={(e) => setFormData({ ...formData, liveZoomLink: e.target.value })}
-                          placeholder="https://zoom.us/j/..."
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Zoom session</label>
+                        <select
+                          value={formData.liveZoomSessionId}
+                          onChange={(e) => setFormData({ ...formData, liveZoomSessionId: e.target.value })}
                           className="w-full px-3 py-2 border rounded-lg"
-                        />
+                        >
+                          <option value="">— Select a Zoom session —</option>
+                          {zoomSessions.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.name} — {fmtZoomSession(s.scheduledAt, s.timezone)}
+                            </option>
+                          ))}
+                        </select>
+                        <p className="text-xs text-gray-500 mt-1">
+                          The link &amp; time come from the session. Create or edit them in{' '}
+                          <a href="/dashboard/sessions" className="text-blue-600 hover:underline">Zoom Sessions</a>.
+                        </p>
                       </div>
+                      {(() => {
+                        const sel = zoomSessions.find((s) => s.id === formData.liveZoomSessionId)
+                        if (!sel) {
+                          return zoomSessions.length === 0 ? (
+                            <p className="text-xs text-amber-600">
+                              No Zoom sessions yet — create one in Zoom Sessions first.
+                            </p>
+                          ) : null
+                        }
+                        return (
+                          <div className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-1">
+                            <div>🕐 {fmtZoomSession(sel.scheduledAt, sel.timezone)}</div>
+                            <div className="truncate">
+                              🔗{' '}
+                              {sel.zoomLink || (
+                                <span className="text-amber-600">No Zoom link set on this session</span>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </div>
                   )}
                 </div>

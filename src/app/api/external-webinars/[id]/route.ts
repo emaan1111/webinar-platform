@@ -126,6 +126,7 @@ export async function PUT(
       liveZoomLink,
       liveZoomAt,
       liveZoomTimezone,
+      liveZoomSessionId,
       showJustInTime,
       jitLeadMinutes,
       recurringSlotsToShow,
@@ -134,6 +135,55 @@ export async function PUT(
       emaanWebhookUrl,
       emaanSyncScope,
     } = body
+
+    // Resolve the live-Zoom config. When a shared ZoomSession is selected
+    // (liveZoomSessionId provided), snapshot its link/time/timezone into the
+    // existing fields so the picker/register/email flow stays unchanged, and
+    // sync the webinar<->session association that feeds the session roster.
+    let liveZoomData: Record<string, any> = {}
+    let oldLiveZoomSessionId: string | null = null
+    let newLiveZoomSessionId: string | null = null
+    let syncSessionLink = false
+
+    if (liveZoomSessionId !== undefined) {
+      syncSessionLink = true
+      const current = await prisma.externalWebinar.findUnique({
+        where: { id },
+        select: { liveZoomSessionId: true },
+      })
+      oldLiveZoomSessionId = current?.liveZoomSessionId ?? null
+      newLiveZoomSessionId = liveZoomSessionId || null
+
+      if (newLiveZoomSessionId) {
+        const zs = await prisma.zoomSession.findUnique({
+          where: { id: newLiveZoomSessionId },
+          select: { zoomLink: true, scheduledAt: true, timezone: true },
+        })
+        if (!zs) {
+          return NextResponse.json({ error: 'Selected Zoom session not found' }, { status: 400 })
+        }
+        liveZoomData = {
+          liveZoomSessionId: newLiveZoomSessionId,
+          liveZoomLink: zs.zoomLink || null,
+          liveZoomAt: zs.scheduledAt,
+          liveZoomTimezone: zs.timezone || null,
+        }
+      } else {
+        liveZoomData = {
+          liveZoomSessionId: null,
+          liveZoomLink: null,
+          liveZoomAt: null,
+          liveZoomTimezone: null,
+        }
+      }
+    } else {
+      // Legacy inline path (no session selected): keep accepting raw fields.
+      liveZoomData = {
+        ...(liveZoomLink !== undefined && { liveZoomLink: liveZoomLink || null }),
+        ...(liveZoomAt !== undefined && { liveZoomAt: liveZoomAt ? new Date(liveZoomAt) : null }),
+        ...(liveZoomTimezone !== undefined && { liveZoomTimezone: liveZoomTimezone || null }),
+      }
+    }
 
     const externalWebinar = await prisma.externalWebinar.update({
       where: { id },
@@ -164,9 +214,7 @@ export async function PUT(
         ...(sendToFacebookCAPI !== undefined && { sendToFacebookCAPI }),
         ...(combineScheduleSources !== undefined && { combineScheduleSources }),
         ...(liveZoomEnabled !== undefined && { liveZoomEnabled }),
-        ...(liveZoomLink !== undefined && { liveZoomLink: liveZoomLink || null }),
-        ...(liveZoomAt !== undefined && { liveZoomAt: liveZoomAt ? new Date(liveZoomAt) : null }),
-        ...(liveZoomTimezone !== undefined && { liveZoomTimezone: liveZoomTimezone || null }),
+        ...liveZoomData,
         ...(showJustInTime !== undefined && { showJustInTime }),
         ...(jitLeadMinutes !== undefined && { jitLeadMinutes }),
         ...(recurringSlotsToShow !== undefined && {
@@ -183,6 +231,29 @@ export async function PUT(
         updatedAt: new Date(),
       }
     })
+
+    // Sync the webinar<->session association (drives the session roster).
+    if (syncSessionLink) {
+      if (oldLiveZoomSessionId && oldLiveZoomSessionId !== newLiveZoomSessionId) {
+        await prisma.zoomSessionWebinar.deleteMany({
+          where: { zoomSessionId: oldLiveZoomSessionId, externalWebinarId: id },
+        })
+      }
+      if (newLiveZoomSessionId) {
+        const existing = await prisma.zoomSessionWebinar.findFirst({
+          where: { zoomSessionId: newLiveZoomSessionId, externalWebinarId: id },
+        })
+        if (!existing) {
+          await prisma.zoomSessionWebinar.create({
+            data: {
+              zoomSessionId: newLiveZoomSessionId,
+              externalWebinarId: id,
+              webinarType: 'external',
+            },
+          })
+        }
+      }
+    }
 
     return NextResponse.json(externalWebinar)
   } catch (error) {

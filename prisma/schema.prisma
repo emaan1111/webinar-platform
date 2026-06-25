@@ -1321,6 +1321,9 @@ model ExternalWebinar {
   liveZoomLink           String? // Zoom join URL the registrant is sent to for the live session
   liveZoomAt             DateTime? // Start time of the live Zoom session (stored UTC)
   liveZoomTimezone       String? // Timezone the host entered liveZoomAt in (for reference/labels)
+  // When set, the live Zoom session is driven by a shared ZoomSession (its link/time/timezone are
+  // snapshotted into the fields above). Selecting one also links this webinar into that session's roster.
+  liveZoomSessionId      String?
   // A single "starting soon" just-in-time option (registers into EverWebinar's JIT block).
   showJustInTime         Boolean  @default(true)
   jitLeadMinutes         Int      @default(15) // Minutes from now the JIT option starts
@@ -1353,6 +1356,7 @@ model ExternalWebinar {
   registrations ExternalWebinarRegistration[]
   schedules     ExternalWebinarSchedule[]
   zoomSessionLinks ZoomSessionWebinar[]
+  liveZoomSession  ZoomSession? @relation("ExternalWebinarLiveZoom", fields: [liveZoomSessionId], references: [id], onDelete: SetNull)
 
   confirmationEmails ConfirmationEmailTemplate[]
   reminderEmails     ReminderEmailTemplate[]
@@ -1919,7 +1923,8 @@ model ZoomSession {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())
 
-  webinars ZoomSessionWebinar[]
+  webinars               ZoomSessionWebinar[]
+  externalWebinarsLive   ExternalWebinar[]    @relation("ExternalWebinarLiveZoom")
 
   @@index([scheduledAt])
   @@map("zoom_sessions")
