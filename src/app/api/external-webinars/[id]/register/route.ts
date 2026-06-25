@@ -43,6 +43,7 @@ export async function POST(
       name,
       email,
       phone,
+      phoneCountryCode,
       scheduleId,
       scheduledStartTime,
       timezone,
@@ -54,6 +55,11 @@ export async function POST(
       // If true, also register in WebinarJam via API
       registerInWebinarJam = true,
     } = body
+
+    // Full phone (with dialing code) for local records + CRM; WebinarJam gets them separate.
+    const fullPhone = phone
+      ? `${phoneCountryCode ? phoneCountryCode + ' ' : ''}${phone}`.trim()
+      : undefined
 
     // Validation
     if (!name || !email) {
@@ -164,6 +170,7 @@ export async function POST(
           lastName,
           email: email.toLowerCase(),
           phone,
+          phoneCountryCode,
         },
         externalWebinar.platform as 'webinarjam' | 'everwebinar'
       )
@@ -197,7 +204,7 @@ export async function POST(
         scheduleId: localScheduleId,
         name,
         email: email.toLowerCase(),
-        phone,
+        phone: fullPhone,
         timezone,
         scheduledStartTime: resolvedStartTime,
         registrationSource: leadPageId ? 'lead_page' : 'manual',
@@ -268,7 +275,7 @@ export async function POST(
       sendFacebookRegistration({
         email: email.toLowerCase(),
         name,
-        phone,
+        phone: fullPhone,
         ipAddress: request.headers.get('x-forwarded-for') || undefined,
         userAgent: request.headers.get('user-agent') || undefined,
         fbc,
@@ -311,7 +318,7 @@ export async function POST(
         email: email.toLowerCase(),
         firstName,
         lastName,
-        phone,
+        phone: fullPhone,
         timezone,
         customFields: mauticCustomFields,
       }).then(() => {

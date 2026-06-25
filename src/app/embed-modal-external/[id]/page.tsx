@@ -22,7 +22,8 @@ function ExternalEmbedModalInner() {
   const splitTestId = searchParams.get('st') || searchParams.get('splitTestId') || undefined
   const splitTestVariantId = searchParams.get('v') || searchParams.get('splitTestVariantId') || undefined
   const buttonText = searchParams.get('button') || undefined
-  const showPhone = searchParams.get('phone') === 'true'
+  // Mobile number shows by default in the popup (optional); add ?phone=false to hide it.
+  const showPhone = searchParams.get('phone') !== 'false'
   const heading = searchParams.get('heading') || 'Save Your Seat'
   const subheading = searchParams.get('subheading') || 'Pick a time that works for you — we’ll email you the details.'
   // Where to send the visitor after they register (absolute URL). Empty = stay in popup.

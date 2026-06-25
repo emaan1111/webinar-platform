@@ -39,6 +39,48 @@ function detectTimezone(): string {
   }
 }
 
+// Common dialing codes for the separate country-code selector.
+const COUNTRY_CODES: { code: string; label: string }[] = [
+  { code: '+1', label: 'US/Canada (+1)' },
+  { code: '+44', label: 'UK (+44)' },
+  { code: '+92', label: 'Pakistan (+92)' },
+  { code: '+91', label: 'India (+91)' },
+  { code: '+880', label: 'Bangladesh (+880)' },
+  { code: '+971', label: 'UAE (+971)' },
+  { code: '+966', label: 'Saudi Arabia (+966)' },
+  { code: '+974', label: 'Qatar (+974)' },
+  { code: '+965', label: 'Kuwait (+965)' },
+  { code: '+973', label: 'Bahrain (+973)' },
+  { code: '+968', label: 'Oman (+968)' },
+  { code: '+20', label: 'Egypt (+20)' },
+  { code: '+60', label: 'Malaysia (+60)' },
+  { code: '+62', label: 'Indonesia (+62)' },
+  { code: '+65', label: 'Singapore (+65)' },
+  { code: '+63', label: 'Philippines (+63)' },
+  { code: '+90', label: 'Turkey (+90)' },
+  { code: '+27', label: 'South Africa (+27)' },
+  { code: '+234', label: 'Nigeria (+234)' },
+  { code: '+254', label: 'Kenya (+254)' },
+  { code: '+61', label: 'Australia (+61)' },
+  { code: '+64', label: 'New Zealand (+64)' },
+  { code: '+49', label: 'Germany (+49)' },
+  { code: '+33', label: 'France (+33)' },
+  { code: '+34', label: 'Spain (+34)' },
+  { code: '+39', label: 'Italy (+39)' },
+  { code: '+31', label: 'Netherlands (+31)' },
+  { code: '+46', label: 'Sweden (+46)' },
+  { code: '+47', label: 'Norway (+47)' },
+  { code: '+353', label: 'Ireland (+353)' },
+  { code: '+86', label: 'China (+86)' },
+  { code: '+81', label: 'Japan (+81)' },
+  { code: '+82', label: 'South Korea (+82)' },
+  { code: '+7', label: 'Russia (+7)' },
+  { code: '+55', label: 'Brazil (+55)' },
+  { code: '+52', label: 'Mexico (+52)' },
+  { code: '+93', label: 'Afghanistan (+93)' },
+  { code: '+94', label: 'Sri Lanka (+94)' },
+]
+
 interface RegistrationFormProps {
   /**
    * The external webinar ID from our system (not the WebinarJam ID)
@@ -103,6 +145,7 @@ export default function ExternalWebinarRegistrationForm({
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [phone, setPhone] = useState('')
+  const [phoneCountryCode, setPhoneCountryCode] = useState('+1')
   const [selectedSchedule, setSelectedSchedule] = useState('')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [webinarName, setWebinarName] = useState('')
@@ -177,6 +220,7 @@ export default function ExternalWebinarRegistrationForm({
           name: name.trim(),
           email: email.trim().toLowerCase(),
           phone: phone.trim() || undefined,
+          phoneCountryCode: phone.trim() ? phoneCountryCode : undefined,
           scheduleId: scheduleToUse,
           scheduledStartTime: selectedScheduleData?.label,
           timezone: userTimezone,
@@ -285,20 +329,32 @@ export default function ExternalWebinarRegistrationForm({
         />
       </div>
 
-      {/* Phone field (optional) */}
+      {/* Phone field (optional) — separate country code + number */}
       {showPhone && (
         <div>
           <label htmlFor="phone" className="block text-sm font-medium text-gray-700 mb-1">
-            Phone Number
+            Mobile Number <span className="text-gray-400 font-normal">(optional)</span>
           </label>
-          <input
-            type="tel"
-            id="phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
-            placeholder="+1 (555) 123-4567"
-          />
+          <div className="flex gap-2">
+            <select
+              aria-label="Country code"
+              value={phoneCountryCode}
+              onChange={(e) => setPhoneCountryCode(e.target.value)}
+              className="w-28 shrink-0 px-2 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+            >
+              {COUNTRY_CODES.map((c) => (
+                <option key={c.code + c.label} value={c.code}>{c.label}</option>
+              ))}
+            </select>
+            <input
+              type="tel"
+              id="phone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              placeholder="555 123 4567"
+            />
+          </div>
         </div>
       )}
 
