@@ -50,7 +50,7 @@ type Range = 'upcoming' | 'past' | 'all'
 
 export default function SessionsPage() {
   const [range, setRange] = useState<Range>('upcoming')
-  const [zoomOnly, setZoomOnly] = useState(true)
+  const [zoomOnly, setZoomOnly] = useState(false)
   const [sessions, setSessions] = useState<SessionSummary[]>([])
   const [loading, setLoading] = useState(true)
 

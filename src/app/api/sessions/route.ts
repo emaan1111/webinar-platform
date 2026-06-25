@@ -8,17 +8,21 @@ export const revalidate = 0
 
 // GET /api/sessions
 //
-// Groups webinar registrations by their exact scheduled start time so that a
-// single Zoom session time (e.g. "Sat 11:00 AM") that is configured across
-// several different webinars shows up as ONE combined roster.
+// Groups EXTERNAL webinar registrations by their exact scheduled start time so
+// that a single session time (e.g. "Sat 11:00 AM") that registrants pick across
+// several different external webinars shows up as ONE combined roster.
 //
-// NOTE: Registration.scheduleId is a loose FK — there is no Prisma relation to
-// WebinarSchedule — so schedule data (isZoomSession / zoomLink) is fetched
-// separately and joined in memory.
+// (This intentionally targets ExternalWebinarRegistration — that is where this
+// app's live/Zoom registrations actually land, not the internal Registration
+// table.)
+//
+// A session is treated as a Zoom session when its start time matches the
+// external webinar's configured live Zoom time (liveZoomAt), or when the
+// registrant captured a Zoom room URL (liveRoomUrl).
 //
 // Query params:
 //   range    'upcoming' (default) | 'past' | 'all'
-//   zoomOnly 'true' (default) | 'false'  — only sessions backed by a Zoom schedule
+//   zoomOnly 'true' | 'false' (default) — restrict to Zoom sessions
 //   time     ISO instant — when present, returns the full registrant roster for
 //            that exact session time instead of the grouped summary list
 //   search   filters the roster by name / email / phone (only with `time`)
@@ -31,7 +35,7 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const range = searchParams.get('range') || 'upcoming'
-    const zoomOnly = searchParams.get('zoomOnly') !== 'false'
+    const zoomOnly = searchParams.get('zoomOnly') === 'true'
     const time = searchParams.get('time')
     const search = (searchParams.get('search') || '').trim().toLowerCase()
 
@@ -45,12 +49,30 @@ export async function GET(request: Request) {
       whereClause.scheduledStartTime = { lt: now }
     }
 
-    // Build a lookup of schedule -> { isZoomSession, zoomLink }. Cheap enough to
-    // load all schedules; there are typically only a handful per webinar.
-    const schedules = await prisma.webinarSchedule.findMany({
-      select: { id: true, isZoomSession: true, zoomLink: true },
-    })
-    const scheduleMap = new Map(schedules.map((s) => [s.id, s]))
+    // Is this registration's session the webinar's configured live Zoom session?
+    const isZoomReg = (reg: {
+      scheduledStartTime: Date | null
+      liveRoomUrl: string | null
+      externalWebinar?: { liveZoomAt: Date | null; liveZoomLink: string | null } | null
+    }) => {
+      const liveAt = reg.externalWebinar?.liveZoomAt
+      const matchesLiveZoom =
+        !!liveAt && !!reg.scheduledStartTime && liveAt.getTime() === reg.scheduledStartTime.getTime()
+      const hasZoomUrl = !!reg.liveRoomUrl && reg.liveRoomUrl.toLowerCase().includes('zoom')
+      return matchesLiveZoom || hasZoomUrl
+    }
+
+    const zoomLinkFor = (reg: {
+      liveRoomUrl: string | null
+      externalWebinar?: { liveZoomLink: string | null } | null
+    }, isZoom: boolean) => {
+      if (reg.liveRoomUrl && reg.liveRoomUrl.toLowerCase().includes('zoom')) return reg.liveRoomUrl
+      if (isZoom && reg.externalWebinar?.liveZoomLink) return reg.externalWebinar.liveZoomLink
+      return null
+    }
+
+    const webinarName = (ew?: { name: string | null; externalWebinarName: string | null } | null) =>
+      ew?.name || ew?.externalWebinarName || 'Unknown webinar'
 
     // ----- Roster mode: full registrant list for one exact session time -----
     if (time) {
@@ -59,7 +81,7 @@ export async function GET(request: Request) {
         return NextResponse.json({ error: 'Invalid time parameter' }, { status: 400 })
       }
 
-      const registrants = await prisma.registration.findMany({
+      const registrants = await prisma.externalWebinarRegistration.findMany({
         where: { ...whereClause, scheduledStartTime: target },
         select: {
           id: true,
@@ -68,17 +90,21 @@ export async function GET(request: Request) {
           phone: true,
           country: true,
           timezone: true,
-          scheduleId: true,
           registeredAt: true,
           attended: true,
-          webinar: { select: { id: true, title: true } },
+          watchTimeMinutes: true,
+          liveRoomUrl: true,
+          scheduledStartTime: true,
+          externalWebinar: {
+            select: { id: true, name: true, externalWebinarName: true, liveZoomAt: true, liveZoomLink: true },
+          },
         },
         orderBy: { registeredAt: 'desc' },
       })
 
       const rows = registrants
         .map((r) => {
-          const sched = r.scheduleId ? scheduleMap.get(r.scheduleId) : undefined
+          const isZoom = isZoomReg(r)
           return {
             id: r.id,
             name: r.name,
@@ -88,10 +114,11 @@ export async function GET(request: Request) {
             timezone: r.timezone,
             registeredAt: r.registeredAt,
             attended: r.attended,
-            webinarId: r.webinar?.id || null,
-            webinarTitle: r.webinar?.title || 'Unknown webinar',
-            zoomLink: sched?.zoomLink || null,
-            isZoom: !!sched?.isZoomSession,
+            watchTimeMinutes: r.watchTimeMinutes,
+            webinarId: r.externalWebinar?.id || null,
+            webinarTitle: webinarName(r.externalWebinar),
+            zoomLink: zoomLinkFor(r, isZoom),
+            isZoom,
           }
         })
         .filter((r) => (zoomOnly ? r.isZoom : true))
@@ -107,12 +134,14 @@ export async function GET(request: Request) {
     }
 
     // ----- Summary mode: grouped session list -----
-    const registrations = await prisma.registration.findMany({
+    const registrations = await prisma.externalWebinarRegistration.findMany({
       where: whereClause,
       select: {
         scheduledStartTime: true,
-        scheduleId: true,
-        webinar: { select: { id: true, title: true } },
+        liveRoomUrl: true,
+        externalWebinar: {
+          select: { id: true, name: true, externalWebinarName: true, liveZoomAt: true, liveZoomLink: true },
+        },
       },
     })
 
@@ -127,8 +156,8 @@ export async function GET(request: Request) {
 
     for (const reg of registrations) {
       if (!reg.scheduledStartTime) continue
-      const sched = reg.scheduleId ? scheduleMap.get(reg.scheduleId) : undefined
-      if (zoomOnly && !sched?.isZoomSession) continue
+      const isZoom = isZoomReg(reg)
+      if (zoomOnly && !isZoom) continue
 
       const key = reg.scheduledStartTime.toISOString()
       let group = groups.get(key)
@@ -137,16 +166,17 @@ export async function GET(request: Request) {
         groups.set(key, group)
       }
       group.total += 1
-      if (sched?.isZoomSession) group.isZoom = true
-      if (sched?.zoomLink) group.zoomLinks.add(sched.zoomLink)
+      if (isZoom) group.isZoom = true
+      const link = zoomLinkFor(reg, isZoom)
+      if (link) group.zoomLinks.add(link)
 
-      const wid = reg.webinar?.id
+      const wid = reg.externalWebinar?.id
       if (wid) {
         const existing = group.webinars.get(wid)
         if (existing) {
           existing.count += 1
         } else {
-          group.webinars.set(wid, { id: wid, title: reg.webinar?.title || 'Unknown webinar', count: 1 })
+          group.webinars.set(wid, { id: wid, title: webinarName(reg.externalWebinar), count: 1 })
         }
       }
     }
