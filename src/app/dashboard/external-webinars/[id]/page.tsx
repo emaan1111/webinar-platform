@@ -855,47 +855,46 @@ export default function ExternalWebinarDetailPage() {
               </p>
             </div>
 
-            {formData.emaanWebhookUrl.trim() && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Which sessions should push to Emaan?
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Which sessions should push to Emaan?{' '}
+                <span className="font-normal text-gray-400">(applies once a webhook URL is set above)</span>
+              </label>
+              <div className="space-y-2">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="emaanSyncScope"
+                    value="ALL"
+                    checked={formData.emaanSyncScope === 'ALL'}
+                    onChange={() => setFormData({ ...formData, emaanSyncScope: 'ALL' })}
+                    className="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium text-gray-700">All sessions</span>
+                    <span className="block text-gray-500">
+                      Every registration — EverWebinar (evergreen / just-in-time) and the live Zoom session.
+                    </span>
+                  </span>
                 </label>
-                <div className="space-y-2">
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="emaanSyncScope"
-                      value="ALL"
-                      checked={formData.emaanSyncScope === 'ALL'}
-                      onChange={() => setFormData({ ...formData, emaanSyncScope: 'ALL' })}
-                      className="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm">
-                      <span className="font-medium text-gray-700">All sessions</span>
-                      <span className="block text-gray-500">
-                        Every registration — EverWebinar (evergreen / just-in-time) and the live Zoom session.
-                      </span>
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="emaanSyncScope"
+                    value="ZOOM_ONLY"
+                    checked={formData.emaanSyncScope === 'ZOOM_ONLY'}
+                    onChange={() => setFormData({ ...formData, emaanSyncScope: 'ZOOM_ONLY' })}
+                    className="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
+                  />
+                  <span className="text-sm">
+                    <span className="font-medium text-gray-700">Live Zoom session only</span>
+                    <span className="block text-gray-500">
+                      Only registrants who pick the live Zoom session are pushed to Emaan.
                     </span>
-                  </label>
-                  <label className="flex items-start gap-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="emaanSyncScope"
-                      value="ZOOM_ONLY"
-                      checked={formData.emaanSyncScope === 'ZOOM_ONLY'}
-                      onChange={() => setFormData({ ...formData, emaanSyncScope: 'ZOOM_ONLY' })}
-                      className="mt-1 w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
-                    />
-                    <span className="text-sm">
-                      <span className="font-medium text-gray-700">Live Zoom session only</span>
-                      <span className="block text-gray-500">
-                        Only registrants who pick the live Zoom session are pushed to Emaan.
-                      </span>
-                    </span>
-                  </label>
-                </div>
+                  </span>
+                </label>
               </div>
-            )}
+            </div>
           </CardBody>
         </Card>
 
