@@ -18,10 +18,8 @@ const TZ_COUNTRY: Record<string, string> = {
   'Europe/Madrid': 'Spain',
   'Europe/Rome': 'Italy',
   'Europe/Istanbul': 'Turkey',
-  'Europe/Moscow': 'Russia',
   // Africa
   'Africa/Lagos': 'Nigeria',
-  'Africa/Cairo': 'Egypt',
   'Africa/Johannesburg': 'South Africa',
   // Middle East / South & East Asia
   'Asia/Dubai': 'United Arab Emirates',
@@ -35,7 +33,6 @@ const TZ_COUNTRY: Record<string, string> = {
   'Asia/Kuala_Lumpur': 'Malaysia',
   'Asia/Singapore': 'Singapore',
   'Asia/Hong_Kong': 'Hong Kong',
-  'Asia/Shanghai': 'China',
   'Asia/Tokyo': 'Japan',
   'Asia/Seoul': 'South Korea',
   // Oceania
