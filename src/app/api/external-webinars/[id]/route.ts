@@ -131,6 +131,7 @@ export async function PUT(
       jitLeadMinutes,
       recurringSlotsToShow,
       thankYouUrl,
+      thankYouTemplateId,
       // Emaan email-management integration
       emaanWebhookUrl,
       emaanSyncScope,
@@ -227,6 +228,7 @@ export async function PUT(
               : Number(recurringSlotsToShow),
         }),
         ...(thankYouUrl !== undefined && { thankYouUrl: thankYouUrl || null }),
+        ...(thankYouTemplateId !== undefined && { thankYouTemplateId: thankYouTemplateId || null }),
         ...(emaanWebhookUrl !== undefined && { emaanWebhookUrl: emaanWebhookUrl || null }),
         ...(emaanSyncScope !== undefined && {
           emaanSyncScope: emaanSyncScope === 'ZOOM_ONLY' ? 'ZOOM_ONLY' : 'ALL',

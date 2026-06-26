@@ -122,6 +122,8 @@ export default function ExternalWebinarDetailPage() {
   const [zoomSessions, setZoomSessions] = useState<
     { id: string; name: string; scheduledAt: string; timezone: string; zoomLink: string | null }[]
   >([])
+  // System Thank-You templates the host can render on the built-in thank-you page
+  const [thankYouTemplates, setThankYouTemplates] = useState<{ id: string; name: string }[]>([])
   const [showCopyPanel, setShowCopyPanel] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState('')
   const [copyTypes, setCopyTypes] = useState<string[]>(['confirmation', 'reminder', 'followup'])
@@ -155,6 +157,7 @@ export default function ExternalWebinarDetailPage() {
     jitLeadMinutes: 15,
     recurringSlotsToShow: '' as number | '' | string,
     thankYouUrl: '',
+    thankYouTemplateId: '',
     // Emaan email-management integration
     emaanWebhookUrl: '',
     emaanSyncScope: 'ALL' as 'ALL' | 'ZOOM_ONLY',
@@ -164,7 +167,20 @@ export default function ExternalWebinarDetailPage() {
     fetchWebinar()
     fetchInternalWebinars()
     fetchZoomSessions()
+    fetchThankYouTemplates()
   }, [id])
+
+  const fetchThankYouTemplates = async () => {
+    try {
+      const res = await fetch('/api/thank-you-templates')
+      if (!res.ok) return
+      const data = await res.json()
+      const list = Array.isArray(data) ? data : data.templates || []
+      setThankYouTemplates(list.map((t: any) => ({ id: t.id, name: t.name })))
+    } catch {
+      // non-fatal — the dropdown just stays empty
+    }
+  }
 
   const fetchInternalWebinars = async () => {
     try {
@@ -253,6 +269,7 @@ export default function ExternalWebinarDetailPage() {
         jitLeadMinutes: data.jitLeadMinutes ?? 15,
         recurringSlotsToShow: data.recurringSlotsToShow ?? '',
         thankYouUrl: data.thankYouUrl || '',
+        thankYouTemplateId: data.thankYouTemplateId || '',
         emaanWebhookUrl: data.emaanWebhookUrl || '',
         emaanSyncScope: data.emaanSyncScope === 'ZOOM_ONLY' ? 'ZOOM_ONLY' : 'ALL',
       })
@@ -770,36 +787,71 @@ export default function ExternalWebinarDetailPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Thank-you page after registration
                   </label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <input
-                      type="url"
-                      value={formData.thankYouUrl}
-                      onChange={(e) => setFormData({ ...formData, thankYouUrl: e.target.value })}
-                      placeholder="https://your-site.com/thank-you"
-                      className="flex-1 min-w-[260px] px-3 py-2 border rounded-lg"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, thankYouUrl: `${appOrigin}/thank-you-external/${id}` })}
-                      className="text-xs font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
+
+                  {/* Option A: render one of our system templates on the built-in page */}
+                  <div className="max-w-md">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">Use a system template</label>
+                    <select
+                      value={formData.thankYouTemplateId}
+                      onChange={(e) => {
+                        const tplId = e.target.value
+                        setFormData({
+                          ...formData,
+                          thankYouTemplateId: tplId,
+                          // Point the redirect at the built-in renderer so the chosen template shows.
+                          // (A custom URL below still takes priority if set.)
+                          thankYouUrl: tplId ? `${appOrigin}/thank-you-external/${id}` : formData.thankYouUrl,
+                        })
+                      }}
+                      className="w-full px-3 py-2 border rounded-lg bg-white"
                     >
-                      Use built-in page
-                    </button>
-                    {formData.thankYouUrl && (
+                      <option value="">— No template —</option>
+                      {thankYouTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Renders on the built-in <code>/thank-you-external</code> page for Zoom &amp; scheduled picks,
+                      with the registrant&apos;s name &amp; chosen time filled in.
+                    </p>
+                  </div>
+
+                  {/* Option B: custom redirect URL (advanced) — overrides the template if set */}
+                  <div className="mt-4">
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      …or a custom redirect URL (advanced)
+                    </label>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <input
+                        type="url"
+                        value={formData.thankYouUrl}
+                        onChange={(e) => setFormData({ ...formData, thankYouUrl: e.target.value })}
+                        placeholder="https://your-site.com/thank-you"
+                        className="flex-1 min-w-[260px] px-3 py-2 border rounded-lg"
+                      />
                       <button
                         type="button"
-                        onClick={() => setFormData({ ...formData, thankYouUrl: '' })}
-                        className="text-xs text-gray-500 hover:text-gray-700"
+                        onClick={() => setFormData({ ...formData, thankYouUrl: `${appOrigin}/thank-you-external/${id}` })}
+                        className="text-xs font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
                       >
-                        Clear
+                        Use built-in page
                       </button>
-                    )}
+                      {formData.thankYouUrl && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, thankYouUrl: '', thankYouTemplateId: '' })}
+                          className="text-xs text-gray-500 hover:text-gray-700"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Scheduled &amp; Zoom picks redirect here after registering (the chosen time &amp; name are
+                      appended as <code>?t=</code> &amp; <code>?name=</code>). Just-in-time picks always go to the
+                      countdown page. Leave both blank to stay in the popup. Saved here — no need to re-paste the embed.
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Scheduled &amp; Zoom picks redirect here after registering (the chosen time &amp; name are
-                    appended as <code>?t=</code> &amp; <code>?name=</code>). Just-in-time picks always go to the
-                    countdown page. Leave blank to stay in the popup. Saved here — no need to re-paste the embed.
-                  </p>
                 </div>
               </div>
             )}

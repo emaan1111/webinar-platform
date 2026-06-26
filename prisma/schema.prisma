@@ -1333,6 +1333,9 @@ model ExternalWebinar {
   // it doesn't require re-pasting the snippet). Blank = stay in the popup. JIT picks always go
   // to the countdown page regardless.
   thankYouUrl            String?
+  // Optional system Thank-You template rendered by the built-in /thank-you-external/<id> page.
+  // Plain scalar FK (resolved via a separate findUnique), mirroring Webinar.thankYouTemplateId.
+  thankYouTemplateId     String?
 
   // Facebook CAPI
   sendToFacebookCAPI Boolean @default(true)
