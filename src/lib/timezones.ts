@@ -8,7 +8,6 @@ const TZ_COUNTRY: Record<string, string> = {
   'America/Chicago': 'United States',
   'America/New_York': 'United States',
   'America/Toronto': 'Canada',
-  'America/Mexico_City': 'Mexico',
   // Europe
   'Europe/London': 'United Kingdom',
   'Europe/Paris': 'France',
@@ -18,23 +17,15 @@ const TZ_COUNTRY: Record<string, string> = {
   'Europe/Amsterdam': 'Netherlands',
   'Europe/Oslo': 'Norway',
   'Europe/Stockholm': 'Sweden',
-  'Europe/Istanbul': 'Turkey',
-  // Africa
-  'Africa/Lagos': 'Nigeria',
-  'Africa/Johannesburg': 'South Africa',
   // Middle East / South & East Asia
   'Asia/Dubai': 'United Arab Emirates',
   'Asia/Qatar': 'Qatar',
   'Asia/Riyadh': 'Saudi Arabia',
   'Asia/Karachi': 'Pakistan',
   'Asia/Kolkata': 'India',
-  'Asia/Bangkok': 'Thailand',
-  'Asia/Jakarta': 'Indonesia',
   'Asia/Kuala_Lumpur': 'Malaysia',
   'Asia/Singapore': 'Singapore',
   'Asia/Hong_Kong': 'Hong Kong',
-  'Asia/Tokyo': 'Japan',
-  'Asia/Seoul': 'South Korea',
   // Oceania
   'Australia/Perth': 'Australia',
   'Australia/Brisbane': 'Australia',
