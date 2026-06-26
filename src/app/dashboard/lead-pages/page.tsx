@@ -17,6 +17,14 @@ type DateFilterType = 'all' | 'last1h' | 'last24h' | 'today' | 'last7d' | 'last3
 type SortKey = 'name' | 'created' | 'views' | 'conversions' | 'convRate';
 type SortDir = 'asc' | 'desc';
 type ViewMode = 'tiles' | 'folders' | 'flat';
+type SearchField = 'all' | 'name' | 'slug' | 'folder';
+
+const searchFieldOptions: { value: SearchField; label: string }[] = [
+  { value: 'all', label: 'All fields' },
+  { value: 'name', label: 'Page name' },
+  { value: 'slug', label: 'Slug' },
+  { value: 'folder', label: 'Folder' },
+];
 
 const sortOptions: { value: SortKey; label: string }[] = [
   { value: 'created', label: 'Date created' },
@@ -55,6 +63,7 @@ export default function LeadPagesDashboard() {
 
   // Search / sort / view
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchField, setSearchField] = useState<SearchField>('all');
   const [sortKey, setSortKey] = useState<SortKey>('created');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
   const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -111,16 +120,19 @@ export default function LeadPagesDashboard() {
     } catch {}
   }, [sortKey, sortDir, viewMode]);
 
-  // Auto-switch to flat view while searching, restore on clear
-  const prevViewModeRef = useRef<ViewMode>('tiles');
+  // Auto-switch to flat view while searching ONLY for the collapsible Sections view
+  // (collapsed sections would otherwise hide matches). Tiles searches in place; List is
+  // already flat. Restore Sections when the search is cleared.
+  const searchAutoFlatRef = useRef(false);
   useEffect(() => {
     if (searchQuery.trim()) {
-      if (viewMode !== 'flat') {
-        prevViewModeRef.current = viewMode;
+      if (viewMode === 'folders') {
         setViewMode('flat');
+        searchAutoFlatRef.current = true;
       }
-    } else if (prevViewModeRef.current && prevViewModeRef.current !== viewMode) {
-      setViewMode(prevViewModeRef.current);
+    } else if (searchAutoFlatRef.current) {
+      setViewMode('folders');
+      searchAutoFlatRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchQuery]);
@@ -257,9 +269,13 @@ export default function LeadPagesDashboard() {
     return { views: p.views ?? 0, conversions: p.conversions ?? 0 };
   };
 
+  // Page-level search, honoring the selected field (All / Name / Slug)
   const matchesSearch = (p: any) => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return true;
+    if (searchField === 'name') return (p.name || '').toLowerCase().includes(q);
+    if (searchField === 'slug') return (p.slug || '').toLowerCase().includes(q);
+    if (searchField === 'folder') return (p.folder || '').toLowerCase().includes(q);
     const haystack = [
       p.name,
       p.slug,
@@ -269,6 +285,15 @@ export default function LeadPagesDashboard() {
       p.webinar?.title,
     ].filter(Boolean).join(' ').toLowerCase();
     return haystack.includes(q);
+  };
+
+  // Folder-name search at the Tiles root — only filters folders when the user has
+  // explicitly chosen to search by "Folder"; page-field searches don't narrow folders.
+  const folderMatchesSearch = (folderName: string) => {
+    if (searchField !== 'folder') return true;
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return folderName.toLowerCase().includes(q);
   };
 
   const compareFn = (a: any, b: any) => {
@@ -297,9 +322,20 @@ export default function LeadPagesDashboard() {
     }
   };
 
-  const visiblePages = leadPages.filter(matchesSearch).slice().sort(compareFn);
+  // All pages sorted (no search filter) — basis for the Tiles view
+  const sortedPages = leadPages.slice().sort(compareFn);
 
-  // --- Derived folder structure (from filtered+sorted set) ---
+  // Page-search-filtered set — used by the List and Sections views
+  const visiblePages = sortedPages.filter(matchesSearch);
+
+  // Every folder name that exists, regardless of search — used by the move picker
+  // and the Tiles root grid (so all folders stay reachable while searching pages).
+  const allFolderNames = Array.from(
+    new Set(leadPages.map(p => p.folder).filter(Boolean))
+  ).sort() as string[];
+  const hasFolders = allFolderNames.length > 0;
+
+  // --- Derived folder structure for the Sections view (from filtered+sorted set) ---
   const allFolders = Array.from(
     new Set(visiblePages.map(p => p.folder).filter(Boolean))
   ).sort() as string[];
@@ -309,6 +345,39 @@ export default function LeadPagesDashboard() {
     groupedPages[folder] = visiblePages.filter(p => p.folder === folder);
   }
   groupedPages[UNCATEGORIZED] = visiblePages.filter(p => !p.folder);
+
+  // --- Tiles grouping: all pages (search applied per-context at render) ---
+  const tilesGrouped: Record<string, any[]> = {};
+  for (const folder of allFolderNames) {
+    tilesGrouped[folder] = sortedPages.filter(p => p.folder === folder);
+  }
+  tilesGrouped[UNCATEGORIZED] = sortedPages.filter(p => !p.folder);
+
+  // Folders shown at the Tiles root (folder-name search applies here)
+  const tilesRootFolders = allFolderNames.filter(folderMatchesSearch);
+  const tilesShowUncat =
+    (tilesGrouped[UNCATEGORIZED]?.length || 0) > 0 && folderMatchesSearch('Uncategorized');
+
+  // Pages shown inside the currently-opened folder (page search applies here;
+  // the "Folder" field is a no-op inside a folder, so it shows everything).
+  const currentFolderPages = currentFolder
+    ? (tilesGrouped[currentFolder] || []).filter(p => searchField === 'folder' ? true : matchesSearch(p))
+    : [];
+
+  // At the Tiles root, a page-field search (Name/Slug/All) with a query shows a flat
+  // grid of matching pages across all folders instead of the folder grid.
+  const tilesRootShowingPages =
+    viewMode === 'tiles' && !currentFolder && hasFolders &&
+    searchField !== 'folder' && !!searchQuery.trim();
+
+  // Open/close a folder in Tiles view; clear the search so a folder-name query
+  // doesn't silently carry over into the page search (and vice versa). The "Folder"
+  // field isn't offered inside a folder, so fall back to "All fields" there.
+  const navigateToFolder = (folder: string | null) => {
+    setSearchQuery('');
+    if (folder && searchField === 'folder') setSearchField('all');
+    setCurrentFolder(folder);
+  };
 
   const toggleFolder = (folder: string) => {
     setCollapsedFolders(prev => {
@@ -352,7 +421,7 @@ export default function LeadPagesDashboard() {
                 No folder (remove)
               </button>
             )}
-            {allFolders.filter(f => f !== page.folder).map(folder => (
+            {allFolderNames.filter(f => f !== page.folder).map(folder => (
               <button
                 key={folder}
                 onClick={() => assignFolder(page.id, folder)}
@@ -670,7 +739,7 @@ export default function LeadPagesDashboard() {
   };
 
   const renderFolderTile = (folderKey: string) => {
-    const pages = groupedPages[folderKey] || [];
+    const pages = tilesGrouped[folderKey] || [];
     const isUncat = folderKey === UNCATEGORIZED;
     const isRenaming = renamingFolder === folderKey;
     const totals = pages.reduce(
@@ -688,8 +757,8 @@ export default function LeadPagesDashboard() {
         <div
           role="button"
           tabIndex={0}
-          onClick={() => { if (!isRenaming) setCurrentFolder(folderKey); }}
-          onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !isRenaming) setCurrentFolder(folderKey); }}
+          onClick={() => { if (!isRenaming) navigateToFolder(folderKey); }}
+          onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !isRenaming) navigateToFolder(folderKey); }}
           className="cursor-pointer bg-white rounded-xl border border-gray-200 shadow-sm hover:shadow-md hover:border-purple-200 hover:-translate-y-0.5 transition-all p-4"
         >
           <div className="flex items-center justify-between mb-3">
@@ -757,6 +826,23 @@ export default function LeadPagesDashboard() {
     ...(groupedPages[UNCATEGORIZED]?.length > 0 ? [UNCATEGORIZED] : [])
   ];
 
+  // --- Search UI labels ---
+  const currentFolderLabel = currentFolder === UNCATEGORIZED ? 'Uncategorized' : currentFolder;
+  const insideFolder = viewMode === 'tiles' && !!currentFolder;
+  const searchPlaceholder = insideFolder
+    ? (searchField === 'slug'
+        ? `Search slugs in "${currentFolderLabel}"…`
+        : searchField === 'name'
+          ? `Search names in "${currentFolderLabel}"…`
+          : `Search pages in "${currentFolderLabel}"…`)
+    : searchField === 'folder'
+      ? 'Search folders by name…'
+      : searchField === 'name'
+        ? 'Search pages by name…'
+        : searchField === 'slug'
+          ? 'Search pages by slug…'
+          : 'Search pages by name, slug, webinar, or template…';
+
   return (
     <DashboardLayout>
       {/* Header */}
@@ -775,24 +861,46 @@ export default function LeadPagesDashboard() {
       </div>
 
       {/* Search bar */}
-      <div className="mb-3 relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search by name, slug, folder, webinar, or template…"
-          className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-300 focus:outline-none"
-        />
-        {searchQuery && (
-          <button
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
-            title="Clear search"
+      <div className="mb-3 flex items-center gap-2">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder={searchPlaceholder}
+            className="w-full pl-9 pr-9 py-2.5 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-400 focus:border-purple-300 focus:outline-none"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600"
+              title="Clear search"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* "Search by" field selector */}
+        <div className="flex items-center gap-2 flex-shrink-0">
+          <label htmlFor="search-by" className="text-sm text-gray-500 whitespace-nowrap hidden sm:inline">
+            Search by
+          </label>
+          <select
+            id="search-by"
+            value={searchField}
+            onChange={e => setSearchField(e.target.value as SearchField)}
+            className="px-3 py-2.5 bg-white border border-gray-200 rounded-lg text-sm hover:bg-gray-50 focus:ring-2 focus:ring-purple-400 focus:outline-none"
+            title="Choose what to search by"
           >
-            <X className="w-4 h-4" />
-          </button>
-        )}
+            {searchFieldOptions
+              .filter(opt => !(insideFolder && opt.value === 'folder'))
+              .map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+          </select>
+        </div>
       </div>
 
       {/* Filters bar */}
@@ -909,7 +1017,7 @@ export default function LeadPagesDashboard() {
         {/* View toggle */}
         <div className="inline-flex bg-white border border-gray-200 rounded-lg p-0.5">
           <button
-            onClick={() => setViewMode('tiles')}
+            onClick={() => { searchAutoFlatRef.current = false; setViewMode('tiles'); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
               viewMode === 'tiles' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
             }`}
@@ -918,7 +1026,7 @@ export default function LeadPagesDashboard() {
             <LayoutGrid className="w-4 h-4" /> Tiles
           </button>
           <button
-            onClick={() => setViewMode('folders')}
+            onClick={() => { searchAutoFlatRef.current = false; setViewMode('folders'); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
               viewMode === 'folders' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
             }`}
@@ -927,7 +1035,7 @@ export default function LeadPagesDashboard() {
             <FolderTree className="w-4 h-4" /> Sections
           </button>
           <button
-            onClick={() => setViewMode('flat')}
+            onClick={() => { searchAutoFlatRef.current = false; setViewMode('flat'); }}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors ${
               viewMode === 'flat' ? 'bg-purple-100 text-purple-700 font-medium' : 'text-gray-500 hover:text-gray-700'
             }`}
@@ -947,9 +1055,19 @@ export default function LeadPagesDashboard() {
         )}
 
         <span className="text-sm text-gray-400 ml-auto">
-          {searchQuery || dateFilter !== 'all' || webinarFilter !== 'all'
-            ? `${visiblePages.length} of ${leadPages.length}`
-            : `${leadPages.length}`} page{leadPages.length !== 1 ? 's' : ''}
+          {viewMode === 'tiles' && !currentFolder && !tilesRootShowingPages && hasFolders ? (
+            (() => {
+              const shown = tilesRootFolders.length + (tilesShowUncat ? 1 : 0);
+              const total = allFolderNames.length + ((tilesGrouped[UNCATEGORIZED]?.length || 0) > 0 ? 1 : 0);
+              return `${searchField === 'folder' && searchQuery ? `${shown} of ${total}` : total} folder${total !== 1 ? 's' : ''}`;
+            })()
+          ) : insideFolder ? (
+            `${currentFolderPages.length} page${currentFolderPages.length !== 1 ? 's' : ''}`
+          ) : (
+            `${searchQuery || dateFilter !== 'all' || webinarFilter !== 'all'
+              ? `${visiblePages.length} of ${leadPages.length}`
+              : `${leadPages.length}`} page${leadPages.length !== 1 ? 's' : ''}`
+          )}
         </span>
       </div>
 
@@ -966,6 +1084,118 @@ export default function LeadPagesDashboard() {
             <Button>Create Lead Page</Button>
           </Link>
         </Card>
+      ) : viewMode === 'tiles' ? (
+        <div>
+          {currentFolder ? (
+            /* Inside a folder — search is scoped to this folder's pages */
+            <>
+              <div className="flex items-center gap-2 mb-4 text-sm flex-wrap">
+                <button
+                  onClick={() => navigateToFolder(null)}
+                  className="flex items-center gap-1 text-gray-500 hover:text-purple-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" /> All Pages
+                </button>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
+                <span className="font-semibold text-gray-800 flex items-center gap-1.5">
+                  <FolderOpen className="w-4 h-4 text-purple-500" />
+                  {currentFolderLabel}
+                </span>
+                <span className="text-gray-400">
+                  · {currentFolderPages.length} page{currentFolderPages.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {currentFolderPages.length === 0 ? (
+                <Card className="p-8 text-center">
+                  {searchQuery ? (
+                    <>
+                      <Search className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-600 font-medium mb-1">No pages match your search in this folder</p>
+                      <button onClick={() => setSearchQuery('')} className="mt-2 text-sm text-purple-600 hover:underline">
+                        Clear search
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <Folder className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500">This folder is empty.</p>
+                      <button onClick={() => navigateToFolder(null)} className="mt-3 text-sm text-purple-600 hover:underline">
+                        ← Back to all pages
+                      </button>
+                    </>
+                  )}
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {currentFolderPages.map(renderPageTile)}
+                </div>
+              )}
+            </>
+          ) : !hasFolders ? (
+            /* No folders yet — show all pages directly as tiles (page search applies) */
+            visiblePages.length === 0 ? (
+              <Card className="p-8 text-center">
+                <Search className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                <p className="text-gray-600 font-medium mb-1">No pages match your search</p>
+                <button onClick={() => setSearchQuery('')} className="mt-2 text-sm text-purple-600 hover:underline">
+                  Clear search
+                </button>
+              </Card>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {visiblePages.map(renderPageTile)}
+              </div>
+            )
+          ) : tilesRootShowingPages ? (
+            /* Root page search — flat results across all folders */
+            <>
+              <div className="flex items-center gap-2 mb-4 text-sm flex-wrap">
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="flex items-center gap-1 text-gray-500 hover:text-purple-700 transition-colors"
+                >
+                  <ArrowLeft className="w-4 h-4" /> All Folders
+                </button>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
+                <span className="font-semibold text-gray-800 flex items-center gap-1.5">
+                  <Search className="w-4 h-4 text-purple-500" />
+                  Search results
+                </span>
+                <span className="text-gray-400">
+                  · {visiblePages.length} page{visiblePages.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+              {visiblePages.length === 0 ? (
+                <Card className="p-8 text-center">
+                  <Search className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-600 font-medium mb-1">No pages match your search</p>
+                  <button onClick={() => setSearchQuery('')} className="mt-2 text-sm text-purple-600 hover:underline">
+                    Clear search
+                  </button>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                  {visiblePages.map(renderPageTile)}
+                </div>
+              )}
+            </>
+          ) : tilesRootFolders.length === 0 && !tilesShowUncat ? (
+            /* Root folder search with no matches */
+            <Card className="p-8 text-center">
+              <Search className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-600 font-medium mb-1">No folders match your search</p>
+              <button onClick={() => setSearchQuery('')} className="mt-2 text-sm text-purple-600 hover:underline">
+                Clear search
+              </button>
+            </Card>
+          ) : (
+            /* Root — folder grid (folder-name search applies) */
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+              {tilesRootFolders.map(renderFolderTile)}
+              {tilesShowUncat && renderFolderTile(UNCATEGORIZED)}
+            </div>
+          )}
+        </div>
       ) : visiblePages.length === 0 ? (
         <Card className="p-8 text-center">
           <Search className="w-10 h-10 mx-auto text-gray-300 mb-3" />
@@ -975,57 +1205,6 @@ export default function LeadPagesDashboard() {
             Clear filters
           </Button>
         </Card>
-      ) : viewMode === 'tiles' ? (
-        <div>
-          {currentFolder ? (
-            /* Inside a folder */
-            <>
-              <div className="flex items-center gap-2 mb-4 text-sm flex-wrap">
-                <button
-                  onClick={() => setCurrentFolder(null)}
-                  className="flex items-center gap-1 text-gray-500 hover:text-purple-700 transition-colors"
-                >
-                  <ArrowLeft className="w-4 h-4" /> All Pages
-                </button>
-                <ChevronRight className="w-4 h-4 text-gray-300" />
-                <span className="font-semibold text-gray-800 flex items-center gap-1.5">
-                  <FolderOpen className="w-4 h-4 text-purple-500" />
-                  {currentFolder === UNCATEGORIZED ? 'Uncategorized' : currentFolder}
-                </span>
-                <span className="text-gray-400">
-                  · {(groupedPages[currentFolder]?.length || 0)} page{(groupedPages[currentFolder]?.length || 0) !== 1 ? 's' : ''}
-                </span>
-              </div>
-              {(groupedPages[currentFolder]?.length || 0) === 0 ? (
-                <Card className="p-8 text-center">
-                  <Folder className="w-10 h-10 mx-auto text-gray-300 mb-3" />
-                  <p className="text-gray-500">This folder is empty.</p>
-                  <button
-                    onClick={() => setCurrentFolder(null)}
-                    className="mt-3 text-sm text-purple-600 hover:underline"
-                  >
-                    ← Back to all pages
-                  </button>
-                </Card>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                  {groupedPages[currentFolder].map(renderPageTile)}
-                </div>
-              )}
-            </>
-          ) : allFolders.length === 0 ? (
-            /* No folders yet — show all pages directly as tiles */
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {visiblePages.map(renderPageTile)}
-            </div>
-          ) : (
-            /* Root — folder grid */
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-              {allFolders.map(renderFolderTile)}
-              {groupedPages[UNCATEGORIZED]?.length > 0 && renderFolderTile(UNCATEGORIZED)}
-            </div>
-          )}
-        </div>
       ) : viewMode === 'flat' ? (
         <div className="overflow-x-auto border border-gray-200 rounded-lg">
           <table className="w-full min-w-[1050px] text-sm">

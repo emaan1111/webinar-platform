@@ -757,6 +757,7 @@ export async function reapplyAttendanceTagsAfterReplay(
             mostlyAttendedThreshold: true,
             videoDuration: true,
             title: true,
+            crmIntegration: true,
             attendedTag: true,
             attendedTagId: true,
             mostlyAttendedTag: true,
@@ -777,6 +778,23 @@ export async function reapplyAttendanceTagsAfterReplay(
     // Only process if they watched replay
     if (!registration.watchedReplay) {
       return { success: false, tags: [], error: 'No replay watched' }
+    }
+
+    // Respect the webinar's CRM integration setting: when it's NONE (or Mautic),
+    // do not create/tag contacts in ClickFunnels. We still record the replay
+    // attendance locally so internal state and post-webinar logic stay correct.
+    const crmIntegration = (registration.webinar as any).crmIntegration || 'CLICKFUNNELS'
+    if (crmIntegration !== 'CLICKFUNNELS') {
+      await prisma.registration.update({
+        where: { id: registrationId },
+        data: {
+          attended: true,
+          attendanceTagsApplied: true,
+          attendanceTagsAppliedAt: new Date()
+        }
+      })
+      console.log(`ℹ️ CRM not ClickFunnels for webinar; skipped CF replay re-tagging for ${registration.email}`)
+      return { success: true, tags: [] }
     }
 
     console.log(`🎬 Re-tagging ${registration.email} after watching replay`)

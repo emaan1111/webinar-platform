@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
-import { registerUserToWebinar, isWebinarJamConfigured } from '@/lib/webinarjam'
+import { registerUserToWebinar, isWebinarJamConfigured, resolveJustInTimeScheduleId } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { sendEmail } from '@/lib/email'
@@ -128,11 +128,14 @@ export async function POST(
 
     // The combined picker encodes each option's identity + exact start time in its id:
     //   x|z|<ms>      = the live Zoom session  (send to the Zoom link, skip EverWebinar)
-    //   x|j|<ms>      = just-in-time session   (EverWebinar schedule 0)
+    //   x|<jitId>|<ms> = just-in-time session  (the webinar's real "Just in time" schedule id)
+    //   x|j|<ms>      = just-in-time session   (the picker couldn't resolve the real id — we
+    //                                           resolve it here instead; never send schedule "0")
     //   x|<sid>|<ms>  = a recurring EverWebinar session (schedule <sid>)
     // Decoding here records the exact chosen time and avoids ambiguity when several
     // recurring days share one EverWebinar schedule id.
     let isZoomPick = scheduleId === 'zoom'
+    let isJitPick = false
     let wjScheduleId: string | undefined
     let decodedStartTime: Date | null = null
 
@@ -143,7 +146,9 @@ export async function POST(
       if (kind === 'z') {
         isZoomPick = true
       } else if (kind === 'j') {
-        wjScheduleId = '0'
+        // Just-in-time pick the picker couldn't bind to a real schedule id. EverWebinar
+        // rejects a literal "0" (HTTP 422), so resolve the real "Just in time" block id below.
+        isJitPick = true
       } else {
         wjScheduleId = kind
       }
@@ -154,7 +159,7 @@ export async function POST(
     }
 
     // The registration's scheduleId is a foreign key to a local ExternalWebinarSchedule row.
-    // Picker options carry external/synthetic ids (WebinarJam schedule numbers, 'zoom', JIT '0'),
+    // Picker options carry external/synthetic ids (WebinarJam schedule numbers, 'zoom', JIT),
     // which are NOT local row ids — writing one straight into the FK violates the constraint and
     // fails the whole registration. Resolve to a real local row when one exists, else store null.
     // The exact chosen time and room link are preserved separately (scheduledStartTime, liveRoomUrl).
@@ -166,6 +171,22 @@ export async function POST(
           ? externalWebinar.schedules.find(s => s.externalScheduleId === wjScheduleId)
           : undefined)
       localScheduleId = localMatch?.id ?? null
+    }
+
+    // Just-in-time pick: bind it to the webinar's REAL "Just in time" schedule id so EverWebinar
+    // accepts the registration and returns a per-attendee live room link. We never send "0"
+    // (EverWebinar 422s on it); if no JIT block exists we skip the API call rather than fail.
+    if (isJitPick && registerInWebinarJam && isWebinarJamConfigured()) {
+      wjScheduleId =
+        (await resolveJustInTimeScheduleId(
+          externalWebinar.externalWebinarId,
+          externalWebinar.platform as 'webinarjam' | 'everwebinar',
+        )) || undefined
+      if (!wjScheduleId) {
+        console.warn(
+          `⚠️ JIT pick for ${externalWebinar.name} but no "Just in time" schedule found in ${externalWebinar.platform} — skipping live-room capture`
+        )
+      }
     }
 
     if (isZoomPick) {

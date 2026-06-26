@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
             select: {
               title: true,
               duration: true,
+              crmIntegration: true,
               registrationTag: true,
               attendedTag: true,
               mostlyAttendedTag: true,
@@ -186,27 +187,33 @@ export async function POST(request: NextRequest) {
       // Determine if user reached offer CTA (last 15 minutes of webinar)
       const offerCTAThreshold = Math.max(0, webinarDuration - 900); // 15 minutes before end
       const reachedOfferCTA = finalVideoPosition >= offerCTAThreshold;
-      
-      syncAttendanceToClickFunnels({
-        email: registration.email,
-        webinarDuration,
-        watchTime: finalWatchTime,
-        attended: true,
-        isReplay: isReplaySession,
-        reachedOfferCTA,
-        webinarTitle: registration.webinar.title,
-        leftAt: updatedSession.leftAt || undefined,
-        customTags: {
-          registrationTag: registration.webinar.registrationTag,
-          attendedTag: registration.webinar.attendedTag,
-          mostlyAttendedTag: registration.webinar.mostlyAttendedTag,
-          partlyAttendedTag: registration.webinar.partlyAttendedTag,
-          missedTag: registration.webinar.missedTag,
-          replayAttendedTag: registration.webinar.replayAttendedTag,
-        }
-      }).catch(err => {
-        console.error('Failed to sync attendance to ClickFunnels:', err);
-      });
+
+      // Only sync attendance to ClickFunnels when this webinar's CRM integration is ClickFunnels.
+      // When it's NONE (or Mautic), we must not create/tag contacts in ClickFunnels.
+      if ((registration.webinar.crmIntegration || 'CLICKFUNNELS') === 'CLICKFUNNELS') {
+        syncAttendanceToClickFunnels({
+          email: registration.email,
+          webinarDuration,
+          watchTime: finalWatchTime,
+          attended: true,
+          isReplay: isReplaySession,
+          reachedOfferCTA,
+          webinarTitle: registration.webinar.title,
+          leftAt: updatedSession.leftAt || undefined,
+          customTags: {
+            registrationTag: registration.webinar.registrationTag,
+            attendedTag: registration.webinar.attendedTag,
+            mostlyAttendedTag: registration.webinar.mostlyAttendedTag,
+            partlyAttendedTag: registration.webinar.partlyAttendedTag,
+            missedTag: registration.webinar.missedTag,
+            replayAttendedTag: registration.webinar.replayAttendedTag,
+          }
+        }).catch(err => {
+          console.error('Failed to sync attendance to ClickFunnels:', err);
+        });
+      } else {
+        console.log(`ℹ️ CRM not ClickFunnels for webinar; skipping attendance sync for ${registration.email}`);
+      }
 
       // Note: Attendance tags will be applied by the cron job after the user's session ends
       // (based on scheduledStartTime + webinar.duration)

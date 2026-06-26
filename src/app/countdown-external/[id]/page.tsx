@@ -30,6 +30,7 @@ async function getCountdownData(id: string, registrationId?: string) {
       externalWebinarName: true,
       countdownTemplateId: true,
       webinarDurationMinutes: true,
+      liveZoomLink: true,
     },
   })
   if (!externalWebinar) return null
@@ -219,7 +220,12 @@ export default async function ExternalCountdownPage({ params, searchParams }: Pa
 
   const { externalWebinar, registration } = data
   const startTime = registration?.scheduledStartTime ? new Date(registration.scheduledStartTime) : null
-  const liveRoomUrl = registration?.liveRoomUrl || null
+  // The live room is the per-registrant URL captured at registration (EverWebinar live page
+  // for an EverWebinar pick, Zoom link for a Zoom pick). When that wasn't captured — e.g. an
+  // EverWebinar scheduled pick where the API returned no per-attendee live link — fall back to
+  // the webinar's configured live Zoom link so the countdown still has somewhere to send people
+  // at T-0. Without this fallback the countdown ticks to zero and gets stuck with nowhere to go.
+  const liveRoomUrl = registration?.liveRoomUrl || externalWebinar.liveZoomLink || null
   const name = registration?.name || ''
   const webinarName = externalWebinar.externalWebinarName || externalWebinar.name || 'your webinar'
 
@@ -228,10 +234,12 @@ export default async function ExternalCountdownPage({ params, searchParams }: Pa
     redirect(liveRoomUrl)
   }
 
-  // Render the selected template when we have both a template and a start time.
-  if (data.template && startTime && liveRoomUrl) {
+  // Render the selected template whenever one is set and we know the start time.
+  // The live room is wired in when available (auto-enter at T-0); if it isn't yet,
+  // the template still shows and simply doesn't redirect.
+  if (data.template && startTime) {
     const processedHtml = processCountdownTemplate(
-      data.template.htmlCode, data, startTime, liveRoomUrl, searchParams.tz,
+      data.template.htmlCode, data, startTime, liveRoomUrl || '', searchParams.tz,
     )
     return <TemplateRenderer html={processedHtml} />
   }

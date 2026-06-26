@@ -211,8 +211,11 @@ export async function scheduleRemindersForRegistration(
       templateCount: registration.webinar.reminderTemplates.length
     })
 
-    // Schedule ClickFunnels registration tags (queued for cron job to apply at appropriate times)
-    await applyRegistrationTag(registration.email, webinarStartTime, registration.id)
+    // Schedule ClickFunnels registration tags (queued for cron job to apply at appropriate times).
+    // Skip entirely when this webinar's CRM integration is not ClickFunnels (e.g. NONE or Mautic).
+    if (((registration.webinar as any).crmIntegration || 'CLICKFUNNELS') === 'CLICKFUNNELS') {
+      await applyRegistrationTag(registration.email, webinarStartTime, registration.id)
+    }
 
     // Create reminder records for each template
     const remindersToCreate: any[] = []
@@ -667,7 +670,8 @@ export async function processPendingReminders(): Promise<{
         channelSuccess &&
         reminder.template &&
         reminder.template.applyClickFunnelsTag &&
-        reminder.template.clickFunnelsTag
+        reminder.template.clickFunnelsTag &&
+        ((reminder.registration.webinar as any)?.crmIntegration || 'CLICKFUNNELS') === 'CLICKFUNNELS'
       ) {
         const { applyReminderTagToContact } = await import('./clickfunnels')
         const tagSuccess = await applyReminderTagToContact(

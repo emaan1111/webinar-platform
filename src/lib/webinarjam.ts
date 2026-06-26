@@ -215,6 +215,28 @@ export async function getWebinarDetails(
   }
 }
 
+/** Matches EverWebinar's dynamic "Just in time" schedule block by its comment/label. */
+function isJustInTimeComment(comment?: string | null): boolean {
+  return /just[\s-]?in[\s-]?time/i.test(comment || '')
+}
+
+/**
+ * Resolve the webinar's real "Just in time" schedule id (EverWebinar's dynamic instant block).
+ *
+ * EverWebinar rejects a literal schedule "0" with HTTP 422, so a just-in-time registration must
+ * target this real schedule id to be accepted and to return a per-attendee live room link.
+ * Returns null when the webinar has no such block (caller should then skip the API call rather
+ * than send an invalid "0").
+ */
+export async function resolveJustInTimeScheduleId(
+  webinarId: string,
+  platform: 'webinarjam' | 'everwebinar' = 'webinarjam',
+): Promise<string | null> {
+  const webinar = await getWebinarDetails(webinarId, platform)
+  const jit = webinar?.schedules?.find((s) => isJustInTimeComment(s.comment))
+  return jit ? String(jit.schedule) : null
+}
+
 /**
  * Get registrants and attendance data for a webinar
  * 
@@ -347,16 +369,33 @@ export async function registerUserToWebinar(
     }
 
     const result = await response.json()
-    
+
     if (result.status !== 'success') {
       return { success: false, error: result.message || 'Registration failed' }
     }
 
-    return {
-      success: true,
-      liveRoomUrl: result.user?.live_room || result.user?.links?.live_room || result.live_room,
-      replayRoomUrl: result.user?.replay_room || result.user?.links?.replay_room || result.replay_room,
+    // WebinarJam/EverWebinar's /register returns the per-attendee room link as
+    // `live_room_url` (note the _url suffix), while the /registrants (attendance)
+    // endpoint nests `live_room` under `links`. Accept every known variant so the
+    // link is captured regardless of which the API version returns.
+    const u = result.user || {}
+    const liveRoomUrl =
+      u.live_room_url || u.live_room || u.links?.live_room_url || u.links?.live_room ||
+      result.live_room_url || result.live_room || undefined
+    const replayRoomUrl =
+      u.replay_room_url || u.replay_room || u.links?.replay_room_url || u.links?.replay_room ||
+      result.replay_room_url || result.replay_room || undefined
+
+    if (!liveRoomUrl) {
+      // Help diagnose API shape changes without leaking PII: log only the keys we saw.
+      console.warn('⚠️ WebinarJam /register succeeded but no live room URL found. Response keys:', {
+        topLevel: Object.keys(result || {}),
+        user: Object.keys(u || {}),
+        links: u.links ? Object.keys(u.links) : null,
+      })
     }
+
+    return { success: true, liveRoomUrl, replayRoomUrl }
   } catch (error) {
     console.error('❌ WebinarJam registration error:', error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }

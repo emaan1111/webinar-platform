@@ -56,6 +56,7 @@ export async function POST(
             id: true,
             title: true,
             slug: true,
+            crmIntegration: true,
             registrationTag: true,
             attendedTag: true,
             mostlyAttendedTag: true,
@@ -181,7 +182,9 @@ export async function POST(
         }
       }
 
-      // Sync Contact & Registration Tag
+      // Sync Contact & Registration Tag — only when the bundled webinar uses ClickFunnels.
+      // When its CRM integration is NONE (or Mautic), skip all ClickFunnels calls.
+      if (event.bundledWebinar!.crmIntegration === 'CLICKFUNNELS') {
       try {
          const bundleSyncResult = await syncWebinarRegistrationToClickFunnels({
            name,
@@ -250,6 +253,7 @@ export async function POST(
           }
         }
       }
+      } // end ClickFunnels-only bundled-webinar sync
       // --- END WEBINAR BUNDLE INTEGRATION ---
 
     }

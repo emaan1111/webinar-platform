@@ -288,8 +288,8 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
           phone: getRegistrantPhone(registrant),
         })
 
-        // Apply registration tag
-        if (extWebinar.registrationTag) {
+        // Apply registration tag (only when this webinar's CRM integration is ClickFunnels)
+        if (extWebinar.registrationTag && (extWebinar.crmIntegration || 'CLICKFUNNELS') === 'CLICKFUNNELS') {
           await applyTag(email, extWebinar.registrationTag)
         }
       }
@@ -550,6 +550,11 @@ async function applyAttendanceTags(
   email: string,
   watchTimeMinutes: number
 ): Promise<boolean> {
+  // Skip ClickFunnels tagging unless this webinar's CRM integration is ClickFunnels (not NONE/Mautic).
+  if ((extWebinar.crmIntegration || 'CLICKFUNNELS') !== 'CLICKFUNNELS') {
+    return false
+  }
+
   const webinarDuration = extWebinar.webinarDurationMinutes || 60
   const category = getAttendanceCategory(
     watchTimeMinutes,
