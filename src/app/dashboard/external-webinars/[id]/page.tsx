@@ -65,16 +65,6 @@ interface ExternalWebinar {
   }
 }
 
-// Full IANA timezone list (browser-provided) with a curated fallback.
-const ALL_TIMEZONES: string[] =
-  typeof Intl !== 'undefined' && typeof (Intl as any).supportedValuesOf === 'function'
-    ? (Intl as any).supportedValuesOf('timeZone')
-    : [
-        'America/New_York', 'America/Chicago', 'America/Denver', 'America/Los_Angeles',
-        'Europe/London', 'Europe/Paris', 'Asia/Dubai', 'Asia/Karachi', 'Asia/Kolkata',
-        'Asia/Singapore', 'Asia/Tokyo', 'Australia/Sydney',
-      ]
-
 function detectTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -279,7 +269,8 @@ export default function ExternalWebinarDetailPage() {
       const payload = {
         ...formData,
         liveZoomAt: datetimeLocalToIso(formData.liveZoomAt, formData.liveZoomTimezone),
-        liveZoomSessionId: formData.liveZoomSessionId || null,
+        // Disabling the live Zoom session clears the link/association entirely.
+        liveZoomSessionId: formData.liveZoomEnabled ? formData.liveZoomSessionId || null : null,
         recurringSlotsToShow:
           formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
             ? null

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { fromZonedTime } from 'date-fns-tz'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { loadRoster } from '@/lib/zoomSessions'
+import { loadRoster, linkedIds } from '@/lib/zoomSessions'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -109,6 +109,11 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       }
     }
 
+    const before = await prisma.zoomSession.findUnique({
+      where: { id: params.id },
+      select: { scheduledAt: true },
+    })
+
     const updated = await prisma.zoomSession.update({
       where: { id: params.id },
       data,
@@ -125,6 +130,24 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         liveZoomTimezone: updated.timezone,
       },
     })
+
+    // If the session time moved, move its existing registrations with it so they
+    // stay in the roster (the roster matches scheduledStartTime == scheduledAt).
+    if (before && before.scheduledAt.getTime() !== updated.scheduledAt.getTime()) {
+      const { external, internal } = linkedIds(updated.webinars)
+      if (external.length) {
+        await prisma.externalWebinarRegistration.updateMany({
+          where: { externalWebinarId: { in: external }, scheduledStartTime: before.scheduledAt },
+          data: { scheduledStartTime: updated.scheduledAt },
+        })
+      }
+      if (internal.length) {
+        await prisma.registration.updateMany({
+          where: { webinarId: { in: internal }, scheduledStartTime: before.scheduledAt },
+          data: { scheduledStartTime: updated.scheduledAt },
+        })
+      }
+    }
 
     return NextResponse.json({ session: shapeSession(updated) })
   } catch (error) {

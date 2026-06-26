@@ -162,9 +162,17 @@ export async function PUT(
         if (!zs) {
           return NextResponse.json({ error: 'Selected Zoom session not found' }, { status: 400 })
         }
+        // A session without a join link would silently disappear from the picker
+        // (the picker requires liveZoomLink), so reject it with a clear message.
+        if (!zs.zoomLink) {
+          return NextResponse.json(
+            { error: 'That Zoom session has no Zoom join link yet — add a link to the session first.' },
+            { status: 400 }
+          )
+        }
         liveZoomData = {
           liveZoomSessionId: newLiveZoomSessionId,
-          liveZoomLink: zs.zoomLink || null,
+          liveZoomLink: zs.zoomLink,
           liveZoomAt: zs.scheduledAt,
           liveZoomTimezone: zs.timezone || null,
         }
@@ -176,14 +184,9 @@ export async function PUT(
           liveZoomTimezone: null,
         }
       }
-    } else {
-      // Legacy inline path (no session selected): keep accepting raw fields.
-      liveZoomData = {
-        ...(liveZoomLink !== undefined && { liveZoomLink: liveZoomLink || null }),
-        ...(liveZoomAt !== undefined && { liveZoomAt: liveZoomAt ? new Date(liveZoomAt) : null }),
-        ...(liveZoomTimezone !== undefined && { liveZoomTimezone: liveZoomTimezone || null }),
-      }
     }
+    // When liveZoomSessionId is omitted from the body, live-Zoom fields are left
+    // untouched (partial updates of other settings don't disturb the link).
 
     const externalWebinar = await prisma.externalWebinar.update({
       where: { id },

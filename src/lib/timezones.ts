@@ -38,17 +38,17 @@ export const COMMON_TIMEZONES: string[] = [
   'Australia/Perth',
   'Australia/Sydney',
   'Pacific/Auckland',
-]
+].sort((a, b) => a.localeCompare(b))
 
-/** Friendly label like "Karachi (GMT+5)" — falls back to the city name if offset lookup fails. */
+/** Label like "Asia/Karachi (GMT+5)" — keeps the full Region/City, falls back gracefully. */
 export function timezoneLabel(tz: string): string {
-  const city = tz.split('/').pop()?.replace(/_/g, ' ') || tz
+  const name = tz.replace(/_/g, ' ')
   try {
     const off = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
       .formatToParts(new Date())
       .find((p) => p.type === 'timeZoneName')?.value
-    return off ? `${city} (${off})` : city
+    return off ? `${name} (${off})` : name
   } catch {
-    return city
+    return name
   }
 }
