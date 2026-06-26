@@ -799,103 +799,115 @@ export default function ExternalWebinarDetailPage() {
                   </p>
                 </div>
 
-                {/* Thank-you page (dynamic — changes apply without re-pasting the embed) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Thank-you page after registration
-                  </label>
-
-                  {/* Option A: render one of our system templates on the built-in page */}
-                  <div className="max-w-md">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">Use a system template</label>
-                    <select
-                      value={formData.thankYouTemplateId}
-                      onChange={(e) => {
-                        const tplId = e.target.value
-                        setFormData({
-                          ...formData,
-                          thankYouTemplateId: tplId,
-                          // Point the redirect at the built-in renderer so the chosen template shows.
-                          // (A custom URL below still takes priority if set.)
-                          thankYouUrl: tplId ? `${appOrigin}/thank-you-external/${id}` : formData.thankYouUrl,
-                        })
-                      }}
-                      className="w-full px-3 py-2 border rounded-lg bg-white"
-                    >
-                      <option value="">— No template —</option>
-                      {thankYouTemplates.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Renders on the built-in <code>/thank-you-external</code> page for Zoom &amp; scheduled picks,
-                      with the registrant&apos;s name &amp; chosen time filled in.
-                    </p>
-                  </div>
-
-                  {/* Option B: custom redirect URL (advanced) — overrides the template if set */}
-                  <div className="mt-4">
-                    <label className="block text-xs font-medium text-gray-600 mb-1">
-                      …or a custom redirect URL (advanced)
-                    </label>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <input
-                        type="url"
-                        value={formData.thankYouUrl}
-                        onChange={(e) => setFormData({ ...formData, thankYouUrl: e.target.value })}
-                        placeholder="https://your-site.com/thank-you"
-                        className="flex-1 min-w-[260px] px-3 py-2 border rounded-lg"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, thankYouUrl: `${appOrigin}/thank-you-external/${id}` })}
-                        className="text-xs font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
-                      >
-                        Use built-in page
-                      </button>
-                      {formData.thankYouUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setFormData({ ...formData, thankYouUrl: '', thankYouTemplateId: '' })}
-                          className="text-xs text-gray-500 hover:text-gray-700"
-                        >
-                          Clear
-                        </button>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Scheduled &amp; Zoom picks redirect here after registering (the chosen time &amp; name are
-                      appended as <code>?t=</code> &amp; <code>?name=</code>). Just-in-time picks always go to the
-                      countdown page. Leave both blank to stay in the popup. Saved here — no need to re-paste the embed.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Countdown page (just-in-time picks) — rendered by the built-in /countdown-external page */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Countdown page (just-in-time picks)
-                  </label>
-                  <div className="max-w-md">
-                    <select
-                      value={formData.countdownTemplateId}
-                      onChange={(e) => setFormData({ ...formData, countdownTemplateId: e.target.value })}
-                      className="w-full px-3 py-2 border rounded-lg bg-white"
-                    >
-                      <option value="">— Built-in default countdown —</option>
-                      {countdownTemplates.map((t) => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))}
-                    </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Shown to instant / &ldquo;starting soon&rdquo; picks while they wait, then automatically sends
-                      them to the live webinar (the EverWebinar live page, or the Zoom link for a Zoom pick) when it
-                      starts. Leave as default for the simple built-in countdown.
-                    </p>
-                  </div>
-                </div>
               </div>
             )}
+          </CardBody>
+        </Card>
+
+        {/* Post-registration pages (always available, independent of the schedule picker) */}
+        <Card>
+          <CardHeader>
+            <h2 className="text-xl font-semibold">📄 Post-registration pages</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              Choose what registrants see after they sign up. Changes apply without re-pasting the embed.
+            </p>
+          </CardHeader>
+          <CardBody className="space-y-6">
+            {/* Thank-you page (Zoom & scheduled picks) */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Thank-you page after registration
+              </label>
+
+              {/* Option A: render one of our system templates on the built-in page */}
+              <div className="max-w-md">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Use a system template</label>
+                <select
+                  value={formData.thankYouTemplateId}
+                  onChange={(e) => {
+                    const tplId = e.target.value
+                    setFormData({
+                      ...formData,
+                      thankYouTemplateId: tplId,
+                      // Point the redirect at the built-in renderer so the chosen template shows.
+                      // (A custom URL below still takes priority if set.)
+                      thankYouUrl: tplId ? `${appOrigin}/thank-you-external/${id}` : formData.thankYouUrl,
+                    })
+                  }}
+                  className="w-full px-3 py-2 border rounded-lg bg-white"
+                >
+                  <option value="">— No template —</option>
+                  {thankYouTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Renders on the built-in <code>/thank-you-external</code> page for Zoom &amp; scheduled picks,
+                  with the registrant&apos;s name &amp; chosen time filled in.
+                </p>
+              </div>
+
+              {/* Option B: custom redirect URL (advanced) — overrides the template if set */}
+              <div className="mt-4">
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  …or a custom redirect URL (advanced)
+                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <input
+                    type="url"
+                    value={formData.thankYouUrl}
+                    onChange={(e) => setFormData({ ...formData, thankYouUrl: e.target.value })}
+                    placeholder="https://your-site.com/thank-you"
+                    className="flex-1 min-w-[260px] px-3 py-2 border rounded-lg"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setFormData({ ...formData, thankYouUrl: `${appOrigin}/thank-you-external/${id}` })}
+                    className="text-xs font-medium text-blue-600 hover:text-blue-800 whitespace-nowrap"
+                  >
+                    Use built-in page
+                  </button>
+                  {formData.thankYouUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, thankYouUrl: '', thankYouTemplateId: '' })}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Scheduled &amp; Zoom picks redirect here after registering (the chosen time &amp; name are
+                  appended as <code>?t=</code> &amp; <code>?name=</code>). Just-in-time picks always go to the
+                  countdown page. Leave both blank to stay in the popup.
+                </p>
+              </div>
+            </div>
+
+            {/* Countdown page (just-in-time picks) — rendered by the built-in /countdown-external page */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Countdown page (just-in-time picks)
+              </label>
+              <div className="max-w-md">
+                <select
+                  value={formData.countdownTemplateId}
+                  onChange={(e) => setFormData({ ...formData, countdownTemplateId: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg bg-white"
+                >
+                  <option value="">— Built-in default countdown —</option>
+                  {countdownTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  Shown to instant / &ldquo;starting soon&rdquo; picks while they wait, then automatically sends
+                  them to the live webinar (the EverWebinar live page, or the Zoom link for a Zoom pick) when it
+                  starts. Leave as default for the simple built-in countdown.
+                </p>
+              </div>
+            </div>
           </CardBody>
         </Card>
 
