@@ -1,3 +1,4 @@
+import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { TemplateRenderer } from '@/components/TemplateRenderer'
 
@@ -16,6 +17,38 @@ import { TemplateRenderer } from '@/components/TemplateRenderer'
 interface PageProps {
   params: { id: string }
   searchParams: { reg?: string; t?: string; name?: string }
+}
+
+/**
+ * Resolve a public registration URL for the share / "invite a friend" buttons.
+ *
+ * External webinars have no built-in registration page (the signup form is an embed),
+ * so the share target is the LEAD PAGE that hosts that embed. We prefer a page linked
+ * via the externalWebinarId FK; if none exists we fall back to a page that references
+ * the webinar id directly in its raw HTML (CUSTOM pages embed it that way). The
+ * highest-traffic match wins. Returns '' when no such page exists — callers then fall
+ * back to window.location.href, the previous behaviour.
+ */
+async function resolveRegistrationUrl(externalWebinarId: string): Promise<string> {
+  let leadPage = await prisma.leadPage.findFirst({
+    where: { externalWebinarId },
+    orderBy: { views: 'desc' },
+    select: { slug: true },
+  })
+  if (!leadPage) {
+    leadPage = await prisma.leadPage.findFirst({
+      where: { htmlContent: { contains: externalWebinarId } },
+      orderBy: { views: 'desc' },
+      select: { slug: true },
+    })
+  }
+  if (!leadPage) return ''
+
+  const h = headers()
+  const host = h.get('host') || ''
+  if (!host) return ''
+  const proto = h.get('x-forwarded-proto') || 'https'
+  return `${proto}://${host}/p/${leadPage.slug}`
 }
 
 async function getThankYouData(id: string, registrationId?: string) {
@@ -62,7 +95,9 @@ async function getThankYouData(id: string, registrationId?: string) {
     })
   }
 
-  return { externalWebinar, registration, template }
+  const registrationUrl = await resolveRegistrationUrl(id)
+
+  return { externalWebinar, registration, template, registrationUrl }
 }
 
 // Escape a string for safe insertion inside a JS string literal in a template
@@ -181,7 +216,8 @@ function processTemplate(
     'webinar.description': '',
     'webinarDuration': String(duration),
     'webinar.duration': String(duration),
-    'webinar.registrationUrl': '',
+    // Public registration (lead) page — share/invite buttons point here so friends can sign up.
+    'webinar.registrationUrl': escapeForJsString(data.registrationUrl || ''),
     // Host (external webinars have no host record)
     'hostName': '',
     'host.name': '',
