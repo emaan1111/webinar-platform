@@ -1,166 +1,252 @@
-'use client'
-
-import { Suspense, useEffect, useState } from 'react'
-import { useParams, useSearchParams } from 'next/navigation'
+import { notFound, redirect } from 'next/navigation'
+import { prisma } from '@/lib/prisma'
+import { readBrandingSettings } from '@/lib/brandingSettings'
+import { TemplateRenderer } from '@/components/TemplateRenderer'
+import ExternalCountdownFallback from './ExternalCountdownFallback'
 
 /**
  * Countdown page for external (EverWebinar) registrations — used for "just in time" picks.
- * Counts down to the registrant's start time and automatically enters the live room.
+ * Counts down to the registrant's start time and automatically enters the live room
+ * (the EverWebinar live page, or the Zoom link for a live-Zoom pick) when it starts.
  *
  * URL: /countdown-external/<webinarId>?reg=<registrationId>
+ *
+ * If the external webinar has a Countdown template assigned (or a system "Default" exists),
+ * we render that template with the countdown wired to the registrant's start time and
+ * live room. Otherwise we fall back to the simple built-in countdown card.
  */
 
-type JoinData = {
-  startTime: string | null
-  liveRoomUrl: string | null
-  name: string
-  webinarName: string
+interface PageProps {
+  params: { id: string }
+  searchParams: { reg?: string; tz?: string }
 }
 
-function pad(n: number) {
-  return String(n).padStart(2, '0')
-}
+async function getCountdownData(id: string, registrationId?: string) {
+  const externalWebinar = await prisma.externalWebinar.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      name: true,
+      externalWebinarName: true,
+      countdownTemplateId: true,
+      webinarDurationMinutes: true,
+    },
+  })
+  if (!externalWebinar) return null
 
-function CountdownInner() {
-  const params = useParams()
-  const searchParams = useSearchParams()
-  const id = params.id as string
-  const reg = searchParams.get('reg') || ''
-
-  const [data, setData] = useState<JoinData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(false)
-  const [remaining, setRemaining] = useState<number | null>(null)
-  const [joining, setJoining] = useState(false)
-
-  // Fetch the registration's join data.
-  useEffect(() => {
-    let cancelled = false
-    async function load() {
-      try {
-        if (!reg) throw new Error('no reg')
-        const res = await fetch(`/api/external-webinars/${id}/join?reg=${encodeURIComponent(reg)}`)
-        if (!res.ok) throw new Error('not found')
-        const d: JoinData = await res.json()
-        if (!cancelled) setData(d)
-      } catch {
-        if (!cancelled) setError(true)
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    load()
-    return () => {
-      cancelled = true
-    }
-  }, [id, reg])
-
-  // Tick the countdown and auto-enter the room at start.
-  useEffect(() => {
-    if (!data?.startTime) return
-    const startMs = new Date(data.startTime).getTime()
-
-    const enter = () => {
-      if (data.liveRoomUrl) {
-        setJoining(true)
-        window.location.href = data.liveRoomUrl
-      }
-    }
-
-    const tick = () => {
-      const diff = Math.floor((startMs - Date.now()) / 1000)
-      setRemaining(diff)
-      if (diff <= 0) {
-        enter()
-        return true
-      }
-      return false
-    }
-
-    if (tick()) return
-    const t = setInterval(() => {
-      if (tick()) clearInterval(t)
-    }, 1000)
-    return () => clearInterval(t)
-  }, [data])
-
-  const firstName = data?.name ? data.name.split(' ')[0] : ''
-
-  let body: React.ReactNode
-  if (loading) {
-    body = <p className="text-slate-300">Loading…</p>
-  } else if (error || !data) {
-    body = (
-      <>
-        <h1 className="text-2xl font-bold">We couldn&apos;t find your registration</h1>
-        <p className="text-slate-300 mt-3">Please check your email for the link to join the webinar.</p>
-      </>
-    )
-  } else if (!data.startTime) {
-    body = (
-      <>
-        <h1 className="text-2xl font-bold">You&apos;re registered{firstName ? `, ${firstName}` : ''}!</h1>
-        <p className="text-slate-300 mt-3">Check your email for the link to join.</p>
-      </>
-    )
-  } else if (joining || (remaining !== null && remaining <= 0)) {
-    body = (
-      <>
-        <h1 className="text-2xl font-bold">Your webinar is starting…</h1>
-        <p className="text-slate-300 mt-3">Taking you into the room now.</p>
-        {data.liveRoomUrl && (
-          <a href={data.liveRoomUrl} className="inline-block mt-5 px-6 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 font-semibold transition-colors">
-            Enter the webinar
-          </a>
-        )}
-      </>
-    )
-  } else {
-    const r = remaining ?? 0
-    const h = Math.floor(r / 3600)
-    const m = Math.floor((r % 3600) / 60)
-    const s = r % 60
-    body = (
-      <>
-        <p className="text-blue-300 font-medium">{data.webinarName}</p>
-        <h1 className="text-2xl font-bold mt-1">
-          You&apos;re in{firstName ? `, ${firstName}` : ''}! Your webinar starts in
-        </h1>
-        <div className="mt-6 flex items-center justify-center gap-3 tabular-nums">
-          {h > 0 && (
-            <div className="flex flex-col items-center">
-              <span className="text-5xl font-bold">{pad(h)}</span>
-              <span className="text-xs text-slate-400 mt-1 uppercase tracking-wide">hours</span>
-            </div>
-          )}
-          <div className="flex flex-col items-center">
-            <span className="text-5xl font-bold">{pad(m)}</span>
-            <span className="text-xs text-slate-400 mt-1 uppercase tracking-wide">min</span>
-          </div>
-          <span className="text-4xl font-bold text-slate-500">:</span>
-          <div className="flex flex-col items-center">
-            <span className="text-5xl font-bold">{pad(s)}</span>
-            <span className="text-xs text-slate-400 mt-1 uppercase tracking-wide">sec</span>
-          </div>
-        </div>
-        <p className="text-slate-400 text-sm mt-6">
-          Keep this page open — you&apos;ll be taken into the room automatically when it starts.
-        </p>
-      </>
-    )
+  let registration = null
+  if (registrationId) {
+    registration = await prisma.externalWebinarRegistration.findFirst({
+      where: { id: registrationId, externalWebinarId: id },
+      select: {
+        id: true,
+        name: true,
+        scheduledStartTime: true,
+        timezone: true,
+        liveRoomUrl: true,
+      },
+    })
   }
 
+  let template = null
+  if (externalWebinar.countdownTemplateId) {
+    template = await prisma.countdownTemplate.findUnique({
+      where: { id: externalWebinar.countdownTemplateId },
+    })
+  }
+  if (!template) {
+    template = await prisma.countdownTemplate.findFirst({
+      where: { isSystem: true, name: 'Default' },
+    })
+  }
+
+  const brandingSettings = await readBrandingSettings()
+
+  return { externalWebinar, registration, template, brandingSettings }
+}
+
+function escapeHtml(text: string) {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#039;')
+}
+
+function escapeJsInHtml(text: string) {
+  return text
+    .replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "\\'")
+    .replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t')
+}
+
+function processCountdownTemplate(
+  html: string,
+  data: NonNullable<Awaited<ReturnType<typeof getCountdownData>>>,
+  startTime: Date,
+  joinUrl: string,
+  tzOverride?: string,
+) {
+  const { externalWebinar, registration, brandingSettings } = data
+  let processed = html
+
+  const title = externalWebinar.externalWebinarName || externalWebinar.name || 'your webinar'
+  const duration = externalWebinar.webinarDurationMinutes || 60
+  const timezone = tzOverride || registration?.timezone || 'UTC'
+
+  const safeTitle = escapeJsInHtml(title)
+  // Webinar / host
+  processed = processed.replace(/\{\{webinarTitle\}\}/g, safeTitle)
+  processed = processed.replace(/\{\{webinar\.title\}\}/g, safeTitle)
+  processed = processed.replace(/\{\{title\}\}/g, safeTitle)
+  processed = processed.replace(/\{\{webinarDescription\}\}/g, '')
+  processed = processed.replace(/\{\{webinar\.description\}\}/g, '')
+  processed = processed.replace(/\{\{description\}\}/g, '')
+  processed = processed.replace(/\{\{webinarDuration\}\}/g, String(duration))
+  processed = processed.replace(/\{\{webinar\.duration\}\}/g, String(duration))
+  processed = processed.replace(/\{\{hostName\}\}/g, '')
+  processed = processed.replace(/\{\{host\.name\}\}/g, '')
+  processed = processed.replace(/\{\{hostEmail\}\}/g, '')
+  processed = processed.replace(/\{\{host\.email\}\}/g, '')
+
+  // Branding (parity with the internal countdown page)
+  const b = brandingSettings || {}
+  processed = processed.replace(/\{\{organizationName\}\}/g, escapeHtml(b.organizationName || ''))
+  processed = processed.replace(/\{\{contactEmail\}\}/g, escapeHtml(b.contactEmail || ''))
+  processed = processed.replace(/\{\{websiteUrl\}\}/g, escapeHtml(b.websiteUrl || ''))
+  processed = processed.replace(/\{\{primaryColor\}\}/g, escapeHtml(b.primaryColor || ''))
+  processed = processed.replace(/\{\{accentColor\}\}/g, escapeHtml(b.accentColor || ''))
+  processed = processed.replace(/\{\{logoUrl\}\}/g, escapeHtml(b.logoUrl || ''))
+
+  // Date / time formatted in the registrant's timezone
+  let formattedDate = ''
+  let formattedTime = ''
+  let formattedDateTime = ''
+  try {
+    formattedDate = startTime.toLocaleDateString('en-US', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: timezone,
+    })
+    formattedTime = startTime.toLocaleTimeString('en-US', {
+      hour: 'numeric', minute: '2-digit', timeZone: timezone, timeZoneName: 'short',
+    })
+    formattedDateTime = `${formattedDate} at ${formattedTime}`
+  } catch {
+    formattedDate = startTime.toISOString().split('T')[0]
+    formattedTime = startTime.toISOString().split('T')[1].substring(0, 5) + ' UTC'
+    formattedDateTime = `${formattedDate} at ${formattedTime}`
+  }
+
+  processed = processed.replace(/\{\{webinarDate\}\}/g, formattedDate)
+  processed = processed.replace(/\{\{schedule\.date\}\}/g, formattedDate)
+  processed = processed.replace(/\{\{date\}\}/g, formattedDate)
+  processed = processed.replace(/\{\{webinarTime\}\}/g, formattedTime)
+  processed = processed.replace(/\{\{schedule\.time\}\}/g, formattedTime)
+  processed = processed.replace(/\{\{time\}\}/g, formattedTime)
+  processed = processed.replace(/\{\{webinarDateTime\}\}/g, formattedDateTime)
+  processed = processed.replace(/\{\{schedule\.dateTime\}\}/g, formattedDateTime)
+  processed = processed.replace(/\{\{schedule\.dateISO\}\}/g, startTime.toISOString())
+  processed = processed.replace(/\{\{timeZone\}\}/g, timezone.replace(/_/g, ' '))
+
+  // Links — the "join" target IS the captured live room (EverWebinar live page / Zoom link).
+  const safeJoinUrl = escapeJsInHtml(joinUrl)
+  processed = processed.replace(/\{\{joinLink\}\}/g, safeJoinUrl)
+  processed = processed.replace(/\{\{registrationLink\}\}/g, '')
+  processed = processed.replace(/\{\{referralLink\}\}/g, '')
+  const start = startTime.toISOString().replace(/-|:|\.\d\d\d/g, '')
+  const end = new Date(startTime.getTime() + duration * 60000).toISOString().replace(/-|:|\.\d\d\d/g, '')
+  const calendarLink =
+    `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}` +
+    `&dates=${start}/${end}&location=${encodeURIComponent(joinUrl)}`
+  processed = processed.replace(/\{\{calendarLink\}\}/g, calendarLink)
+
+  // Misc date tokens
+  processed = processed.replace(/\{\{targetDate\}\}/g, startTime.toISOString())
+  processed = processed.replace(/\{\{webinarStartDateTime\}\}/g, startTime.toISOString())
+  processed = processed.replace(/\{\{countdownIso\}\}/g, startTime.toISOString())
+  processed = processed.replace(/\{\{currentYear\}\}/g, new Date().getFullYear().toString())
+
+  // Countdown script: tick to start, then send them into the live room.
+  const hasCountdownPlaceholder = html.includes('{{countdown}}')
+  const tickAndRedirect = `
+<script>
+(function() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  var targetTime = new Date('${startTime.toISOString()}').getTime();
+  var joinUrl = '${escapeJsInHtml(joinUrl)}';
+  var hasRedirected = false;
+  function updateCountdown() {
+    var distance = targetTime - new Date().getTime();
+    if (distance <= 0) {
+      var el = document.getElementById('countdown');
+      if (el) el.innerHTML = 'Webinar is Live! Redirecting...';
+      if (!hasRedirected && joinUrl) {
+        hasRedirected = true;
+        setTimeout(function() { window.location.href = joinUrl; }, 1500);
+      }
+      return;
+    }
+    var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+    var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+    var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+    var text = '';
+    if (days > 0) text += days + 'd ';
+    text += hours.toString().padStart(2, '0') + 'h ' + minutes.toString().padStart(2, '0') + 'm ' + seconds.toString().padStart(2, '0') + 's';
+    var el = document.getElementById('countdown');
+    if (el) el.innerHTML = text;
+    var d = document.getElementById('days'); if (d) d.innerText = days < 10 ? '0' + days : days;
+    var h = document.getElementById('hours'); if (h) h.innerText = hours < 10 ? '0' + hours : hours;
+    var m = document.getElementById('minutes'); if (m) m.innerText = minutes < 10 ? '0' + minutes : minutes;
+    var s = document.getElementById('seconds'); if (s) s.innerText = seconds < 10 ? '0' + seconds : seconds;
+  }
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', function() { updateCountdown(); setInterval(updateCountdown, 1000); });
+  } else { updateCountdown(); setInterval(updateCountdown, 1000); }
+})();
+</script>
+`
+  if (hasCountdownPlaceholder) {
+    processed = processed.replace(/\{\{countdown\}\}/g, tickAndRedirect)
+  } else if (/<\/body>/i.test(processed)) {
+    processed = processed.replace(/<\/body>/i, `${tickAndRedirect}\n</body>`)
+  } else {
+    processed += tickAndRedirect
+  }
+
+  return processed
+}
+
+export default async function ExternalCountdownPage({ params, searchParams }: PageProps) {
+  const data = await getCountdownData(params.id, searchParams.reg)
+  if (!data) notFound()
+
+  const { externalWebinar, registration } = data
+  const startTime = registration?.scheduledStartTime ? new Date(registration.scheduledStartTime) : null
+  const liveRoomUrl = registration?.liveRoomUrl || null
+  const name = registration?.name || ''
+  const webinarName = externalWebinar.externalWebinarName || externalWebinar.name || 'your webinar'
+
+  // Already started → go straight into the live room (EverWebinar live page / Zoom link).
+  if (startTime && liveRoomUrl && startTime.getTime() <= Date.now()) {
+    redirect(liveRoomUrl)
+  }
+
+  // Render the selected template when we have both a template and a start time.
+  if (data.template && startTime && liveRoomUrl) {
+    const processedHtml = processCountdownTemplate(
+      data.template.htmlCode, data, startTime, liveRoomUrl, searchParams.tz,
+    )
+    return <TemplateRenderer html={processedHtml} />
+  }
+
+  // Fallback: simple built-in countdown.
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4">
-      <div className="w-full max-w-lg text-center">{body}</div>
-    </div>
+    <ExternalCountdownFallback
+      startTime={startTime ? startTime.toISOString() : null}
+      liveRoomUrl={liveRoomUrl}
+      name={name}
+      webinarName={webinarName}
+    />
   )
 }
 
-export default function ExternalCountdownPage() {
-  return (
-    <Suspense fallback={null}>
-      <CountdownInner />
-    </Suspense>
-  )
+export async function generateMetadata() {
+  return { title: 'Countdown', description: 'Webinar countdown page' }
 }

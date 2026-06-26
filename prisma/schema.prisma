@@ -1336,6 +1336,9 @@ model ExternalWebinar {
   // Optional system Thank-You template rendered by the built-in /thank-you-external/<id> page.
   // Plain scalar FK (resolved via a separate findUnique), mirroring Webinar.thankYouTemplateId.
   thankYouTemplateId     String?
+  // Optional system Countdown template rendered by the built-in /countdown-external/<id> page
+  // (shown to just-in-time picks while they wait, then auto-enters the live room). Plain scalar FK.
+  countdownTemplateId    String?
 
   // Facebook CAPI
   sendToFacebookCAPI Boolean @default(true)

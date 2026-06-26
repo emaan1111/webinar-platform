@@ -124,6 +124,8 @@ export default function ExternalWebinarDetailPage() {
   >([])
   // System Thank-You templates the host can render on the built-in thank-you page
   const [thankYouTemplates, setThankYouTemplates] = useState<{ id: string; name: string }[]>([])
+  // System Countdown templates the host can render on the built-in countdown page
+  const [countdownTemplates, setCountdownTemplates] = useState<{ id: string; name: string }[]>([])
   const [showCopyPanel, setShowCopyPanel] = useState(false)
   const [selectedSourceId, setSelectedSourceId] = useState('')
   const [copyTypes, setCopyTypes] = useState<string[]>(['confirmation', 'reminder', 'followup'])
@@ -158,6 +160,7 @@ export default function ExternalWebinarDetailPage() {
     recurringSlotsToShow: '' as number | '' | string,
     thankYouUrl: '',
     thankYouTemplateId: '',
+    countdownTemplateId: '',
     // Emaan email-management integration
     emaanWebhookUrl: '',
     emaanSyncScope: 'ALL' as 'ALL' | 'ZOOM_ONLY',
@@ -168,6 +171,7 @@ export default function ExternalWebinarDetailPage() {
     fetchInternalWebinars()
     fetchZoomSessions()
     fetchThankYouTemplates()
+    fetchCountdownTemplates()
   }, [id])
 
   const fetchThankYouTemplates = async () => {
@@ -177,6 +181,18 @@ export default function ExternalWebinarDetailPage() {
       const data = await res.json()
       const list = Array.isArray(data) ? data : data.templates || []
       setThankYouTemplates(list.map((t: any) => ({ id: t.id, name: t.name })))
+    } catch {
+      // non-fatal — the dropdown just stays empty
+    }
+  }
+
+  const fetchCountdownTemplates = async () => {
+    try {
+      const res = await fetch('/api/countdown-templates')
+      if (!res.ok) return
+      const data = await res.json()
+      const list = Array.isArray(data) ? data : data.templates || []
+      setCountdownTemplates(list.map((t: any) => ({ id: t.id, name: t.name })))
     } catch {
       // non-fatal — the dropdown just stays empty
     }
@@ -270,6 +286,7 @@ export default function ExternalWebinarDetailPage() {
         recurringSlotsToShow: data.recurringSlotsToShow ?? '',
         thankYouUrl: data.thankYouUrl || '',
         thankYouTemplateId: data.thankYouTemplateId || '',
+        countdownTemplateId: data.countdownTemplateId || '',
         emaanWebhookUrl: data.emaanWebhookUrl || '',
         emaanSyncScope: data.emaanSyncScope === 'ZOOM_ONLY' ? 'ZOOM_ONLY' : 'ALL',
       })
@@ -850,6 +867,30 @@ export default function ExternalWebinarDetailPage() {
                       Scheduled &amp; Zoom picks redirect here after registering (the chosen time &amp; name are
                       appended as <code>?t=</code> &amp; <code>?name=</code>). Just-in-time picks always go to the
                       countdown page. Leave both blank to stay in the popup. Saved here — no need to re-paste the embed.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Countdown page (just-in-time picks) — rendered by the built-in /countdown-external page */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Countdown page (just-in-time picks)
+                  </label>
+                  <div className="max-w-md">
+                    <select
+                      value={formData.countdownTemplateId}
+                      onChange={(e) => setFormData({ ...formData, countdownTemplateId: e.target.value })}
+                      className="w-full px-3 py-2 border rounded-lg bg-white"
+                    >
+                      <option value="">— Built-in default countdown —</option>
+                      {countdownTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Shown to instant / &ldquo;starting soon&rdquo; picks while they wait, then automatically sends
+                      them to the live webinar (the EverWebinar live page, or the Zoom link for a Zoom pick) when it
+                      starts. Leave as default for the simple built-in countdown.
                     </p>
                   </div>
                 </div>

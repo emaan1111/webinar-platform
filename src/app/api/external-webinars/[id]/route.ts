@@ -132,6 +132,7 @@ export async function PUT(
       recurringSlotsToShow,
       thankYouUrl,
       thankYouTemplateId,
+      countdownTemplateId,
       // Emaan email-management integration
       emaanWebhookUrl,
       emaanSyncScope,
@@ -229,6 +230,7 @@ export async function PUT(
         }),
         ...(thankYouUrl !== undefined && { thankYouUrl: thankYouUrl || null }),
         ...(thankYouTemplateId !== undefined && { thankYouTemplateId: thankYouTemplateId || null }),
+        ...(countdownTemplateId !== undefined && { countdownTemplateId: countdownTemplateId || null }),
         ...(emaanWebhookUrl !== undefined && { emaanWebhookUrl: emaanWebhookUrl || null }),
         ...(emaanSyncScope !== undefined && {
           emaanSyncScope: emaanSyncScope === 'ZOOM_ONLY' ? 'ZOOM_ONLY' : 'ALL',

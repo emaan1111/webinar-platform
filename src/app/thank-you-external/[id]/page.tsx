@@ -117,9 +117,11 @@ function processTemplate(
   // Join / room links. For external webinars the registrant's live room IS the join link;
   // fall back to the countdown-external page when we don't have a stored room URL yet.
   const countdownLink = regId ? `/countdown-external/${id}?reg=${encodeURIComponent(regId)}` : ''
-  const roomLink = registration?.liveRoomUrl || countdownLink
-  const safeRoomLink = escapeForJsString(roomLink)
-  const safeCountdownLink = escapeForJsString(countdownLink || roomLink)
+  // The "join" target is the captured live room: the EverWebinar live page for an
+  // EverWebinar pick, or the Zoom link for a live-Zoom pick. Fall back to the countdown
+  // page only when no room URL was captured at registration.
+  const liveTarget = registration?.liveRoomUrl || countdownLink
+  const safeLiveTarget = escapeForJsString(liveTarget)
 
   // Calendar links (only meaningful when we know the start time).
   let safeGoogleCalendarLink = ''
@@ -202,10 +204,10 @@ function processTemplate(
     'schedule.dateISO': scheduleISO,
     'timeZone': timezone.replace(/_/g, ' '),
     // Links
-    'joinLink': safeCountdownLink,
-    'countdownLink': safeCountdownLink,
-    'roomLink': safeRoomLink,
-    'broadcast.url': safeRoomLink,
+    'joinLink': safeLiveTarget,
+    'countdownLink': safeLiveTarget,
+    'roomLink': safeLiveTarget,
+    'broadcast.url': safeLiveTarget,
     'calendarLink': safeGoogleCalendarLink,
     'googleCalendarLink': safeGoogleCalendarLink,
     'appleCalendarLink': safeIcsDataUrl,
