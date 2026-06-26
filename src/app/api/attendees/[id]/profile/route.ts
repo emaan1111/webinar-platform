@@ -630,6 +630,8 @@ async function getExternalAttendeeProfile(id: string, userEmail: string) {
           id: true,
           name: true,
           externalWebinarName: true,
+          platform: true,
+          liveZoomLink: true,
         }
       },
       confirmationEmailSends: {
@@ -772,6 +774,14 @@ async function getExternalAttendeeProfile(id: string, userEmail: string) {
   if (extReg.watchTimeMinutes > 10) engagementScore += 20
   engagementScore = Math.min(100, engagementScore)
 
+  // Classify the registrant's session + expose the captured live room link for support visibility.
+  // A "Zoom session" pick stores the webinar's Zoom link as the room; an EverWebinar pick stores a
+  // per-attendee event.webinarjam.com live link.
+  const liveRoomUrl = extReg.liveRoomUrl || null
+  const liveZoomLink = extReg.externalWebinar.liveZoomLink || null
+  const isZoomSession =
+    !!liveRoomUrl && ((!!liveZoomLink && liveRoomUrl === liveZoomLink) || /zoom\.us/i.test(liveRoomUrl))
+
   const profile = {
     id: `ext_${extReg.id}`,
     name: extReg.name,
@@ -782,6 +792,11 @@ async function getExternalAttendeeProfile(id: string, userEmail: string) {
     webinarTitle: extReg.externalWebinar.externalWebinarName || extReg.externalWebinar.name,
     registeredAt: extReg.registeredAt.toISOString(),
     scheduledAt: extReg.scheduledStartTime?.toISOString() || null,
+    // Live access (external only)
+    liveRoomUrl,
+    replayRoomUrl: extReg.replayRoomUrl || null,
+    isZoomSession,
+    webinarPlatform: extReg.externalWebinar.platform || null,
     attended: extReg.attended,
     joinedAt: extReg.joinedAt?.toISOString() || null,
     leftAt: extReg.leftAt?.toISOString() || null,

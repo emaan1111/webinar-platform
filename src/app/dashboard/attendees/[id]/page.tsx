@@ -28,7 +28,10 @@ import {
   AlertCircle,
   Plus,
   Edit2,
-  Trash2
+  Trash2,
+  Video,
+  Copy,
+  ExternalLink
 } from 'lucide-react'
 
 interface AttendeeProfile {
@@ -195,6 +198,12 @@ interface AttendeeProfile {
     } | null
   }
   isExternal?: boolean
+
+  // Live access (external registrations)
+  liveRoomUrl?: string | null
+  replayRoomUrl?: string | null
+  isZoomSession?: boolean
+  webinarPlatform?: string | null
 }
 
 export default function AttendeeProfilePage() {
@@ -216,6 +225,17 @@ export default function AttendeeProfilePage() {
   const [editingPurchaseId, setEditingPurchaseId] = useState<string | null>(null)
   const [deletingPurchaseId, setDeletingPurchaseId] = useState<string | null>(null)
   const [updatingEmailSubscription, setUpdatingEmailSubscription] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
+
+  const copyLink = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 1800)
+    } catch {
+      /* clipboard unavailable — the link is still visible/clickable */
+    }
+  }
 
   useEffect(() => {
     if (params.id) {
@@ -609,6 +629,93 @@ export default function AttendeeProfilePage() {
             </Button>
           </div>
         </div>
+
+        {/* Webinar session & live access (external registrations) */}
+        {profile.isExternal && (
+          <div className="bg-white rounded-xl border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+              <Video className="w-5 h-5 text-indigo-600" />
+              Webinar Session &amp; Live Access
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-50 rounded-lg">
+                  <Calendar className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500">Registered webinar</p>
+                  <p className="text-sm font-medium text-gray-900 break-words">{profile.webinarTitle}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <PlayCircle className="w-5 h-5 text-gray-600" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Session type</p>
+                  {profile.isZoomSession ? (
+                    <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700">
+                      Live Zoom session
+                    </span>
+                  ) : profile.liveRoomUrl ? (
+                    <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                      EverWebinar room
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 mt-0.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                      No link captured
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 border-t border-gray-200 pt-4">
+              <p className="text-xs text-gray-500 mb-2">Live room link</p>
+              {profile.liveRoomUrl ? (
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <a
+                    href={profile.liveRoomUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 text-sm font-medium text-blue-600 hover:underline break-all"
+                  >
+                    {profile.liveRoomUrl}
+                  </a>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a href={profile.liveRoomUrl} target="_blank" rel="noopener noreferrer">
+                      <Button variant="secondary">
+                        <ExternalLink className="w-4 h-4 mr-1" />
+                        Open
+                      </Button>
+                    </a>
+                    <Button variant="secondary" onClick={() => copyLink(profile.liveRoomUrl!)}>
+                      <Copy className="w-4 h-4 mr-1" />
+                      {linkCopied ? 'Copied' : 'Copy'}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-amber-700 bg-amber-50 rounded-md px-3 py-2">
+                  No live room link captured for this registrant yet.
+                </p>
+              )}
+              {profile.replayRoomUrl && (
+                <p className="mt-2 text-xs text-gray-500 break-all">
+                  Replay:{' '}
+                  <a
+                    href={profile.replayRoomUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    {profile.replayRoomUrl}
+                  </a>
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Purchase Status & Manual Add */}
         <div className="bg-white rounded-xl border border-gray-200 p-6">
