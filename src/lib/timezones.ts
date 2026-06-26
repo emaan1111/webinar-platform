@@ -1,54 +1,75 @@
-// A short, curated list of common timezones for registrant-facing pickers (not the full
-// ~400-entry IANA list). The visitor's auto-detected zone is always added on top if missing.
-export const COMMON_TIMEZONES: string[] = [
+// A short, curated set of common timezones for registrant-facing pickers (not the full
+// ~400-entry IANA list). Each maps to its country so the label reads "Country/City".
+// The visitor's auto-detected zone is always added on top if it isn't in this list.
+const TZ_COUNTRY: Record<string, string> = {
   // Americas
-  'America/Los_Angeles',
-  'America/Denver',
-  'America/Chicago',
-  'America/New_York',
-  'America/Toronto',
-  'America/Mexico_City',
-  'America/Bogota',
-  'America/Sao_Paulo',
-  // Europe / Africa
-  'Europe/London',
-  'Europe/Paris',
-  'Europe/Berlin',
-  'Europe/Madrid',
-  'Europe/Rome',
-  'Europe/Istanbul',
-  'Europe/Moscow',
-  'Africa/Lagos',
-  'Africa/Cairo',
-  'Africa/Johannesburg',
+  'America/Los_Angeles': 'United States',
+  'America/Denver': 'United States',
+  'America/Chicago': 'United States',
+  'America/New_York': 'United States',
+  'America/Toronto': 'Canada',
+  'America/Mexico_City': 'Mexico',
+  'America/Bogota': 'Colombia',
+  'America/Sao_Paulo': 'Brazil',
+  // Europe
+  'Europe/London': 'United Kingdom',
+  'Europe/Paris': 'France',
+  'Europe/Berlin': 'Germany',
+  'Europe/Madrid': 'Spain',
+  'Europe/Rome': 'Italy',
+  'Europe/Istanbul': 'Turkey',
+  'Europe/Moscow': 'Russia',
+  // Africa
+  'Africa/Lagos': 'Nigeria',
+  'Africa/Cairo': 'Egypt',
+  'Africa/Johannesburg': 'South Africa',
   // Middle East / South & East Asia
-  'Asia/Dubai',
-  'Asia/Riyadh',
-  'Asia/Karachi',
-  'Asia/Kolkata',
-  'Asia/Dhaka',
-  'Asia/Bangkok',
-  'Asia/Jakarta',
-  'Asia/Singapore',
-  'Asia/Hong_Kong',
-  'Asia/Shanghai',
-  'Asia/Tokyo',
-  'Asia/Seoul',
+  'Asia/Dubai': 'United Arab Emirates',
+  'Asia/Riyadh': 'Saudi Arabia',
+  'Asia/Karachi': 'Pakistan',
+  'Asia/Kolkata': 'India',
+  'Asia/Dhaka': 'Bangladesh',
+  'Asia/Bangkok': 'Thailand',
+  'Asia/Jakarta': 'Indonesia',
+  'Asia/Singapore': 'Singapore',
+  'Asia/Hong_Kong': 'Hong Kong',
+  'Asia/Shanghai': 'China',
+  'Asia/Tokyo': 'Japan',
+  'Asia/Seoul': 'South Korea',
   // Oceania
-  'Australia/Perth',
-  'Australia/Sydney',
-  'Pacific/Auckland',
-].sort((a, b) => a.localeCompare(b))
+  'Australia/Perth': 'Australia',
+  'Australia/Sydney': 'Australia',
+  'Pacific/Auckland': 'New Zealand',
+}
 
-/** Label like "Asia/Karachi (GMT+5)" — keeps the full Region/City, falls back gracefully. */
+// Common aliases some browsers still report, mapped so the detected zone shows a country too.
+const TZ_ALIAS_COUNTRY: Record<string, string> = {
+  'Asia/Calcutta': 'India',
+  'Asia/Katmandu': 'Nepal',
+  'America/Buenos_Aires': 'Argentina',
+}
+
+function countryFor(tz: string): string {
+  return TZ_COUNTRY[tz] || TZ_ALIAS_COUNTRY[tz] || tz.split('/')[0]
+}
+
+// Sorted alphabetically by country (then city) so the dropdown reads in a calm, predictable order.
+export const COMMON_TIMEZONES: string[] = Object.keys(TZ_COUNTRY).sort((a, b) => {
+  const c = countryFor(a).localeCompare(countryFor(b))
+  return c !== 0 ? c : a.localeCompare(b)
+})
+
+/** Label like "Pakistan/Karachi (GMT+5)". */
 export function timezoneLabel(tz: string): string {
-  const name = tz.replace(/_/g, ' ')
+  const city = tz.split('/').pop()?.replace(/_/g, ' ') || tz
+  let label = `${countryFor(tz)}/${city}`
   try {
     const off = new Intl.DateTimeFormat('en-US', { timeZone: tz, timeZoneName: 'shortOffset' })
       .formatToParts(new Date())
       .find((p) => p.type === 'timeZoneName')?.value
-    return off ? `${name} (${off})` : name
+    if (off) label += ` (${off})`
   } catch {
-    return name
+    // keep label without offset
   }
+  return label
 }
