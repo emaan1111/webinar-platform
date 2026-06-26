@@ -29,6 +29,24 @@ const corsHeaders = {
   'Access-Control-Max-Age': '86400',
 }
 
+/**
+ * The thank-you URL is used as a *browser redirect* after registration. Guard against a
+ * POST-only ingestion endpoint (e.g. the Emaan lead webhook at /webhooks/in/<token>) being
+ * pasted into the thank-you field by mistake — redirecting a browser (GET) there 404s the
+ * registrant. When that happens, return null so the flow falls back to the in-popup success
+ * message instead of sending the visitor to a dead endpoint.
+ */
+function sanitizeThankYouUrl(url: string | null | undefined): string | null {
+  if (!url) return null
+  try {
+    const { pathname } = new URL(url)
+    if (/(^|\/)webhooks\//i.test(pathname)) return null
+  } catch {
+    // Relative or malformed value — leave it for the client to handle as-is.
+  }
+  return url
+}
+
 interface ScheduleOption {
   id: string
   date: string // e.g., "April 6, 2026"
@@ -394,7 +412,7 @@ export async function GET(
       platform: externalWebinar.platform,
       isJIT: responseIsJIT,
       userTimezone,
-      thankYouUrl: externalWebinar.thankYouUrl || null,
+      thankYouUrl: sanitizeThankYouUrl(externalWebinar.thankYouUrl),
       schedules: scheduleOptions,
     }, { headers: corsHeaders })
 
