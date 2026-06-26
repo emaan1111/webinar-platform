@@ -40,7 +40,9 @@ const TZ_COUNTRY: Record<string, string> = {
   'Asia/Seoul': 'South Korea',
   // Oceania
   'Australia/Perth': 'Australia',
+  'Australia/Brisbane': 'Australia',
   'Australia/Sydney': 'Australia',
+  'Australia/Melbourne': 'Australia',
   'Pacific/Auckland': 'New Zealand',
 }
 
