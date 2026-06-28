@@ -39,6 +39,36 @@ export function getUnsubscribeLink(registrationId: string): string {
   return `${TRACKING_BASE_URL()}/unsubscribe?r=${encodeURIComponent(registrationId)}`
 }
 
+/**
+ * Format a webinar start time for emails in the REGISTRANT's timezone, with a
+ * timezone label (e.g. "8:00 PM GMT+5:30" / "10:30 AM EDT") — matching how the
+ * countdown and thank-you pages render it. Without this, a plain toLocaleString()
+ * renders in the server's timezone (UTC on Railway), showing the wrong wall-clock
+ * time and no zone. Falls back to ET when no timezone is stored, and to a
+ * zone-less render if the timezone string is invalid.
+ */
+export function formatWebinarTime(
+  date: Date | null | undefined,
+  timezone?: string | null,
+): string | null {
+  if (!date) return null
+  const opts: Intl.DateTimeFormatOptions = {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  }
+  try {
+    return date.toLocaleString('en-US', { ...opts, timeZone: timezone || 'America/New_York' })
+  } catch {
+    // Invalid IANA timezone string — render without forcing a zone rather than throw.
+    return date.toLocaleString('en-US', opts)
+  }
+}
+
 // ─── Replace merge tags ─────────────────────────────────────────────────────
 
 export function replaceMergeTags(text: string, ctx: MergeTagContext): string {

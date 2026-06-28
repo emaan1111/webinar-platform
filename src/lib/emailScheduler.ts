@@ -9,7 +9,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
-import { getUnsubscribeLink, prepareEmailHtml, type MergeTagContext } from '@/lib/emailTracking'
+import { getUnsubscribeLink, prepareEmailHtml, formatWebinarTime, type MergeTagContext } from '@/lib/emailTracking'
 
 function isEmailUnsubscribed(registration: unknown): boolean {
   if (!registration || typeof registration !== 'object') return false
@@ -339,7 +339,7 @@ export async function processPendingReminderEmails() {
         name: reg.name,
         email: reg.email,
         webinarTitle: webinarTitle,
-        webinarTime: reg.scheduledStartTime?.toLocaleString('en-US', { timeZone: reg.timezone || 'America/New_York' }) || '',
+        webinarTime: formatWebinarTime(reg.scheduledStartTime, reg.timezone) || '',
         accessLink,
         countdownLink,
         calendarLink,
@@ -488,7 +488,7 @@ export async function processPendingFollowUpEmails() {
         name: reg.name,
         email: reg.email,
         webinarTitle: webinarTitle,
-        webinarTime: reg.scheduledStartTime?.toLocaleString('en-US', { timeZone: reg.timezone || 'America/New_York' }) || '',
+        webinarTime: formatWebinarTime(reg.scheduledStartTime, reg.timezone) || '',
         accessLink,
         countdownLink,
         replayLink,

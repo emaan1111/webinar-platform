@@ -5,7 +5,7 @@ import { registerUserToWebinar, isWebinarJamConfigured, resolveJustInTimeSchedul
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { sendEmail } from '@/lib/email'
-import { replaceMergeTags, prepareEmailHtml, MergeTagContext } from '@/lib/emailTracking'
+import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime } from '@/lib/emailTracking'
 import { pushLeadToEmaan, resolveEmaanTargets } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
 
@@ -437,7 +437,7 @@ export async function POST(
           name: registration.name,
           email: registration.email,
           webinarTitle,
-          webinarTime: registration.scheduledStartTime?.toLocaleString() || null,
+          webinarTime: formatWebinarTime(registration.scheduledStartTime, registration.timezone),
           // For a live-Zoom pick this is the Zoom link (EverWebinar won't email them);
           // for a normal pick it's the EverWebinar room link if the API returned one.
           accessLink: liveRoomUrl || null,
