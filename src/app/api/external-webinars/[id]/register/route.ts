@@ -423,6 +423,9 @@ export async function POST(
           // For a live-Zoom pick this is the Zoom link (EverWebinar won't email them);
           // for a normal pick it's the EverWebinar room link if the API returned one.
           accessLink: liveRoomUrl || null,
+          // External webinars have no countdown-page slug, so the seeded templates'
+          // {{countdown_link}} would render empty. Point it at the live room too.
+          countdownLink: liveRoomUrl || null,
         }
 
         const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)

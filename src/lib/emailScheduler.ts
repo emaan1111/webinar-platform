@@ -324,7 +324,11 @@ export async function processPendingReminderEmails() {
       const webinarSlug = isExternal ? null : webinar.slug
       const webinarTitle = isExternal ? webinar.externalWebinarName || 'Webinar' : webinar.title
 
-      const countdownLink = webinarSlug ? `${baseUrl}/countdown/${webinarSlug}?r=${reg.id}` : null
+      // External webinars have no countdown-page slug, so fall back to the live room
+      // link — otherwise templates using {{countdown_link}} render an empty href.
+      const countdownLink = webinarSlug
+        ? `${baseUrl}/countdown/${webinarSlug}?r=${reg.id}`
+        : (isExternal ? (reg.liveRoomUrl || webinar.liveZoomLink || null) : null)
       // External registrants get their stored room link (the EverWebinar room, or the Zoom link
       // for a live-Zoom pick that's never registered in EverWebinar); internal use the countdown.
       const accessLink = isExternal ? (reg.liveRoomUrl || webinar.liveZoomLink || null) : countdownLink
