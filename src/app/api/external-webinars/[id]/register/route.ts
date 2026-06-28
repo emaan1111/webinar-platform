@@ -93,7 +93,13 @@ export async function POST(
       )
     }
 
-    // Check for existing registration
+    // Look up any existing registration for this (webinar, email). We deliberately
+    // do NOT short-circuit on a duplicate anymore: re-registering must always
+    // re-send the confirmation email and refresh the chosen session (e.g. when
+    // someone comes back to switch to the live Zoom option). We keep this flag
+    // only to avoid double-counting one-time analytics (lead-page / split-test
+    // conversions, Facebook CAPI) and to clear previously-scheduled pending
+    // reminders before rescheduling.
     const existingReg = await prisma.externalWebinarRegistration.findUnique({
       where: {
         externalWebinarId_email: {
@@ -102,19 +108,6 @@ export async function POST(
         }
       }
     })
-
-    if (existingReg) {
-      // Return existing registration (don't error)
-      return NextResponse.json({
-        success: true,
-        message: 'Already registered',
-        registration: {
-          id: existingReg.id,
-          name: existingReg.name,
-          email: existingReg.email,
-        }
-      }, { headers: corsHeaders })
-    }
 
     // Parse name into first/last
     const nameParts = name.trim().split(' ')
@@ -231,9 +224,32 @@ export async function POST(
       resolvedStartTime = Number.isNaN(parsed.getTime()) ? null : parsed
     }
 
-    // Create local registration
-    const registration = await prisma.externalWebinarRegistration.create({
-      data: {
+    // Create or refresh the local registration. A repeat registration updates the
+    // existing row in place (new session pick, room link, name/phone, consents) so
+    // the confirmation email below reflects the latest choice — e.g. switching to
+    // the live Zoom session. Upsert is atomic, which also closes the create-race
+    // when two first-time signups for the same email land simultaneously.
+    const registration = await prisma.externalWebinarRegistration.upsert({
+      where: {
+        externalWebinarId_email: {
+          externalWebinarId: id,
+          email: email.toLowerCase(),
+        }
+      },
+      update: {
+        scheduleId: localScheduleId,
+        name,
+        phone: fullPhone,
+        timezone,
+        scheduledStartTime: resolvedStartTime,
+        // Don't wipe a previously-captured room link if this re-registration
+        // didn't obtain a new one (e.g. a WebinarJam re-call returned nothing).
+        liveRoomUrl: liveRoomUrl ?? existingReg?.liveRoomUrl ?? null,
+        replayRoomUrl: replayRoomUrl ?? existingReg?.replayRoomUrl ?? null,
+        privacyConsent,
+        marketingConsent,
+      },
+      create: {
         externalWebinarId: id,
         scheduleId: localScheduleId,
         name,
@@ -248,11 +264,12 @@ export async function POST(
         replayRoomUrl: replayRoomUrl || null,
         privacyConsent,
         marketingConsent,
-      }
+      },
     })
 
-    // Update lead page conversion count if applicable
-    if (leadPageId) {
+    // Update lead page conversion count if applicable (first registration only —
+    // a re-registration must not double-count the conversion)
+    if (leadPageId && !existingReg) {
       await prisma.leadPage.update({
         where: { id: leadPageId },
         data: { conversions: { increment: 1 } }
@@ -278,7 +295,7 @@ export async function POST(
       }
     }
 
-    if (resolvedSplitTestId && resolvedVariantId) {
+    if (resolvedSplitTestId && resolvedVariantId && !existingReg) {
       await prisma.$transaction([
         prisma.splitTestVariant.update({
           where: { id: resolvedVariantId },
@@ -301,8 +318,9 @@ export async function POST(
       })
     }
 
-    // Send to Facebook CAPI if enabled
-    if (externalWebinar.sendToFacebookCAPI) {
+    // Send to Facebook CAPI if enabled (first registration only — avoid re-firing
+    // a Registration conversion event when someone re-registers)
+    if (externalWebinar.sendToFacebookCAPI && !existingReg) {
       const cookieHeader = request.headers.get('cookie')
       const { fbc, fbp } = extractFacebookCookies(cookieHeader)
 
@@ -455,6 +473,13 @@ export async function POST(
     // --- Schedule Reminder Emails (non-blocking) ---
     try {
       const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
+      // On a re-registration, drop any still-pending reminders for this row first
+      // so rescheduling doesn't stack a second copy of every reminder.
+      if (existingReg) {
+        await prisma.reminderEmailSend.deleteMany({
+          where: { externalRegistrationId: registration.id, status: 'PENDING' },
+        }).catch(() => {})
+      }
       scheduleReminderEmails(registration.id, true).catch((err: any) =>
         console.error('⚠️ Failed to schedule reminder emails:', err)
       )
