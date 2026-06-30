@@ -198,6 +198,11 @@ export async function POST(
           email: email.toLowerCase(),
           phone,
           phoneCountryCode,
+          // Forward the registrant's timezone so EverWebinar books their LOCAL session
+          // (e.g. 11 AM UK) instead of defaulting to EST. decodedStartTime pins the
+          // session instant so the GMT offset is resolved for the right DST period.
+          timezone,
+          sessionAt: decodedStartTime ?? undefined,
         },
         externalWebinar.platform as 'webinarjam' | 'everwebinar'
       )

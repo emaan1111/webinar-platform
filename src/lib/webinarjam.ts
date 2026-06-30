@@ -12,7 +12,7 @@
 const WEBINARJAM_API_BASE = 'https://api.webinarjam.com/webinarjam'
 const EVERWEBINAR_API_BASE = 'https://api.webinarjam.com/everwebinar'
 
-import { fromZonedTime } from 'date-fns-tz'
+import { fromZonedTime, getTimezoneOffset } from 'date-fns-tz'
 
 const apiKey = process.env.WEBINARJAM_API_KEY
 
@@ -325,6 +325,30 @@ export async function getWebinarRegistrants(
 }
 
 /**
+ * Convert an IANA timezone (e.g. "Europe/London") into the GMT-offset string EverWebinar's
+ * API expects for its `timezone` parameter — e.g. "GMT+1", "GMT-5", "GMT+5:30".
+ *
+ * The offset is resolved AT a specific instant so daylight saving is correct: London is
+ * "GMT+1" in summer (BST) but "GMT+0" in winter, so a wrong-season offset would book the
+ * wrong hour. Pass the chosen session time as `at` when known; defaults to now otherwise.
+ * Returns null if the zone can't be resolved (caller then omits the param).
+ */
+export function ianaToGmtOffset(timeZone: string, at: Date = new Date()): string | null {
+  try {
+    const offsetMs = getTimezoneOffset(timeZone, at)
+    if (Number.isNaN(offsetMs)) return null
+    const totalMin = Math.round(offsetMs / 60000)
+    const sign = totalMin < 0 ? '-' : '+'
+    const abs = Math.abs(totalMin)
+    const h = Math.floor(abs / 60)
+    const m = abs % 60
+    return m === 0 ? `GMT${sign}${h}` : `GMT${sign}${h}:${String(m).padStart(2, '0')}`
+  } catch {
+    return null
+  }
+}
+
+/**
  * Register a user to a WebinarJam webinar
  */
 export async function registerUserToWebinar(
@@ -336,6 +360,12 @@ export async function registerUserToWebinar(
     email: string
     phone?: string
     phoneCountryCode?: string
+    // Registrant's IANA timezone (e.g. "Europe/London"). REQUIRED for webinars set to
+    // "auto-detect the user's timezone": without it EverWebinar silently defaults to EST,
+    // so a UK registrant for an "11 AM local" session gets booked at 11 AM US time.
+    timezone?: string
+    // The chosen session instant, used only to resolve the timezone's DST offset correctly.
+    sessionAt?: Date
   },
   platform: 'webinarjam' | 'everwebinar' = 'webinarjam'
 ): Promise<{ success: boolean; liveRoomUrl?: string; replayRoomUrl?: string; error?: string }> {
@@ -355,6 +385,10 @@ export async function registerUserToWebinar(
     if (data.lastName) params.last_name = data.lastName
     if (data.phone) params.phone = data.phone
     if (data.phoneCountryCode) params.phone_country_code = data.phoneCountryCode
+    if (data.timezone) {
+      const gmt = ianaToGmtOffset(data.timezone, data.sessionAt)
+      if (gmt) params.timezone = gmt
+    }
 
     const response = await fetch(`${getApiBase(platform)}/register`, {
       method: 'POST',
