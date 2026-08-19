@@ -595,6 +595,11 @@ export default function SessionsPage() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Linked webinars</label>
+                <p className="text-xs text-gray-500 mb-2">
+                  Ticking an external webinar offers this session&apos;s time on its registration
+                  picker (and its registrants for this slot appear in the roster below).
+                  Unticking removes the time from that webinar&apos;s picker.
+                </p>
                 <div className="border border-gray-200 rounded-lg max-h-56 overflow-y-auto divide-y divide-gray-50">
                   {options.external.length > 0 && (
                     <div className="p-2">

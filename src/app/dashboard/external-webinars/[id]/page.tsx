@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
-import { fromZonedTime, formatInTimeZone } from 'date-fns-tz'
+import { formatInTimeZone } from 'date-fns-tz'
 import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
@@ -53,6 +53,8 @@ interface ExternalWebinar {
   liveZoomAt?: string
   liveZoomTimezone?: string
   liveZoomSessionId?: string | null
+  zoomOnlySchedule?: boolean
+  zoomSessionLinks?: { zoomSessionId: string }[]
   showJustInTime?: boolean
   jitLeadMinutes?: number
   recurringSlotsToShow?: number | null
@@ -62,37 +64,6 @@ interface ExternalWebinar {
     registrations: number
     leadPages: number
     schedules: number
-  }
-}
-
-function detectTimezone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
-  } catch {
-    return 'America/New_York'
-  }
-}
-
-// Stored UTC ISO -> "YYYY-MM-DDTHH:mm" in the chosen timezone (for <input type="datetime-local">).
-function isoToDatetimeLocal(iso: string | null | undefined, tz: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  try {
-    return formatInTimeZone(d, tz, "yyyy-MM-dd'T'HH:mm")
-  } catch {
-    return ''
-  }
-}
-
-// "YYYY-MM-DDTHH:mm" entered in the chosen timezone -> UTC ISO string for storage.
-function datetimeLocalToIso(value: string | undefined, tz: string): string | null {
-  if (!value) return null
-  try {
-    const d = fromZonedTime(value, tz)
-    return isNaN(d.getTime()) ? null : d.toISOString()
-  } catch {
-    return null
   }
 }
 
@@ -120,7 +91,7 @@ export default function ExternalWebinarDetailPage() {
   // Copy emails from internal webinar
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
   const [zoomSessions, setZoomSessions] = useState<
-    { id: string; name: string; scheduledAt: string; timezone: string; zoomLink: string | null }[]
+    { id: string; name: string; scheduledAt: string; timezone: string; zoomLink: string | null; isActive: boolean }[]
   >([])
   // System Thank-You templates the host can render on the built-in thank-you page
   const [thankYouTemplates, setThankYouTemplates] = useState<{ id: string; name: string }[]>([])
@@ -150,11 +121,9 @@ export default function ExternalWebinarDetailPage() {
     postSessionSMSBody: '',
     // Combined seamless picker
     combineScheduleSources: false,
-    liveZoomEnabled: false,
-    liveZoomLink: '',
-    liveZoomAt: '', // datetime-local string, interpreted in liveZoomTimezone
-    liveZoomTimezone: detectTimezone(),
-    liveZoomSessionId: '',
+    // Linked Zoom sessions = the Zoom times offered on the registration picker.
+    zoomSessionIds: [] as string[],
+    zoomOnlySchedule: false,
     showJustInTime: false,
     jitLeadMinutes: 15,
     recurringSlotsToShow: '' as number | '' | string,
@@ -219,6 +188,7 @@ export default function ExternalWebinarDetailPage() {
           scheduledAt: s.scheduledAt,
           timezone: s.timezone,
           zoomLink: s.zoomLink ?? null,
+          isActive: s.isActive ?? true,
         }))
       )
     } catch {}
@@ -252,6 +222,15 @@ export default function ExternalWebinarDetailPage() {
     )
   }
 
+  const toggleZoomSession = (sessionId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      zoomSessionIds: prev.zoomSessionIds.includes(sessionId)
+        ? prev.zoomSessionIds.filter((sid) => sid !== sessionId)
+        : [...prev.zoomSessionIds, sessionId],
+    }))
+  }
+
   const fetchWebinar = async () => {
     try {
       setLoading(true)
@@ -276,11 +255,12 @@ export default function ExternalWebinarDetailPage() {
         autoSendPostSessionSMS: data.autoSendPostSessionSMS ?? false,
         postSessionSMSBody: data.postSessionSMSBody || '',
         combineScheduleSources: data.combineScheduleSources ?? false,
-        liveZoomEnabled: data.liveZoomEnabled ?? false,
-        liveZoomLink: data.liveZoomLink || '',
-        liveZoomAt: isoToDatetimeLocal(data.liveZoomAt, data.liveZoomTimezone || detectTimezone()),
-        liveZoomTimezone: data.liveZoomTimezone || detectTimezone(),
-        liveZoomSessionId: data.liveZoomSessionId || '',
+        zoomSessionIds: (data.zoomSessionLinks?.length
+          ? data.zoomSessionLinks.map((l: { zoomSessionId: string }) => l.zoomSessionId)
+          : data.liveZoomSessionId
+            ? [data.liveZoomSessionId]
+            : []) as string[],
+        zoomOnlySchedule: data.zoomOnlySchedule ?? false,
         showJustInTime: data.showJustInTime ?? false,
         jitLeadMinutes: data.jitLeadMinutes ?? 15,
         recurringSlotsToShow: data.recurringSlotsToShow ?? '',
@@ -302,9 +282,6 @@ export default function ExternalWebinarDetailPage() {
     try {
       const payload = {
         ...formData,
-        liveZoomAt: datetimeLocalToIso(formData.liveZoomAt, formData.liveZoomTimezone),
-        // Disabling the live Zoom session clears the link/association entirely.
-        liveZoomSessionId: formData.liveZoomEnabled ? formData.liveZoomSessionId || null : null,
         recurringSlotsToShow:
           formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
             ? null
@@ -683,6 +660,71 @@ export default function ExternalWebinarDetailPage() {
             </h2>
           </CardHeader>
           <CardBody className="space-y-4">
+            {/* Live Zoom sessions — every ticked session's time is offered on the picker */}
+            <div className="space-y-2">
+              <span className="text-sm font-medium">Live Zoom sessions</span>
+              <p className="text-xs text-gray-500">
+                Every ticked session is offered as a pickable time on this webinar&apos;s
+                registration form. Ticking this webinar on a session in{' '}
+                <a href="/dashboard/sessions" className="text-blue-600 hover:underline">Zoom Sessions</a>{' '}
+                does the same thing — the two sides stay in sync. The link &amp; time always come
+                from the session, so editing a session updates registrants automatically.
+              </p>
+              {zoomSessions.length === 0 ? (
+                <p className="text-xs text-amber-600">
+                  No Zoom sessions yet — create one in Zoom Sessions first.
+                </p>
+              ) : (
+                <div className="border rounded-lg divide-y max-h-56 overflow-y-auto">
+                  {zoomSessions.map((s) => (
+                    <label key={s.id} className="flex items-start gap-2 p-2 text-sm cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="checkbox"
+                        className="mt-0.5"
+                        checked={formData.zoomSessionIds.includes(s.id)}
+                        onChange={() => toggleZoomSession(s.id)}
+                      />
+                      <span className="min-w-0">
+                        <span className="font-medium">{s.name}</span>{' '}
+                        <span className="text-gray-500">— {fmtZoomSession(s.scheduledAt, s.timezone)}</span>
+                        {!s.zoomLink && (
+                          <span className="block text-xs text-amber-600">
+                            No Zoom link set — this session won&apos;t be offered until it has one.
+                          </span>
+                        )}
+                        {!s.isActive && (
+                          <span className="block text-xs text-amber-600">
+                            Inactive session — not offered to registrants.
+                          </span>
+                        )}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+              <label className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={formData.zoomOnlySchedule}
+                  onChange={(e) => setFormData({ ...formData, zoomOnlySchedule: e.target.checked })}
+                />
+                <span className="text-sm">
+                  <span className="font-medium">Only offer Zoom session times</span>
+                  <span className="block text-gray-500">
+                    Registrants can pick only the sessions ticked above — the "starting soon"
+                    option and recurring EverWebinar times are hidden.
+                  </span>
+                </span>
+              </label>
+            </div>
+
+            <div className={formData.zoomOnlySchedule ? 'opacity-50' : ''}>
+            {formData.zoomOnlySchedule && (
+              <p className="text-xs text-gray-500 mb-2">
+                Zoom-only is on — the settings below are ignored.
+              </p>
+            )}
             <label className="flex items-start gap-2">
               <input
                 type="checkbox"
@@ -693,7 +735,7 @@ export default function ExternalWebinarDetailPage() {
               <span className="text-sm">
                 <span className="font-medium">Combine session times into one seamless picker</span>
                 <span className="block text-gray-500">
-                  Mix a live Zoom session, a "starting soon" time, and your recurring EverWebinar
+                  Mix the live Zoom sessions, a "starting soon" time, and your recurring EverWebinar
                   times into one list. Registrants just pick a time — they can&apos;t tell which is
                   live and which is evergreen. All times show in the visitor&apos;s local timezone.
                 </span>
@@ -701,63 +743,7 @@ export default function ExternalWebinarDetailPage() {
             </label>
 
             {formData.combineScheduleSources && (
-              <div className="space-y-6 pl-6 border-l-2 border-gray-100">
-                {/* Live Zoom session */}
-                <div className="space-y-3">
-                  <label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.liveZoomEnabled}
-                      onChange={(e) => setFormData({ ...formData, liveZoomEnabled: e.target.checked })}
-                    />
-                    <span className="text-sm font-medium">Include a live Zoom session</span>
-                  </label>
-                  {formData.liveZoomEnabled && (
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Zoom session</label>
-                        <select
-                          value={formData.liveZoomSessionId}
-                          onChange={(e) => setFormData({ ...formData, liveZoomSessionId: e.target.value })}
-                          className="w-full px-3 py-2 border rounded-lg"
-                        >
-                          <option value="">— Select a Zoom session —</option>
-                          {zoomSessions.map((s) => (
-                            <option key={s.id} value={s.id}>
-                              {s.name} — {fmtZoomSession(s.scheduledAt, s.timezone)}
-                            </option>
-                          ))}
-                        </select>
-                        <p className="text-xs text-gray-500 mt-1">
-                          The link &amp; time come from the session. Create or edit them in{' '}
-                          <a href="/dashboard/sessions" className="text-blue-600 hover:underline">Zoom Sessions</a>.
-                        </p>
-                      </div>
-                      {(() => {
-                        const sel = zoomSessions.find((s) => s.id === formData.liveZoomSessionId)
-                        if (!sel) {
-                          return zoomSessions.length === 0 ? (
-                            <p className="text-xs text-amber-600">
-                              No Zoom sessions yet — create one in Zoom Sessions first.
-                            </p>
-                          ) : null
-                        }
-                        return (
-                          <div className="text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded-lg p-3 space-y-1">
-                            <div>🕐 {fmtZoomSession(sel.scheduledAt, sel.timezone)}</div>
-                            <div className="truncate">
-                              🔗{' '}
-                              {sel.zoomLink || (
-                                <span className="text-amber-600">No Zoom link set on this session</span>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })()}
-                    </div>
-                  )}
-                </div>
-
+              <div className="space-y-6 pl-6 border-l-2 border-gray-100 mt-4">
                 {/* Just-in-time "starting soon" option */}
                 <div className="space-y-3">
                   <label className="flex items-center gap-2">
@@ -801,6 +787,7 @@ export default function ExternalWebinarDetailPage() {
 
               </div>
             )}
+            </div>
           </CardBody>
         </Card>
 
