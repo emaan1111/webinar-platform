@@ -430,67 +430,73 @@ export async function POST(
     console.log(`✅ External webinar registration: ${email} → ${externalWebinar.name}`)
 
     // --- Send Confirmation Email (DB template with tracking) ---
-    try {
-      const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
-        where: { externalWebinarId: id, isActive: true },
-        orderBy: { createdAt: 'desc' },
-      })
+    // Fire-and-forget: template lookup, send record and the email provider's
+    // latency stay out of the response's critical path.
+    ;(async () => {
+      try {
+        const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
+          where: { externalWebinarId: id, isActive: true },
+          orderBy: { createdAt: 'desc' },
+        })
 
-      if (activeTemplate) {
-        const webinarTitle = externalWebinar.externalWebinarName || externalWebinar.name
-        const emailCtx: MergeTagContext = {
-          name: registration.name,
-          email: registration.email,
-          webinarTitle,
-          webinarTime: formatWebinarTime(registration.scheduledStartTime, registration.timezone),
-          // For a live-Zoom pick this is the Zoom link (EverWebinar won't email them);
-          // for a normal pick it's the EverWebinar room link if the API returned one.
-          accessLink: liveRoomUrl || null,
-          // External webinars have no countdown-page slug, so the seeded templates'
-          // {{countdown_link}} would render empty. Point it at the live room too.
-          countdownLink: liveRoomUrl || null,
-        }
+        if (activeTemplate) {
+          const webinarTitle = externalWebinar.externalWebinarName || externalWebinar.name
+          const emailCtx: MergeTagContext = {
+            name: registration.name,
+            email: registration.email,
+            webinarTitle,
+            webinarTime: formatWebinarTime(registration.scheduledStartTime, registration.timezone),
+            // For a live-Zoom pick this is the Zoom link (EverWebinar won't email them);
+            // for a normal pick it's the EverWebinar room link if the API returned one.
+            accessLink: liveRoomUrl || null,
+            // External webinars have no countdown-page slug, so the seeded templates'
+            // {{countdown_link}} would render empty. Point it at the live room too.
+            countdownLink: liveRoomUrl || null,
+          }
 
-        const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
-        const emailSendRecord = await prisma.confirmationEmailSend.create({
-          data: {
-            templateId: activeTemplate.id,
-            externalRegistrationId: registration.id,
+          const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
+          const emailSendRecord = await prisma.confirmationEmailSend.create({
+            data: {
+              templateId: activeTemplate.id,
+              externalRegistrationId: registration.id,
+              to: registration.email,
+              subject: emailSubject,
+              status: 'SENT',
+            },
+          })
+
+          const { html: emailHtml } = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
+          await sendEmail({
             to: registration.email,
             subject: emailSubject,
-            status: 'SENT',
-          },
-        })
-
-        const { html: emailHtml } = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
-        await sendEmail({
-          to: registration.email,
-          subject: emailSubject,
-          htmlBody: emailHtml,
-          fromName: activeTemplate.fromName || undefined,
-        })
-        console.log(`📧 Confirmation email sent to ${email}`)
+            htmlBody: emailHtml,
+            fromName: activeTemplate.fromName || undefined,
+          })
+          console.log(`📧 Confirmation email sent to ${email}`)
+        }
+      } catch (err) {
+        console.error('⚠️ Failed to send confirmation email:', err)
       }
-    } catch (err) {
-      console.error('⚠️ Failed to send confirmation email:', err)
-    }
+    })()
 
     // --- Schedule Reminder Emails (non-blocking) ---
-    try {
-      const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
-      // On a re-registration, drop any still-pending reminders for this row first
-      // so rescheduling doesn't stack a second copy of every reminder.
-      if (existingReg) {
-        await prisma.reminderEmailSend.deleteMany({
-          where: { externalRegistrationId: registration.id, status: 'PENDING' },
-        }).catch(() => {})
-      }
-      scheduleReminderEmails(registration.id, true).catch((err: any) =>
+    // Fire-and-forget: includes the re-registration cleanup of pending reminders,
+    // which must still complete before rescheduling (ordering preserved inside).
+    ;(async () => {
+      try {
+        const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
+        // On a re-registration, drop any still-pending reminders for this row first
+        // so rescheduling doesn't stack a second copy of every reminder.
+        if (existingReg) {
+          await prisma.reminderEmailSend.deleteMany({
+            where: { externalRegistrationId: registration.id, status: 'PENDING' },
+          }).catch(() => {})
+        }
+        await scheduleReminderEmails(registration.id, true)
+      } catch (err) {
         console.error('⚠️ Failed to schedule reminder emails:', err)
-      )
-    } catch (err) {
-      console.error('⚠️ Failed to import emailScheduler:', err)
-    }
+      }
+    })()
 
     return NextResponse.json({
       success: true,

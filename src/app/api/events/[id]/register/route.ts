@@ -8,6 +8,15 @@ import {
   applyReminderTagToContact
 } from '@/lib/clickfunnels';
 
+// Run non-critical integration work without blocking the registration response.
+const runInBackground = (label: string, task: () => Promise<unknown> | unknown) => {
+  Promise.resolve()
+    .then(task)
+    .catch(error => {
+      console.error(`⚠️ ${label} failed (non-blocking):`, error)
+    })
+}
+
 // POST /api/events/[id]/register - Register for an event
 export async function POST(
   req: Request,
@@ -366,79 +375,82 @@ export async function POST(
       console.log(`📋 Using event link for UM Webinar Link (no webinar registration): ${umWebinarLink}`);
     }
 
-    // 4. Sync to ClickFunnels
-    try {
-      console.log(`🚀 Syncing EVENT registration to ClickFunnels for ${email}`);
-      await syncWebinarRegistrationToClickFunnels({
-        name,
-        email,
-        phone,
-        timezone,
-        existingContactId: clickFunnelsContactId, // Use the ID from the first sync if available
-        webinarId: event.id,          // Using Event ID
-        webinarTitle: event.title,    // Using Event Title
-        scheduledStartTime: schedule.startTime,
-        // Use webinar countdown link if bundled webinar was registered, otherwise event page
-        countdownLink: umWebinarLink,
-        formattedWebinarTime: formattedEventTime,
-        formattedWebinarTimeLocal: formattedLocalEventTime,
-        attendeeTimezoneLabel: eventAttendeeTimezoneLabel,
-        // Pass Zoom link to be stored in Zoom Link field, but NOT in UM Webinar Link
-        zoomLink: eventZoomLink || undefined,
-        // Set isZoomSession to false so UM Webinar Link uses countdown link, not Zoom link
-        isZoomSession: false,
-        customTags: {
-          registrationTag: event.registrationTag,
-          // Events might not have these granular attendance tags yet, so we omit or pass null
-          attendedTag: null,
-          mostlyAttendedTag: null,
-          partlyAttendedTag: null,
-          missedTag: null,
-          replayAttendedTag: null,
-        }
-      });
-      console.log('✅ Event registration synced to ClickFunnels!');
-    } catch (error) {
-       console.error('Failed to sync event registration to ClickFunnels:', error);
-    }
+    // 4. Sync to ClickFunnels + apply event reminder tags — CRM bookkeeping only,
+    // so it runs in the background and the route responds after its DB writes.
+    runInBackground('Event ClickFunnels sync', async () => {
+      try {
+        console.log(`🚀 Syncing EVENT registration to ClickFunnels for ${email}`);
+        await syncWebinarRegistrationToClickFunnels({
+          name,
+          email,
+          phone,
+          timezone,
+          existingContactId: clickFunnelsContactId, // Use the ID from the first sync if available
+          webinarId: event.id,          // Using Event ID
+          webinarTitle: event.title,    // Using Event Title
+          scheduledStartTime: schedule.startTime,
+          // Use webinar countdown link if bundled webinar was registered, otherwise event page
+          countdownLink: umWebinarLink,
+          formattedWebinarTime: formattedEventTime,
+          formattedWebinarTimeLocal: formattedLocalEventTime,
+          attendeeTimezoneLabel: eventAttendeeTimezoneLabel,
+          // Pass Zoom link to be stored in Zoom Link field, but NOT in UM Webinar Link
+          zoomLink: eventZoomLink || undefined,
+          // Set isZoomSession to false so UM Webinar Link uses countdown link, not Zoom link
+          isZoomSession: false,
+          customTags: {
+            registrationTag: event.registrationTag,
+            // Events might not have these granular attendance tags yet, so we omit or pass null
+            attendedTag: null,
+            mostlyAttendedTag: null,
+            partlyAttendedTag: null,
+            missedTag: null,
+            replayAttendedTag: null,
+          }
+        });
+        console.log('✅ Event registration synced to ClickFunnels!');
+      } catch (error) {
+         console.error('Failed to sync event registration to ClickFunnels:', error);
+      }
 
-    // 4. Apply Event Reminder Tags (Same logic as webinars)
-    // NOTE: This assumes you want standard reminder tags (24HRREMINDER etc) for events too.
-    if (schedule && schedule.startTime) {
-        const now = new Date();
-        const hoursUntilEvent = (schedule.startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      // 4. Apply Event Reminder Tags (Same logic as webinars)
+      // NOTE: This assumes you want standard reminder tags (24HRREMINDER etc) for events too.
+      if (schedule && schedule.startTime) {
+          const now = new Date();
+          const hoursUntilEvent = (schedule.startTime.getTime() - now.getTime()) / (1000 * 60 * 60);
 
-        const timingBuckets = [
-          { tagName: '24HRREMINDER', offsetHours: 24 },
-          { tagName: '2HRREMINDER', offsetHours: 2 },
-          { tagName: '1HRREMINDER', offsetHours: 1 },
-          { tagName: '15MINREMINDER', offsetHours: 0.25 },
-          { tagName: 'WESTARTED', offsetHours: 0 }
-        ] as const;
+          const timingBuckets = [
+            { tagName: '24HRREMINDER', offsetHours: 24 },
+            { tagName: '2HRREMINDER', offsetHours: 2 },
+            { tagName: '1HRREMINDER', offsetHours: 1 },
+            { tagName: '15MINREMINDER', offsetHours: 0.25 },
+            { tagName: 'WESTARTED', offsetHours: 0 }
+          ] as const;
 
-        const selectedBucket = timingBuckets.find(bucket => hoursUntilEvent >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1];
-        const scheduledFor = selectedBucket.offsetHours > 0
-          ? new Date(schedule.startTime.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
-          : now;
+          const selectedBucket = timingBuckets.find(bucket => hoursUntilEvent >= bucket.offsetHours) ?? timingBuckets[timingBuckets.length - 1];
+          const scheduledFor = selectedBucket.offsetHours > 0
+            ? new Date(schedule.startTime.getTime() - selectedBucket.offsetHours * 60 * 60 * 1000)
+            : now;
 
-        // Note: We use the REGISTRATION ID here to track the reminder job
-        // But our scheduler might expect a specific table. 
-        // For now, let's just apply immediate tags if relevant, or rely on the scheduler if it supports EventRegistration.
-        // Checking `scheduleDelayedClickFunnelsTag`... it likely uses `webinar_reminders_sent` table which links to `registrationId`.
-        // `EventRegistration` and `Registration` (Webinar) are different models.
-        // `Registration` has `reminders`. `EventRegistration` does NOT have reminders relation yet in many schemas.
-        // Let's check schema.prisma first before adding delayed reminders for events.
-        
-        // For now, let's just apply IMMEDIATE tags if the time is close.
-        if (selectedBucket.offsetHours === 0 || (selectedBucket.offsetHours > 0 && scheduledFor <= now)) {
-             try {
-                await applyReminderTagToContact(email, selectedBucket.tagName);
-                console.log(`✅ [Event] Applied ${selectedBucket.tagName} immediately`);
-             } catch (err) {
-                console.error(`Failed to apply event reminder tag ${selectedBucket.tagName}:`, err);
-             }
-        }
-    }
+          // Note: We use the REGISTRATION ID here to track the reminder job
+          // But our scheduler might expect a specific table.
+          // For now, let's just apply immediate tags if relevant, or rely on the scheduler if it supports EventRegistration.
+          // Checking `scheduleDelayedClickFunnelsTag`... it likely uses `webinar_reminders_sent` table which links to `registrationId`.
+          // `EventRegistration` and `Registration` (Webinar) are different models.
+          // `Registration` has `reminders`. `EventRegistration` does NOT have reminders relation yet in many schemas.
+          // Let's check schema.prisma first before adding delayed reminders for events.
+
+          // For now, let's just apply IMMEDIATE tags if the time is close.
+          if (selectedBucket.offsetHours === 0 || (selectedBucket.offsetHours > 0 && scheduledFor <= now)) {
+               try {
+                  await applyReminderTagToContact(email, selectedBucket.tagName);
+                  console.log(`✅ [Event] Applied ${selectedBucket.tagName} immediately`);
+               } catch (err) {
+                  console.error(`Failed to apply event reminder tag ${selectedBucket.tagName}:`, err);
+               }
+          }
+      }
+    });
 
     // 5. Schedule Event SMS Reminder (1 hour before, if enabled)
     if (event.smsReminderEnabled && schedule.startTime && phone) {

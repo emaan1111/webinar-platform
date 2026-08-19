@@ -337,112 +337,119 @@ export async function POST(
       : countdownLink;
 
     // --- Confirmation Email (DB-template with tracking) ---
-    try {
-      const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
-        where: { webinarId: id, isActive: true },
-        orderBy: { createdAt: 'desc' },
-      })
-
-      // Build subject / html from DB template or use built-in fallback
-      let emailSubject: string
-      let emailHtml: string
-      let emailText: string
-      const unsubscribeLink = getUnsubscribeLink(registration.id)
-      const emailCtx = {
-        name: registration.name,
-        email: registration.email,
-        webinarTitle: webinar.title,
-        webinarTime: formattedLocalWebinarTime,
-        accessLink,
-        countdownLink,
-        calendarLink,
-        referralLink,
-        unsubscribeLink,
-      }
-
-      if (activeTemplate) {
-        emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
-
-        // Create the send record BEFORE sending so we have an ID for tracking URLs
-        const emailSendRecord = await prisma.confirmationEmailSend.create({
-          data: {
-            templateId: activeTemplate.id,
-            registrationId: registration.id,
-            to: registration.email,
-            subject: emailSubject,
-            status: 'SENT',
-          },
-        })
-        const preparedEmail = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
-        emailHtml = preparedEmail.html
-        emailText = preparedEmail.text
-        
-        console.log(`📧 Email HTML has ${(emailHtml.match(/<a\s+[^>]*href/gi) || []).length} links after tracking injection`)
-        console.log(`📧 Template fromName: "${activeTemplate.fromName || '(not set, using env default)'}"`)
-
-        const emailSent = await sendEmail({
-          to: registration.email,
-          subject: emailSubject,
-          htmlBody: emailHtml,
-          textBody: emailText,
-          fromName: activeTemplate.fromName || undefined,
+    // Runs in the background so template lookup, HTML preparation and the email
+    // provider's latency never block the registration response.
+    runInBackground('Confirmation email', async () => {
+      try {
+        const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
+          where: { webinarId: id, isActive: true },
+          orderBy: { createdAt: 'desc' },
         })
 
-        if (emailSent) {
-          console.log(`✅ Confirmation email sent to ${registration.email} (send id: ${emailSendRecord.id})`)
-        } else {
-          await prisma.confirmationEmailSend.update({
-            where: { id: emailSendRecord.id },
-            data: { status: 'FAILED', errorMessage: 'sendEmail returned false' },
-          })
-          console.error(`⚠️ Confirmation email failed for ${registration.email}`)
-        }
-      } else {
-        // Fallback to built-in template (no tracking)
-        const fallback = buildRegistrationConfirmationEmail({
-          attendeeName: registration.name,
+        // Build subject / html from DB template or use built-in fallback
+        let emailSubject: string
+        let emailHtml: string
+        let emailText: string
+        const unsubscribeLink = getUnsubscribeLink(registration.id)
+        const emailCtx = {
+          name: registration.name,
+          email: registration.email,
           webinarTitle: webinar.title,
           webinarTime: formattedLocalWebinarTime,
           accessLink,
           countdownLink,
           calendarLink,
           referralLink,
-        })
-        emailSubject = fallback.subject
-        emailHtml = appendUnsubscribeFooter(fallback.htmlBody, unsubscribeLink)
-        emailText = fallback.textBody
-
-        const emailSent = await sendEmail({
-          to: registration.email,
-          subject: emailSubject,
-          htmlBody: emailHtml,
-          textBody: emailText,
-        })
-
-        if (emailSent) {
-          console.log(`✅ Fallback confirmation email sent to ${registration.email}`)
-        } else {
-          console.error(`⚠️ Fallback confirmation email failed for ${registration.email}`)
+          unsubscribeLink,
         }
+
+        if (activeTemplate) {
+          emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
+
+          // Create the send record BEFORE sending so we have an ID for tracking URLs
+          const emailSendRecord = await prisma.confirmationEmailSend.create({
+            data: {
+              templateId: activeTemplate.id,
+              registrationId: registration.id,
+              to: registration.email,
+              subject: emailSubject,
+              status: 'SENT',
+            },
+          })
+          const preparedEmail = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
+          emailHtml = preparedEmail.html
+          emailText = preparedEmail.text
+
+          console.log(`📧 Email HTML has ${(emailHtml.match(/<a\s+[^>]*href/gi) || []).length} links after tracking injection`)
+          console.log(`📧 Template fromName: "${activeTemplate.fromName || '(not set, using env default)'}"`)
+
+          const emailSent = await sendEmail({
+            to: registration.email,
+            subject: emailSubject,
+            htmlBody: emailHtml,
+            textBody: emailText,
+            fromName: activeTemplate.fromName || undefined,
+          })
+
+          if (emailSent) {
+            console.log(`✅ Confirmation email sent to ${registration.email} (send id: ${emailSendRecord.id})`)
+          } else {
+            await prisma.confirmationEmailSend.update({
+              where: { id: emailSendRecord.id },
+              data: { status: 'FAILED', errorMessage: 'sendEmail returned false' },
+            })
+            console.error(`⚠️ Confirmation email failed for ${registration.email}`)
+          }
+        } else {
+          // Fallback to built-in template (no tracking)
+          const fallback = buildRegistrationConfirmationEmail({
+            attendeeName: registration.name,
+            webinarTitle: webinar.title,
+            webinarTime: formattedLocalWebinarTime,
+            accessLink,
+            countdownLink,
+            calendarLink,
+            referralLink,
+          })
+          emailSubject = fallback.subject
+          emailHtml = appendUnsubscribeFooter(fallback.htmlBody, unsubscribeLink)
+          emailText = fallback.textBody
+
+          const emailSent = await sendEmail({
+            to: registration.email,
+            subject: emailSubject,
+            htmlBody: emailHtml,
+            textBody: emailText,
+          })
+
+          if (emailSent) {
+            console.log(`✅ Fallback confirmation email sent to ${registration.email}`)
+          } else {
+            console.error(`⚠️ Fallback confirmation email failed for ${registration.email}`)
+          }
+        }
+      } catch (error: any) {
+        console.error('⚠️ Failed to send confirmation email:', error)
       }
-    } catch (error: any) {
-      console.error('⚠️ Failed to send confirmation email:', error)
-    }
+    });
 
     // --- Separate Calendar Invite Email (if enabled) ---
+    // Also backgrounded: ICS generation + send must not delay the response.
     if (webinar.sendCalendarInvite && registration.scheduledStartTime) {
-      try {
-        const unsubscribeLink = getUnsubscribeLink(registration.id)
-        const icsContent = generateICS({
-          title: webinar.title,
-          description: `${webinar.description || webinar.title}\n\nJoin your webinar: ${countdownLink || accessLink || ''}`,
-          startTime: new Date(registration.scheduledStartTime),
-          durationMinutes: webinar.duration || 60,
-          url: countdownLink || accessLink || undefined,
-          uid: `${webinar.id}-${registration.id}@${new URL(baseUrl).hostname}`,
-        })
+      const calendarStartTime = new Date(registration.scheduledStartTime)
+      runInBackground('Calendar invite email', async () => {
+        try {
+          const unsubscribeLink = getUnsubscribeLink(registration.id)
+          const icsContent = generateICS({
+            title: webinar.title,
+            description: `${webinar.description || webinar.title}\n\nJoin your webinar: ${countdownLink || accessLink || ''}`,
+            startTime: calendarStartTime,
+            durationMinutes: webinar.duration || 60,
+            url: countdownLink || accessLink || undefined,
+            uid: `${webinar.id}-${registration.id}@${new URL(baseUrl).hostname}`,
+          })
 
-        const calendarEmailHtml = `<div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 640px; margin: 0 auto; padding: 24px;">
+          const calendarEmailHtml = `<div style="font-family: Arial, sans-serif; color: #111827; line-height: 1.6; max-width: 640px; margin: 0 auto; padding: 24px;">
   <h2 style="font-size: 22px; margin: 0 0 12px;">📅 Calendar Invite: ${webinar.title}</h2>
   <p style="margin: 0 0 12px;">Hi ${registration.name},</p>
   <p style="margin: 0 0 12px;">We've attached a calendar invite (.ics file) for your upcoming webinar. Open the attachment to add it to your calendar automatically.</p>
@@ -452,30 +459,31 @@ export async function POST(
   </p>
   <p style="margin: 16px 0 0; font-size: 13px; color: #6b7280;">If the attachment doesn't open automatically, you can also <a href="${calendarLink || ''}">add to calendar here</a>.</p>
 </div>`
-        const calendarEmailHtmlWithFooter = appendUnsubscribeFooter(calendarEmailHtml, unsubscribeLink)
+          const calendarEmailHtmlWithFooter = appendUnsubscribeFooter(calendarEmailHtml, unsubscribeLink)
 
-        const calendarEmailText = `Calendar Invite: ${webinar.title}\n\nHi ${registration.name},\n\nWe've attached a calendar invite for your upcoming webinar.\n\nWhen: ${formattedLocalWebinarTime || 'See attached invite'}\n\nCountdown page: ${countdownLink || accessLink || ''}`
+          const calendarEmailText = `Calendar Invite: ${webinar.title}\n\nHi ${registration.name},\n\nWe've attached a calendar invite for your upcoming webinar.\n\nWhen: ${formattedLocalWebinarTime || 'See attached invite'}\n\nCountdown page: ${countdownLink || accessLink || ''}`
 
-        const calendarSent = await sendEmail({
-          to: registration.email,
-          subject: `📅 Add to Calendar: ${webinar.title}`,
-          htmlBody: calendarEmailHtmlWithFooter,
-          textBody: calendarEmailText,
-          attachments: [{
-            filename: 'webinar-invite.ics',
-            content: Buffer.from(icsContent).toString('base64'),
-            contentType: 'text/calendar; method=REQUEST',
-          }],
-        })
+          const calendarSent = await sendEmail({
+            to: registration.email,
+            subject: `📅 Add to Calendar: ${webinar.title}`,
+            htmlBody: calendarEmailHtmlWithFooter,
+            textBody: calendarEmailText,
+            attachments: [{
+              filename: 'webinar-invite.ics',
+              content: Buffer.from(icsContent).toString('base64'),
+              contentType: 'text/calendar; method=REQUEST',
+            }],
+          })
 
-        if (calendarSent) {
-          console.log(`📅 Calendar invite email sent to ${registration.email}`)
-        } else {
-          console.error(`⚠️ Calendar invite email failed for ${registration.email}`)
+          if (calendarSent) {
+            console.log(`📅 Calendar invite email sent to ${registration.email}`)
+          } else {
+            console.error(`⚠️ Calendar invite email failed for ${registration.email}`)
+          }
+        } catch (calError) {
+          console.error('⚠️ Failed to send calendar invite email:', calError)
         }
-      } catch (calError) {
-        console.error('⚠️ Failed to send calendar invite email:', calError)
-      }
+      });
     }
 
     // SYNC TO CRM IMMEDIATELY (registration tag applied here)
