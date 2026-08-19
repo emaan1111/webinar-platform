@@ -50,8 +50,15 @@ export class WebinarTracker {
 
   // Update session periodically
   private startWatchTimeTracking() {
-    // Update every 10 seconds
+    // Update every 10 seconds while the tab is visible; back off to every
+    // 30 seconds when hidden to cut background traffic (watch time still
+    // accumulates locally and is sent with the next heartbeat).
+    let tick = 0;
     this.updateInterval = setInterval(() => {
+      tick += 1;
+      if (typeof document !== 'undefined' && document.hidden && tick % 3 !== 0) {
+        return;
+      }
       if (this.isWatching && this.sessionId) {
         this.updateSession();
       }
@@ -66,6 +73,9 @@ export class WebinarTracker {
         body: JSON.stringify({
           registrationId: this.registrationId,
           webinarId: this.webinarId,
+          // Lets the server update the session row directly instead of
+          // looking it up first (1 query per heartbeat instead of 2)
+          sessionId: this.sessionId,
           action: 'update',
           videoPosition: this.currentPosition,
           watchTime: this.watchTime,

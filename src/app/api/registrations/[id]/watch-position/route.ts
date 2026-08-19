@@ -20,63 +20,51 @@ export async function POST(
       );
     }
 
-    // First, get the current values
-    const registration = await prisma.registration.findUnique({
-      where: { id },
-      select: {
-        lastWatchedPosition: true,
-        replayWatchTime: true,
-      },
-    });
-
-    if (!registration) {
-      return NextResponse.json(
-        { error: 'Registration not found' },
-        { status: 404 }
-      );
-    }
-
-    // Update logic based on mode:
+    // Update logic based on mode (single query instead of read + write):
     // - LIVE mode: Always update lastWatchedPosition (tracks live viewing progress)
     // - REPLAY mode: Only update replayWatchTime if new position is GREATER (keep maximum)
-    const updateData: any = {};
     const newPosition = Math.floor(position);
 
     if (isReplay) {
-      // For replay: Only update if new position is greater than current replayWatchTime
-      const currentReplayTime = registration.replayWatchTime || 0;
-      if (newPosition > currentReplayTime) {
-        updateData.replayWatchTime = newPosition;
-        updateData.watchedReplay = true;
-        console.log(`💾 Replay: Updating replayWatchTime from ${currentReplayTime}s to ${newPosition}s (new maximum)`);
-      } else {
-        console.log(`⏭️ Replay: Keeping replayWatchTime at ${currentReplayTime}s (current watch ${newPosition}s is not greater)`);
-        return NextResponse.json({ 
-          success: true, 
-          position: newPosition,
-          kept: currentReplayTime,
-          message: 'No update - keeping maximum watch time'
-        });
+      // For replay: keep the MAX of the stored and new position, and only flip
+      // watchedReplay to true when the position actually advances.
+      // NOTE: "registrations" table with camelCase columns per prisma/schema.prisma @@map.
+      const rows = await prisma.$executeRaw`
+        UPDATE "registrations"
+        SET "replayWatchTime" = GREATEST("replayWatchTime", ${newPosition}::int),
+            "watchedReplay" = ("watchedReplay" OR "replayWatchTime" < ${newPosition}::int)
+        WHERE "id" = ${id}
+      `;
+
+      if (rows === 0) {
+        return NextResponse.json(
+          { error: 'Registration not found' },
+          { status: 404 }
+        );
       }
+
+      console.log(`💾 Replay: replayWatchTime is now max(current, ${newPosition}s) for registration ${id}`);
     } else {
       // For live: Always update lastWatchedPosition (tracks current live viewing position)
-      updateData.lastWatchedPosition = newPosition;
-      console.log(`💾 Live: Updating lastWatchedPosition to ${newPosition}s`);
+      const updated = await prisma.registration.updateMany({
+        where: { id },
+        data: { lastWatchedPosition: newPosition },
+      });
+
+      if (updated.count === 0) {
+        return NextResponse.json(
+          { error: 'Registration not found' },
+          { status: 404 }
+        );
+      }
+
+      console.log(`💾 Live: Updated lastWatchedPosition to ${newPosition}s for registration ${id}`);
     }
 
-    // Update the registration
-    const updated = await prisma.registration.update({
-      where: { id },
-      data: updateData,
-    });
-
-    console.log(`✅ [API] Successfully updated ${isReplay ? 'replayWatchTime' : 'lastWatchedPosition'} to ${newPosition} for registration ${id}`);
-
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       position: newPosition,
-      mode: isReplay ? 'replay' : 'live',
-      updated: Object.keys(updateData)
+      mode: isReplay ? 'replay' : 'live'
     });
   } catch (error) {
     console.error('❌ [API] Error saving watch position:', error);

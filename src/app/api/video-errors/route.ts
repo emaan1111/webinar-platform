@@ -1,6 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 
+// Cheap in-memory flood protection (single instance): drop identical error
+// reports (same reporter + message) after FLOOD_MAX inserts per window.
+const FLOOD_WINDOW_MS = 60_000;
+const FLOOD_MAX = 5;
+const recentErrorCounts = new Map<string, { count: number; windowStart: number }>();
+
+function isFlooding(key: string): boolean {
+  const now = Date.now();
+  // Periodic cleanup so the map doesn't grow unbounded
+  if (recentErrorCounts.size > 1000) {
+    for (const [k, v] of recentErrorCounts) {
+      if (now - v.windowStart > FLOOD_WINDOW_MS) recentErrorCounts.delete(k);
+    }
+  }
+  const entry = recentErrorCounts.get(key);
+  if (!entry || now - entry.windowStart > FLOOD_WINDOW_MS) {
+    recentErrorCounts.set(key, { count: 1, windowStart: now });
+    return false;
+  }
+  entry.count += 1;
+  return entry.count > FLOOD_MAX;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const errors = await prisma.$queryRaw`
@@ -35,6 +58,12 @@ export async function POST(request: NextRequest) {
       viewerName, // NEW
       viewerEmail, // NEW
     } = body;
+
+    // Drop floods of identical errors: respond 200 but skip the insert
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+    if (isFlooding(`${registrationId || ip}:${errorMessage}`)) {
+      return NextResponse.json({ success: true, dropped: true });
+    }
 
     // Parse device info to check if desktop/mobile
     let parsedDeviceInfo = null;

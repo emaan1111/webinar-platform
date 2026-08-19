@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
       webinarId,
       scheduleId,
       action, // 'join' | 'update' | 'leave'
+      sessionId, // echoed back from the 'join' response for single-query updates
       videoPosition,
       watchTime,
       userAgent,
@@ -26,6 +27,32 @@ export async function POST(request: NextRequest) {
         { error: 'Registration ID and Webinar ID required' },
         { status: 400 }
       );
+    }
+
+    // Fast path: heartbeat updates echo back the sessionId from 'join', letting us
+    // update in a single query instead of findFirst + update every 10s per viewer.
+    if (action === 'update' && sessionId) {
+      const updated = await prisma.attendeeSession.updateMany({
+        where: { id: sessionId, registrationId, isActive: true },
+        data: {
+          lastSeenAt: new Date(),
+          ...(videoPosition != null && { videoPosition }),
+          ...(watchTime != null && { totalWatchTime: watchTime, watchDuration: watchTime }),
+          ...(isMuted !== undefined && { lastMuteState: isMuted }),
+          ...(mutedTime !== undefined && { mutedDuration: mutedTime }),
+          ...(unmutedTime !== undefined && { unmutedDuration: unmutedTime }),
+        },
+      });
+
+      if (updated.count > 0) {
+        return NextResponse.json({
+          success: true,
+          sessionId,
+          message: 'Session updated'
+        });
+      }
+      // count === 0: stale sessionId (session ended or replaced) — fall through to
+      // the findFirst path below so older clients keep working.
     }
 
     // Find active session or create new one
