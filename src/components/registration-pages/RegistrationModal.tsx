@@ -255,6 +255,7 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
             variantId: trackingParams.v,
             leadPageId: trackingParams.lp
         }),
+        signal: AbortSignal.timeout(20000),
       });
 
       // Check content type
@@ -340,7 +341,11 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
       }
     } catch (err: any) {
       console.error('Registration error:', err);
-      setError(err.message);
+      if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+        setError('The request timed out. Please check your connection and try again.');
+      } else {
+        setError(err.message);
+      }
       setRegistering(false);
     }
   };
@@ -400,9 +405,11 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-0">
         <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" onClick={onClose} />
 
-        <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all w-full max-w-lg mx-4">
+        {/* max-h-[90vh] is the fallback; the inline 90dvh wins on browsers that support dvh
+            (keeps the form reachable on short mobile viewports, e.g. iOS with keyboard open) */}
+        <div className="relative transform overflow-hidden rounded-2xl bg-white text-left shadow-xl transition-all w-full max-w-lg mx-4 flex flex-col max-h-[90vh]" style={{ maxHeight: '90dvh' }}>
              {/* Gradient Header */}
-             <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-8 py-4 relative overflow-hidden">
+             <div className="bg-gradient-to-r from-purple-600 to-blue-600 px-8 py-4 relative overflow-hidden flex-shrink-0">
                 <button
                     onClick={onClose}
                     className="absolute top-4 right-4 text-white/80 hover:text-white focus:outline-none z-10"
@@ -427,7 +434,8 @@ export default function RegistrationModal({ onClose, webinar, countryCodes, spli
                 </div>
             </div>
 
-            <div className="px-8 py-6">
+            {/* Scrollable form content (header stays visible) */}
+            <div className="px-8 py-6 overflow-y-auto">
                 {error && (
                     <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
                         <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />

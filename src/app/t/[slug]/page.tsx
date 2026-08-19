@@ -68,8 +68,8 @@ export default async function SplitTestPage({ params }: PageProps) {
           console.error("Failed to track split test view", e);
       }
   };
-  
-  await trackView();
+
+  void trackView();
 
   // Redirect to the selected lead page
   // We pass query params to track tracking

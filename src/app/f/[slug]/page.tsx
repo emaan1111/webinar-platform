@@ -28,21 +28,21 @@ export default async function PublicFormPage({ params, searchParams }: PageProps
     notFound()
   }
 
-  // Record view
+  // Record view (fire and forget to avoid blocking render)
   try {
     const headersList = headers()
     const userAgent = headersList.get('user-agent') || 'Unknown'
     const referrer = headersList.get('referer') || 'Direct'
     const ip = headersList.get('x-forwarded-for') || 'Unknown' // simplified
 
-    await prisma.formView.create({
+    prisma.formView.create({
       data: {
         formId: form.id,
         userAgent,
         referrer,
         ip
       }
-    })
+    }).catch((err) => console.error('Failed to record form view:', err))
   } catch (err) {
     console.error('Failed to record form view:', err)
   }

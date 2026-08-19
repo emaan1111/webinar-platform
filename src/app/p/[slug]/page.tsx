@@ -17,10 +17,11 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
   const splitTestId = typeof searchParams.st === 'string' ? searchParams.st : undefined;
   const variantId = typeof searchParams.v === 'string' ? searchParams.v : undefined;
 
+  // Fetch the page row without the template relation - the template blob is only
+  // needed for TEMPLATE pages and is fetched conditionally below.
   const leadPage = await prisma.leadPage.findUnique({
     where: { slug },
     include: {
-      template: true,
       webinar: {
         select: {
           id: true,
@@ -47,11 +48,11 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
     notFound();
   }
 
-  // Track views
-  await prisma.leadPage.update({
+  // Track views (fire and forget to avoid blocking render)
+  prisma.leadPage.update({
     where: { id: leadPage.id },
     data: { views: { increment: 1 } }
-  });
+  }).catch(console.error);
 
   if (leadPage.type === 'CUSTOM') {
     // Check if it's a full HTML document (contains html tag or doctype)
@@ -702,10 +703,15 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
      if (!leadPage.webinar) {
         return <div>Configuration Error: No linked webinar found for this template page.</div>;
     }
-    
+
+    // Fetch the template only now that we know this page renders one
+    const template = leadPage.templateId
+      ? await prisma.registrationPage.findUnique({ where: { id: leadPage.templateId } })
+      : null;
+
     // Pass the registration page template explicitly
     // Note: page-client expects 'registrationPage' prop
-    
+
     const webinarData = {
         id: leadPage.webinar.id,
         slug: leadPage.webinar.slug,
@@ -720,7 +726,7 @@ export default async function LeadPage({ params, searchParams }: PageProps) {
         <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
             <WebinarRegisterPage
             webinarData={webinarData}
-            registrationPage={leadPage.template}
+            registrationPage={template}
             leadPageId={leadPage.id}
             splitTestId={splitTestId}
             variantId={variantId}

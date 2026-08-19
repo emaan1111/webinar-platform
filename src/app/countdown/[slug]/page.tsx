@@ -606,13 +606,16 @@ function processCountdownTemplate(
   }
   
   var targetTime = new Date('${scheduleDateTime.toISOString()}').getTime();
+  // Server epoch injected at render time - used to correct skewed device clocks
+  var serverNowAtRender = ${Date.now()};
+  var clockOffset = serverNowAtRender - Date.now();
   var joinUrl = '${escapeJsString(joinLink)}';
   var hasRedirected = false;
   var webinarStarted = false;
   
   // Function to check if webinar has started
   function isWebinarStarted() {
-    return new Date().getTime() >= targetTime;
+    return (Date.now() + clockOffset) >= targetTime;
   }
   
   // Intercept clicks on room/join links before webinar starts
@@ -627,7 +630,7 @@ function processCountdownTemplate(
           e.stopPropagation();
           
           // Calculate time remaining
-          var now = new Date().getTime();
+          var now = (Date.now() + clockOffset);
           var distance = targetTime - now;
           var minutes = Math.ceil(distance / (1000 * 60));
           
@@ -655,7 +658,7 @@ function processCountdownTemplate(
       return;
     }
     
-    var now = new Date().getTime();
+    var now = (Date.now() + clockOffset);
     var distance = targetTime - now;
     
     if (distance <= 0) {
@@ -728,12 +731,15 @@ function processCountdownTemplate(
     return;
   }
   var targetTime = new Date('${scheduleDateTime.toISOString()}').getTime();
+  // Server epoch injected at render time - used to correct skewed device clocks
+  var serverNowAtRender = ${Date.now()};
+  var clockOffset = serverNowAtRender - Date.now();
   var joinUrl = '${escapeJsString(joinLink)}';
   var hasRedirected = false;
 
   // Function to check if webinar has started
   function isWebinarStarted() {
-    return new Date().getTime() >= targetTime;
+    return (Date.now() + clockOffset) >= targetTime;
   }
   
   // Intercept clicks on room/join links before webinar starts
@@ -746,7 +752,7 @@ function processCountdownTemplate(
           e.preventDefault();
           e.stopPropagation();
           
-          var now = new Date().getTime();
+          var now = (Date.now() + clockOffset);
           var distance = targetTime - now;
           var minutes = Math.ceil(distance / (1000 * 60));
           
@@ -767,7 +773,7 @@ function processCountdownTemplate(
   }
 
   function checkRedirect() {
-    var now = new Date().getTime();
+    var now = (Date.now() + clockOffset);
     if (now < targetTime) {
       return;
     }

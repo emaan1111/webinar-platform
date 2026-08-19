@@ -32,8 +32,9 @@ export default function ClientForm({ form, splitTestId, variantId }: ClientFormP
       setError(null)
       setProgress(0)
 
-      // Simulate 15 second progress
-      const duration = 15000 // 15 seconds
+      // Fake "assessment" progress bar - intentional product theatre.
+      // Shortened from 15s to 3s to avoid stalling mobile users.
+      const duration = 3000 // 3 seconds
       const interval = 100 // update every 100ms
       const steps = duration / interval
       
