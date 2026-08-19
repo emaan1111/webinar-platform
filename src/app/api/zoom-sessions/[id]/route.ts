@@ -111,7 +111,7 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 
     const before = await prisma.zoomSession.findUnique({
       where: { id: params.id },
-      select: { scheduledAt: true },
+      select: { scheduledAt: true, zoomLink: true },
     })
 
     const updated = await prisma.zoomSession.update({
@@ -145,6 +145,47 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         await prisma.registration.updateMany({
           where: { webinarId: { in: internal }, scheduledStartTime: before.scheduledAt },
           data: { scheduledStartTime: updated.scheduledAt },
+        })
+      }
+    }
+
+    // Keep stored per-attendee external room links in sync with this session's
+    // link so upcoming reminder emails use the latest Zoom URL. Any roster row
+    // still holding a Zoom URL (current or stale) or no link gets the new one;
+    // EverWebinar room links are left alone.
+    if (updated.zoomLink) {
+      const { external } = linkedIds(updated.webinars)
+      if (external.length) {
+        await prisma.externalWebinarRegistration.updateMany({
+          where: {
+            externalWebinarId: { in: external },
+            scheduledStartTime: updated.scheduledAt,
+            OR: [
+              { liveRoomUrl: null },
+              { liveRoomUrl: { contains: 'zoom.us', mode: 'insensitive' } },
+              ...(before?.zoomLink ? [{ liveRoomUrl: before.zoomLink }] : []),
+            ],
+          },
+          data: { liveRoomUrl: updated.zoomLink },
+        })
+      }
+
+      // Linked internal webinars keep the link on their Zoom-session schedule —
+      // reminder emails link to the countdown page, which redirects to
+      // schedule.zoomLink at go-time, so updating it here is what makes those
+      // attendees land on the new link.
+      const { internal } = linkedIds(updated.webinars)
+      if (internal.length) {
+        const sessionTimes = before
+          ? [before.scheduledAt, updated.scheduledAt]
+          : [updated.scheduledAt]
+        await prisma.webinarSchedule.updateMany({
+          where: {
+            webinarId: { in: internal },
+            isZoomSession: true,
+            scheduledAt: { in: sessionTimes },
+          },
+          data: { zoomLink: updated.zoomLink },
         })
       }
     }

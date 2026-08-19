@@ -274,7 +274,7 @@ export async function processPendingReminderEmails() {
       externalRegistration: {
         include: {
           externalWebinar: {
-            select: { id: true, externalWebinarName: true, liveZoomLink: true },
+            select: { id: true, externalWebinarName: true, liveZoomLink: true, liveZoomAt: true },
           }
         }
       }
@@ -324,14 +324,28 @@ export async function processPendingReminderEmails() {
       const webinarSlug = isExternal ? null : webinar.slug
       const webinarTitle = isExternal ? webinar.externalWebinarName || 'Webinar' : webinar.title
 
+      // For external live-Zoom picks, always use the webinar's current live Zoom
+      // link so host link edits propagate to upcoming reminder emails.
+      const isLiveZoomSlot = Boolean(
+        isExternal &&
+          reg.scheduledStartTime &&
+          webinar.liveZoomAt &&
+          new Date(reg.scheduledStartTime).getTime() === new Date(webinar.liveZoomAt).getTime()
+      )
+      const externalRoomLink = isExternal
+        ? (isLiveZoomSlot
+            ? (webinar.liveZoomLink || reg.liveRoomUrl || null)
+            : (reg.liveRoomUrl || webinar.liveZoomLink || null))
+        : null
+
       // External webinars have no countdown-page slug, so fall back to the live room
       // link — otherwise templates using {{countdown_link}} render an empty href.
       const countdownLink = webinarSlug
         ? `${baseUrl}/countdown/${webinarSlug}?r=${reg.id}`
-        : (isExternal ? (reg.liveRoomUrl || webinar.liveZoomLink || null) : null)
+        : externalRoomLink
       // External registrants get their stored room link (the EverWebinar room, or the Zoom link
       // for a live-Zoom pick that's never registered in EverWebinar); internal use the countdown.
-      const accessLink = isExternal ? (reg.liveRoomUrl || webinar.liveZoomLink || null) : countdownLink
+      const accessLink = isExternal ? externalRoomLink : countdownLink
       const calendarLink = webinarSlug ? `${baseUrl}/api/calendar/${webinarSlug}?r=${reg.id}` : null
       const referralLink = webinarSlug && reg.referralCode ? `${baseUrl}/w/${webinarSlug}?ref=${reg.referralCode}` : null
 
