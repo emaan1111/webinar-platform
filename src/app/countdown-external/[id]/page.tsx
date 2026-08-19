@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation'
 import { prisma } from '@/lib/prisma'
+import { getLinkedZoomSessions } from '@/lib/zoomSessions'
 import { readBrandingSettings } from '@/lib/brandingSettings'
 import { TemplateRenderer } from '@/components/TemplateRenderer'
 import ExternalCountdownFallback from './ExternalCountdownFallback'
@@ -220,12 +221,26 @@ export default async function ExternalCountdownPage({ params, searchParams }: Pa
 
   const { externalWebinar, registration } = data
   const startTime = registration?.scheduledStartTime ? new Date(registration.scheduledStartTime) : null
-  // The live room is the per-registrant URL captured at registration (EverWebinar live page
-  // for an EverWebinar pick, Zoom link for a Zoom pick). When that wasn't captured — e.g. an
-  // EverWebinar scheduled pick where the API returned no per-attendee live link — fall back to
-  // the webinar's configured live Zoom link so the countdown still has somewhere to send people
-  // at T-0. Without this fallback the countdown ticks to zero and gets stuck with nowhere to go.
-  const liveRoomUrl = registration?.liveRoomUrl || externalWebinar.liveZoomLink || null
+
+  // When this registration's slot IS a linked Zoom session (matched on the exact
+  // instant), send them to that session's CURRENT link — so a host editing the Zoom
+  // link right before go-time still routes everyone correctly.
+  let sessionZoomLink: string | null = null
+  if (startTime) {
+    const linked = await getLinkedZoomSessions(externalWebinar.id)
+    sessionZoomLink =
+      linked.find((s) => s.zoomLink && s.scheduledAt.getTime() === startTime.getTime())?.zoomLink ||
+      null
+  }
+
+  // Otherwise the live room is the per-registrant URL captured at registration
+  // (EverWebinar live page for an EverWebinar pick, Zoom link for a Zoom pick). When
+  // that wasn't captured — e.g. an EverWebinar scheduled pick where the API returned
+  // no per-attendee live link — fall back to the webinar's legacy live Zoom link so
+  // the countdown still has somewhere to send people at T-0. Without a fallback the
+  // countdown ticks to zero and gets stuck with nowhere to go.
+  const liveRoomUrl =
+    sessionZoomLink || registration?.liveRoomUrl || externalWebinar.liveZoomLink || null
   const name = registration?.name || ''
   const webinarName = externalWebinar.externalWebinarName || externalWebinar.name || 'your webinar'
 

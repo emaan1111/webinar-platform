@@ -21,6 +21,33 @@ export type ZoomRosterRow = {
   webinarTitle: string
 }
 
+export type LinkedZoomSession = {
+  id: string
+  name: string
+  zoomLink: string | null
+  scheduledAt: Date
+  timezone: string
+}
+
+// All active Zoom sessions linked to an external webinar, soonest first.
+// A session is "linked" via a ZoomSessionWebinar join row (the checkboxes on the
+// sessions page / the webinar's session list) or via the legacy single
+// liveZoomSessionId pointer — the union covers rows where the two drifted.
+// Linked sessions with a Zoom link are what the registration picker offers.
+export async function getLinkedZoomSessions(externalWebinarId: string): Promise<LinkedZoomSession[]> {
+  return prisma.zoomSession.findMany({
+    where: {
+      isActive: true,
+      OR: [
+        { webinars: { some: { externalWebinarId } } },
+        { externalWebinarsLive: { some: { id: externalWebinarId } } },
+      ],
+    },
+    select: { id: true, name: true, zoomLink: true, scheduledAt: true, timezone: true },
+    orderBy: { scheduledAt: 'asc' },
+  })
+}
+
 // Split linked webinars into external + internal id lists.
 export function linkedIds(webinars: WebinarLink[]) {
   const external = webinars

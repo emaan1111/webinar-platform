@@ -1323,6 +1323,9 @@ model ExternalWebinar {
   liveZoomLink           String? // Zoom join URL the registrant is sent to for the live session
   liveZoomAt             DateTime? // Start time of the live Zoom session (stored UTC)
   liveZoomTimezone       String? // Timezone the host entered liveZoomAt in (for reference/labels)
+  // When true, registrants are offered ONLY the linked Zoom sessions' times — the
+  // just-in-time option and recurring EverWebinar times are hidden from the picker.
+  zoomOnlySchedule       Boolean   @default(false)
   // When set, the live Zoom session is driven by a shared ZoomSession (its link/time/timezone are
   // snapshotted into the fields above). Selecting one also links this webinar into that session's roster.
   liveZoomSessionId      String?

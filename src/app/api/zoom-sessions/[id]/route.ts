@@ -120,8 +120,28 @@ export async function PUT(request: Request, { params }: { params: { id: string }
       include: webinarLinkInclude,
     })
 
-    // Keep the snapshot on external webinars that use this session as their live
-    // Zoom in sync (their picker/register/email read these copied fields).
+    // Webinars unticked from this session must stop offering it: clear the legacy
+    // single-pick pointer (and its snapshot) on external webinars that still point
+    // here but are no longer in the linked set — otherwise the pointer leg of
+    // getLinkedZoomSessions would keep the removed time bookable.
+    if (Array.isArray(webinars)) {
+      const keptExternal = linkedIds(updated.webinars).external
+      await prisma.externalWebinar.updateMany({
+        where: {
+          liveZoomSessionId: params.id,
+          ...(keptExternal.length ? { id: { notIn: keptExternal } } : {}),
+        },
+        data: {
+          liveZoomSessionId: null,
+          liveZoomLink: null,
+          liveZoomAt: null,
+          liveZoomTimezone: null,
+        },
+      })
+    }
+
+    // Keep the snapshot on external webinars that still use this session as their
+    // live Zoom in sync (legacy fallback paths read these copied fields).
     await prisma.externalWebinar.updateMany({
       where: { liveZoomSessionId: params.id },
       data: {

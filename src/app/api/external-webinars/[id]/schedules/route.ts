@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getLinkedZoomSessions } from '@/lib/zoomSessions'
 import { getWebinarDetails, isWebinarJamConfigured } from '@/lib/webinarjam'
 import { toZonedTime, fromZonedTime, format } from 'date-fns-tz'
 import { addMinutes, addDays, isBefore } from 'date-fns'
@@ -15,10 +16,14 @@ import { addMinutes, addDays, isBefore } from 'date-fns'
  *  - Legacy (combineScheduleSources = false): either JIT-generated times OR the
  *    webinar's scheduled sessions, exactly as before.
  *  - Combined (combineScheduleSources = true): one seamless, time-sorted list mixing
- *    a real live Zoom session + a "starting soon" just-in-time option + the recurring
+ *    the linked live Zoom sessions + a "starting soon" just-in-time option + the recurring
  *    EverWebinar sessions (e.g. daily 11 AM). Every option is formatted identically in
- *    the visitor's local timezone so the live option is indistinguishable from the
+ *    the visitor's local timezone so the live options are indistinguishable from the
  *    evergreen ones.
+ *
+ * In BOTH modes, every active upcoming Zoom session linked to the webinar (ticked on the
+ * sessions page or on the webinar's session list) is offered as a pickable time. When the
+ * webinar's zoomOnlySchedule flag is set, those Zoom sessions are the ONLY times offered.
  */
 
 // CORS headers for cross-origin embed requests
@@ -256,20 +261,27 @@ export async function GET(
     let scheduleOptions: ScheduleOption[] = []
     let responseIsJIT = false
 
-    if (externalWebinar.combineScheduleSources) {
-      // ---------- Combined seamless picker ----------
+    // LIVE Zoom sessions — every active, upcoming session linked to this webinar with a
+    // Zoom link becomes a pickable time (shown indistinguishably among evergreen options).
+    // The option id carries the exact instant AND the session id so the register route
+    // resolves the right session even if its time is edited between render and submit.
+    const linkedSessions = await getLinkedZoomSessions(id)
+    const zoomTimes = new Set<number>()
+    for (const s of linkedSessions) {
+      if (!s.zoomLink) continue
+      if (isBefore(s.scheduledAt, now)) continue
+      const ms = s.scheduledAt.getTime()
+      if (zoomTimes.has(ms)) continue // two sessions at the same instant: first wins
+      zoomTimes.add(ms)
+      scheduleOptions.push(makeOption(`x|z|${ms}|${s.id}`, s.scheduledAt, false, userTimezone))
+    }
 
-      // 1. One real LIVE Zoom session (shown indistinguishably among the evergreen options).
-      if (
-        externalWebinar.liveZoomEnabled &&
-        externalWebinar.liveZoomLink &&
-        externalWebinar.liveZoomAt
-      ) {
-        const zoomAt = new Date(externalWebinar.liveZoomAt)
-        if (!isBefore(zoomAt, now)) {
-          scheduleOptions.push(makeOption(`x|z|${zoomAt.getTime()}`, zoomAt, false, userTimezone))
-        }
-      }
+    if (externalWebinar.zoomOnlySchedule) {
+      // ---------- Zoom-only mode ----------
+      // The linked Zoom sessions ARE the schedule: no just-in-time option and no
+      // recurring EverWebinar times.
+    } else if (externalWebinar.combineScheduleSources) {
+      // ---------- Combined seamless picker ----------
 
       // Fetch + classify the webinar's schedules once (dynamic JIT block vs daily blocks).
       const { jitScheduleId, recurring } = await fetchClassifiedSchedules(
@@ -400,6 +412,12 @@ export async function GET(
         }
       }
     }
+
+    // A JIT/EverWebinar option at exactly a Zoom session's instant would be ambiguous
+    // downstream (rosters and reminder emails match on the exact instant) — Zoom wins.
+    scheduleOptions = scheduleOptions.filter(
+      (o) => o.id.startsWith('x|z|') || !zoomTimes.has(new Date(o.dateTimeUTC).getTime())
+    )
 
     // Sort by date/time so any live Zoom slot falls into its natural chronological place.
     scheduleOptions.sort((a, b) =>

@@ -37,6 +37,7 @@ export async function GET(
           }
         },
         schedules: true,
+        zoomSessionLinks: { select: { zoomSessionId: true } },
         _count: {
           select: {
             registrations: true,
@@ -127,6 +128,8 @@ export async function PUT(
       liveZoomAt,
       liveZoomTimezone,
       liveZoomSessionId,
+      zoomSessionIds,
+      zoomOnlySchedule,
       showJustInTime,
       jitLeadMinutes,
       recurringSlotsToShow,
@@ -138,59 +141,55 @@ export async function PUT(
       emaanSyncScope,
     } = body
 
-    // Resolve the live-Zoom config. When a shared ZoomSession is selected
-    // (liveZoomSessionId provided), snapshot its link/time/timezone into the
-    // existing fields so the picker/register/email flow stays unchanged, and
-    // sync the webinar<->session association that feeds the session roster.
-    let liveZoomData: Record<string, any> = {}
-    let oldLiveZoomSessionId: string | null = null
-    let newLiveZoomSessionId: string | null = null
-    let syncSessionLink = false
-
-    if (liveZoomSessionId !== undefined) {
-      syncSessionLink = true
-      const current = await prisma.externalWebinar.findUnique({
-        where: { id },
-        select: { liveZoomSessionId: true },
-      })
-      oldLiveZoomSessionId = current?.liveZoomSessionId ?? null
-      newLiveZoomSessionId = liveZoomSessionId || null
-
-      if (newLiveZoomSessionId) {
-        const zs = await prisma.zoomSession.findUnique({
-          where: { id: newLiveZoomSessionId },
-          select: { zoomLink: true, scheduledAt: true, timezone: true },
-        })
-        if (!zs) {
-          return NextResponse.json({ error: 'Selected Zoom session not found' }, { status: 400 })
-        }
-        // A session without a join link would silently disappear from the picker
-        // (the picker requires liveZoomLink), so reject it with a clear message.
-        if (!zs.zoomLink) {
-          return NextResponse.json(
-            { error: 'That Zoom session has no Zoom join link yet — add a link to the session first.' },
-            { status: 400 }
-          )
-        }
-        liveZoomData = {
-          liveZoomSessionId: newLiveZoomSessionId,
-          liveZoomLink: zs.zoomLink,
-          liveZoomAt: zs.scheduledAt,
-          liveZoomTimezone: zs.timezone || null,
-        }
-      } else {
-        liveZoomData = {
-          liveZoomSessionId: null,
-          liveZoomLink: null,
-          liveZoomAt: null,
-          liveZoomTimezone: null,
-        }
-      }
+    // Which Zoom sessions are linked to (i.e. offered as pickable times on) this
+    // webinar. New clients send zoomSessionIds: string[]; older clients sent the
+    // single liveZoomSessionId — treat that as a one-element (or empty) list. When
+    // either key is present, the linked set is replaced with exactly that list; when
+    // both are omitted the links are left untouched (partial updates of other
+    // settings don't disturb them).
+    let requestedSessionIds: string[] | undefined
+    if (Array.isArray(zoomSessionIds)) {
+      requestedSessionIds = zoomSessionIds.filter((v: any) => typeof v === 'string' && v)
+    } else if (liveZoomSessionId !== undefined) {
+      requestedSessionIds = liveZoomSessionId ? [liveZoomSessionId] : []
     }
-    // When liveZoomSessionId is omitted from the body, live-Zoom fields are left
-    // untouched (partial updates of other settings don't disturb the link).
 
-    const externalWebinar = await prisma.externalWebinar.update({
+    let liveZoomData: Record<string, any> = {}
+    let validSessionIds: string[] | null = null
+    if (requestedSessionIds !== undefined) {
+      // Sessions deleted between page load and save are silently dropped.
+      const found = await prisma.zoomSession.findMany({
+        where: { id: { in: requestedSessionIds } },
+        select: { id: true, zoomLink: true, scheduledAt: true, timezone: true },
+        orderBy: { scheduledAt: 'asc' },
+      })
+      validSessionIds = found.map((s) => s.id)
+
+      // Keep the legacy single-pick pointer + snapshot fields coherent: point them
+      // at the soonest linked session (old data paths still read these as
+      // fallbacks), or clear them when no sessions are linked. The picker itself
+      // reads the linked sessions live, not these fields.
+      const primary = found[0] || null
+      liveZoomData = primary
+        ? {
+            liveZoomSessionId: primary.id,
+            liveZoomLink: primary.zoomLink,
+            liveZoomAt: primary.scheduledAt,
+            liveZoomTimezone: primary.timezone || null,
+          }
+        : {
+            liveZoomSessionId: null,
+            liveZoomLink: null,
+            liveZoomAt: null,
+            liveZoomTimezone: null,
+          }
+    }
+
+    // The field update and the join-row replacement commit atomically — a session
+    // deleted mid-request (FK failure on createMany) must not leave the webinar
+    // updated but its linked set half-replaced.
+    const ops: any[] = []
+    ops.push(prisma.externalWebinar.update({
       where: { id },
       data: {
         ...(name !== undefined && { name }),
@@ -219,6 +218,7 @@ export async function PUT(
         ...(sendToFacebookCAPI !== undefined && { sendToFacebookCAPI }),
         ...(combineScheduleSources !== undefined && { combineScheduleSources }),
         ...(liveZoomEnabled !== undefined && { liveZoomEnabled }),
+        ...(zoomOnlySchedule !== undefined && { zoomOnlySchedule: !!zoomOnlySchedule }),
         ...liveZoomData,
         ...(showJustInTime !== undefined && { showJustInTime }),
         ...(jitLeadMinutes !== undefined && { jitLeadMinutes }),
@@ -237,30 +237,27 @@ export async function PUT(
         }),
         updatedAt: new Date(),
       }
-    })
+    }))
 
-    // Sync the webinar<->session association (drives the session roster).
-    if (syncSessionLink) {
-      if (oldLiveZoomSessionId && oldLiveZoomSessionId !== newLiveZoomSessionId) {
-        await prisma.zoomSessionWebinar.deleteMany({
-          where: { zoomSessionId: oldLiveZoomSessionId, externalWebinarId: id },
-        })
-      }
-      if (newLiveZoomSessionId) {
-        const existing = await prisma.zoomSessionWebinar.findFirst({
-          where: { zoomSessionId: newLiveZoomSessionId, externalWebinarId: id },
-        })
-        if (!existing) {
-          await prisma.zoomSessionWebinar.create({
-            data: {
-              zoomSessionId: newLiveZoomSessionId,
-              externalWebinarId: id,
-              webinarType: 'external',
-            },
-          })
-        }
+    // Replace the webinar<->session join rows with the requested set. These rows
+    // drive the session roster AND which Zoom times the registration picker offers.
+    if (validSessionIds) {
+      ops.push(prisma.zoomSessionWebinar.deleteMany({
+        where: { externalWebinarId: id, zoomSessionId: { notIn: validSessionIds } },
+      }))
+      if (validSessionIds.length > 0) {
+        ops.push(prisma.zoomSessionWebinar.createMany({
+          data: validSessionIds.map((sid) => ({
+            zoomSessionId: sid,
+            externalWebinarId: id,
+            webinarType: 'external',
+          })),
+          skipDuplicates: true,
+        }))
       }
     }
+
+    const [externalWebinar] = await prisma.$transaction(ops)
 
     return NextResponse.json(externalWebinar)
   } catch (error) {

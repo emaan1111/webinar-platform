@@ -274,7 +274,19 @@ export async function processPendingReminderEmails() {
       externalRegistration: {
         include: {
           externalWebinar: {
-            select: { id: true, externalWebinarName: true, liveZoomLink: true, liveZoomAt: true },
+            select: {
+              id: true,
+              externalWebinarName: true,
+              liveZoomLink: true,
+              liveZoomAt: true,
+              zoomSessionLinks: {
+                select: {
+                  zoomSession: {
+                    select: { scheduledAt: true, zoomLink: true, isActive: true },
+                  },
+                },
+              },
+            },
           }
         }
       }
@@ -324,17 +336,34 @@ export async function processPendingReminderEmails() {
       const webinarSlug = isExternal ? null : webinar.slug
       const webinarTitle = isExternal ? webinar.externalWebinarName || 'Webinar' : webinar.title
 
-      // For external live-Zoom picks, always use the webinar's current live Zoom
-      // link so host link edits propagate to upcoming reminder emails.
+      // For external live-Zoom picks, always use the session's CURRENT Zoom link so
+      // host link edits propagate to upcoming reminder emails. A registration is a
+      // live-Zoom pick when its instant matches one of the webinar's linked Zoom
+      // sessions (or the legacy single-pick snapshot fields).
+      const regMs =
+        isExternal && reg.scheduledStartTime ? new Date(reg.scheduledStartTime).getTime() : null
+      const matchedZoomSession =
+        regMs !== null
+          ? (webinar.zoomSessionLinks || [])
+              .map((l: any) => l.zoomSession)
+              .find(
+                (zs: any) =>
+                  zs?.isActive && zs.scheduledAt && new Date(zs.scheduledAt).getTime() === regMs
+              ) || null
+          : null
       const isLiveZoomSlot = Boolean(
-        isExternal &&
-          reg.scheduledStartTime &&
-          webinar.liveZoomAt &&
-          new Date(reg.scheduledStartTime).getTime() === new Date(webinar.liveZoomAt).getTime()
+        matchedZoomSession ||
+          (isExternal &&
+            reg.scheduledStartTime &&
+            webinar.liveZoomAt &&
+            new Date(reg.scheduledStartTime).getTime() === new Date(webinar.liveZoomAt).getTime())
       )
+      // Zoom slot: the matched session's CURRENT link first; then the link captured
+      // at registration (it was THAT session's link); the legacy snapshot last — it
+      // may describe a different session on a multi-session webinar.
       const externalRoomLink = isExternal
         ? (isLiveZoomSlot
-            ? (webinar.liveZoomLink || reg.liveRoomUrl || null)
+            ? (matchedZoomSession?.zoomLink || reg.liveRoomUrl || webinar.liveZoomLink || null)
             : (reg.liveRoomUrl || webinar.liveZoomLink || null))
         : null
 

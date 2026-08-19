@@ -8,6 +8,7 @@ import { sendEmail } from '@/lib/email'
 import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime } from '@/lib/emailTracking'
 import { pushLeadToEmaan, resolveEmaanTargets } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
+import { getLinkedZoomSessions, LinkedZoomSession } from '@/lib/zoomSessions'
 
 /**
  * External Webinar Registration API
@@ -120,7 +121,8 @@ export async function POST(
     let replayRoomUrl: string | undefined
 
     // The combined picker encodes each option's identity + exact start time in its id:
-    //   x|z|<ms>      = the live Zoom session  (send to the Zoom link, skip EverWebinar)
+    //   x|z|<ms>|<sessionId> = a live Zoom session (send to its Zoom link, skip EverWebinar)
+    //   x|z|<ms>      = live Zoom session, legacy id without the session id
     //   x|<jitId>|<ms> = just-in-time session  (the webinar's real "Just in time" schedule id)
     //   x|j|<ms>      = just-in-time session   (the picker couldn't resolve the real id — we
     //                                           resolve it here instead; never send schedule "0")
@@ -131,13 +133,15 @@ export async function POST(
     let isJitPick = false
     let wjScheduleId: string | undefined
     let decodedStartTime: Date | null = null
+    let pickedZoomSessionId: string | null = null
 
     if (typeof scheduleId === 'string' && scheduleId.startsWith('x|')) {
-      const [, kind, millisStr] = scheduleId.split('|')
+      const [, kind, millisStr, sessionIdPart] = scheduleId.split('|')
       const millis = Number(millisStr)
       if (!Number.isNaN(millis)) decodedStartTime = new Date(millis)
       if (kind === 'z') {
         isZoomPick = true
+        pickedZoomSessionId = sessionIdPart || null
       } else if (kind === 'j') {
         // Just-in-time pick the picker couldn't bind to a real schedule id. EverWebinar
         // rejects a literal "0" (HTTP 422), so resolve the real "Just in time" block id below.
@@ -149,6 +153,56 @@ export async function POST(
       // Legacy / non-combined option: id is the local schedule id or external id directly.
       const schedule = externalWebinar.schedules.find(s => s.id === scheduleId)
       wjScheduleId = schedule?.externalScheduleId || scheduleId
+    }
+
+    // Zoom-only webinars accept nothing but Zoom-session picks. A non-Zoom option can
+    // still arrive from a picker rendered before the host switched the webinar to
+    // zoom-only — ask the registrant to reload rather than booking a time that no
+    // longer runs.
+    if (externalWebinar.zoomOnlySchedule && !isZoomPick) {
+      return NextResponse.json(
+        { error: 'That time is no longer available — please refresh the page to see the current times.' },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
+    // Resolve WHICH linked Zoom session was picked. Prefer the session id encoded in
+    // the option, then an exact time match, then the closest session to the encoded
+    // time (covers a session whose time was edited between render and submit); a
+    // legacy 'zoom' literal (no time) gets the soonest upcoming session.
+    let pickedZoomSession: LinkedZoomSession | null = null
+    if (isZoomPick) {
+      const candidates = (await getLinkedZoomSessions(id)).filter((s) => s.zoomLink)
+      pickedZoomSession =
+        (pickedZoomSessionId && candidates.find((s) => s.id === pickedZoomSessionId)) ||
+        (decodedStartTime &&
+          candidates.find((s) => s.scheduledAt.getTime() === decodedStartTime!.getTime())) ||
+        null
+      if (!pickedZoomSession && candidates.length > 0) {
+        if (decodedStartTime) {
+          // Only accept a nearest-time match within a day of what the registrant
+          // saw — beyond that we'd silently book them into a different session.
+          const nearest = candidates.reduce((best, s) =>
+            Math.abs(s.scheduledAt.getTime() - decodedStartTime!.getTime()) <
+            Math.abs(best.scheduledAt.getTime() - decodedStartTime!.getTime())
+              ? s
+              : best
+          )
+          const driftMs = Math.abs(nearest.scheduledAt.getTime() - decodedStartTime.getTime())
+          if (driftMs <= 24 * 60 * 60 * 1000) {
+            pickedZoomSession = nearest
+          } else {
+            return NextResponse.json(
+              { error: 'That time is no longer available — please refresh the page to see the current times.' },
+              { status: 400, headers: corsHeaders }
+            )
+          }
+        } else {
+          pickedZoomSession =
+            candidates.find((s) => s.scheduledAt.getTime() > Date.now()) ||
+            candidates[candidates.length - 1]
+        }
+      }
     }
 
     // The registration's scheduleId is a foreign key to a local ExternalWebinarSchedule row.
@@ -183,9 +237,11 @@ export async function POST(
     }
 
     if (isZoomPick) {
-      liveRoomUrl = externalWebinar.liveZoomLink || undefined
+      // The linked session's CURRENT link; legacy snapshot as a last resort for old
+      // webinars whose session link has been severed.
+      liveRoomUrl = pickedZoomSession?.zoomLink || externalWebinar.liveZoomLink || undefined
       if (!liveRoomUrl) {
-        console.warn(`⚠️ Live Zoom pick for ${externalWebinar.name} but no liveZoomLink configured`)
+        console.warn(`⚠️ Live Zoom pick for ${externalWebinar.name} but no Zoom session link found`)
       }
       console.log(`✅ ${email} picked the live Zoom session for ${externalWebinar.name}`)
     } else if (registerInWebinarJam && isWebinarJamConfigured() && wjScheduleId) {
@@ -217,11 +273,15 @@ export async function POST(
       }
     }
 
-    // Resolve the start time: Zoom uses the fixed live time, combined options use the time
-    // encoded in the id, otherwise parse the submitted value (guarding a non-date label).
+    // Resolve the start time: a Zoom pick uses the session's CURRENT time (it must equal
+    // the session's scheduledAt exactly — rosters and reminder emails match on that
+    // instant), combined options use the time encoded in the id, otherwise parse the
+    // submitted value (guarding a non-date label).
     let resolvedStartTime: Date | null = null
-    if (isZoomPick && externalWebinar.liveZoomAt) {
-      resolvedStartTime = new Date(externalWebinar.liveZoomAt)
+    if (isZoomPick && (pickedZoomSession || externalWebinar.liveZoomAt)) {
+      resolvedStartTime = pickedZoomSession
+        ? new Date(pickedZoomSession.scheduledAt)
+        : new Date(externalWebinar.liveZoomAt!)
     } else if (decodedStartTime) {
       resolvedStartTime = decodedStartTime
     } else if (scheduledStartTime) {
