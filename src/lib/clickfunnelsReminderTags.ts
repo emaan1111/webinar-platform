@@ -5,6 +5,12 @@ import { tagMauticContact } from '@/lib/mautic'
 const RETRY_DELAY_MINUTES = 5
 const MAX_ATTEMPTS = 5
 
+// Global kill-switch: ClickFunnels is no longer used. Scheduling new ClickFunnels
+// reminder tags no-ops unless CLICKFUNNELS_ENABLED=true is explicitly set.
+// (processPendingClickFunnelsReminderTags is NOT gated — the same table also holds
+// Mautic reminder tags, which must keep processing.)
+const CLICKFUNNELS_ENABLED = process.env.CLICKFUNNELS_ENABLED === 'true'
+
 const isMissingReminderTableError = (error: any) => {
   const message = error?.message?.toString?.() || ''
   return error?.code === 'P2021' || message.includes('clickfunnels_reminder_tags')
@@ -15,6 +21,11 @@ export async function scheduleDelayedClickFunnelsTag(options: {
   tagName: string
   scheduledFor: Date
 }) {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping scheduleDelayedClickFunnelsTag')
+    return
+  }
+
   const { registrationId, tagName, scheduledFor } = options
 
   if (Number.isNaN(scheduledFor.getTime())) {

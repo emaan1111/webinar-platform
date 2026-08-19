@@ -135,6 +135,20 @@ function getApiBase(platform: 'webinarjam' | 'everwebinar' = 'webinarjam'): stri
   return platform === 'everwebinar' ? EVERWEBINAR_API_BASE : WEBINARJAM_API_BASE
 }
 
+// Abort hung WebinarJam/EverWebinar calls so a slow provider can't stall our request handlers.
+const WEBINARJAM_TIMEOUT_MS = 10_000
+
+async function wjFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(WEBINARJAM_TIMEOUT_MS) })
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      console.error(`⏱️ WebinarJam request timed out after ${WEBINARJAM_TIMEOUT_MS}ms: ${url}`)
+    }
+    throw error
+  }
+}
+
 /**
  * List all webinars for the account
  */
@@ -145,7 +159,7 @@ export async function listWebinars(platform: 'webinarjam' | 'everwebinar' = 'web
   }
 
   try {
-    const response = await fetch(`${getApiBase(platform)}/webinars`, {
+    const response = await wjFetch(`${getApiBase(platform)}/webinars`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -173,20 +187,36 @@ export async function listWebinars(platform: 'webinarjam' | 'everwebinar' = 'web
   }
 }
 
+// In-memory TTL cache for webinar details, keyed by platform+webinarId. The schedules
+// API calls getWebinarDetails on every registration time-slot render (and re-fires per
+// timezone change), so keep it off the WebinarJam API's critical path. Successful
+// responses only; failures are never cached. Single-instance deployment — in-memory is fine.
+const WEBINAR_DETAILS_CACHE_TTL_MS = 5 * 60 * 1000
+const webinarDetailsCache = new Map<string, { webinar: WebinarJamWebinar; expiresAt: number }>()
+
 /**
  * Get details for a specific webinar (including schedules)
  */
 export async function getWebinarDetails(
   webinarId: string,
-  platform: 'webinarjam' | 'everwebinar' = 'webinarjam'
+  platform: 'webinarjam' | 'everwebinar' = 'webinarjam',
+  options: { bypassCache?: boolean } = {}
 ): Promise<WebinarJamWebinar | null> {
   if (!apiKey) {
     console.warn('⚠️ WebinarJam API not configured')
     return null
   }
 
+  const cacheKey = `${platform}:${webinarId}`
+  if (!options.bypassCache) {
+    const cached = webinarDetailsCache.get(cacheKey)
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.webinar
+    }
+  }
+
   try {
-    const response = await fetch(`${getApiBase(platform)}/webinar`, {
+    const response = await wjFetch(`${getApiBase(platform)}/webinar`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -202,11 +232,16 @@ export async function getWebinarDetails(
     }
 
     const data: WebinarJamWebinarDetailsResponse = await response.json()
-    
+
     if (data.status !== 'success' || !data.webinar) {
       console.error('WebinarJam API returned error:', data)
       return null
     }
+
+    webinarDetailsCache.set(cacheKey, {
+      webinar: data.webinar,
+      expiresAt: Date.now() + WEBINAR_DETAILS_CACHE_TTL_MS,
+    })
 
     return data.webinar
   } catch (error) {
@@ -279,7 +314,7 @@ export async function getWebinarRegistrants(
     if (options.dateRange !== undefined) params.date_range = String(options.dateRange)
     if (options.page) params.page = String(options.page)
 
-    const response = await fetch(`${getApiBase(platform)}/registrants`, {
+    const response = await wjFetch(`${getApiBase(platform)}/registrants`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -390,7 +425,7 @@ export async function registerUserToWebinar(
       if (gmt) params.timezone = gmt
     }
 
-    const response = await fetch(`${getApiBase(platform)}/register`, {
+    const response = await wjFetch(`${getApiBase(platform)}/register`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',

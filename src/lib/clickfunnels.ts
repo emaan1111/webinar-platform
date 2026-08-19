@@ -46,11 +46,34 @@ function getClickFunnelsApiBase(): string {
 const CLICKFUNNELS_API_BASE = getClickFunnelsApiBase()
 const DEFAULT_WEBINAR_TAG_NAME = 'UM-Webinar-Registered'
 
+// Global kill-switch: ClickFunnels is no longer used. Every exported function below
+// no-ops unless CLICKFUNNELS_ENABLED=true is explicitly set in the environment.
+const CLICKFUNNELS_ENABLED = process.env.CLICKFUNNELS_ENABLED === 'true'
+
+// Abort hung ClickFunnels calls so a slow provider can't stall our request handlers.
+const CLICKFUNNELS_TIMEOUT_MS = 8000
+
+async function cfFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(CLICKFUNNELS_TIMEOUT_MS) })
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      console.error(`⏱️ ClickFunnels request timed out after ${CLICKFUNNELS_TIMEOUT_MS}ms: ${url}`)
+    }
+    throw error
+  }
+}
+
 /**
  * Fetch all tags from ClickFunnels workspace
  * Returns array of tags with their IDs and names
  */
 export async function fetchAllClickFunnelsTags(): Promise<Array<{ id: number; name: string }>> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping fetchAllClickFunnelsTags')
+    return []
+  }
+
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
 
@@ -63,7 +86,7 @@ export async function fetchAllClickFunnelsTags(): Promise<Array<{ id: number; na
     console.log('📋 Fetching all tags from ClickFunnels...')
     
     const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/tags`
-    const response = await fetch(url, {
+    const response = await cfFetch(url, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -100,8 +123,6 @@ export async function fetchAllClickFunnelsTags(): Promise<Array<{ id: number; na
  * Returns a map of tag names to their IDs
  */
 export async function getRegistrationTimingTagIds(): Promise<Record<string, number | null>> {
-  const allTags = await fetchAllClickFunnelsTags()
-  
   const tagMap: Record<string, number | null> = {
     '24HRREMINDER': null,
     '2HRREMINDER': null,
@@ -109,6 +130,13 @@ export async function getRegistrationTimingTagIds(): Promise<Record<string, numb
     '15MINREMINDER': null,
     'WESTARTED': null,
   }
+
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping getRegistrationTimingTagIds')
+    return tagMap
+  }
+
+  const allTags = await fetchAllClickFunnelsTags()
 
   for (const tag of allTags) {
     if (tag.name in tagMap) {
@@ -288,7 +316,7 @@ async function findContactByEmailWithRetry(
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
     const searchUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts?filter[email_address]=${encodeURIComponent(email)}`
 
-    const response = await fetch(searchUrl, {
+    const response = await cfFetch(searchUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -325,6 +353,11 @@ async function findContactByEmailWithRetry(
 export async function getClickFunnelsContactTags(
   email: string
 ): Promise<{ success: boolean; contact?: any; tags?: Array<{ id: number; name: string }>; error?: string }> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping getClickFunnelsContactTags')
+    return { success: false, error: 'ClickFunnels disabled' }
+  }
+
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
   const normalizedEmail = email.trim().toLowerCase()
@@ -344,7 +377,7 @@ export async function getClickFunnelsContactTags(
     const contactId = typeof contact.id === 'string' ? parseInt(contact.id, 10) : contact.id
     const detailUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contactId}`
     
-    const response = await fetch(detailUrl, {
+    const response = await cfFetch(detailUrl, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -383,6 +416,11 @@ export async function getClickFunnelsContactTags(
 }
 
 export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<number | null> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping getOrCreateClickFunnelsTagId')
+    return null
+  }
+
   const cachedId = clickFunnelsTagCache.get(tagName)
   if (cachedId) {
     console.log(`⚡ Using cached ID for tag "${tagName}": ${cachedId}`)
@@ -409,7 +447,7 @@ export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<num
 
   const findExistingTag = async (): Promise<number | null> => {
     try {
-      const response = await fetch(searchUrl, {
+      const response = await cfFetch(searchUrl, {
         method: 'GET',
         headers
       })
@@ -464,7 +502,7 @@ export async function getOrCreateClickFunnelsTagId(tagName: string): Promise<num
 
     console.log(`ℹ️ ClickFunnels tag "${tagName}" not found - attempting to create it`)
 
-    const createResponse = await fetch(`${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/tags`, {
+    const createResponse = await cfFetch(`${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/tags`, {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -523,6 +561,11 @@ export async function sendContactToClickFunnels(
   contactData: ClickFunnelsContact,
   existingContactId?: number
 ): Promise<ClickFunnelsContactResponse | null> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping sendContactToClickFunnels')
+    return null
+  }
+
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
 
@@ -552,7 +595,7 @@ export async function sendContactToClickFunnels(
     const url = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts`
     console.log('   API URL:', url)
 
-    const response = await fetch(url, {
+    const response = await cfFetch(url, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -647,7 +690,7 @@ async function applyTagsToContact(
 
       const url = `${CLICKFUNNELS_API_BASE}/contacts/${contactId}/applied_tags`
 
-      const response = await fetch(url, {
+      const response = await cfFetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -738,7 +781,7 @@ async function updateClickFunnelsContact(
       contactPayload.custom_attributes_attributes = contactFields.custom_attributes
     }
 
-    const updateResponse = await fetch(`${CLICKFUNNELS_API_BASE}/contacts/${contactId}`, {
+    const updateResponse = await cfFetch(`${CLICKFUNNELS_API_BASE}/contacts/${contactId}`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -778,6 +821,11 @@ export async function tagClickFunnelsContact(
   email: string,
   tags: (string | number)[]
 ): Promise<boolean> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping tagClickFunnelsContact')
+    return false
+  }
+
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
   const normalizedEmail = email.trim().toLowerCase()
@@ -906,6 +954,11 @@ export async function syncWebinarRegistrationToClickFunnels(data: {
   customTags?: WebinarCustomTags
   existingContactId?: number // Optimization: pass contact ID if known to skip lookup
 }): Promise<{ success: boolean; contactId?: number }> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping syncWebinarRegistrationToClickFunnels')
+    return { success: false }
+  }
+
   try {
     const registeredTagId = await resolveAttendanceTagId('registered', data.customTags)
     const registrationTagName = getAttendanceTagName('registered', data.customTags)
@@ -1051,6 +1104,11 @@ export async function applyReminderTagToContact(
   email: string,
   tagNameOrId: string
 ): Promise<boolean> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping applyReminderTagToContact')
+    return false
+  }
+
   try {
     console.log(`🏷️ Applying ClickFunnels reminder tag: ${tagNameOrId} to ${email}`)
     
@@ -1119,6 +1177,11 @@ export async function applyRegistrationTimingTag(
   email: string,
   webinarStartTime: Date
 ): Promise<{ success: boolean; tagApplied?: string }> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping applyRegistrationTimingTag')
+    return { success: false }
+  }
+
   try {
     const now = new Date()
     const hoursUntilWebinar = (webinarStartTime.getTime() - now.getTime()) / (1000 * 60 * 60)
@@ -1170,6 +1233,11 @@ export async function syncAttendanceToClickFunnels(data: {
   leftAt?: Date
   customTags?: WebinarCustomTags
 }): Promise<boolean> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping syncAttendanceToClickFunnels')
+    return false
+  }
+
   const apiKey = process.env.CLICKFUNNELS_API_KEY
   const workspaceId = process.env.CLICKFUNNELS_WORKSPACE_ID
 
@@ -1216,7 +1284,7 @@ export async function syncAttendanceToClickFunnels(data: {
 
     // Update custom attributes with attendance data
     const updateUrl = `${CLICKFUNNELS_API_BASE}/workspaces/${workspaceId}/contacts/${contact.id}`
-    await fetch(updateUrl, {
+    await cfFetch(updateUrl, {
       method: 'PUT',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
@@ -1252,6 +1320,11 @@ export async function scheduleDelayedClickFunnelsTag(data: {
   tagName: string
   scheduledFor: Date
 }): Promise<boolean> {
+  if (!CLICKFUNNELS_ENABLED) {
+    console.log('ClickFunnels disabled — skipping scheduleDelayedClickFunnelsTag')
+    return false
+  }
+
   try {
     console.log(`⏰ Scheduling delayed tag "${data.tagName}" for ${data.scheduledFor.toISOString()}`)
     

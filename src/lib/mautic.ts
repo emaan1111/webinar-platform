@@ -170,6 +170,9 @@ function extractFirstContact(payload: any): MauticContact | null {
   return null
 }
 
+// Abort hung Mautic calls so a slow provider can't stall our request handlers.
+const MAUTIC_TIMEOUT_MS = 10_000
+
 async function mauticRequest(path: string, init: RequestInit = {}): Promise<Response> {
   const baseUrl = getMauticBaseUrl()
   const authHeaders = buildMauticAuthHeaders()
@@ -184,10 +187,18 @@ async function mauticRequest(path: string, init: RequestInit = {}): Promise<Resp
     ...(init.headers || {}),
   }
 
-  return fetch(`${baseUrl}/api${path}`, {
-    ...init,
-    headers,
-  })
+  try {
+    return await fetch(`${baseUrl}/api${path}`, {
+      ...init,
+      headers,
+      signal: AbortSignal.timeout(MAUTIC_TIMEOUT_MS),
+    })
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      console.error(`⏱️ Mautic request timed out after ${MAUTIC_TIMEOUT_MS}ms: ${path}`)
+    }
+    throw error
+  }
 }
 
 export function isMauticConfigured(): boolean {

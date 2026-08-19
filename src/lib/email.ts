@@ -32,6 +32,20 @@ interface MicrosoftGraphTokenResponse {
 let cachedAccessToken: string | null = null
 let tokenExpiresAt: number = 0
 
+// Abort hung Microsoft Graph calls so a slow provider can't stall our request handlers.
+const GRAPH_TIMEOUT_MS = 15_000
+
+async function graphFetch(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(GRAPH_TIMEOUT_MS) })
+  } catch (error) {
+    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+      console.error(`⏱️ Microsoft Graph request timed out after ${GRAPH_TIMEOUT_MS}ms: ${url}`)
+    }
+    throw error
+  }
+}
+
 async function getAccessToken(): Promise<string> {
   if (cachedAccessToken && Date.now() < tokenExpiresAt - 5 * 60 * 1000) {
     return cachedAccessToken
@@ -54,7 +68,7 @@ async function getAccessToken(): Promise<string> {
     grant_type: 'client_credentials'
   })
 
-  const response = await fetch(tokenUrl, {
+  const response = await graphFetch(tokenUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString()
@@ -100,7 +114,7 @@ async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
       }))
     }
 
-    const response = await fetch(apiUrl, {
+    const response = await graphFetch(apiUrl, {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${accessToken}`,
