@@ -19,6 +19,8 @@ declare global {
         getVolume(): Promise<number>;
         getMuted(): Promise<boolean>;
         setMuted(muted: boolean): Promise<boolean>;
+        getPaused(): Promise<boolean>;
+        destroy(): Promise<void>;
         on(event: string, callback: (data?: any) => void): void;
         off(event: string, callback?: (data?: any) => void): void;
       };
@@ -194,6 +196,20 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+// Mobile detection that also catches iPadOS 13+, which reports a Macintosh
+// user agent and is only distinguishable from a Mac by touch capability.
+function isMobileBrowser() {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
+// Throttle error logging so a flaky connection can't storm /api/video-errors:
+// identical errors are logged at most once per 30s, max 10 logs per page load.
+const videoErrorLogState = { total: 0, lastByKey: new Map<string, number>() };
+
 // Helper function to log video errors to database
 async function logVideoError(
   webinarId: string,
@@ -204,8 +220,17 @@ async function logVideoError(
   viewerInfo?: { name?: string; email?: string } // NEW: Optional viewer info
 ) {
   try {
-    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
+    const throttleKey = `${errorType}:${errorMessage}`;
+    const now = Date.now();
+    const lastLogged = videoErrorLogState.lastByKey.get(throttleKey);
+    if (videoErrorLogState.total >= 10 || (lastLogged && now - lastLogged < 30_000)) {
+      return;
+    }
+    videoErrorLogState.total += 1;
+    videoErrorLogState.lastByKey.set(throttleKey, now);
+
+    const isMobile = isMobileBrowser();
+
     const deviceInfo = {
       isMobile,
       isDesktop: !isMobile, // NEW: Explicitly track desktop
@@ -251,13 +276,11 @@ async function logVideoError(
 }
 
 function deriveEmbedUrl(webinar: WebinarData, isMobileDevice: boolean = false, isReplay: boolean = false) {
-  // Detect mobile if not passed in
-  const isMobile = isMobileDevice || (typeof window !== 'undefined' && /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
-  
-  // Mobile optimization: Start with lower quality to reduce buffering
-  // Desktop: Start with higher quality
-  const qualityParam = isMobile ? '540p' : '720p';
-  
+  // Let Vimeo adapt the bitrate to the connection. Pinning a rendition
+  // (e.g. 540p) disables adaptive streaming, so slow connections stall
+  // instead of dropping to a lower quality.
+  const qualityParam = 'auto';
+
   // Force controls for replay mode
   const controlsParam = isReplay ? '&controls=1' : '&controls=0';
   
@@ -399,6 +422,9 @@ export default function WebinarLiveClient({
   const [openFaqs, setOpenFaqs] = useState<Set<number>>(new Set());
   const [isMobile, setIsMobile] = useState(false);
   const [isInstagramInApp, setIsInstagramInApp] = useState(false);
+  const [showInAppBanner, setShowInAppBanner] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
+  const [slowLoading, setSlowLoading] = useState(false);
   // Initialize to false to avoid hydration mismatch, then update in useEffect
   const [broadcastStarted, setBroadcastStarted] = useState(false);
   const [videoLoading, setVideoLoading] = useState(false); // Show loading state
@@ -448,6 +474,12 @@ export default function WebinarLiveClient({
   useEffect(() => {
     serverOffsetRef.current = Date.now() - serverNowMs;
   }, [serverNowMs]);
+
+  // Effective broadcast start (server clock, ms). Can be earlier than the
+  // server's startTimeMs when a locally stored anchor from this viewer's
+  // first watch session is still live — see the elapsed-time effect below.
+  const effectiveStartTimeMsRef = useRef<number>(startTimeMs);
+  const startAnchorKey = `webinar-start-anchor:${webinar.id}:${viewer?.id ?? 'anon'}`;
 
   const sortedMessages = useMemo(() => {
     const base = chatMessages;
@@ -623,11 +655,13 @@ export default function WebinarLiveClient({
 
     const handleOnline = () => {
       console.log('🌐 Network connection restored');
+      setIsOffline(false);
     };
 
     const handleOffline = () => {
       console.error('🚨 Network connection lost');
-      
+      setIsOffline(true);
+
       // Log network disconnection if video is playing
       if (broadcastStarted) {
         logVideoError(
@@ -656,14 +690,21 @@ export default function WebinarLiveClient({
   // Track session end and schedule post-webinar reminders
   const watchTimeRef = useRef(0);
   const lastPositionRef = useRef(0);
-  
+  // Read broadcastStarted via a ref so this effect doesn't tear down and
+  // re-run (firing a duplicate schedulePostReminders POST from its cleanup)
+  // every time the broadcast starts/stops.
+  const broadcastStartedForRemindersRef = useRef(broadcastStarted);
+  useEffect(() => {
+    broadcastStartedForRemindersRef.current = broadcastStarted;
+  }, [broadcastStarted]);
+
   useEffect(() => {
     if (typeof window === 'undefined' || !viewer?.id) return;
 
     // Track watch time
     const intervalId = setInterval(() => {
       // If video is playing, increment watch time
-      if (broadcastStarted) {
+      if (broadcastStartedForRemindersRef.current) {
         watchTimeRef.current += 10;
       }
     }, 10000);
@@ -729,7 +770,7 @@ export default function WebinarLiveClient({
       // Schedule reminders on component unmount as well
       schedulePostReminders();
     };
-  }, [viewer?.id, webinar.id, broadcastStarted]);
+  }, [viewer?.id]);
 
   const spawnReaction = useCallback(
     (type: ReactionType, origin?: { x: number; y: number }, userName?: string) => {
@@ -1082,7 +1123,29 @@ export default function WebinarLiveClient({
     if (isReplayMode) {
       return;
     }
-    
+
+    // Prefer the start-time anchor stored when this viewer first started the
+    // broadcast. The server re-runs its late-joiner grace period from "now"
+    // whenever firstJoinedAt never got persisted (guest links, tracking call
+    // blocked by ad blockers / in-app browsers), which used to reset the
+    // video to 0:00 or 2:00 on every refresh.
+    let effectiveStartMs = startTimeMs;
+    try {
+      const stored = Number(window.localStorage.getItem(startAnchorKey));
+      const approxServerNow = Date.now() - serverOffsetRef.current;
+      const anchorIsLive =
+        Number.isFinite(stored) &&
+        stored > 0 &&
+        stored <= approxServerNow + 60_000 &&
+        approxServerNow - stored < totalDuration * 1000;
+      if (anchorIsLive) {
+        effectiveStartMs = stored;
+      }
+    } catch {
+      // localStorage unavailable (private mode) — use server timing as-is
+    }
+    effectiveStartTimeMsRef.current = effectiveStartMs;
+
     const update = () => {
       // Keep elapsed time advancing even when tab is hidden so that
       // CTA offers and attendance tracking stay accurate.  The video is
@@ -1090,7 +1153,7 @@ export default function WebinarLiveClient({
       // position, not the local playback position.
 
       const approxServerNow = Date.now() - serverOffsetRef.current;
-      const diff = approxServerNow - startTimeMs;
+      const diff = approxServerNow - effectiveStartMs;
       const elapsedCandidate = Math.floor(diff / 1000);
       const untilCandidate = diff < 0 ? Math.ceil(-diff / 1000) : 0;
 
@@ -1109,7 +1172,7 @@ export default function WebinarLiveClient({
     update();
     const interval = window.setInterval(update, 1000);
     return () => window.clearInterval(interval);
-  }, [startTimeMs, totalDuration, isTabVisible, isReplayMode]);
+  }, [startTimeMs, startAnchorKey, totalDuration, isTabVisible, isReplayMode]);
 
   // Simulate dynamic live viewer count for realistic feel
   useEffect(() => {
@@ -1178,22 +1241,48 @@ export default function WebinarLiveClient({
     };
   }, [viewer?.id, webinar.id]);
 
-  // Track watch time and video position updates
+  // Track watch time and video position updates.
+  // Single 5s interval (this used to be two competing 1s/5s intervals that
+  // fought over the tracker's position and recreated the 1s interval every
+  // second). Live mode uses the server-derived elapsed time so tracking
+  // keeps working when the tab is hidden on mobile; replay mode uses the
+  // real player position. Latest values are read via refs so the interval
+  // is created once per broadcast.
+  const elapsedSecondsRef = useRef(0);
+  const isTabVisibleRef = useRef(true);
   useEffect(() => {
-    if (!trackerRef.current || !broadcastStarted) return;
+    elapsedSecondsRef.current = elapsedSeconds;
+  }, [elapsedSeconds]);
+  useEffect(() => {
+    isTabVisibleRef.current = isTabVisible;
+  }, [isTabVisible]);
 
-    const interval = setInterval(() => {
-      if (trackerRef.current && broadcastStarted) {
-        // Always update position even when tab is hidden — on mobile,
-        // tab-hidden kills tracking entirely, causing 0 watchTime and
-        // missed CTA triggers.  Use server-derived elapsedSeconds so the
-        // position stays accurate regardless of tab visibility.
-        trackerRef.current.updateWatchTime(elapsedSeconds, isTabVisible);
+  useEffect(() => {
+    if (!broadcastStarted) return;
+
+    const interval = setInterval(async () => {
+      if (!trackerRef.current) return;
+      if (isReplayMode) {
+        if (vimeoPlayerRef.current) {
+          try {
+            const currentTime = await vimeoPlayerRef.current.getCurrentTime();
+            trackerRef.current.updateWatchTime(currentTime, true);
+          } catch (err) {
+            console.error('Error tracking watch time:', err);
+          }
+        }
+      } else {
+        // Position always updates; watch time only accrues while visible
+        // (updateWatchTime treats the second arg as "is playing").
+        trackerRef.current.updateWatchTime(
+          elapsedSecondsRef.current,
+          isTabVisibleRef.current
+        );
       }
-    }, 1000); // Update every 1 second
+    }, 5000);
 
     return () => clearInterval(interval);
-  }, [broadcastStarted, elapsedSeconds, isTabVisible]);
+  }, [broadcastStarted, isReplayMode]);
 
   // Track when video ends
   // NOTE: Only applies to LIVE mode - in Replay mode, the Vimeo player's 'ended' event handles this
@@ -1208,6 +1297,16 @@ export default function WebinarLiveClient({
       trackerRef.current.trackVideoEvent('ended', elapsedSeconds);
     }
   }, [elapsedSeconds, totalDuration, broadcastStarted, isReplayMode]);
+
+  // Pending chat/reaction replay timers, cleared on unmount so they can't
+  // fire setState after the room unmounts.
+  const pendingReplayTimeoutsRef = useRef<number[]>([]);
+  useEffect(() => {
+    return () => {
+      pendingReplayTimeoutsRef.current.forEach((id) => window.clearTimeout(id));
+      pendingReplayTimeoutsRef.current = [];
+    };
+  }, []);
 
   useEffect(() => {
     if (webinar.hasChat === false) {
@@ -1228,21 +1327,39 @@ export default function WebinarLiveClient({
       return;
     }
 
-    // Add messages one by one with realistic delays (like real people typing)
-    ready.forEach((message, index) => {
+    // Late joiners can have hundreds of backlogged messages; feeding them
+    // all through the typing-simulation drip would schedule 2×N timeouts
+    // spanning several minutes. Backfill all but the newest few instantly
+    // and only animate the recent ones.
+    const DRIP_LIMIT = 15;
+    const backfill =
+      ready.length > DRIP_LIMIT ? ready.slice(0, ready.length - DRIP_LIMIT) : [];
+    const dripped = ready.slice(backfill.length);
+
+    if (backfill.length > 0) {
+      backfill.forEach((message) => displayedMessageIdsRef.current.add(message.id));
+      setMessages((prev) => {
+        const existing = new Set(prev.map((m) => m.id));
+        const fresh = backfill.filter((m) => !existing.has(m.id));
+        return fresh.length ? [...prev, ...fresh] : prev;
+      });
+    }
+
+    // Add recent messages one by one with realistic delays (like real people typing)
+    dripped.forEach((message, index) => {
       displayedMessageIdsRef.current.add(message.id);
-      
+
       // Random delay between 1-4 seconds for each message
       const typingDelay = 800 + Math.random() * 1200; // Time to show "typing"
       const messageDelay = 1500 + Math.random() * 2500; // Total time before message appears
-      
+
       // Show typing indicator first
-      setTimeout(() => {
+      pendingReplayTimeoutsRef.current.push(window.setTimeout(() => {
         setIsTyping(true);
-      }, messageDelay * index);
-      
+      }, messageDelay * index));
+
       // Then hide typing and show message
-      setTimeout(() => {
+      pendingReplayTimeoutsRef.current.push(window.setTimeout(() => {
         setIsTyping(false);
         setMessages((prev) => {
           // Check if message already exists to avoid duplicates
@@ -1251,7 +1368,7 @@ export default function WebinarLiveClient({
           }
           return [...prev, message];
         });
-      }, messageDelay * index + typingDelay);
+      }, messageDelay * index + typingDelay));
     });
   }, [elapsedSeconds, sortedMessages, webinar.hasChat]);
 
@@ -1310,9 +1427,9 @@ export default function WebinarLiveClient({
     due.forEach((event) => {
       // Add random delay (0-2 seconds) to make reactions feel more organic
       const delay = Math.random() * 2000;
-      setTimeout(() => {
+      pendingReplayTimeoutsRef.current.push(window.setTimeout(() => {
         launchScriptedReaction(event.type, event.userName);
-      }, delay);
+      }, delay));
     });
   }, [
     elapsedSeconds,
@@ -1807,25 +1924,47 @@ export default function WebinarLiveClient({
   }, [isFullscreen]);
 
   const toggleMute = useCallback(async () => {
-    if (!vimeoPlayerRef.current) return;
+    const player = vimeoPlayerRef.current;
+    if (!player) return;
 
     try {
       const newMutedState = !isMuted;
-      await vimeoPlayerRef.current.setMuted(newMutedState);
-      await vimeoPlayerRef.current.setVolume(newMutedState ? 0 : 1);
-      setIsMuted(newMutedState);
-      
-      // Hide unmute hint when user unmutes
+      await player.setMuted(newMutedState);
+      await player.setVolume(newMutedState ? 0 : 1);
+
+      let actuallyMuted = newMutedState;
       if (!newMutedState) {
+        // Verify the browser honored the unmute — iOS Safari can silently
+        // refuse it or pause the video when unmuting without a gesture
+        // inside the Vimeo iframe. Keep the UI honest so the unmute hint
+        // stays visible instead of showing an unmuted icon with no sound.
+        try {
+          const stillMuted: boolean = await player.getMuted();
+          const volume: number = await player.getVolume();
+          const paused: boolean = await player.getPaused();
+          if (paused) {
+            await player.play().catch(() => {});
+          }
+          actuallyMuted = stillMuted || volume === 0;
+        } catch {
+          // Can't verify — assume the unmute worked
+          actuallyMuted = false;
+        }
+      }
+
+      setIsMuted(actuallyMuted);
+
+      // Hide unmute hint when user unmutes
+      if (!actuallyMuted) {
         setShowUnmuteHint(false);
       }
-      
+
       // Track mute state change
       if (trackerRef.current) {
-        trackerRef.current.setMuteState(newMutedState);
+        trackerRef.current.setMuteState(actuallyMuted);
       }
-      
-      console.log(`🔊 Volume ${newMutedState ? 'MUTED' : 'UNMUTED'}`);
+
+      console.log(`🔊 Volume ${actuallyMuted ? 'MUTED' : 'UNMUTED'}`);
     } catch (err) {
       console.error('Error toggling mute:', err);
     }
@@ -1928,9 +2067,12 @@ export default function WebinarLiveClient({
     playerInitInProgressRef.current = true;
     
     // Detect mobile early for better timeouts
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    const isMobileDevice = isMobileBrowser();
     const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
-    const isSafariIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+    const isSafariIOS =
+      (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) &&
+      !(window as any).MSStream;
     
     // MOBILE FIX: Longer timeout for mobile (60s vs 20s) and fewer, slower retries
     const timeoutDuration = isSafariIOS ? 90000 : (isMobileDevice ? 60000 : 30000);
@@ -2109,7 +2251,16 @@ export default function WebinarLiveClient({
             
             // Listen for volume changes (user unmuting via native Vimeo controls)
             player.on('volumechange', async (data: { volume: number }) => {
-              const isMutedNow = data.volume === 0;
+              // volume alone is unreliable on iOS (setVolume is a no-op
+              // there, so volume can be 1 while the player is muted)
+              let isMutedNow = data.volume === 0;
+              if (!isMutedNow) {
+                try {
+                  isMutedNow = await player.getMuted();
+                } catch {
+                  // keep the volume-based value
+                }
+              }
               setIsMuted(isMutedNow);
               
               // If user unmuted, hide the replay overlay
@@ -2146,30 +2297,64 @@ export default function WebinarLiveClient({
                     player.setCurrentTime(0).catch(console.warn);
                  }, 100);
               }
-              
+
               // 'ended' listener is already attached above in player.ready()
-              
-              setIsMuted(true);
+
+              // Playback only ever starts from the viewer's tap on the
+              // Start Broadcast overlay, so most browsers allow audible
+              // playback — try to unmute right away and fall back to the
+              // muted flow (with the tap-to-unmute hint) if the browser
+              // refuses or pauses the video in response.
+              let audioUnlocked = false;
+              if (!isReplayMode) {
+                try {
+                  await player.setMuted(false);
+                  await player.setVolume(1);
+                  const stillMuted: boolean = await player.getMuted();
+                  const volume: number = await player.getVolume();
+                  const paused: boolean = await player.getPaused();
+                  audioUnlocked = !stillMuted && volume > 0 && !paused;
+                  if (!audioUnlocked) {
+                    await player.setMuted(true);
+                    await player.setVolume(0);
+                    if (paused) {
+                      await player.play().catch(() => {});
+                    }
+                  }
+                  console.log(audioUnlocked ? '🔊 Auto-unmuted on start' : '🔇 Auto-unmute refused, staying muted');
+                } catch (unmuteErr) {
+                  console.log('🔇 Auto-unmute failed, staying muted:', unmuteErr);
+                  try {
+                    await player.setMuted(true);
+                    await player.setVolume(0);
+                  } catch {
+                    // leave the player as-is
+                  }
+                  audioUnlocked = false;
+                }
+              }
+
+              setIsMuted(!audioUnlocked);
               if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
               setVideoLoading(false);
-              
+
               // Mark init as complete
               playerInitInProgressRef.current = false;
-              
+
               // Start session tracking
               if (trackerRef.current) {
                 const device = isMobileDevice ? 'mobile' : 'desktop';
                 await trackerRef.current.startSession(device);
-                trackerRef.current.setMuteState(true);
+                trackerRef.current.setMuteState(!audioUnlocked);
                 trackerRef.current.trackVideoEvent('play', startTime);
               }
-              
-              // ALWAYS show unmute hint since video starts muted (for ALL devices)
+
+              // Show unmute hint only when the video is still muted
               // For replay mode, show the big overlay instead
               setTimeout(() => {
                 if (isReplayMode) {
                   setShowReplayUnmuteOverlay(true);
-                } else {
+                } else if (!audioUnlocked) {
                   setShowUnmuteHint(true);
                 }
               }, 1000);
@@ -2304,8 +2489,46 @@ export default function WebinarLiveClient({
     
     return () => {
       if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
+      // Tear down the player and its listeners so navigating away (or a
+      // retry re-init) doesn't leak the instance and its message listeners.
+      const player = vimeoPlayerRef.current;
+      if (player) {
+        try {
+          player.off('ended');
+          player.off('play');
+          player.off('pause');
+          player.off('volumechange');
+          player.off('timeupdate');
+          player.destroy().catch(() => {});
+        } catch {
+          // player already gone
+        }
+        vimeoPlayerRef.current = null;
+      }
+      playerInitInProgressRef.current = false;
     };
-  }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted]); 
+  }, [embedUrl, webinar.vimeoVideoId, broadcastStarted, mounted, iframeKey]);
+
+  // Surface a retry option after 15s of loading instead of making users on
+  // flaky connections wait out the full 60-90s emergency timeout.
+  useEffect(() => {
+    if (!videoLoading) {
+      setSlowLoading(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setSlowLoading(true), 15000);
+    return () => window.clearTimeout(timer);
+  }, [videoLoading]);
+
+  const handleEarlyRetry = useCallback(() => {
+    console.log('🔁 User requested early retry while video was loading');
+    if (videoLoadTimeoutRef.current) clearTimeout(videoLoadTimeoutRef.current);
+    playerInitInProgressRef.current = false;
+    setSlowLoading(false);
+    // Bumping iframeKey remounts the iframe and re-runs player init (the
+    // init effect depends on iframeKey; its cleanup tears down the old player)
+    setIframeKey((prev) => prev + 1);
+  }, []);
 
   // Handler for manual play when user gesture is required
   const handleManualPlay = async () => {
@@ -2329,8 +2552,7 @@ export default function WebinarLiveClient({
       
       // Start session tracking
       if (trackerRef.current) {
-        const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        const device = isMobileDevice ? 'mobile' : 'desktop';
+        const device = isMobileBrowser() ? 'mobile' : 'desktop';
         await trackerRef.current.startSession(device);
         trackerRef.current.setMuteState(true);
         const startTime = startTimeRef.current;
@@ -2451,30 +2673,8 @@ export default function WebinarLiveClient({
     };
   }, [viewer?.id, broadcastStarted, playerReady]); // Removed isReplay - save for both live and replay
 
-  // Track actual watch time (separate from video position)
-  useEffect(() => {
-    if (!broadcastStarted || !playerReady || !trackerRef.current) return;
-    
-    const trackingInterval = setInterval(async () => {
-      if (vimeoPlayerRef.current) {
-        try {
-          const currentTime = await vimeoPlayerRef.current.getCurrentTime();
-          const isPlaying = true; // Assume playing since interval is running
-          
-          // Update tracker with current position and playing state
-          if (trackerRef.current) {
-            trackerRef.current.updateWatchTime(currentTime, isPlaying);
-          }
-        } catch (err) {
-          console.error('Error tracking watch time:', err);
-        }
-      }
-    }, 5000); // Update every 5 seconds
-    
-    return () => {
-      clearInterval(trackingInterval);
-    };
-  }, [broadcastStarted, playerReady]);
+  // (Watch-time tracking consolidated into the single 5s interval above —
+  // this used to be a second, competing tracker.)
 
   // Countdown timer for replay expiration
   useEffect(() => {
@@ -2519,6 +2719,10 @@ export default function WebinarLiveClient({
     const ua = navigator.userAgent || '';
     const inApp = isInstagramInAppBrowser(ua);
     setIsInstagramInApp(inApp);
+    // Muted playback usually works in FB/IG webviews, so we let the room
+    // load and just recommend the external browser; the full block screen
+    // only appears if playback actually fails (videoError).
+    setShowInAppBanner(inApp);
   }, []);
 
   const handleCopyLiveLink = async () => {
@@ -2553,7 +2757,10 @@ export default function WebinarLiveClient({
 
   return (
     <div className={styles.root}>
-      {isInstagramInApp && (
+      {/* Full block screen only when playback has actually failed in an
+          IG/FB webview — otherwise we let the room try muted playback and
+          just show the banner below. */}
+      {isInstagramInApp && videoError && (
         <div
           style={{
             position: 'fixed',
@@ -2628,7 +2835,7 @@ export default function WebinarLiveClient({
             >
               <strong>Open in External Browser Required</strong>
               <p style={{ margin: '8px 0 0 0' }}>
-                This webinar room is blocked inside Instagram/Facebook in-app browser because audio/video playback is unreliable there.
+                Video playback failed inside the Instagram/Facebook in-app browser. Opening the webinar in your normal browser fixes this.
               </p>
               <p style={{ margin: '8px 0 0 0' }}>
                 If this feels difficult, open the webinar link we sent to your email. It will open in your normal browser.
@@ -2674,7 +2881,85 @@ export default function WebinarLiveClient({
         </div>
       )}
 
-      {!isInstagramInApp && (
+      {/* In-app browser advisory banner (dismissible) — playback proceeds */}
+      {isInstagramInApp && showInAppBanner && !videoError && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 2000,
+            background: '#1f2937',
+            color: '#fff',
+            padding: '10px 14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: '13px',
+          }}
+        >
+          <span style={{ flex: 1 }}>
+            For the best video and audio, open this webinar in your browser.
+          </span>
+          <button
+            type="button"
+            onClick={handleOpenInExternalBrowser}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#f97316',
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '13px',
+              cursor: 'pointer',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            Open in Browser
+          </button>
+          <button
+            type="button"
+            aria-label="Dismiss"
+            onClick={() => setShowInAppBanner(false)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: '#9ca3af',
+              fontSize: '16px',
+              cursor: 'pointer',
+              padding: '4px',
+            }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Connection-lost banner */}
+      {isOffline && (
+        <div
+          style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 2001,
+            background: '#b91c1c',
+            color: '#fff',
+            textAlign: 'center',
+            padding: '8px 12px',
+            fontSize: '13px',
+            fontWeight: 600,
+          }}
+        >
+          <i className="fas fa-wifi" style={{ marginRight: '8px' }} />
+          Connection lost — trying to reconnect…
+        </div>
+      )}
+
+      {!(isInstagramInApp && videoError) && (
         <>
       {/* Preconnect to Vimeo for faster loading */}
       <link rel="preconnect" href="https://player.vimeo.com" />
@@ -2712,7 +2997,7 @@ export default function WebinarLiveClient({
                     allowFullScreen
                     title={webinar.title}
                     style={{ pointerEvents: isReplayMode ? 'auto' : 'none' }}
-                    loading="lazy"
+                    loading="eager"
                     suppressHydrationWarning
                     onError={(e) => {
                       console.error('🚨 Iframe failed to load:', e);
@@ -2744,6 +3029,20 @@ export default function WebinarLiveClient({
                         // For REPLAY MODE, default to 0 (start) unless smart resume kicks in later
                         // For LIVE MODE, sync to current elapsed time
                         startTimeRef.current = isReplayMode ? 0 : elapsedSeconds;
+
+                        // Lock this viewer's broadcast timeline so a refresh
+                        // resumes where the live stream is, instead of
+                        // re-running the server's late-joiner grace period
+                        if (!isReplayMode) {
+                          try {
+                            window.localStorage.setItem(
+                              startAnchorKey,
+                              String(effectiveStartTimeMsRef.current)
+                            );
+                          } catch {
+                            // localStorage unavailable — refresh falls back to server timing
+                          }
+                        }
                         
                         // Track when broadcast actually started (for reaction grace period)
                         broadcastStartTimeRef.current = Date.now();
@@ -2808,10 +3107,33 @@ export default function WebinarLiveClient({
                     <div className={styles.videoLoadingOverlay}>
                       <div className={styles.spinner}></div>
                       <p className={styles.loadingText}>Loading video...</p>
-                      {isMobile && (
+                      {isMobile && !slowLoading && (
                         <p style={{ marginTop: '10px', fontSize: '12px', opacity: 0.7 }}>
                           This may take a moment on mobile
                         </p>
+                      )}
+                      {slowLoading && (
+                        <div style={{ marginTop: '14px', textAlign: 'center' }}>
+                          <p style={{ fontSize: '13px', opacity: 0.85, marginBottom: '10px' }}>
+                            This is taking longer than usual
+                          </p>
+                          <button
+                            type="button"
+                            onClick={handleEarlyRetry}
+                            style={{
+                              padding: '10px 22px',
+                              borderRadius: '999px',
+                              border: '1px solid rgba(255,255,255,0.6)',
+                              background: 'rgba(255,255,255,0.12)',
+                              color: '#fff',
+                              fontSize: '14px',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <i className="fas fa-rotate-right" style={{ marginRight: '8px' }} />
+                            Tap to retry
+                          </button>
+                        </div>
                       )}
                     </div>
                   )}
@@ -2905,11 +3227,12 @@ export default function WebinarLiveClient({
                   
                   {/* Unmute Hint - shows when video starts muted (NOT for replay mode - use native controls) */}
                   {showUnmuteHint && isMuted && broadcastStarted && !isReplayMode && (
-                    <div 
+                    <div
                       className={styles.unmuteHint}
                       onClick={() => {
+                        // toggleMute hides the hint once the unmute actually
+                        // takes effect — don't hide it optimistically here
                         toggleMute();
-                        setShowUnmuteHint(false);
                       }}
                       style={{
                         position: 'absolute',
@@ -2933,6 +3256,9 @@ export default function WebinarLiveClient({
                       </div>
                       <div style={{ fontSize: '14px', opacity: 0.8 }}>
                         Video is playing without sound
+                      </div>
+                      <div style={{ fontSize: '12px', opacity: 0.7, marginTop: '8px' }}>
+                        Still silent? Check your volume and your phone&apos;s silent/ring switch
                       </div>
                     </div>
                   )}
