@@ -230,6 +230,7 @@ model ChatMessage {
   user           User?             @relation(fields: [userId], references: [id])
   webinar        Webinar           @relation(fields: [webinarId], references: [id], onDelete: Cascade)
 
+  @@index([webinarId, isHidden, videoTimestamp])
   @@map("chat_messages")
 }
 
@@ -1035,6 +1036,7 @@ model SplitTestVariant {
   leadPage           LeadPage            @relation(fields: [leadPageId], references: [id], onDelete: Cascade)
   splitTest          SplitTest           @relation(fields: [splitTestId], references: [id], onDelete: Cascade)
 
+  @@index([leadPageId])
   @@map("split_test_variants")
 }
 
@@ -1482,6 +1484,7 @@ model ConfirmationEmailTemplate {
   sends ConfirmationEmailSend[]
 
   @@index([webinarId])
+  @@index([externalWebinarId])
   @@map("confirmation_email_templates")
 }
 
