@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requestFacebookInsights } from '@/lib/facebookAds'
+import { fromZonedTime, formatInTimeZone } from 'date-fns-tz'
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -85,6 +86,8 @@ export async function GET(request: NextRequest) {
     const to = searchParams.get('to')
     const engagementThreshold = parseInt(searchParams.get('engagementThreshold') || '30')
     const webinarIdsParam = searchParams.get('webinarIds')
+    // Same zone the Key Metrics table buckets in, so the two tabs agree on days.
+    const timezone = searchParams.get('timezone') || 'UTC'
     const webinarIds = webinarIdsParam
       ? webinarIdsParam.split(',').map(id => id.trim()).filter(Boolean)
       : []
@@ -98,9 +101,8 @@ export async function GET(request: NextRequest) {
 
     console.log('📊 Fetching reports chart data from', from, 'to', to)
 
-    const fromDate = new Date(from)
-    const toDate = new Date(to)
-    toDate.setHours(23, 59, 59, 999)
+    const fromDate = fromZonedTime(`${from}T00:00:00`, timezone)
+    const toDate = fromZonedTime(`${to}T23:59:59.999`, timezone)
 
     // Fetch all registrations
     const registrations = await prisma.registration.findMany({
@@ -178,7 +180,7 @@ export async function GET(request: NextRequest) {
 
     // Process registrations
     registrations.forEach(reg => {
-      const dateKey = reg.registeredAt.toISOString().split('T')[0]
+      const dateKey = formatInTimeZone(reg.registeredAt, timezone, 'yyyy-MM-dd')
       
       if (!metricsByDate[dateKey]) {
         metricsByDate[dateKey] = {

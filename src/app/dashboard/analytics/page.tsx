@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
+import TimezoneSelector from '@/components/dashboard/TimezoneSelector'
+import { useTimezonePreference } from '@/lib/useTimezonePreference'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import {
@@ -171,6 +173,9 @@ export default function AnalyticsPage() {
   const [externalWebinars, setExternalWebinars] = useState<ExternalWebinarOption[]>([])
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [timeFrame, setTimeFrame] = useState<string>('all')
+  // Shared with the reports page: which zone "today", "yesterday" and custom
+  // ranges are cut in.
+  const { timezone, setTimezone } = useTimezonePreference()
   const [customDateFrom, setCustomDateFrom] = useState('')
   const [customDateTo, setCustomDateTo] = useState('')
   const [showWebinarDropdown, setShowWebinarDropdown] = useState(false)
@@ -231,12 +236,14 @@ export default function AnalyticsPage() {
     const webinarIds = getFilteredWebinarIds()
     const externalWebinarIds = getFilteredExternalWebinarIds()
     if (webinarIds.length === 0 && externalWebinarIds.length === 0) return
+    // Hold until the stored timezone resolves, so nothing is fetched for the
+    // wrong day boundaries first.
+    if (!timezone) return
 
     const fetchAnalytics = async () => {
       setLoading(true)
       setError('')
       try {
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
         // Use the aggregate API endpoint for better performance
         const params: Record<string, string> = {
           webinarIds: webinarIds.join(','),
@@ -534,7 +541,7 @@ export default function AnalyticsPage() {
     }
 
     fetchAnalytics()
-  }, [selectedWebinars, timeFrame, customDateFrom, customDateTo, webinars, externalWebinars])
+  }, [selectedWebinars, timeFrame, customDateFrom, customDateTo, webinars, externalWebinars, timezone])
 
   const handleWebinarToggle = (webinarId: string) => {
     if (webinarId === 'all') {
@@ -735,7 +742,14 @@ export default function AnalyticsPage() {
               Real-time tracking and performance metrics
             </p>
           </div>
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-2 flex-wrap items-start">
+            {/* Timezone Selector - decides what "today" and "yesterday" mean */}
+            <TimezoneSelector
+              value={timezone}
+              onChange={setTimezone}
+              showHint={false}
+              disabled={loading}
+            />
             {/* Time Frame Selector */}
             <select
               value={timeFrame}

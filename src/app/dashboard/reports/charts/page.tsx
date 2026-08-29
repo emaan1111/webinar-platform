@@ -7,6 +7,9 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import MultiSelect from '@/components/ui/MultiSelect'
+import TimezoneSelector from '@/components/dashboard/TimezoneSelector'
+import { useTimezonePreference } from '@/lib/useTimezonePreference'
+import { formatInTimeZone } from 'date-fns-tz'
 import {
   Calendar,
   RefreshCw,
@@ -39,25 +42,29 @@ export default function ReportsChartsPage() {
   const [warning, setWarning] = useState<string | null>(null)
   const [webinarOptions, setWebinarOptions] = useState<{ id: string; label: string }[]>([])
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
+  // Shared with the Key Metrics tab, so both bucket days the same way.
+  const { timezone, setTimezone } = useTimezonePreference()
   const pathname = usePathname()
 
-  useEffect(() => {
-    // Set default date range (last 7 days)
-    const today = new Date()
-    const sevenDaysAgo = new Date(today)
-    sevenDaysAgo.setDate(today.getDate() - 7)
-    
-    setDateRange({
-      from: sevenDaysAgo.toISOString().split('T')[0],
-      to: today.toISOString().split('T')[0]
-    })
-  }, [])
+  // Calendar dates in the selected zone rather than UTC.
+  const zonedDate = (d: Date) => formatInTimeZone(d, timezone || 'UTC', 'yyyy-MM-dd')
+  const zonedDaysAgo = (days: number) => zonedDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
 
   useEffect(() => {
-    if (dateRange.from && dateRange.to) {
+    // Seed the default range (last 7 days) once the timezone is known; a range
+    // the user already chose is left alone when the zone changes.
+    if (!timezone || dateRange.from) return
+    setDateRange({
+      from: zonedDaysAgo(7),
+      to: zonedDate(new Date())
+    })
+  }, [timezone])
+
+  useEffect(() => {
+    if (dateRange.from && dateRange.to && timezone) {
       fetchMetrics()
     }
-  }, [dateRange, engagementThreshold, selectedWebinars, webinarOptions])
+  }, [dateRange, engagementThreshold, selectedWebinars, webinarOptions, timezone])
 
   useEffect(() => {
     const loadWebinars = async () => {
@@ -108,7 +115,7 @@ export default function ReportsChartsPage() {
       const timeoutId = setTimeout(() => controller.abort(), 45000)
       
       const response = await fetch(
-        `/api/reports/charts?from=${dateRange.from}&to=${dateRange.to}&engagementThreshold=${engagementThreshold}${webinarFilter}`,
+        `/api/reports/charts?from=${dateRange.from}&to=${dateRange.to}&engagementThreshold=${engagementThreshold}&timezone=${encodeURIComponent(timezone || 'UTC')}${webinarFilter}`,
         { signal: controller.signal }
       )
       
@@ -250,33 +257,24 @@ export default function ReportsChartsPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  const today = new Date()
-                  const sevenDaysAgo = new Date(today)
-                  sevenDaysAgo.setDate(today.getDate() - 7)
-                  setDateRange({
-                    from: sevenDaysAgo.toISOString().split('T')[0],
-                    to: today.toISOString().split('T')[0]
-                  })
-                }}
+                onClick={() => setDateRange({ from: zonedDaysAgo(7), to: zonedDate(new Date()) })}
               >
                 Last 7 Days
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  const today = new Date()
-                  const thirtyDaysAgo = new Date(today)
-                  thirtyDaysAgo.setDate(today.getDate() - 30)
-                  setDateRange({
-                    from: thirtyDaysAgo.toISOString().split('T')[0],
-                    to: today.toISOString().split('T')[0]
-                  })
-                }}
+                onClick={() => setDateRange({ from: zonedDaysAgo(30), to: zonedDate(new Date()) })}
               >
                 Last 30 Days
               </Button>
+
+              <TimezoneSelector
+                value={timezone}
+                onChange={setTimezone}
+                showHint={false}
+                disabled={loading}
+              />
 
               <div className="w-full sm:max-w-xs">
                 <MultiSelect

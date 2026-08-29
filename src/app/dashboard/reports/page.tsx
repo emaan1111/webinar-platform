@@ -7,6 +7,9 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import MultiSelect from '@/components/ui/MultiSelect'
+import TimezoneSelector from '@/components/dashboard/TimezoneSelector'
+import { useTimezonePreference } from '@/lib/useTimezonePreference'
+import { formatInTimeZone } from 'date-fns-tz'
 import {
   Calendar,
   Download,
@@ -99,7 +102,8 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState<ReportData[]>([])
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
-  const [timezone, setTimezone] = useState('')
+  // Which zone the day buckets are cut in - remembered across visits.
+  const { timezone, setTimezone } = useTimezonePreference()
   const [engagementMinutes, setEngagementMinutes] = useState(30)
   const [showSettings, setShowSettings] = useState(false)
   const [showColumnSelector, setShowColumnSelector] = useState(false)
@@ -486,23 +490,23 @@ export default function ReportsPage() {
     return 'text-gray-900'
   }
 
+  // Calendar date in the selected timezone - toISOString() would give the UTC
+  // date, which is the wrong day for anyone ahead of UTC.
+  const zonedDate = (d: Date) => formatInTimeZone(d, timezone || 'UTC', 'yyyy-MM-dd')
+
+  // Date N days back from today, counted in the selected zone.
+  const zonedDaysAgo = (days: number) => zonedDate(new Date(Date.now() - days * 24 * 60 * 60 * 1000))
+
   useEffect(() => {
-    // Set default date range (last 30 days)
-    const today = new Date()
-    const thirtyDaysAgo = new Date(today)
-    thirtyDaysAgo.setDate(today.getDate() - 30)
-
-    // Local calendar dates - toISOString() would drop today's row for viewers
-    // ahead of UTC.
-    const localDate = (d: Date) =>
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-
-    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
+    // Seed the default range (last 30 days) once the timezone is known. Only
+    // when empty - switching zones keeps the dates you picked, it just reads
+    // them in the new zone.
+    if (!timezone || dateRange.from) return
     setDateRange({
-      from: localDate(thirtyDaysAgo),
-      to: localDate(today)
+      from: zonedDaysAgo(30),
+      to: zonedDate(new Date())
     })
-  }, [])
+  }, [timezone])
 
   useEffect(() => {
     // Fetch internal + external webinars list
@@ -530,16 +534,16 @@ export default function ReportsPage() {
   }, [])
 
   useEffect(() => {
-    if (dateRange.from && dateRange.to) {
+    if (dateRange.from && dateRange.to && timezone) {
       fetchReports()
     }
-  }, [dateRange, engagementMinutes, selectedWebinars])
+  }, [dateRange, engagementMinutes, selectedWebinars, timezone])
 
   const fetchReports = async () => {
     setLoading(true)
     setFbWarning(null)
     try {
-      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+      const tz = timezone || 'UTC'
       let url = `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}&timezone=${encodeURIComponent(tz)}`
       if (selectedWebinars.length > 0) {
         url += `&webinarIds=${selectedWebinars.join(',')}`
@@ -1096,11 +1100,8 @@ export default function ReportsPage() {
                 variant="secondary"
                 size="sm"
                 onClick={() => {
-                  const today = new Date()
-                  setDateRange({
-                    from: today.toISOString().split('T')[0],
-                    to: today.toISOString().split('T')[0]
-                  })
+                  const today = zonedDate(new Date())
+                  setDateRange({ from: today, to: today })
                 }}
               >
                 Today
@@ -1108,33 +1109,21 @@ export default function ReportsPage() {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  const today = new Date()
-                  const sevenDaysAgo = new Date(today)
-                  sevenDaysAgo.setDate(today.getDate() - 7)
-                  setDateRange({
-                    from: sevenDaysAgo.toISOString().split('T')[0],
-                    to: today.toISOString().split('T')[0]
-                  })
-                }}
+                onClick={() => setDateRange({ from: zonedDaysAgo(7), to: zonedDate(new Date()) })}
               >
                 Last 7 Days
               </Button>
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => {
-                  const today = new Date()
-                  const thirtyDaysAgo = new Date(today)
-                  thirtyDaysAgo.setDate(today.getDate() - 30)
-                  setDateRange({
-                    from: thirtyDaysAgo.toISOString().split('T')[0],
-                    to: today.toISOString().split('T')[0]
-                  })
-                }}
+                onClick={() => setDateRange({ from: zonedDaysAgo(30), to: zonedDate(new Date()) })}
               >
                 Last 30 Days
               </Button>
+              <div className="flex items-center gap-2 ml-auto">
+                <span className="text-sm font-medium text-gray-700">Timezone:</span>
+                <TimezoneSelector value={timezone} onChange={setTimezone} disabled={loading} />
+              </div>
             </div>
           </CardBody>
         </Card>
