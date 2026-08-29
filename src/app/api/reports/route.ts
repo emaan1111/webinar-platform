@@ -426,7 +426,11 @@ export async function GET(request: NextRequest) {
       const engagementRateTotal = totalAttendees > 0 ? (engagedTotal / totalAttendees) * 100 : 0;
 
       reports.push({
-        date: currentDate.toISOString().split('T')[0],
+        // The bucket label must be the date in the viewer's timezone, not the
+        // UTC date of its midnight boundary - for zones ahead of UTC those are
+        // different days, which mislabelled every row and sent the drill-down
+        // link to the wrong 24h window.
+        date: dateStr,
         fbResults: {
           spend,
           impressions,

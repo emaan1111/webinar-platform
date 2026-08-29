@@ -8,6 +8,13 @@ import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { ArrowLeft, Download, RefreshCw, Loader2 } from 'lucide-react'
 
+// yyyy-MM-dd from the reports table is already the viewer's local date - parse
+// the parts so the header doesn't shift a day against the row it came from.
+const formatDateLabel = (value: string) => {
+  const [y, m, d] = value.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString()
+}
+
 export default function ReportDetailsPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -17,6 +24,8 @@ export default function ReportDetailsPage() {
   const endDate = searchParams.get('endDate')
   const metric = searchParams.get('metric')
   const webinarIds = searchParams.get('webinarIds')
+  const timezone = searchParams.get('timezone')
+  const engagementMinutes = searchParams.get('engagementMinutes')
   
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
@@ -26,7 +35,7 @@ export default function ReportDetailsPage() {
     if ((date || (startDate && endDate)) && metric) {
       fetchDetails()
     }
-  }, [date, startDate, endDate, metric])
+  }, [date, startDate, endDate, metric, webinarIds, timezone, engagementMinutes])
 
   const fetchDetails = async () => {
     setLoading(true)
@@ -37,6 +46,9 @@ export default function ReportDetailsPage() {
       else if (startDate && endDate) url += `&startDate=${startDate}&endDate=${endDate}`
 
       if (webinarIds) url += `&webinarIds=${webinarIds}`
+      // Fall back to the browser zone for links saved before these params existed.
+      url += `&timezone=${encodeURIComponent(timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}`
+      if (engagementMinutes) url += `&engagementMinutes=${engagementMinutes}`
       
       const response = await fetch(url)
       const result = await response.json()
@@ -157,7 +169,7 @@ export default function ReportDetailsPage() {
                     {getMetricLabel(metric)}
                 </h1>
                 <p className="text-sm text-gray-500">
-                    Breakdown for {date ? new Date(date).toLocaleDateString() : `${new Date(startDate!).toLocaleDateString()} - ${new Date(endDate!).toLocaleDateString()}`} • {data.length} records
+                    Breakdown for {date ? formatDateLabel(date) : `${formatDateLabel(startDate!)} - ${formatDateLabel(endDate!)}`} • {data.length} records
                 </p>
              </div>
           </div>

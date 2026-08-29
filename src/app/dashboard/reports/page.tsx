@@ -87,10 +87,19 @@ type ReportData = {
   roi: number
 }
 
+// report.date is a plain yyyy-MM-dd already expressed in the viewer's timezone,
+// so parse it as a local date - new Date('2026-08-27') is UTC midnight and would
+// render as the previous day west of Greenwich.
+const formatDateLabel = (value: string) => {
+  const [y, m, d] = value.split('-').map(Number)
+  return new Date(y, m - 1, d).toLocaleDateString()
+}
+
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState<ReportData[]>([])
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
+  const [timezone, setTimezone] = useState('')
   const [engagementMinutes, setEngagementMinutes] = useState(30)
   const [showSettings, setShowSettings] = useState(false)
   const [showColumnSelector, setShowColumnSelector] = useState(false)
@@ -340,12 +349,26 @@ export default function ReportsPage() {
     return allCols.find(col => col.id === columnId)
   }
 
+  // A drill-down has to carry the timezone, webinar filter and engagement
+  // threshold the number was computed with, or it lists a different population
+  // than the cell that was clicked.
+  const buildDetailsHref = (metric: string, dateParams: Record<string, string>) => {
+    const params = new URLSearchParams({
+      ...dateParams,
+      metric,
+      engagementMinutes: String(engagementMinutes)
+    })
+    if (timezone) params.set('timezone', timezone)
+    if (selectedWebinars.length > 0) params.set('webinarIds', selectedWebinars.join(','))
+    return `/dashboard/reports/details?${params.toString()}`
+  }
+
   // Helper function to render cell value
   const renderCellValue = (report: ReportData, columnId: string) => {
     // Helper for linked numeric values
     const renderLink = (value: number, metric: string) => (
       <Link 
-        href={`/dashboard/reports/details?metric=${metric}&date=${report.date}`}
+        href={buildDetailsHref(metric, { date: report.date })}
         className="hover:underline hover:text-blue-800 cursor-pointer"
       >
         {value.toLocaleString()}
@@ -354,7 +377,7 @@ export default function ReportsPage() {
 
     switch (columnId) {
       case 'date':
-        return new Date(report.date).toLocaleDateString()
+        return formatDateLabel(report.date)
       case 'fbSpend':
         return `$${report.fbResults.spend.toFixed(2)}`
       case 'fbImpressions':
@@ -468,10 +491,16 @@ export default function ReportsPage() {
     const today = new Date()
     const thirtyDaysAgo = new Date(today)
     thirtyDaysAgo.setDate(today.getDate() - 30)
-    
+
+    // Local calendar dates - toISOString() would drop today's row for viewers
+    // ahead of UTC.
+    const localDate = (d: Date) =>
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+    setTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone)
     setDateRange({
-      from: thirtyDaysAgo.toISOString().split('T')[0],
-      to: today.toISOString().split('T')[0]
+      from: localDate(thirtyDaysAgo),
+      to: localDate(today)
     })
   }, [])
 
@@ -510,8 +539,8 @@ export default function ReportsPage() {
     setLoading(true)
     setFbWarning(null)
     try {
-      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone
-      let url = `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}&timezone=${encodeURIComponent(timezone)}`
+      const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone
+      let url = `/api/reports?from=${dateRange.from}&to=${dateRange.to}&engagementMinutes=${engagementMinutes}&timezone=${encodeURIComponent(tz)}`
       if (selectedWebinars.length > 0) {
         url += `&webinarIds=${selectedWebinars.join(',')}`
       }
@@ -1287,7 +1316,7 @@ export default function ReportsPage() {
                         // Helper for linked numeric values in totals
                         const renderTotalLink = (value: number, metric: string) => (
                           <Link 
-                            href={`/dashboard/reports/details?metric=${metric}&startDate=${dateRange.from}&endDate=${dateRange.to}`}
+                            href={buildDetailsHref(metric, { startDate: dateRange.from, endDate: dateRange.to })}
                             className="hover:underline hover:text-blue-800 cursor-pointer"
                           >
                             {value.toLocaleString()}

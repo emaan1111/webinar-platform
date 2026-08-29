@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { fromZonedTime } from 'date-fns-tz';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -12,6 +13,9 @@ export async function GET(request: NextRequest) {
     const endDateParam = searchParams.get('endDate');
     const metric = searchParams.get('metric');
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
+    // Must match the timezone /api/reports bucketed the row with, otherwise the
+    // drill-down reads a different 24h slice than the number it was opened from.
+    const timezone = searchParams.get('timezone') || 'UTC';
     const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
     const internalWebinarIds = webinarIds.filter(id => !id.startsWith('ext_'));
     const extWebinarIds = webinarIds.filter(id => id.startsWith('ext_')).map(id => id.replace('ext_', ''));
@@ -28,17 +32,22 @@ export async function GET(request: NextRequest) {
     let start: Date;
     let end: Date;
 
+    // Day after the given yyyy-MM-dd, as a calendar date - so the window ends at
+    // local midnight rather than a bare +24h from the start instant.
+    const nextDay = (d: string) => {
+        const [y, m, day] = d.split('-').map(Number);
+        return new Date(Date.UTC(y, m - 1, day + 1)).toISOString().split('T')[0];
+    };
+
     if (date) {
-        start = new Date(date + 'T00:00:00');
-        end = new Date(start);
-        end.setDate(end.getDate() + 1);
-        console.log(`🔍 Fetching details for ${metric} on ${date}`);
+        start = fromZonedTime(`${date}T00:00:00`, timezone);
+        end = fromZonedTime(`${nextDay(date)}T00:00:00`, timezone);
+        console.log(`🔍 Fetching details for ${metric} on ${date} (${timezone})`);
     } else {
         // Range query
-        start = new Date(startDateParam + 'T00:00:00');
-        end = new Date(endDateParam + 'T00:00:00');
-        end.setDate(end.getDate() + 1); // Include the end date fully
-        console.log(`🔍 Fetching details for ${metric} between ${startDateParam} and ${endDateParam}`);
+        start = fromZonedTime(`${startDateParam}T00:00:00`, timezone);
+        end = fromZonedTime(`${nextDay(endDateParam!)}T00:00:00`, timezone); // Include the end date fully
+        console.log(`🔍 Fetching details for ${metric} between ${startDateParam} and ${endDateParam} (${timezone})`);
     }
 
     // Base query for registrations on this date/range
@@ -48,7 +57,27 @@ export async function GET(request: NextRequest) {
     
     // We fetch all registrations for that day, then filter in memory to match the logic of the main report 
     // to ensure consistency.
-    const registrations = await prisma.registration.findMany({
+    // Same exclusion /api/reports applies, so the row total and this list count
+    // the same people.
+    const isTestUser = (name: string, email: string) => {
+      const nameLower = (name || '').toLowerCase()
+      const emailLower = (email || '').toLowerCase()
+      return (
+        emailLower.includes('test') ||
+        emailLower.includes('demo') ||
+        emailLower.includes('fake') ||
+        emailLower.includes('scripted') ||
+        emailLower.includes('example') ||
+        emailLower.includes('sample') ||
+        nameLower.includes('test') ||
+        nameLower.includes('demo') ||
+        nameLower.includes('fake') ||
+        nameLower.includes('scripted') ||
+        nameLower.includes('sample')
+      )
+    }
+
+    const allRegistrations = await prisma.registration.findMany({
       where: {
         registeredAt: {
           gte: start,
@@ -57,6 +86,12 @@ export async function GET(request: NextRequest) {
         ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
       },
       include: {
+        user: {
+            select: {
+                name: true,
+                email: true
+            }
+        },
         webinar: {
             select: {
                 title: true,
@@ -75,6 +110,10 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { registeredAt: 'desc' }
     });
+
+    const registrations = allRegistrations.filter((reg: any) =>
+      !isTestUser(reg.name || reg.user?.name || '', reg.email || reg.user?.email || '')
+    );
 
     // Helper to calculate watch time
     const getWatchTime = (reg: any) => {
@@ -188,7 +227,7 @@ export async function GET(request: NextRequest) {
     if (extWebinarIds.length > 0) {
       extWhere.externalWebinarId = { in: extWebinarIds };
     }
-    const externalRegs = await prisma.externalWebinarRegistration.findMany({
+    const allExternalRegs = await prisma.externalWebinarRegistration.findMany({
       where: extWhere,
       include: {
         externalWebinar: {
@@ -201,6 +240,10 @@ export async function GET(request: NextRequest) {
       },
       orderBy: { registeredAt: 'desc' }
     });
+
+    const externalRegs = allExternalRegs.filter((reg: any) =>
+      !isTestUser(reg.name || '', reg.email || '')
+    );
 
     // Filter external registrations by metric
     const filteredExternalRegs = externalRegs.filter((reg: any) => {
