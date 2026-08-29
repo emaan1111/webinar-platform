@@ -1,11 +1,11 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
-import { Card, CardHeader, CardBody } from '@/components/ui/Card'
+import { Card, CardBody } from '@/components/ui/Card'
 import {
   ArrowLeft,
   Search,
@@ -15,30 +15,65 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  Eye,
   Tag,
   Phone,
   Mail,
-  BarChart3
+  BarChart3,
+  ChevronLeft,
+  ChevronRight,
+  Calendar
 } from 'lucide-react'
 
+const PAGE_SIZE = 50
+const EXPORT_LIMIT = 10000
+
+// Mirrors the ExternalWebinarRegistration model returned by
+// GET /api/external-webinars/[id]/registrations
 interface Registration {
   id: string
-  firstName: string
-  lastName: string
+  name: string
   email: string
-  phone?: string
-  scheduleId?: string
-  scheduleDate?: string
+  phone?: string | null
+  timezone?: string | null
+  country?: string | null
+  scheduleId?: string | null
+  scheduledStartTime?: string | null
+  schedule?: {
+    id: string
+    scheduledAt: string
+    timezone?: string | null
+    comment?: string | null
+  } | null
+  registeredAt: string
+  registrationSource?: string | null
   attended: boolean
-  attendedLive: boolean
-  attendedReplay: boolean
-  watchTimeMinutes?: number
-  attendanceTag?: string
+  joinedAt?: string | null
+  leftAt?: string | null
+  watchTimeMinutes: number
+  watchTimePercentage: number
+  appliedTag?: string | null
   attendanceTagsApplied: boolean
-  sentToFacebookCAPI: boolean
-  postSessionSMSSent: boolean
+  facebookCapiSent: boolean
+  postSessionSmsSent: boolean
   createdAt: string
+}
+
+interface RegistrationStats {
+  total: number
+  attended: number
+  notAttended: number
+  facebookCapiSent: number
+  postSessionSmsSent: number
+  attendanceTagsApplied: number
+  avgWatchTimeMinutes: number
+  avgWatchTimePercentage: number
+}
+
+interface Pagination {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
 }
 
 interface ExternalWebinar {
@@ -54,79 +89,173 @@ export default function ExternalWebinarRegistrationsPage() {
 
   const [webinar, setWebinar] = useState<ExternalWebinar | null>(null)
   const [registrations, setRegistrations] = useState<Registration[]>([])
+  const [stats, setStats] = useState<RegistrationStats | null>(null)
+  const [pagination, setPagination] = useState<Pagination>({
+    page: 1,
+    limit: PAGE_SIZE,
+    total: 0,
+    totalPages: 0,
+  })
   const [loading, setLoading] = useState(true)
+  const [listLoading, setListLoading] = useState(false)
+  const [exporting, setExporting] = useState(false)
   const [error, setError] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
+  const [appliedSearch, setAppliedSearch] = useState('')
   const [filterAttendance, setFilterAttendance] = useState<string>('all')
+  const [page, setPage] = useState(1)
+
+  // Search and attendance filtering happen server-side so they cover every
+  // registration, not just the rows currently loaded into the table.
+  const buildQuery = useCallback(
+    (pageNumber: number, limit: number) => {
+      const query = new URLSearchParams({
+        page: String(pageNumber),
+        limit: String(limit),
+      })
+      if (appliedSearch) query.set('search', appliedSearch)
+      if (filterAttendance === 'attended') query.set('attended', 'true')
+      if (filterAttendance === 'missed') query.set('attended', 'false')
+      return query.toString()
+    },
+    [appliedSearch, filterAttendance]
+  )
 
   useEffect(() => {
-    fetchData()
+    let cancelled = false
+
+    const fetchWebinar = async () => {
+      try {
+        const res = await fetch(`/api/external-webinars/${id}`)
+        if (!res.ok) throw new Error('Failed to fetch webinar')
+        const data = await res.json()
+        if (!cancelled) setWebinar(data)
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || 'Failed to fetch webinar')
+      }
+    }
+
+    fetchWebinar()
+    return () => {
+      cancelled = true
+    }
   }, [id])
 
-  const fetchData = async () => {
-    try {
-      setLoading(true)
-      const [webinarRes, registrationsRes] = await Promise.all([
-        fetch(`/api/external-webinars/${id}`),
-        fetch(`/api/external-webinars/${id}/registrations`)
-      ])
+  // Debounce typing so each keystroke doesn't fire a request. Resetting the page
+  // in the same tick keeps a filter change to a single list fetch.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setAppliedSearch(searchQuery.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchQuery])
 
-      if (!webinarRes.ok) throw new Error('Failed to fetch webinar')
-      if (!registrationsRes.ok) throw new Error('Failed to fetch registrations')
+  useEffect(() => {
+    let cancelled = false
 
-      const webinarData = await webinarRes.json()
-      const registrationsData = await registrationsRes.json()
+    const fetchRegistrations = async () => {
+      try {
+        setListLoading(true)
+        const res = await fetch(
+          `/api/external-webinars/${id}/registrations?${buildQuery(page, PAGE_SIZE)}`
+        )
+        if (!res.ok) throw new Error('Failed to fetch registrations')
+        const data = await res.json()
+        if (cancelled) return
 
-      setWebinar(webinarData)
-      setRegistrations(registrationsData)
-    } catch (err: any) {
-      setError(err.message)
-    } finally {
-      setLoading(false)
+        setRegistrations(Array.isArray(data.registrations) ? data.registrations : [])
+        setStats(data.stats || null)
+        setPagination(
+          data.pagination || { page, limit: PAGE_SIZE, total: 0, totalPages: 0 }
+        )
+        setError('')
+      } catch (err: any) {
+        if (!cancelled) setError(err.message || 'Failed to fetch registrations')
+      } finally {
+        if (!cancelled) {
+          setListLoading(false)
+          setLoading(false)
+        }
+      }
     }
+
+    fetchRegistrations()
+    return () => {
+      cancelled = true
+    }
+  }, [id, page, buildQuery])
+
+  const formatDateTime = (value?: string | null) => {
+    if (!value) return null
+    const date = new Date(value)
+    return isNaN(date.getTime()) ? null : date
   }
 
-  const filteredRegistrations = registrations.filter((r) => {
-    const matchesSearch =
-      r.firstName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.lastName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      r.email?.toLowerCase().includes(searchQuery.toLowerCase())
+  const sessionTimeOf = (r: Registration) =>
+    formatDateTime(r.schedule?.scheduledAt || r.scheduledStartTime)
 
-    const matchesFilter =
-      filterAttendance === 'all' ||
-      (filterAttendance === 'attended' && r.attended) ||
-      (filterAttendance === 'missed' && !r.attended)
+  const exportCSV = async () => {
+    try {
+      setExporting(true)
+      // Export everything matching the current filters, not just this page.
+      const res = await fetch(
+        `/api/external-webinars/${id}/registrations?${buildQuery(1, EXPORT_LIMIT)}`
+      )
+      if (!res.ok) throw new Error('Failed to export registrations')
+      const data = await res.json()
+      const rowsToExport: Registration[] = Array.isArray(data.registrations)
+        ? data.registrations
+        : []
 
-    return matchesSearch && matchesFilter
-  })
+      const headers = [
+        'Name',
+        'Email',
+        'Phone',
+        'Session',
+        'Attended',
+        'Watch Time (min)',
+        'Watch %',
+        'Tag',
+        'Tags Applied',
+        'FB CAPI Sent',
+        'Post-session SMS Sent',
+        'Registered At',
+      ]
+      const rows = rowsToExport.map((r) => {
+        const session = sessionTimeOf(r)
+        const registered = formatDateTime(r.registeredAt || r.createdAt)
+        return [
+          r.name || '',
+          r.email || '',
+          r.phone || '',
+          session ? session.toLocaleString() : '',
+          r.attended ? 'Yes' : 'No',
+          String(r.watchTimeMinutes ?? 0),
+          String(r.watchTimePercentage ?? 0),
+          r.appliedTag || '',
+          r.attendanceTagsApplied ? 'Yes' : 'No',
+          r.facebookCapiSent ? 'Yes' : 'No',
+          r.postSessionSmsSent ? 'Yes' : 'No',
+          registered ? registered.toLocaleString() : '',
+        ]
+      })
 
-  const stats = {
-    total: registrations.length,
-    attended: registrations.filter((r) => r.attended).length,
-    missed: registrations.filter((r) => !r.attended).length,
-    facebookSent: registrations.filter((r) => r.sentToFacebookCAPI).length,
-  }
-
-  const exportCSV = () => {
-    const headers = ['First Name', 'Last Name', 'Email', 'Phone', 'Attended', 'Watch Time (min)', 'Tag', 'Registered At']
-    const rows = filteredRegistrations.map((r) => [
-      r.firstName,
-      r.lastName,
-      r.email,
-      r.phone || '',
-      r.attended ? 'Yes' : 'No',
-      r.watchTimeMinutes?.toString() || '',
-      r.attendanceTag || '',
-      new Date(r.createdAt).toLocaleString()
-    ])
-
-    const csv = [headers, ...rows].map((row) => row.map((v) => `"${v}"`).join(',')).join('\n')
-    const blob = new Blob([csv], { type: 'text/csv' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `registrations-${webinar?.name || id}-${new Date().toISOString().split('T')[0]}.csv`
-    a.click()
+      const csv = [headers, ...rows]
+        .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+        .join('\n')
+      const blob = new Blob([csv], { type: 'text/csv' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `registrations-${webinar?.name || id}-${new Date().toISOString().split('T')[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (err: any) {
+      setError(err.message || 'Failed to export registrations')
+    } finally {
+      setExporting(false)
+    }
   }
 
   if (loading) {
@@ -152,6 +281,8 @@ export default function ExternalWebinarRegistrationsPage() {
     )
   }
 
+  const isFiltered = Boolean(appliedSearch) || filterAttendance !== 'all'
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -168,8 +299,12 @@ export default function ExternalWebinarRegistrationsPage() {
               <p className="text-sm text-gray-500">{webinar.name}</p>
             </div>
           </div>
-          <Button variant="outline" onClick={exportCSV}>
-            <Download className="w-4 h-4 mr-2" />
+          <Button variant="outline" onClick={exportCSV} disabled={exporting}>
+            {exporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
             Export CSV
           </Button>
         </div>
@@ -181,7 +316,7 @@ export default function ExternalWebinarRegistrationsPage() {
               <div className="flex items-center gap-3">
                 <Users className="w-8 h-8 text-blue-500" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
+                  <p className="text-2xl font-bold">{stats?.total ?? 0}</p>
                   <p className="text-xs text-gray-500">Total Registrations</p>
                 </div>
               </div>
@@ -192,7 +327,7 @@ export default function ExternalWebinarRegistrationsPage() {
               <div className="flex items-center gap-3">
                 <CheckCircle className="w-8 h-8 text-green-500" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.attended}</p>
+                  <p className="text-2xl font-bold">{stats?.attended ?? 0}</p>
                   <p className="text-xs text-gray-500">Attended</p>
                 </div>
               </div>
@@ -203,7 +338,7 @@ export default function ExternalWebinarRegistrationsPage() {
               <div className="flex items-center gap-3">
                 <XCircle className="w-8 h-8 text-red-500" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.missed}</p>
+                  <p className="text-2xl font-bold">{stats?.notAttended ?? 0}</p>
                   <p className="text-xs text-gray-500">Missed</p>
                 </div>
               </div>
@@ -214,8 +349,8 @@ export default function ExternalWebinarRegistrationsPage() {
               <div className="flex items-center gap-3">
                 <BarChart3 className="w-8 h-8 text-purple-500" />
                 <div>
-                  <p className="text-2xl font-bold">{stats.facebookSent}</p>
-                  <p className="text-xs text-gray-500">FB CAPI Sent</p>
+                  <p className="text-2xl font-bold">{stats?.avgWatchTimeMinutes ?? 0}</p>
+                  <p className="text-xs text-gray-500">Avg Watch Time (min)</p>
                 </div>
               </div>
             </CardBody>
@@ -238,7 +373,10 @@ export default function ExternalWebinarRegistrationsPage() {
               </div>
               <select
                 value={filterAttendance}
-                onChange={(e) => setFilterAttendance(e.target.value)}
+                onChange={(e) => {
+                  setFilterAttendance(e.target.value)
+                  setPage(1)
+                }}
                 className="px-3 py-2 border border-gray-300 rounded-lg"
               >
                 <option value="all">All Attendance</option>
@@ -252,101 +390,152 @@ export default function ExternalWebinarRegistrationsPage() {
         {/* Table */}
         <Card>
           <CardBody className="overflow-x-auto">
-            {filteredRegistrations.length === 0 ? (
+            {listLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+              </div>
+            ) : registrations.length === 0 ? (
               <div className="text-center py-12">
                 <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">No registrations found</p>
+                <p className="text-gray-500">
+                  {isFiltered ? 'No registrations match these filters' : 'No registrations found'}
+                </p>
               </div>
             ) : (
-              <table className="w-full">
-                <thead>
-                  <tr className="text-left text-sm text-gray-500 border-b">
-                    <th className="pb-3 font-medium">Name</th>
-                    <th className="pb-3 font-medium">Contact</th>
-                    <th className="pb-3 font-medium">Attendance</th>
-                    <th className="pb-3 font-medium">Watch Time</th>
-                    <th className="pb-3 font-medium">Tag</th>
-                    <th className="pb-3 font-medium">Integrations</th>
-                    <th className="pb-3 font-medium">Registered</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {filteredRegistrations.map((r) => (
-                    <tr key={r.id} className="text-sm">
-                      <td className="py-3">
-                        <p className="font-medium text-gray-900">
-                          {r.firstName} {r.lastName}
-                        </p>
-                      </td>
-                      <td className="py-3">
-                        <div className="space-y-1">
-                          <p className="flex items-center gap-1 text-gray-600">
-                            <Mail className="w-3 h-3" /> {r.email}
-                          </p>
-                          {r.phone && (
-                            <p className="flex items-center gap-1 text-gray-500">
-                              <Phone className="w-3 h-3" /> {r.phone}
-                            </p>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3">
-                        {r.attended ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            <CheckCircle className="w-3 h-3" />
-                            {r.attendedLive && r.attendedReplay ? 'Live & Replay' : r.attendedLive ? 'Live' : 'Replay'}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
-                            <XCircle className="w-3 h-3" />
-                            Missed
-                          </span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        {r.watchTimeMinutes != null ? (
-                          <span className="flex items-center gap-1 text-gray-600">
-                            <Clock className="w-3 h-3" /> {r.watchTimeMinutes} min
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">--</span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        {r.attendanceTag ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                            <Tag className="w-3 h-3" /> {r.attendanceTag}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">--</span>
-                        )}
-                      </td>
-                      <td className="py-3">
-                        <div className="flex gap-2">
-                          {r.sentToFacebookCAPI && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700" title="Sent to Facebook CAPI">
-                              FB
-                            </span>
-                          )}
-                          {r.postSessionSMSSent && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-green-100 text-green-700" title="Post-session SMS sent">
-                              SMS
-                            </span>
-                          )}
-                          {r.attendanceTagsApplied && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title="Tags applied">
-                              Tag
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-3 text-gray-500">
-                        {new Date(r.createdAt).toLocaleDateString()}
-                      </td>
+              <>
+                <table className="w-full">
+                  <thead>
+                    <tr className="text-left text-sm text-gray-500 border-b">
+                      <th className="pb-3 font-medium">Name</th>
+                      <th className="pb-3 font-medium">Contact</th>
+                      <th className="pb-3 font-medium">Session</th>
+                      <th className="pb-3 font-medium">Attendance</th>
+                      <th className="pb-3 font-medium">Watch Time</th>
+                      <th className="pb-3 font-medium">Tag</th>
+                      <th className="pb-3 font-medium">Integrations</th>
+                      <th className="pb-3 font-medium">Registered</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y">
+                    {registrations.map((r) => {
+                      const session = sessionTimeOf(r)
+                      const registered = formatDateTime(r.registeredAt || r.createdAt)
+                      return (
+                        <tr key={r.id} className="text-sm">
+                          <td className="py-3">
+                            <p className="font-medium text-gray-900">{r.name || '--'}</p>
+                          </td>
+                          <td className="py-3">
+                            <div className="space-y-1">
+                              <p className="flex items-center gap-1 text-gray-600">
+                                <Mail className="w-3 h-3" /> {r.email}
+                              </p>
+                              {r.phone && (
+                                <p className="flex items-center gap-1 text-gray-500">
+                                  <Phone className="w-3 h-3" /> {r.phone}
+                                </p>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 text-gray-600">
+                            {session ? (
+                              <span className="flex items-center gap-1">
+                                <Calendar className="w-3 h-3" />
+                                {session.toLocaleString()}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">--</span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            {r.attended ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                <CheckCircle className="w-3 h-3" />
+                                Attended
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                <XCircle className="w-3 h-3" />
+                                Missed
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            {r.watchTimeMinutes ? (
+                              <span className="flex items-center gap-1 text-gray-600">
+                                <Clock className="w-3 h-3" /> {r.watchTimeMinutes} min
+                                {r.watchTimePercentage ? ` (${r.watchTimePercentage}%)` : ''}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">--</span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            {r.appliedTag ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                <Tag className="w-3 h-3" /> {r.appliedTag}
+                              </span>
+                            ) : (
+                              <span className="text-gray-400">--</span>
+                            )}
+                          </td>
+                          <td className="py-3">
+                            <div className="flex gap-2">
+                              {r.facebookCapiSent && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-purple-100 text-purple-700" title="Sent to Facebook CAPI">
+                                  FB
+                                </span>
+                              )}
+                              {r.postSessionSmsSent && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-green-100 text-green-700" title="Post-session SMS sent">
+                                  SMS
+                                </span>
+                              )}
+                              {r.attendanceTagsApplied && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-700" title="Tags applied">
+                                  Tag
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 text-gray-500">
+                            {registered ? registered.toLocaleDateString() : '--'}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+
+                {pagination.totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-4 mt-4 border-t">
+                    <p className="text-sm text-gray-500">
+                      Page {pagination.page} of {pagination.totalPages} ({pagination.total}{' '}
+                      {isFiltered ? 'matching ' : ''}registrations)
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.max(1, p - 1))}
+                        disabled={pagination.page <= 1}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                        Previous
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPage((p) => Math.min(pagination.totalPages, p + 1))}
+                        disabled={pagination.page >= pagination.totalPages}
+                      >
+                        Next
+                        <ChevronRight className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </CardBody>
         </Card>

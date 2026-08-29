@@ -11,6 +11,8 @@ import { authOptions } from '@/lib/auth'
  * Lists all registrations for an external webinar with attendance data
  */
 
+const MAX_LIMIT = 10000
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -24,9 +26,12 @@ export async function GET(
     const { id } = params
     const { searchParams } = new URL(request.url)
     
-    // Pagination
-    const page = parseInt(searchParams.get('page') || '1')
-    const limit = parseInt(searchParams.get('limit') || '50')
+    // Pagination. Non-numeric or out-of-range values would otherwise reach
+    // Prisma as NaN/negative skip and blow up the whole request.
+    const parsedPage = parseInt(searchParams.get('page') || '1', 10)
+    const parsedLimit = parseInt(searchParams.get('limit') || '50', 10)
+    const page = Number.isFinite(parsedPage) && parsedPage > 0 ? parsedPage : 1
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, MAX_LIMIT) : 50
     const skip = (page - 1) * limit
 
     // Filters
@@ -63,19 +68,30 @@ export async function GET(
       prisma.externalWebinarRegistration.count({ where })
     ])
 
-    // Get aggregate stats
-    const stats = await prisma.externalWebinarRegistration.aggregate({
-      where: { externalWebinarId: id },
-      _count: true,
-      _avg: {
-        watchTimeMinutes: true,
-        watchTimePercentage: true,
-      }
-    })
-
-    const attendedCount = await prisma.externalWebinarRegistration.count({
-      where: { externalWebinarId: id, attended: true }
-    })
+    // Aggregate stats are for the whole webinar, not the current filter/page —
+    // the dashboard cards show overall totals while the table shows the filtered slice.
+    const [stats, attendedCount, facebookCapiCount, smsSentCount, tagsAppliedCount] = await Promise.all([
+      prisma.externalWebinarRegistration.aggregate({
+        where: { externalWebinarId: id },
+        _count: true,
+        _avg: {
+          watchTimeMinutes: true,
+          watchTimePercentage: true,
+        }
+      }),
+      prisma.externalWebinarRegistration.count({
+        where: { externalWebinarId: id, attended: true }
+      }),
+      prisma.externalWebinarRegistration.count({
+        where: { externalWebinarId: id, facebookCapiSent: true }
+      }),
+      prisma.externalWebinarRegistration.count({
+        where: { externalWebinarId: id, postSessionSmsSent: true }
+      }),
+      prisma.externalWebinarRegistration.count({
+        where: { externalWebinarId: id, attendanceTagsApplied: true }
+      }),
+    ])
 
     return NextResponse.json({
       registrations,
@@ -89,6 +105,9 @@ export async function GET(
         total: stats._count,
         attended: attendedCount,
         notAttended: stats._count - attendedCount,
+        facebookCapiSent: facebookCapiCount,
+        postSessionSmsSent: smsSentCount,
+        attendanceTagsApplied: tagsAppliedCount,
         avgWatchTimeMinutes: Math.round(stats._avg.watchTimeMinutes || 0),
         avgWatchTimePercentage: Math.round(stats._avg.watchTimePercentage || 0),
       }
