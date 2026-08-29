@@ -35,6 +35,14 @@ export async function GET(request: NextRequest) {
     const timeFrame = searchParams.get('timeFrame') || 'all';
     const timezone = searchParams.get('timezone') || 'UTC';
 
+    // External webinars (WebinarJam/EverWebinar/Zoom) live in their own tables.
+    // Absent param = include every external webinar, so callers that predate this
+    // still get complete numbers; present-but-empty = the caller deliberately
+    // selected only internal webinars.
+    const externalWebinarIdsParam = searchParams.get('externalWebinarIds');
+    const externalWebinarIds = (externalWebinarIdsParam || '').split(',').filter(Boolean);
+    const includeExternal = externalWebinarIdsParam === null || externalWebinarIds.length > 0;
+
     // Calculate date filter based on timeFrame
     let dateFilter: Date | undefined;
     let dateFilterEnd: Date | undefined;
@@ -159,6 +167,199 @@ export async function GET(request: NextRequest) {
       ? (completed / totalAttended) * 100
       : 0;
 
+    // ─── External webinars ──────────────────────────────────────────────────
+    // Registrations for EverWebinar/WebinarJam/live-Zoom sessions. Attendance is
+    // synced back from the external platform, so there are no AttendeeSessions,
+    // chat, reactions or offer events here - only registration + watch-time facts.
+    const externalWhere: any = {};
+    if (externalWebinarIds.length > 0) {
+      externalWhere.externalWebinarId = { in: externalWebinarIds };
+    }
+    if (dateFilter || dateFilterEnd) {
+      externalWhere.registeredAt = {
+        ...(dateFilter && { gte: dateFilter }),
+        ...(dateFilterEnd && { lte: dateFilterEnd }),
+      };
+    }
+
+    const externalRegistrations = includeExternal
+      ? await prisma.externalWebinarRegistration.findMany({
+          where: externalWhere,
+          select: {
+            country: true,
+            timezone: true,
+            attended: true,
+            joinedAt: true,
+            watchTimeMinutes: true,
+            watchTimePercentage: true,
+            scheduledStartTime: true,
+            externalWebinarId: true,
+            externalWebinar: {
+              select: {
+                id: true,
+                name: true,
+                externalWebinarName: true,
+                webinarDurationMinutes: true,
+              },
+            },
+          },
+        })
+      : [];
+
+    // A synced "attended" flag is authoritative, but some platforms only report
+    // watch time - treat any watched minute as attendance, same as /api/analytics.
+    const didAttendExternal = (r: any) => r.attended || (r.watchTimeMinutes || 0) > 0;
+
+    const extTotalRegistrations = externalRegistrations.length;
+
+    // Only registrations whose session has already finished can be scored for
+    // attendance, mirroring the internal pastRegistrations rule.
+    const extPastRegistrations = externalRegistrations.filter((r: any) => {
+      if (!r.scheduledStartTime) return false;
+      const durationMinutes = r.externalWebinar?.webinarDurationMinutes || 60;
+      const scheduledEnd = new Date(r.scheduledStartTime).getTime() + durationMinutes * 60 * 1000;
+      return Date.now() > scheduledEnd;
+    });
+
+    const extTotalPastRegistrations = extPastRegistrations.length;
+    // Attendance is a synced fact, so every attendee counts toward the headline
+    // even when the registration carries no scheduled time to age out. The rate,
+    // though, is only meaningful over sessions that have actually finished.
+    const extAttendedTotal = externalRegistrations.filter(didAttendExternal).length;
+    const extPastAttended = extPastRegistrations.filter(didAttendExternal).length;
+    const extNoShows = extTotalPastRegistrations - extPastAttended;
+    const extAttendanceRate = extTotalPastRegistrations > 0
+      ? (extPastAttended / extTotalPastRegistrations) * 100
+      : 0;
+
+    // watchTimePercentage is not populated by the attendance sync, so derive the
+    // share watched from the minutes against the webinar's configured length.
+    const watchedPercentage = (r: any) => {
+      if ((r.watchTimePercentage || 0) > 0) return r.watchTimePercentage;
+      const durationMinutes = r.externalWebinar?.webinarDurationMinutes || 60;
+      if (!durationMinutes || !(r.watchTimeMinutes > 0)) return 0;
+      return Math.min(100, (r.watchTimeMinutes / durationMinutes) * 100);
+    };
+
+    // watchTimeMinutes -> seconds, so it can be pooled with internal watch time.
+    const extWatchTimeSeconds = externalRegistrations.reduce(
+      (sum: number, r: any) => sum + (r.watchTimeMinutes || 0) * 60,
+      0
+    );
+    // Averaged over attendees the platform actually reported watch time for -
+    // a synced "attended" with no minutes would otherwise drag the average down.
+    const extWatchedRegistrations = externalRegistrations.filter((r: any) => (r.watchTimeMinutes || 0) > 0);
+    const extAvgWatchTimeMinutes = extWatchedRegistrations.length > 0
+      ? extWatchedRegistrations.reduce((sum: number, r: any) => sum + (r.watchTimeMinutes || 0), 0) / extWatchedRegistrations.length
+      : 0;
+    const extAvgWatchPercentage = extWatchedRegistrations.length > 0
+      ? extWatchedRegistrations.reduce((sum: number, r: any) => sum + watchedPercentage(r), 0) / extWatchedRegistrations.length
+      : 0;
+    // No session rows to mark "completed" - treat near-full watch time as completion.
+    const extCompleted = externalRegistrations.filter((r: any) => watchedPercentage(r) >= 90).length;
+
+    // Per-webinar breakdown so the dashboard can list external webinars by name.
+    const extWebinarMap = new Map<string, {
+      id: string
+      name: string
+      registrations: number
+      pastRegistrations: number
+      attended: number
+      pastAttended: number
+      watchTimeMinutes: number
+      watchedCount: number
+    }>();
+    externalRegistrations.forEach((r: any) => {
+      const id = r.externalWebinarId;
+      if (!extWebinarMap.has(id)) {
+        extWebinarMap.set(id, {
+          id,
+          name: r.externalWebinar?.externalWebinarName || r.externalWebinar?.name || 'External Webinar',
+          registrations: 0,
+          pastRegistrations: 0,
+          attended: 0,
+          pastAttended: 0,
+          watchTimeMinutes: 0,
+          watchedCount: 0,
+        });
+      }
+      const entry = extWebinarMap.get(id)!;
+      entry.registrations++;
+      if (didAttendExternal(r)) entry.attended++;
+      if ((r.watchTimeMinutes || 0) > 0) {
+        entry.watchTimeMinutes += r.watchTimeMinutes || 0;
+        entry.watchedCount++;
+      }
+    });
+    extPastRegistrations.forEach((r: any) => {
+      const entry = extWebinarMap.get(r.externalWebinarId);
+      if (!entry) return;
+      entry.pastRegistrations++;
+      if (didAttendExternal(r)) entry.pastAttended++;
+    });
+
+    const externalWebinarBreakdown = Array.from(extWebinarMap.values())
+      .map((w) => ({
+        id: w.id,
+        name: w.name,
+        registrations: w.registrations,
+        pastRegistrations: w.pastRegistrations,
+        attended: w.attended,
+        noShows: w.pastRegistrations - w.pastAttended,
+        attendanceRate: w.pastRegistrations > 0
+          ? Math.round((w.pastAttended / w.pastRegistrations) * 1000) / 10
+          : 0,
+        avgWatchTimeMinutes: w.watchedCount > 0
+          ? Math.round(w.watchTimeMinutes / w.watchedCount)
+          : 0,
+      }))
+      .sort((a, b) => b.registrations - a.registrations);
+
+    // External lead pages only carry lifetime view/conversion counters (no
+    // per-visit rows), so these are reported separately and always all-time.
+    const externalLeadPageRows = includeExternal
+      ? await prisma.leadPage.findMany({
+          where: externalWebinarIds.length > 0
+            ? { externalWebinarId: { in: externalWebinarIds } }
+            : { externalWebinarId: { not: null } },
+          select: { id: true, name: true, slug: true, views: true, conversions: true },
+          orderBy: { views: 'desc' },
+        })
+      : [];
+
+    const externalLeadPages = {
+      allTime: true,
+      totalViews: externalLeadPageRows.reduce((sum, p) => sum + (p.views || 0), 0),
+      totalConversions: externalLeadPageRows.reduce((sum, p) => sum + (p.conversions || 0), 0),
+      pages: externalLeadPageRows.map((p) => ({
+        id: p.id,
+        name: p.name,
+        slug: p.slug,
+        views: p.views || 0,
+        conversions: p.conversions || 0,
+        conversionRate: p.views > 0 ? Math.round((p.conversions / p.views) * 1000) / 10 : 0,
+      })),
+    };
+
+    // ─── Combined (internal + external) headline metrics ─────────────────────
+    const combinedRegistrations = totalRegistrations + extTotalRegistrations;
+    const combinedPastRegistrations = totalPastRegistrations + extTotalPastRegistrations;
+    const combinedAttended = totalAttended + extAttendedTotal;
+    const combinedNoShows = noShows + extNoShows;
+    // Rate numerator is past-only on both sides, matching its denominator.
+    const combinedAttendanceRate = combinedPastRegistrations > 0
+      ? ((totalAttended + extPastAttended) / combinedPastRegistrations) * 100
+      : 0;
+    const combinedNoShowRate = combinedPastRegistrations > 0
+      ? (combinedNoShows / combinedPastRegistrations) * 100
+      : 0;
+    const combinedAvgWatchTime = combinedAttended > 0
+      ? (totalWatchTime + extWatchTimeSeconds) / combinedAttended
+      : 0;
+    const combinedCompletionRate = combinedAttended > 0
+      ? ((completed + extCompleted) / combinedAttended) * 100
+      : 0;
+
     // Offer analytics
     const offerWhere: any = {
       webinarId: resultWebinarIds.length > 0 ? { in: resultWebinarIds } : undefined,
@@ -220,13 +421,27 @@ export async function GET(request: NextRequest) {
         return session ? session.videoPosition : 0;
       });
 
-    const onTime = joinTimes.filter((t) => t <= 60).length;
-    const earlyLate = joinTimes.filter((t) => t > 60 && t <= 300).length;
-    const late = joinTimes.filter((t) => t > 300).length;
+    let onTime = joinTimes.filter((t) => t <= 60).length;
+    let earlyLate = joinTimes.filter((t) => t > 60 && t <= 300).length;
+    let late = joinTimes.filter((t) => t > 300).length;
+
+    // External joins have no video position - measure lateness against the
+    // session's scheduled start instead. Early arrivals count as on time.
+    externalRegistrations.forEach((r: any) => {
+      if (!r.joinedAt || !r.scheduledStartTime) return;
+      const delay = Math.max(
+        0,
+        (new Date(r.joinedAt).getTime() - new Date(r.scheduledStartTime).getTime()) / 1000
+      );
+      if (delay <= 60) onTime++;
+      else if (delay <= 300) earlyLate++;
+      else late++;
+    });
 
     // Geographic Distribution (Country)
     const countryMap = new Map<string, number>();
-    registrations.forEach(r => {
+    const withCountry = [...registrations, ...externalRegistrations];
+    withCountry.forEach((r: any) => {
       if (r.country) {
         countryMap.set(r.country, (countryMap.get(r.country) || 0) + 1);
       }
@@ -239,7 +454,7 @@ export async function GET(request: NextRequest) {
 
     // Timezone Distribution
     const timezoneMap = new Map<string, number>();
-    registrations.forEach(r => {
+    withCountry.forEach((r: any) => {
       if (r.timezone) {
         // Simplify timezone name for display (e.g., "America/New_York" -> "New York")
         const parts = r.timezone.split('/');
@@ -476,14 +691,41 @@ export async function GET(request: NextRequest) {
       success: true,
       analytics: {
         overview: {
-          totalRegistrations,
-          totalPastRegistrations,
-          totalAttended,
-          attendanceRate: Math.round(attendanceRate * 10) / 10,
-          noShows,
-          noShowRate: Math.round(noShowRate * 10) / 10,
-          avgWatchTime: Math.round(avgWatchTime),
-          completionRate: Math.round(completionRate * 10) / 10,
+          // Headline numbers cover internal + external webinars.
+          totalRegistrations: combinedRegistrations,
+          totalPastRegistrations: combinedPastRegistrations,
+          totalAttended: combinedAttended,
+          attendanceRate: Math.round(combinedAttendanceRate * 10) / 10,
+          noShows: combinedNoShows,
+          noShowRate: Math.round(combinedNoShowRate * 10) / 10,
+          avgWatchTime: Math.round(combinedAvgWatchTime),
+          completionRate: Math.round(combinedCompletionRate * 10) / 10,
+          // Split out so rates that only apply to one side (offers, engagement)
+          // can be measured against the right denominator.
+          internalRegistrations: totalRegistrations,
+          internalPastRegistrations: totalPastRegistrations,
+          internalAttended: totalAttended,
+          internalAttendanceRate: Math.round(attendanceRate * 10) / 10,
+          internalNoShows: noShows,
+          internalNoShowRate: Math.round(noShowRate * 10) / 10,
+          internalAvgWatchTime: Math.round(avgWatchTime),
+          internalCompletionRate: Math.round(completionRate * 10) / 10,
+          externalRegistrations: extTotalRegistrations,
+          externalAttended: extAttendedTotal,
+        },
+        external: {
+          included: includeExternal,
+          totalRegistrations: extTotalRegistrations,
+          totalPastRegistrations: extTotalPastRegistrations,
+          attended: extAttendedTotal,
+          pastAttended: extPastAttended,
+          watchTimeReportedFor: extWatchedRegistrations.length,
+          noShows: extNoShows,
+          attendanceRate: Math.round(extAttendanceRate * 10) / 10,
+          avgWatchTimeMinutes: Math.round(extAvgWatchTimeMinutes),
+          avgWatchTimePercentage: Math.round(extAvgWatchPercentage),
+          webinars: externalWebinarBreakdown,
+          leadPages: externalLeadPages,
         },
         offers: {
             sawOffer,
@@ -525,6 +767,9 @@ export async function GET(request: NextRequest) {
           webinarPageVisits,
           thankYouPageVisits,
           registrationPages, // Breakdown by template/variant
+          // External lead pages track lifetime counters only - kept out of the
+          // date-filtered visit numbers above so conversion rates stay honest.
+          externalLeadPages,
           // Embed form tracking
           embedViews: {
             total: totalEmbedViews,

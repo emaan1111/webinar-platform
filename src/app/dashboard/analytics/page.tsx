@@ -38,6 +38,38 @@ interface WebinarOption {
   createdAt: string
 }
 
+interface ExternalWebinarOption {
+  id: string
+  name: string
+  externalWebinarName?: string | null
+  platform?: string
+}
+
+interface ExternalWebinarStat {
+  id: string
+  name: string
+  registrations: number
+  pastRegistrations: number
+  attended: number
+  noShows: number
+  attendanceRate: number
+  avgWatchTimeMinutes: number
+}
+
+interface ExternalLeadPages {
+  allTime: boolean
+  totalViews: number
+  totalConversions: number
+  pages: Array<{
+    id: string
+    name: string
+    slug: string
+    views: number
+    conversions: number
+    conversionRate: number
+  }>
+}
+
 interface AnalyticsData {
   overview: {
     totalRegistrations: number
@@ -48,6 +80,24 @@ interface AnalyticsData {
     noShowRate: number
     avgWatchTime: number
     completionRate: number
+    internalRegistrations?: number
+    internalAttended?: number
+    externalRegistrations?: number
+    externalAttended?: number
+  }
+  external?: {
+    included: boolean
+    totalRegistrations: number
+    totalPastRegistrations: number
+    attended: number
+    pastAttended: number
+    watchTimeReportedFor: number
+    noShows: number
+    attendanceRate: number
+    avgWatchTimeMinutes: number
+    avgWatchTimePercentage: number
+    webinars: ExternalWebinarStat[]
+    leadPages: ExternalLeadPages
   }
   offers: {
     sawOffer: number
@@ -112,11 +162,13 @@ interface AnalyticsData {
       uniqueInlineVisitors: number
       uniquePopupVisitors: number
     }
+    externalLeadPages?: ExternalLeadPages
   }
 }
 
 export default function AnalyticsPage() {
   const [webinars, setWebinars] = useState<WebinarOption[]>([])
+  const [externalWebinars, setExternalWebinars] = useState<ExternalWebinarOption[]>([])
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [timeFrame, setTimeFrame] = useState<string>('all')
   const [customDateFrom, setCustomDateFrom] = useState('')
@@ -127,36 +179,58 @@ export default function AnalyticsPage() {
   const [error, setError] = useState('')
   const [resetting, setResetting] = useState(false)
 
-  // Fetch webinars list
+  // Fetch webinars list (internal + external - both feed the same dashboard)
   useEffect(() => {
     const fetchWebinars = async () => {
-      try {
-        const response = await fetch('/api/webinars')
-        const data = await response.json()
-        if (data.webinars && data.webinars.length > 0) {
-          setWebinars(data.webinars)
-          // Select all webinars by default
-          setSelectedWebinars(['all'])
-        }
-      } catch (err) {
-        console.error('Failed to fetch webinars:', err)
+      const [internalRes, externalRes] = await Promise.allSettled([
+        fetch('/api/webinars').then(r => r.json()),
+        fetch('/api/external-webinars').then(r => r.json()),
+      ])
+
+      if (internalRes.status === 'fulfilled' && Array.isArray(internalRes.value?.webinars)) {
+        setWebinars(internalRes.value.webinars)
+      } else if (internalRes.status === 'rejected') {
+        console.error('Failed to fetch webinars:', internalRes.reason)
       }
+
+      if (externalRes.status === 'fulfilled' && Array.isArray(externalRes.value)) {
+        setExternalWebinars(externalRes.value)
+      } else if (externalRes.status === 'rejected') {
+        console.error('Failed to fetch external webinars:', externalRes.reason)
+      }
+
+      // Select everything by default
+      setSelectedWebinars(['all'])
     }
     fetchWebinars()
   }, [])
 
-  // Filter webinars by time frame
+  const externalWebinarLabel = (w: ExternalWebinarOption) =>
+    w.externalWebinarName || w.name || 'External Webinar'
+
+  // 'all' means every webinar on both sides; otherwise split the selection back
+  // into the two id spaces the aggregate API expects.
   const getFilteredWebinarIds = () => {
     if (selectedWebinars.includes('all')) {
       return webinars.map(w => w.id)
     }
-    return selectedWebinars
+    const externalIds = new Set(externalWebinars.map(w => w.id))
+    return selectedWebinars.filter(id => !externalIds.has(id))
+  }
+
+  const getFilteredExternalWebinarIds = () => {
+    if (selectedWebinars.includes('all')) {
+      return externalWebinars.map(w => w.id)
+    }
+    const externalIds = new Set(externalWebinars.map(w => w.id))
+    return selectedWebinars.filter(id => externalIds.has(id))
   }
 
   // Fetch and aggregate analytics data
   useEffect(() => {
     const webinarIds = getFilteredWebinarIds()
-    if (webinarIds.length === 0) return
+    const externalWebinarIds = getFilteredExternalWebinarIds()
+    if (webinarIds.length === 0 && externalWebinarIds.length === 0) return
 
     const fetchAnalytics = async () => {
       setLoading(true)
@@ -166,6 +240,9 @@ export default function AnalyticsPage() {
         // Use the aggregate API endpoint for better performance
         const params: Record<string, string> = {
           webinarIds: webinarIds.join(','),
+          // Always sent (even empty) so the API knows the selection is explicit
+          // and doesn't fall back to "every external webinar".
+          externalWebinarIds: externalWebinarIds.join(','),
           timeFrame: timeFrame,
           timezone: timezone,
         }
@@ -235,6 +312,8 @@ export default function AnalyticsPage() {
           }
         }
 
+        let internalAttendedTotal = 0
+
         let totalWatchTimeSum = 0
         let totalWebinarsWithData = 0
         const registrationPagesMap = new Map<string, {
@@ -256,6 +335,19 @@ export default function AnalyticsPage() {
           aggregated.overview.totalPastRegistrations += data.overview.totalPastRegistrations
           aggregated.overview.totalAttended += data.overview.totalAttended
           aggregated.overview.noShows += data.overview.noShows
+          aggregated.overview.externalRegistrations =
+            (aggregated.overview.externalRegistrations || 0) + (data.overview.externalRegistrations || 0)
+          aggregated.overview.externalAttended =
+            (aggregated.overview.externalAttended || 0) + (data.overview.externalAttended || 0)
+          internalAttendedTotal += data.overview.internalAttended ?? data.overview.totalAttended
+
+          // External webinar block (registrations, attendance, lead pages)
+          if (data.external) {
+            aggregated.external = data.external
+          }
+          if (data.funnel.externalLeadPages) {
+            aggregated.funnel.externalLeadPages = data.funnel.externalLeadPages
+          }
           
           if (data.overview.totalAttended > 0) {
             totalWatchTimeSum += data.overview.avgWatchTime * data.overview.totalAttended
@@ -380,59 +472,6 @@ export default function AnalyticsPage() {
               }
             })
           }
-
-          // Sum funnel metrics
-          aggregated.funnel.registrationPageVisits += data.funnel.registrationPageVisits
-          aggregated.funnel.countdownPageVisits += data.funnel.countdownPageVisits
-          aggregated.funnel.webinarPageVisits += data.funnel.webinarPageVisits
-          aggregated.funnel.thankYouPageVisits += data.funnel.thankYouPageVisits
-          
-          // Aggregate embed views
-          if (data.funnel.embedViews) {
-            if (!aggregated.funnel.embedViews) {
-              aggregated.funnel.embedViews = {
-                total: 0,
-                inline: 0,
-                popup: 0,
-                uniqueVisitors: 0,
-                uniqueInlineVisitors: 0,
-                uniquePopupVisitors: 0,
-              }
-            }
-            aggregated.funnel.embedViews.total += data.funnel.embedViews.total
-            aggregated.funnel.embedViews.inline += data.funnel.embedViews.inline
-            aggregated.funnel.embedViews.popup += data.funnel.embedViews.popup
-            aggregated.funnel.embedViews.uniqueVisitors += data.funnel.embedViews.uniqueVisitors
-            aggregated.funnel.embedViews.uniqueInlineVisitors += data.funnel.embedViews.uniqueInlineVisitors
-            aggregated.funnel.embedViews.uniquePopupVisitors += data.funnel.embedViews.uniquePopupVisitors
-          }
-          
-          // Aggregate registration pages data
-          if (data.funnel.registrationPages && data.funnel.registrationPages.length > 0) {
-            data.funnel.registrationPages.forEach((page: any) => {
-              const key = `${page.pageId || 'default'}-${page.variantGroup || 'none'}`
-              const existing = registrationPagesMap.get(key)
-              
-              if (existing) {
-                existing.views += page.views
-                existing.uniqueViews += page.uniqueViews
-                existing.registrations += page.registrations
-                existing.totalTimeOnPage += page.avgTimeOnPage * page.views
-                existing.count += page.views
-              } else {
-                registrationPagesMap.set(key, {
-                  pageId: page.pageId,
-                  pageName: page.pageName,
-                  variantGroup: page.variantGroup,
-                  views: page.views,
-                  uniqueViews: page.uniqueViews,
-                  registrations: page.registrations,
-                  totalTimeOnPage: page.avgTimeOnPage * page.views,
-                  count: page.views
-                })
-              }
-            })
-          }
         })
 
         // Convert registration pages map to array with calculated averages
@@ -468,8 +507,10 @@ export default function AnalyticsPage() {
           ? completionRates.reduce((sum, rate) => sum + rate, 0) / completionRates.length
           : 0
         
-        aggregated.offers.offerViewRate = aggregated.overview.totalAttended > 0
-          ? (aggregated.offers.sawOffer / aggregated.overview.totalAttended) * 100
+        // Offers only exist inside the hosted room, so rate them against the
+        // internal attendee count - external attendees never see them.
+        aggregated.offers.offerViewRate = internalAttendedTotal > 0
+          ? (aggregated.offers.sawOffer / internalAttendedTotal) * 100
           : 0
         
         aggregated.offers.offerClickRate = aggregated.offers.sawOffer > 0
@@ -493,7 +534,7 @@ export default function AnalyticsPage() {
     }
 
     fetchAnalytics()
-  }, [selectedWebinars, timeFrame, customDateFrom, customDateTo, webinars])
+  }, [selectedWebinars, timeFrame, customDateFrom, customDateTo, webinars, externalWebinars])
 
   const handleWebinarToggle = (webinarId: string) => {
     if (webinarId === 'all') {
@@ -501,7 +542,8 @@ export default function AnalyticsPage() {
       setSelectedWebinars(prev => {
         if (prev.includes('all')) {
           // Uncheck 'all' - select first webinar instead
-          return webinars.length > 0 ? [webinars[0].id] : []
+          if (webinars.length > 0) return [webinars[0].id]
+          return externalWebinars.length > 0 ? [externalWebinars[0].id] : []
         } else {
           // Check 'all'
           return ['all']
@@ -566,7 +608,14 @@ export default function AnalyticsPage() {
 
     const webinarId = selectedWebinars[0]
     const webinar = webinars.find(w => w.id === webinarId)
-    
+
+    if (!webinar) {
+      // Reset only touches hosted-webinar tables; external attendance is synced
+      // from the provider and would just be re-imported.
+      alert('Stats can only be reset for hosted webinars, not external ones.')
+      return
+    }
+
     const confirmed = window.confirm(
       `Are you sure you want to reset all analytics data for "${webinar?.title}"?\n\n` +
       'This will delete:\n' +
@@ -606,23 +655,35 @@ export default function AnalyticsPage() {
     }
   }
 
+  const totalWebinarCount = webinars.length + externalWebinars.length
+
   const getSelectedWebinarLabel = () => {
     if (selectedWebinars.includes('all')) {
-      return `All Webinars (${webinars.length})`
+      return `All Webinars (${totalWebinarCount})`
     }
     if (selectedWebinars.length === 0) {
       return 'Select Webinars'
     }
     if (selectedWebinars.length === 1) {
-      return webinars.find(w => w.id === selectedWebinars[0])?.title || 'Select Webinars'
+      const internal = webinars.find(w => w.id === selectedWebinars[0])
+      if (internal) return internal.title
+      const external = externalWebinars.find(w => w.id === selectedWebinars[0])
+      if (external) return externalWebinarLabel(external)
+      return 'Select Webinars'
     }
     return `${selectedWebinars.length} Webinars Selected`
   }
 
-  // Calculate unique views (registration page visits)
+  // Hosted-page funnel: registration page visits are only tracked for webinars
+  // hosted here, so the conversion math stays on the internal side. External
+  // lead-page traffic gets its own section below.
   const uniqueViews = analyticsData?.funnel.registrationPageVisits || 0
   const totalRegs = analyticsData?.overview.totalRegistrations || 0
-  const conversionRate = uniqueViews > 0 ? ((totalRegs / uniqueViews) * 100).toFixed(1) : '0.0'
+  const internalRegs = analyticsData?.overview.internalRegistrations ?? totalRegs
+  const internalAttended = analyticsData?.overview.internalAttended ?? (analyticsData?.overview.totalAttended || 0)
+  const conversionRate = uniqueViews > 0 ? ((internalRegs / uniqueViews) * 100).toFixed(1) : '0.0'
+  const external = analyticsData?.external
+  const externalLeadPages = analyticsData?.funnel.externalLeadPages
 
   // Prepare engagement timeline data (join/leave)
   const engagementTimeline = (analyticsData?.engagement.byMinute || []).sort((a, b) => a.minute - b.minute)
@@ -738,11 +799,16 @@ export default function AnalyticsPage() {
                         onChange={() => handleWebinarToggle('all')}
                         className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
-                      <span className="text-sm font-medium text-gray-900">All Webinars ({webinars.length})</span>
+                      <span className="text-sm font-medium text-gray-900">All Webinars ({totalWebinarCount})</span>
                     </label>
                     
                     <div className="border-t border-gray-200 my-2"></div>
                     
+                    {webinars.length > 0 && (
+                      <p className="px-3 pt-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                        Hosted Webinars
+                      </p>
+                    )}
                     {webinars.map((webinar) => (
                       <label 
                         key={webinar.id} 
@@ -757,6 +823,32 @@ export default function AnalyticsPage() {
                         <span className="text-sm text-gray-700 truncate flex-1">{webinar.title}</span>
                       </label>
                     ))}
+
+                    {externalWebinars.length > 0 && (
+                      <>
+                        <div className="border-t border-gray-200 my-2"></div>
+                        <p className="px-3 pt-1 pb-1 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                          External Webinars
+                        </p>
+                        {externalWebinars.map((webinar) => (
+                          <label
+                            key={webinar.id}
+                            className="flex items-center gap-2 px-3 py-2 hover:bg-gray-50 rounded cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedWebinars.includes(webinar.id) || selectedWebinars.includes('all')}
+                              onChange={() => handleWebinarToggle(webinar.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span className="text-sm text-gray-700 truncate flex-1">{externalWebinarLabel(webinar)}</span>
+                            {webinar.platform && (
+                              <span className="text-[10px] uppercase tracking-wide text-gray-400">{webinar.platform}</span>
+                            )}
+                          </label>
+                        ))}
+                      </>
+                    )}
                   </div>
                 </div>
               )}
@@ -774,13 +866,21 @@ export default function AnalyticsPage() {
             <Button 
               onClick={handleResetStats} 
               className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700"
-              disabled={!analyticsData || resetting || selectedWebinars.includes('all') || selectedWebinars.length !== 1}
+              disabled={
+                !analyticsData ||
+                resetting ||
+                selectedWebinars.includes('all') ||
+                selectedWebinars.length !== 1 ||
+                !webinars.some(w => w.id === selectedWebinars[0])
+              }
               title={
                 selectedWebinars.includes('all') 
                   ? 'Select a specific webinar to reset stats' 
                   : selectedWebinars.length !== 1 
                     ? 'Select exactly one webinar to reset stats'
-                    : 'Reset all analytics data for this webinar'
+                    : !webinars.some(w => w.id === selectedWebinars[0])
+                      ? 'External webinar stats are synced from the provider and cannot be reset'
+                      : 'Reset all analytics data for this webinar'
               }
             >
               {resetting ? (
@@ -817,7 +917,7 @@ export default function AnalyticsPage() {
                       <h3 className="text-sm font-medium text-gray-600">Unique Views</h3>
                       <p className="text-2xl font-bold text-gray-900">{uniqueViews}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        Registration page visitors
+                        Hosted registration page visitors
                       </p>
                     </div>
                   </div>
@@ -834,7 +934,9 @@ export default function AnalyticsPage() {
                       <h3 className="text-sm font-medium text-gray-600">Registrations</h3>
                       <p className="text-2xl font-bold text-gray-900">{totalRegs}</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        {conversionRate}% conversion rate
+                        {(analyticsData.overview.externalRegistrations || 0) > 0
+                          ? `${internalRegs} hosted · ${analyticsData.overview.externalRegistrations} external`
+                          : `${conversionRate}% conversion rate`}
                       </p>
                     </div>
                   </div>
@@ -885,9 +987,9 @@ export default function AnalyticsPage() {
                     </div>
                     <div className="flex-1">
                       <h3 className="text-sm font-medium text-gray-600">Full Funnel</h3>
-                      <p className="text-2xl font-bold text-gray-900">{uniqueViews > 0 ? ((analyticsData.overview.totalAttended / uniqueViews) * 100).toFixed(1) : '0.0'}%</p>
+                      <p className="text-2xl font-bold text-gray-900">{uniqueViews > 0 ? ((internalAttended / uniqueViews) * 100).toFixed(1) : '0.0'}%</p>
                       <p className="text-xs text-gray-500 mt-1">
-                        Views → Attendees
+                        Hosted views → attendees
                       </p>
                     </div>
                   </div>
@@ -948,6 +1050,149 @@ export default function AnalyticsPage() {
                 </CardBody>
               </Card>
             </div>
+
+            {/* External Webinars (EverWebinar / WebinarJam / live Zoom) */}
+            {external && external.totalRegistrations > 0 && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-bold text-gray-900">External Webinars</h2>
+                  <p className="text-sm text-gray-500">
+                    Registrations and synced attendance for sessions running on EverWebinar, WebinarJam or Zoom
+                  </p>
+                </CardHeader>
+                <CardBody>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                    <div className="text-center">
+                      <Users className="w-8 h-8 text-blue-600 mx-auto mb-2" />
+                      <h3 className="text-sm font-medium text-gray-600">Registrations</h3>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{external.totalRegistrations}</p>
+                    </div>
+                    <div className="text-center">
+                      <CheckCircle className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+                      <h3 className="text-sm font-medium text-gray-600">Attendees</h3>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{external.attended}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {external.pastAttended} of {external.totalPastRegistrations} finished sessions ({external.attendanceRate.toFixed(1)}%)
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <Clock className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                      <h3 className="text-sm font-medium text-gray-600">Avg Watch Time</h3>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{external.avgWatchTimeMinutes}m</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {external.avgWatchTimePercentage}% of the session · {external.watchTimeReportedFor} with reported watch time
+                      </p>
+                    </div>
+                    <div className="text-center">
+                      <Users className="w-8 h-8 text-orange-600 mx-auto mb-2" />
+                      <h3 className="text-sm font-medium text-gray-600">No Shows</h3>
+                      <p className="text-2xl font-bold text-gray-900 mt-1">{external.noShows}</p>
+                      <p className="text-xs text-gray-500 mt-1">Past sessions only</p>
+                    </div>
+                  </div>
+
+                  {external.webinars.length > 0 && (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-200">
+                            <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Webinar</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Registrations</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Attended</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">No Shows</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Attendance</th>
+                            <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Avg Watch</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {external.webinars.map((w) => (
+                            <tr key={w.id} className="border-b border-gray-100 hover:bg-gray-50">
+                              <td className="py-3 px-4 text-sm text-gray-900">{w.name}</td>
+                              <td className="py-3 px-4 text-sm text-right text-gray-900 font-medium">{w.registrations}</td>
+                              <td className="py-3 px-4 text-sm text-right text-gray-700">{w.attended}</td>
+                              <td className="py-3 px-4 text-sm text-right text-gray-700">{w.noShows}</td>
+                              <td className="py-3 px-4 text-sm text-right">
+                                <span className={`font-semibold ${
+                                  w.attendanceRate >= 40 ? 'text-green-600' :
+                                  w.attendanceRate >= 20 ? 'text-yellow-600' :
+                                  'text-red-600'
+                                }`}>
+                                  {w.attendanceRate}%
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-right text-gray-700">{w.avgWatchTimeMinutes}m</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <p className="text-xs text-gray-500 mt-3">
+                        Attendance percentages only count sessions that have already ended, so they can be
+                        lower than the attendee count when a registration has no scheduled time recorded.
+                      </p>
+                    </div>
+                  )}
+                </CardBody>
+              </Card>
+            )}
+
+            {/* External lead pages - lifetime counters, not date filtered */}
+            {externalLeadPages && externalLeadPages.pages.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <h2 className="text-xl font-bold text-gray-900">External Lead Pages</h2>
+                  <p className="text-sm text-gray-500">
+                    Lifetime views and conversions — these pages keep running totals only, so they ignore the date filter
+                  </p>
+                </CardHeader>
+                <CardBody>
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-3 px-4 text-sm font-semibold text-gray-700">Lead Page</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Views</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">Conversions</th>
+                          <th className="text-right py-3 px-4 text-sm font-semibold text-gray-700">% Registered</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {externalLeadPages.pages.map((page) => (
+                          <tr key={page.id} className="border-b border-gray-100 hover:bg-gray-50">
+                            <td className="py-3 px-4 text-sm text-gray-900">
+                              {page.name}
+                              <span className="text-gray-400 ml-2">/p/{page.slug}</span>
+                            </td>
+                            <td className="py-3 px-4 text-sm text-right text-gray-900 font-medium">{page.views}</td>
+                            <td className="py-3 px-4 text-sm text-right text-gray-700">{page.conversions}</td>
+                            <td className="py-3 px-4 text-sm text-right">
+                              <span className={`font-semibold ${
+                                page.conversionRate >= 30 ? 'text-green-600' :
+                                page.conversionRate >= 15 ? 'text-yellow-600' :
+                                'text-red-600'
+                              }`}>
+                                {page.conversionRate}%
+                              </span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot>
+                        <tr className="border-t border-gray-200">
+                          <td className="py-3 px-4 text-sm font-semibold text-gray-700">Total</td>
+                          <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{externalLeadPages.totalViews}</td>
+                          <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">{externalLeadPages.totalConversions}</td>
+                          <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
+                            {externalLeadPages.totalViews > 0
+                              ? ((externalLeadPages.totalConversions / externalLeadPages.totalViews) * 100).toFixed(1)
+                              : '0.0'}%
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </CardBody>
+              </Card>
+            )}
 
             {/* Registration Pages Breakdown */}
             {analyticsData.funnel.registrationPages && analyticsData.funnel.registrationPages.length > 0 && (
