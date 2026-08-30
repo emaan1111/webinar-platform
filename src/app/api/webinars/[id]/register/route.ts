@@ -10,7 +10,7 @@ import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook
 import { sendEmail } from '@/lib/email'
 import { generateICS } from '@/lib/calendarUtils'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
-import { appendUnsubscribeFooter, getUnsubscribeLink, prepareEmailHtml, replaceMergeTags } from '@/lib/emailTracking'
+import { appendUnsubscribeFooter, getUnsubscribeLink, getOneClickUnsubscribeUrl, prepareEmailHtml, replaceMergeTags } from '@/lib/emailTracking'
 import { pushLeadToEmaan, resolveEmaanTargets } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
 
@@ -389,6 +389,7 @@ export async function POST(
             htmlBody: emailHtml,
             textBody: emailText,
             fromName: activeTemplate.fromName || undefined,
+            unsubscribeUrl: getOneClickUnsubscribeUrl(registration.id),
           })
 
           if (emailSent) {
@@ -420,6 +421,7 @@ export async function POST(
             subject: emailSubject,
             htmlBody: emailHtml,
             textBody: emailText,
+            unsubscribeUrl: getOneClickUnsubscribeUrl(registration.id),
           })
 
           if (emailSent) {
@@ -468,6 +470,7 @@ export async function POST(
             subject: `📅 Add to Calendar: ${webinar.title}`,
             htmlBody: calendarEmailHtmlWithFooter,
             textBody: calendarEmailText,
+            unsubscribeUrl: getOneClickUnsubscribeUrl(registration.id),
             attachments: [{
               filename: 'webinar-invite.ics',
               content: Buffer.from(icsContent).toString('base64'),

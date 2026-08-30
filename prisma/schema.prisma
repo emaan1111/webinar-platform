@@ -1448,6 +1448,11 @@ model ExternalWebinarRegistration {
   privacyConsent   Boolean @default(true)
   marketingConsent Boolean @default(false)
 
+  // Email opt-out (footer link or RFC 8058 one-click). Mirrors Registration so
+  // the scheduler's isEmailUnsubscribed() works for both registration kinds.
+  emailUnsubscribed   Boolean   @default(false)
+  emailUnsubscribedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 

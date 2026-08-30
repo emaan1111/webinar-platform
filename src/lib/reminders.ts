@@ -2,7 +2,7 @@
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { sendClickSendSMS } from '@/lib/clicksend'
-import { appendUnsubscribeFooter, getUnsubscribeLink } from '@/lib/emailTracking'
+import { appendUnsubscribeFooter, getUnsubscribeLink, getOneClickUnsubscribeUrl } from '@/lib/emailTracking'
 
 interface ReminderTemplateData {
   type?: 'pre_webinar' | 'post_webinar'
@@ -477,7 +477,8 @@ async function sendReminderEmailMessage(
     const success = await sendEmail({
       to: registration.email,
       subject,
-      htmlBody: body
+      htmlBody: body,
+      unsubscribeUrl: getOneClickUnsubscribeUrl(registration.id),
     })
 
     if (success) {
