@@ -63,6 +63,57 @@ export async function GET(
             type: 'WEBINAR_REGISTRATION',
             source: 'Webinar Registration'
         })));
+
+        // External-webinar signups (EverWebinar/Zoom) never produce a Registration row -
+        // they land in external_webinar_registrations, which has no split-test columns.
+        // Their attribution survives only on the CONVERSION event, keyed `ext_<email>`,
+        // so resolve those back to people. This mirrors the count in ../route.ts exactly,
+        // which is why the drill-down list matches the number that opens it.
+        const externalConversions = await prisma.splitTestEvent.findMany({
+            where: {
+                splitTestId: params.id,
+                ...(variantId ? { variantId } : {}),
+                type: 'CONVERSION',
+                visitorId: { startsWith: 'ext_' },
+                ...(fromDate ? { createdAt: { gte: fromDate } } : {})
+            },
+            select: {
+                id: true,
+                visitorId: true,
+                createdAt: true,
+                variant: {
+                    select: {
+                        leadPage: { select: { name: true } }
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+
+        const externalEmails = externalConversions.map(e => String(e.visitorId).slice(4).toLowerCase());
+
+        // Names live on the registration row; the event only carries the email.
+        const externalRegistrants = externalEmails.length
+            ? await prisma.externalWebinarRegistration.findMany({
+                where: { email: { in: externalEmails } },
+                select: { email: true, name: true }
+              })
+            : [];
+
+        const nameByEmail = new Map(externalRegistrants.map(r => [r.email.toLowerCase(), r.name]));
+
+        results.push(...externalConversions.map(e => {
+            const email = String(e.visitorId).slice(4).toLowerCase();
+            return {
+                id: e.id,
+                name: nameByEmail.get(email) || 'Unknown',
+                email,
+                registeredAt: e.createdAt,
+                splitTestVariant: e.variant,
+                type: 'WEBINAR_REGISTRATION',
+                source: 'External Webinar Registration'
+            };
+        }));
     }
 
     // Fetch Form Submissions & Event Registrations (Trial Leads)

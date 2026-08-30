@@ -66,21 +66,43 @@ export async function GET(req: Request) {
             }
         });
 
-        // 3 & 4. Calculate Webinar Registrations directly from the Registration table
-        // so the count always matches the leads modal (which also reads Registration).
-        const registrationRows = await prisma.registration.findMany({
-          where: {
-            splitTestId: test.id,
-            splitTestVariantId: variant.id,
-            ...(fromDate > new Date(0) ? { registeredAt: { gte: fromDate } } : {})
-          },
-          select: { email: true }
-        });
+        // 3 & 4. Webinar registrations come from two places, because a variant's lead page
+        // can be bound to either an internal webinar or an external one (EverWebinar/Zoom):
+        //   internal -> a Registration row carrying splitTestId/splitTestVariantId
+        //   external -> external_webinar_registrations, a table with no split-test columns.
+        //               Its attribution survives only as a CONVERSION event whose visitorId
+        //               is `ext_<email>` (external-webinars/[id]/register, webinarjamSync).
+        // Reading the Registration table alone reports 0 for any test running on external
+        // webinars. The two sources cannot overlap - the external path writes no Registration
+        // row, and an internal CONVERSION event is not `ext_`-prefixed - so summing them does
+        // not double-count. The leads modal builds its list by this same rule, so the number
+        // and the drill-down behind it always agree.
+        const [registrationRows, externalConversions] = await Promise.all([
+          prisma.registration.findMany({
+            where: {
+              splitTestId: test.id,
+              splitTestVariantId: variant.id,
+              ...(fromDate > new Date(0) ? { registeredAt: { gte: fromDate } } : {})
+            },
+            select: { email: true }
+          }),
+          prisma.splitTestEvent.findMany({
+            where: {
+              variantId: variant.id,
+              type: 'CONVERSION',
+              visitorId: { startsWith: 'ext_' },
+              createdAt: { gte: fromDate }
+            },
+            select: { visitorId: true }
+          })
+        ]);
 
-        // Unique = distinct emails (same dedup logic as the leads modal frontend)
-        const uniqueEmails = new Set(registrationRows.map((r: any) => r.email?.toLowerCase()).filter(Boolean));
-        const uniqueRegistrations = uniqueEmails.size;
-        const totalRegistrations = registrationRows.length;
+        // Unique = distinct emails across both sources.
+        const internalEmails = registrationRows.map((r: any) => r.email?.toLowerCase()).filter(Boolean);
+        const externalEmails = externalConversions.map((e: any) => String(e.visitorId).slice(4).toLowerCase());
+
+        const uniqueRegistrations = new Set([...internalEmails, ...externalEmails]).size;
+        const totalRegistrations = registrationRows.length + externalConversions.length;
 
         // 5. Calculate Unique Form Submissions (Trial Leads / Event Registrations)
         // We look for both FORM_SUBMISSION (legacy/forms) and EVENT_REGISTRATION (trial events)
