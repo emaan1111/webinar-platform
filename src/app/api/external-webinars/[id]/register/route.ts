@@ -5,7 +5,7 @@ import { registerUserToWebinar, isWebinarJamConfigured, resolveJustInTimeSchedul
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { sendEmail } from '@/lib/email'
-import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime } from '@/lib/emailTracking'
+import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime, getOneClickUnsubscribeUrl } from '@/lib/emailTracking'
 import { pushLeadToEmaan, resolveEmaanTargets } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
 import { getLinkedZoomSessions, LinkedZoomSession } from '@/lib/zoomSessions'
@@ -531,6 +531,7 @@ export async function POST(
             subject: emailSubject,
             htmlBody: emailHtml,
             fromName: activeTemplate.fromName || undefined,
+            unsubscribeUrl: getOneClickUnsubscribeUrl(registration.id),
           })
           console.log(`📧 Confirmation email sent to ${email}`)
         }

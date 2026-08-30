@@ -40,6 +40,14 @@ export function getUnsubscribeLink(registrationId: string): string {
 }
 
 /**
+ * URL for the `List-Unsubscribe` header (RFC 8058 one-click). Mail clients POST
+ * here with no confirmation step; see src/app/api/unsubscribe/[id]/route.ts.
+ */
+export function getOneClickUnsubscribeUrl(registrationId: string): string {
+  return `${TRACKING_BASE_URL()}/api/unsubscribe/${encodeURIComponent(registrationId)}`
+}
+
+/**
  * Format a webinar start time for emails in the REGISTRANT's timezone, with a
  * timezone label (e.g. "8:00 PM GMT+5:30" / "10:30 AM EDT") — matching how the
  * countdown and thank-you pages render it. Without this, a plain toLocaleString()

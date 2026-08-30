@@ -9,7 +9,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
-import { getUnsubscribeLink, prepareEmailHtml, formatWebinarTime, type MergeTagContext } from '@/lib/emailTracking'
+import { getUnsubscribeLink, getOneClickUnsubscribeUrl, prepareEmailHtml, formatWebinarTime, type MergeTagContext } from '@/lib/emailTracking'
 
 function isEmailUnsubscribed(registration: unknown): boolean {
   if (!registration || typeof registration !== 'object') return false
@@ -401,6 +401,7 @@ export async function processPendingReminderEmails() {
         htmlBody: html,
         textBody: text,
         fromName: send.template.fromName || undefined,
+        unsubscribeUrl: getOneClickUnsubscribeUrl(reg.id),
       })
 
       await prisma.reminderEmailSend.update({
@@ -552,6 +553,7 @@ export async function processPendingFollowUpEmails() {
         htmlBody: html,
         textBody: text,
         fromName: send.template.fromName || undefined,
+        unsubscribeUrl: getOneClickUnsubscribeUrl(reg.id),
       })
 
       await prisma.followUpEmailSend.update({

@@ -4,7 +4,7 @@
 //   "ses"           → AWS SES only
 //   "ses_fallback"  → Try Microsoft Graph first, fall back to SES
 
-import { SESClient, SendEmailCommand, SendRawEmailCommand } from '@aws-sdk/client-ses'
+import { SESClient, SendRawEmailCommand } from '@aws-sdk/client-ses'
 
 interface EmailAttachment {
   filename: string
@@ -19,6 +19,14 @@ interface EmailOptions {
   textBody?: string
   fromName?: string  // Display name for sender (e.g. "Emaan Power")
   attachments?: EmailAttachment[]
+  /**
+   * RFC 8058 one-click unsubscribe URL. When set, the SES path adds
+   * `List-Unsubscribe` + `List-Unsubscribe-Post` headers — Gmail/Yahoo require
+   * them on subscription mail (reminders, follow-ups) and Postmaster flags the
+   * whole domain as "Needs work" without them. Pass it for every registrant
+   * email; the recipient decides what counts as a subscription.
+   */
+  unsubscribeUrl?: string
 }
 
 // ─── Microsoft Graph ─────────────────────────────────────────────────────────
@@ -86,9 +94,19 @@ async function getAccessToken(): Promise<string> {
 }
 
 async function sendViaMicrosoftGraph(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody, fromName, attachments } = options
+  const { to, subject, htmlBody, fromName, attachments, unsubscribeUrl } = options
   const fromEmail = process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
   const senderName = fromName || process.env.EMAIL_FROM_NAME || 'Emaan Power'
+
+  // Graph's internetMessageHeaders only accepts "x-"-prefixed headers, so
+  // List-Unsubscribe cannot be set here. Production sends via SES; this warns
+  // if EMAIL_PROVIDER is ever flipped back, since dropping the header silently
+  // fails Gmail's one-click unsubscribe requirement for the whole domain.
+  if (unsubscribeUrl) {
+    console.warn(
+      '⚠️ Microsoft Graph cannot set List-Unsubscribe — this subscription email will not be one-click compliant. Use EMAIL_PROVIDER=ses for bulk mail.'
+    )
+  }
 
   try {
     console.log('📧 Sending email via Microsoft Graph API:', { to, subject, from: fromEmail, fromName: senderName })
@@ -164,77 +182,137 @@ function getSESClient(): SESClient {
   return sesClient
 }
 
+// ─── Raw MIME helpers ────────────────────────────────────────────────────────
+//
+// Everything goes out via SendRawEmail so we control the headers. SES's
+// SendEmail (v1) cannot set List-Unsubscribe, which is the one header Gmail's
+// bulk-sender rules require on subscription mail.
+
+/** RFC 2047 encoded-word for header values that aren't printable ASCII. */
+function encodeHeaderValue(value: string): string {
+  return /^[\x20-\x7e]*$/.test(value)
+    ? value
+    : `=?UTF-8?B?${Buffer.from(value, 'utf8').toString('base64')}?=`
+}
+
+/** Display name for a From: header — quoted when ASCII, encoded-word otherwise. */
+function formatMailbox(name: string | undefined, email: string): string {
+  const trimmed = name?.trim()
+  if (!trimmed) return email
+  if (/^[\x20-\x7e]*$/.test(trimmed)) {
+    return `"${trimmed.replace(/["\\]/g, '')}" <${email}>`
+  }
+  return `${encodeHeaderValue(trimmed)} <${email}>`
+}
+
+/** Base64 body, wrapped at 76 chars as RFC 2045 requires (SES rejects >998-char lines). */
+function base64Body(content: string | Buffer): string {
+  const buf = typeof content === 'string' ? Buffer.from(content, 'utf8') : content
+  return buf.toString('base64').replace(/(.{76})/g, '$1\r\n')
+}
+
+function htmlToPlainText(html: string): string {
+  return html.replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+interface RawMessageInput {
+  from: string
+  to: string
+  subject: string
+  htmlBody: string
+  textBody?: string
+  attachments?: EmailAttachment[]
+  unsubscribeUrl?: string
+}
+
+export function buildRawMessage(input: RawMessageInput): string {
+  const { from, to, subject, htmlBody, textBody, attachments, unsubscribeUrl } = input
+  const stamp = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+  const altBoundary = `----=_Alt_${stamp}`
+  const mixedBoundary = `----=_Mixed_${stamp}`
+
+  const headers: string[] = [
+    `From: ${from}`,
+    `To: ${to}`,
+    `Subject: ${encodeHeaderValue(subject)}`,
+    'MIME-Version: 1.0',
+  ]
+  if (unsubscribeUrl) {
+    headers.push(
+      `List-Unsubscribe: <${unsubscribeUrl}>`,
+      'List-Unsubscribe-Post: List-Unsubscribe=One-Click',
+    )
+  }
+
+  const alternative: string[] = [
+    `--${altBoundary}`,
+    'Content-Type: text/plain; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    base64Body(textBody || htmlToPlainText(htmlBody)),
+    `--${altBoundary}`,
+    'Content-Type: text/html; charset=UTF-8',
+    'Content-Transfer-Encoding: base64',
+    '',
+    base64Body(htmlBody),
+    `--${altBoundary}--`,
+  ]
+
+  const lines: string[] = [...headers]
+  if (attachments && attachments.length > 0) {
+    lines.push(`Content-Type: multipart/mixed; boundary="${mixedBoundary}"`, '')
+    lines.push(`--${mixedBoundary}`)
+    lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`, '')
+    lines.push(...alternative)
+    for (const att of attachments) {
+      lines.push(
+        '',
+        `--${mixedBoundary}`,
+        `Content-Type: ${att.contentType}; name="${att.filename}"`,
+        `Content-Disposition: attachment; filename="${att.filename}"`,
+        'Content-Transfer-Encoding: base64',
+        '',
+        // Attachment content arrives already base64-encoded; just re-wrap it.
+        att.content.replace(/\s+/g, '').replace(/(.{76})/g, '$1\r\n'),
+      )
+    }
+    lines.push('', `--${mixedBoundary}--`)
+  } else {
+    lines.push(`Content-Type: multipart/alternative; boundary="${altBoundary}"`, '')
+    lines.push(...alternative)
+  }
+  return lines.join('\r\n')
+}
+
 async function sendViaSES(options: EmailOptions): Promise<boolean> {
-  const { to, subject, htmlBody, textBody, fromName, attachments } = options
+  const { to, subject, htmlBody, textBody, fromName, attachments, unsubscribeUrl } = options
   const fromEmail = process.env.AWS_SES_FROM_EMAIL || process.env.EMAIL_ADDRESS || 'support@emaanpower.com'
   const senderName = fromName || process.env.EMAIL_FROM_NAME || 'Emaan Power'
-  // Format: "Display Name <email@example.com>"
-  const source = senderName ? `${senderName} <${fromEmail}>` : fromEmail
+  // Optional: route bounces/complaints/opens to an SES configuration set's event
+  // destinations (e.g. the one the emaan email app already consumes).
+  const configurationSet = process.env.AWS_SES_CONFIGURATION_SET || undefined
 
   try {
     console.log('📧 Sending email via AWS SES:', { to, subject, from: fromEmail, fromName: senderName })
 
     const client = getSESClient()
-
-    // If there are attachments, use SendRawEmailCommand (MIME)
-    if (attachments && attachments.length > 0) {
-      const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).slice(2)}`
-      const rawParts = [
-        `From: ${source}`,
-        `To: ${to}`,
-        `Subject: =?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`,
-        `MIME-Version: 1.0`,
-        `Content-Type: multipart/mixed; boundary="${boundary}"`,
-        '',
-        `--${boundary}`,
-        `Content-Type: multipart/alternative; boundary="${boundary}_alt"`,
-        '',
-        `--${boundary}_alt`,
-        `Content-Type: text/plain; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-        '',
-        textBody || htmlBody.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
-        '',
-        `--${boundary}_alt`,
-        `Content-Type: text/html; charset=UTF-8`,
-        `Content-Transfer-Encoding: 7bit`,
-        '',
-        htmlBody,
-        '',
-        `--${boundary}_alt--`,
-      ]
-
-      for (const att of attachments) {
-        rawParts.push(
-          '',
-          `--${boundary}`,
-          `Content-Type: ${att.contentType}; name="${att.filename}"`,
-          `Content-Disposition: attachment; filename="${att.filename}"`,
-          `Content-Transfer-Encoding: base64`,
-          '',
-          att.content,
-        )
-      }
-      rawParts.push('', `--${boundary}--`)
-
-      const rawCommand = new SendRawEmailCommand({
-        RawMessage: { Data: new TextEncoder().encode(rawParts.join('\r\n')) },
+    const raw = buildRawMessage({
+      from: formatMailbox(senderName, fromEmail),
+      to,
+      subject,
+      htmlBody,
+      textBody,
+      attachments,
+      unsubscribeUrl,
+    })
+    await client.send(
+      new SendRawEmailCommand({
+        Source: fromEmail,
+        Destinations: [to],
+        RawMessage: { Data: new TextEncoder().encode(raw) },
+        ...(configurationSet ? { ConfigurationSetName: configurationSet } : {}),
       })
-      await client.send(rawCommand)
-    } else {
-      const command = new SendEmailCommand({
-        Source: source,
-        Destination: { ToAddresses: [to] },
-        Message: {
-          Subject: { Data: subject, Charset: 'UTF-8' },
-          Body: {
-            Html: { Data: htmlBody, Charset: 'UTF-8' },
-            ...(textBody ? { Text: { Data: textBody, Charset: 'UTF-8' } } : {}),
-          },
-        },
-      })
-      await client.send(command)
-    }
+    )
     console.log('✅ Email sent successfully via AWS SES')
     return true
   } catch (error) {
