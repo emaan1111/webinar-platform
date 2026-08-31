@@ -19,6 +19,7 @@ import {
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic } from '@/lib/mautic'
 import { sendClickSendSMS } from '@/lib/clicksend'
+import { pushRegistrationUpdateToEmaan } from '@/lib/emaan'
 
 /**
  * WebinarJam Sync Cron Job
@@ -386,7 +387,7 @@ async function updateAttendance(
   attended: boolean,
   scheduledStartTime?: Date | null
 ): Promise<void> {
-  await prisma.externalWebinarRegistration.update({
+  const updated = await prisma.externalWebinarRegistration.update({
     where: {
       externalWebinarId_email: { externalWebinarId, email }
     },
@@ -397,8 +398,46 @@ async function updateAttendance(
       joinedAt: attended ? new Date() : undefined,
       ...(scheduledStartTime ? { scheduledStartTime } : {}),
       updatedAt: new Date(),
-    }
+    },
+    select: {
+      email: true,
+      name: true,
+      phone: true,
+      timezone: true,
+      liveRoomUrl: true,
+      replayRoomUrl: true,
+      registeredAt: true,
+      scheduledStartTime: true,
+      attended: true,
+      watchTimeMinutes: true,
+      externalWebinar: { select: { name: true, externalWebinarName: true } },
+    },
   })
+
+  // Push attendance to Emaan. Without this its stats report shows 0% attendance
+  // for every EverWebinar pick, because nothing else ever marks these rows
+  // attended. Fire-and-forget: a sync run must not fail because Emaan is slow.
+  // (Live-Zoom picks never reach here — WebinarJam knows nothing about them —
+  // so they stay unattended in Emaan, which is honest: no attendance source for
+  // them exists anywhere in this app.)
+  void pushRegistrationUpdateToEmaan({
+    email: updated.email,
+    name: updated.name,
+    phone: updated.phone,
+    webinar: {
+      externalWebinarId,
+      webinarName:
+        updated.externalWebinar.externalWebinarName || updated.externalWebinar.name,
+      scheduledStartTime: updated.scheduledStartTime,
+      timezone: updated.timezone,
+      liveRoomUrl: updated.liveRoomUrl,
+      replayRoomUrl: updated.replayRoomUrl,
+      sessionType: 'everwebinar',
+      registeredAt: updated.registeredAt,
+      attended: updated.attended,
+      watchTimeMinutes: updated.watchTimeMinutes,
+    },
+  }).catch((err) => console.error('Emaan attendance push error:', err))
 }
 
 /**

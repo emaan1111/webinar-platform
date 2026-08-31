@@ -135,6 +135,80 @@ export function resolveEmaanTargets(input: ResolveEmaanTargetsInput): string[] {
   return [...urls]
 }
 
+/**
+ * Re-push a registration whose details changed AFTER signup.
+ *
+ * Deliberately does NOT go through resolveEmaanTargets. Emaan's lead webhook
+ * fires list_added and tag_applied on every post, new or not, and its workflow
+ * enrolment has no re-entry guard — so re-posting to a tagged endpoint would
+ * enrol the registrant into the registration workflow again, every time. This
+ * targets EMAAN_WEBINAR_SYNC_URL instead, which must point at an Emaan webhook
+ * endpoint configured with NO tags and NO lists. Emaan still updates the
+ * registration row (that is keyed on the contact and webinar, not the tag), so
+ * the session time, room link and attendance all land without side effects.
+ *
+ * No-ops when the env var is unset, so this is safe to deploy before the
+ * endpoint exists.
+ */
+export async function pushRegistrationUpdateToEmaan(input: {
+  email: string
+  name?: string | null
+  phone?: string | null
+  webinar: WebinarPushInput
+}): Promise<boolean> {
+  const url = process.env.EMAAN_WEBINAR_SYNC_URL
+  if (!url || !url.trim()) return false
+  return pushLeadToEmaan({
+    webhookUrl: url.trim(),
+    email: input.email,
+    name: input.name,
+    phone: input.phone,
+    customFields: buildWebinarPushFields(input.webinar),
+  })
+}
+
+/**
+ * Re-push many registrations, paced.
+ *
+ * Emaan rate-limits by IP and Webinar Play has a single egress IP, so a webinar
+ * with a few thousand registrants would trip it if pushed flat out. Small
+ * batches with a pause between them; individual failures are logged and skipped
+ * rather than aborting the run, because a partial sync is better than none and
+ * the whole thing is safely re-runnable.
+ */
+export async function pushRegistrationUpdatesToEmaan(
+  rows: Array<{
+    email: string
+    name?: string | null
+    phone?: string | null
+    webinar: WebinarPushInput
+  }>,
+  opts: { batchSize?: number; pauseMs?: number } = {},
+): Promise<{ pushed: number; failed: number }> {
+  const url = process.env.EMAAN_WEBINAR_SYNC_URL
+  if (!url || !url.trim() || rows.length === 0) return { pushed: 0, failed: 0 }
+
+  const batchSize = opts.batchSize ?? 4
+  const pauseMs = opts.pauseMs ?? 1000
+  let pushed = 0
+  let failed = 0
+
+  for (let i = 0; i < rows.length; i += batchSize) {
+    const batch = rows.slice(i, i + batchSize)
+    const results = await Promise.all(
+      batch.map((row) =>
+        pushRegistrationUpdateToEmaan(row).catch(() => false),
+      ),
+    )
+    for (const ok of results) ok ? pushed++ : failed++
+    if (i + batchSize < rows.length) {
+      await new Promise((resolve) => setTimeout(resolve, pauseMs))
+    }
+  }
+
+  return { pushed, failed }
+}
+
 /** Only allow the emaan lead-webhook shape; reject anything that isn't an http(s) URL. */
 function isValidWebhookUrl(url: string): boolean {
   try {

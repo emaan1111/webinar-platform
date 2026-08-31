@@ -4,6 +4,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { loadRoster, linkedIds } from '@/lib/zoomSessions'
+import { pushRegistrationUpdatesToEmaan } from '@/lib/emaan'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -209,6 +210,62 @@ export async function PUT(request: Request, { params }: { params: { id: string }
         })
       }
     }
+
+    // Tell Emaan the session moved or the link changed. Without this it holds
+    // the old time and the old Zoom URL, and mails a dead link — Webinar Play's
+    // own reminders dodge the problem by resolving the link at send time, and
+    // Emaan needs the equivalent. Read AFTER the updateMany calls above so the
+    // rows reflect the new time and link. Fire-and-forget and paced: Emaan rate
+    // limits by IP and we have one egress IP.
+    ;(async () => {
+      try {
+        const { external } = linkedIds(updated.webinars)
+        if (!external.length) return
+        const affected = await prisma.externalWebinarRegistration.findMany({
+          where: {
+            externalWebinarId: { in: external },
+            scheduledStartTime: updated.scheduledAt,
+          },
+          select: {
+            email: true,
+            name: true,
+            phone: true,
+            timezone: true,
+            liveRoomUrl: true,
+            replayRoomUrl: true,
+            registeredAt: true,
+            scheduledStartTime: true,
+            externalWebinarId: true,
+            externalWebinar: { select: { name: true, externalWebinarName: true } },
+          },
+        })
+        if (!affected.length) return
+        const result = await pushRegistrationUpdatesToEmaan(
+          affected.map((r) => ({
+            email: r.email,
+            name: r.name,
+            phone: r.phone,
+            webinar: {
+              externalWebinarId: r.externalWebinarId,
+              webinarName:
+                r.externalWebinar.externalWebinarName || r.externalWebinar.name,
+              scheduledStartTime: r.scheduledStartTime,
+              timezone: r.timezone,
+              liveRoomUrl: r.liveRoomUrl,
+              replayRoomUrl: r.replayRoomUrl,
+              // A registration sitting on a Zoom session's time IS a Zoom pick.
+              sessionType: 'zoom' as const,
+              registeredAt: r.registeredAt,
+            },
+          })),
+        )
+        console.log(
+          `Emaan zoom-session resync: ${result.pushed} pushed, ${result.failed} failed`,
+        )
+      } catch (err) {
+        console.error('Emaan zoom-session resync error:', err)
+      }
+    })()
 
     return NextResponse.json({ session: shapeSession(updated) })
   } catch (error) {
