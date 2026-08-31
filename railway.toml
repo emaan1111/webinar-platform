@@ -15,3 +15,17 @@ healthcheckTimeout = 100
 [[cron]]
 schedule = "*/5 * * * *"
 command = "curl -X POST -H 'Authorization: Bearer $CRON_SECRET' https://$RAILWAY_PUBLIC_DOMAIN/api/cron/process-reminders"
+
+# Attendance sync, every 15 minutes.
+#
+# Nothing scheduled this before — it ran only when someone clicked "Sync" on the
+# external-webinars dashboard. That left attendance permanently stale, which is
+# invisible until something depends on it: Emaan's stats read 0% attendance for
+# every EverWebinar pick, and every registrant eventually looks like a no-show,
+# so an "attended" or "missed" automation tags the wrong people.
+#
+# Fifteen minutes rather than five: this one calls the WebinarJam API per
+# webinar, and attendance is not final until well after a session ends anyway.
+[[cron]]
+schedule = "*/15 * * * *"
+command = "curl -X POST -H 'Authorization: Bearer $CRON_SECRET' https://$RAILWAY_PUBLIC_DOMAIN/api/cron/sync-webinarjam"
