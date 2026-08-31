@@ -35,6 +35,7 @@ function shapeSession(s: any) {
     id: s.id,
     name: s.name,
     zoomLink: s.zoomLink,
+    replayUrl: s.replayUrl,
     scheduledAt: s.scheduledAt,
     timezone: s.timezone,
     notes: s.notes,
@@ -84,11 +85,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     const body = await request.json()
-    const { name, zoomLink, date, time, timezone, notes, isActive, webinars } = body || {}
+    const { name, zoomLink, replayUrl, date, time, timezone, notes, isActive, webinars } =
+      body || {}
 
     const data: any = {}
     if (name !== undefined) data.name = name
     if (zoomLink !== undefined) data.zoomLink = zoomLink || null
+    if (replayUrl !== undefined) data.replayUrl = replayUrl || null
     if (notes !== undefined) data.notes = notes || null
     if (isActive !== undefined) data.isActive = !!isActive
     if (timezone !== undefined) data.timezone = timezone
@@ -253,6 +256,10 @@ export async function PUT(request: Request, { params }: { params: { id: string }
               timezone: r.timezone,
               liveRoomUrl: r.liveRoomUrl,
               replayRoomUrl: r.replayRoomUrl,
+              // Saving a replay URL is what makes an already-queued replay
+              // email find its link — the email waits, hourly, until one shows
+              // up rather than mailing a broken one.
+              sessionReplayUrl: updated.replayUrl,
               // A registration sitting on a Zoom session's time IS a Zoom pick.
               sessionType: 'zoom' as const,
               registeredAt: r.registeredAt,

@@ -1345,6 +1345,12 @@ model ExternalWebinar {
   // (shown to just-in-time picks while they wait, then auto-enters the live room). Plain scalar FK.
   countdownTemplateId    String?
 
+  /// An evergreen recording for this webinar, used when a session has no
+  /// recording of its own. Right for a webinar that runs the same content on a
+  /// loop; wrong for one where each cohort should see its own session, which is
+  /// why a per-session link always wins over this.
+  replayUrl String?
+
   // Facebook CAPI
   sendToFacebookCAPI Boolean @default(true)
 
@@ -1933,6 +1939,12 @@ model ZoomSession {
   id          String   @id @default(cuid())
   name        String
   zoomLink    String?
+  /// Where the recording of THIS session ended up, pasted in by the host after
+  /// it runs. Zoom is a typed-in join URL here — there is no Zoom API client,
+  /// no credentials and no stored meeting id — so nothing can fetch a recording
+  /// automatically. Saving this re-pushes every registrant to Emaan, which is
+  /// what lets a replay email that is already queued find its link.
+  replayUrl   String?
   scheduledAt DateTime // stored UTC
   timezone    String   @default("America/New_York") // tz the host entered the time in
   notes       String?

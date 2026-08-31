@@ -51,7 +51,17 @@ export interface WebinarPushInput {
   scheduledStartTime: Date | null
   timezone?: string | null
   liveRoomUrl?: string | null
+  /**
+   * Replay link, most specific first. The per-attendee WebinarJam room ranks
+   * LAST deliberately: a re-registration preserves the previous value, so after
+   * someone switches session it can point at the recording of a session they no
+   * longer attend. Anything a host typed for this session beats it.
+   */
   replayRoomUrl?: string | null
+  /** This session's own recording, pasted in by the host after it ran. */
+  sessionReplayUrl?: string | null
+  /** The webinar's evergreen recording, when every cohort watches the same one. */
+  webinarReplayUrl?: string | null
   sessionType: 'zoom' | 'everwebinar'
   registeredAt?: Date | null
   /** Only sent by the attendance re-push; omitted entirely at registration. */
@@ -68,7 +78,8 @@ export function buildWebinarPushFields(
     webinar_time: input.scheduledStartTime?.toISOString(),
     webinar_timezone: input.timezone || undefined,
     webinar_join_url: input.liveRoomUrl || undefined,
-    webinar_replay_url: input.replayRoomUrl || undefined,
+    webinar_replay_url:
+      input.sessionReplayUrl || input.webinarReplayUrl || input.replayRoomUrl || undefined,
     webinar_registered_at: input.registeredAt?.toISOString(),
     session_type: input.sessionType,
   }

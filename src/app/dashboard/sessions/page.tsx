@@ -31,6 +31,7 @@ interface ZoomSessionSummary {
   id: string
   name: string
   zoomLink: string | null
+  replayUrl: string | null
   scheduledAt: string
   timezone: string
   notes: string | null
@@ -85,6 +86,7 @@ interface FormState {
   id: string | null
   name: string
   zoomLink: string
+  replayUrl: string
   date: string
   time: string
   timezone: string
@@ -97,6 +99,7 @@ const emptyForm = (): FormState => ({
   id: null,
   name: '',
   zoomLink: '',
+  replayUrl: '',
   date: '',
   time: '',
   timezone: browserTz(),
@@ -214,6 +217,7 @@ export default function SessionsPage() {
       id: s.id,
       name: s.name,
       zoomLink: s.zoomLink || '',
+      replayUrl: s.replayUrl || '',
       date: formatInTimeZone(new Date(s.scheduledAt), s.timezone, 'yyyy-MM-dd'),
       time: formatInTimeZone(new Date(s.scheduledAt), s.timezone, 'HH:mm'),
       timezone: s.timezone,
@@ -240,6 +244,7 @@ export default function SessionsPage() {
     const payload = {
       name: form.name.trim(),
       zoomLink: form.zoomLink.trim(),
+      replayUrl: form.replayUrl.trim(),
       date: form.date,
       time: form.time,
       timezone: form.timezone,
@@ -552,6 +557,22 @@ export default function SessionsPage() {
                   placeholder="https://zoom.us/j/..."
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Replay link</label>
+                <input
+                  type="url"
+                  value={form.replayUrl}
+                  onChange={(e) => setForm({ ...form, replayUrl: e.target.value })}
+                  placeholder="Paste the recording URL after the session"
+                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Zoom recordings can&rsquo;t be fetched automatically, so paste the link here once
+                  it&rsquo;s uploaded. Saving sends it to everyone who registered &mdash; a replay
+                  email waiting on it goes out within the hour.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
