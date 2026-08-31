@@ -21,6 +21,12 @@ interface SchedulesResponse {
   schedules: Schedule[]
 }
 
+const GENERIC_LOAD_ERROR = "We couldn't load the available times right now."
+
+// A schedule-fetch failure whose message is safe to show the registrant (as opposed to a
+// raw network error like "Failed to fetch").
+class ScheduleLoadError extends Error {}
+
 function detectTimezone(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York'
@@ -145,6 +151,8 @@ export default function ExternalWebinarRegistrationForm({
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [thankYouUrl, setThankYouUrl] = useState<string | null>(null)
+  // Bumped by the "Try again" button when the schedule fetch fails.
+  const [reloadKey, setReloadKey] = useState(0)
 
   // User's timezone — auto-detected, but the registrant can change it (re-fetches times).
   const [userTimezone, setUserTimezone] = useState<string>(detectTimezone)
@@ -154,11 +162,23 @@ export default function ExternalWebinarRegistrationForm({
     async function fetchSchedules() {
       try {
         setLoadingSchedules(true)
+        setError('')
         const url = `${apiBaseUrl}api/external-webinars/${webinarId}/schedules?timezone=${encodeURIComponent(userTimezone)}`
         const response = await fetch(url)
         
         if (!response.ok) {
-          throw new Error('Failed to fetch schedules')
+          // A 4xx carries a human-readable reason (e.g. "This webinar is not currently
+          // active") that retrying won't change; anything else gets the generic message.
+          let message = GENERIC_LOAD_ERROR
+          if (response.status < 500) {
+            try {
+              const body = await response.json()
+              if (typeof body?.error === 'string' && body.error) message = body.error
+            } catch {
+              // non-JSON body — keep the generic message
+            }
+          }
+          throw new ScheduleLoadError(message)
         }
         
         const data: SchedulesResponse = await response.json()
@@ -172,7 +192,7 @@ export default function ExternalWebinarRegistrationForm({
           setSelectedSchedule(data.schedules[0].id)
         }
       } catch (err) {
-        setError('Failed to load available times')
+        setError(err instanceof ScheduleLoadError ? err.message : GENERIC_LOAD_ERROR)
         console.error('Schedule fetch error:', err)
       } finally {
         setLoadingSchedules(false)
@@ -180,7 +200,7 @@ export default function ExternalWebinarRegistrationForm({
     }
 
     fetchSchedules()
-  }, [webinarId, apiBaseUrl, userTimezone])
+  }, [webinarId, apiBaseUrl, userTimezone, reloadKey])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -266,6 +286,26 @@ export default function ExternalWebinarRegistrationForm({
       <div className={`text-center p-6 ${className}`}>
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
         <p className="text-gray-600 mt-2">Loading available times...</p>
+      </div>
+    )
+  }
+
+  // The schedule fetch failed. Say so (with a retry) instead of falling through to the
+  // empty-calendar message below — a backend 5xx used to be indistinguishable from a
+  // webinar that genuinely has no upcoming times, which hid outages from everyone.
+  if (error && schedules.length === 0) {
+    return (
+      <div className={`text-center p-6 ${className}`}>
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
+          {error}
+        </div>
+        <button
+          type="button"
+          onClick={() => setReloadKey((k) => k + 1)}
+          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          Try again
+        </button>
       </div>
     )
   }

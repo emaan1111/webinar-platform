@@ -235,11 +235,34 @@ export async function GET(
     const { searchParams } = new URL(request.url)
     const userTimezone = searchParams.get('timezone') || 'America/New_York'
 
-    // Get the external webinar from our database
+    // Get the external webinar from our database. Select only what this route reads:
+    // a SELECT * here means any schema column that hasn't reached the production DB
+    // yet (prisma/migrations is not deployed; db push is manual) throws P2022 and
+    // takes every registration popup down with a misleading "no sessions" message.
     const externalWebinar = await prisma.externalWebinar.findUnique({
       where: { id },
-      include: {
-        schedules: true,
+      select: {
+        name: true,
+        platform: true,
+        externalWebinarId: true,
+        externalWebinarName: true,
+        isActive: true,
+        isJIT: true,
+        jitTimes: true,
+        combineScheduleSources: true,
+        zoomOnlySchedule: true,
+        showJustInTime: true,
+        jitLeadMinutes: true,
+        recurringSlotsToShow: true,
+        thankYouUrl: true,
+        schedules: {
+          select: {
+            id: true,
+            externalScheduleId: true,
+            scheduledAt: true,
+            timezone: true,
+          },
+        },
       },
     })
 
