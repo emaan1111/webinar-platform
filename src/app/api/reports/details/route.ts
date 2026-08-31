@@ -306,8 +306,11 @@ export async function GET(request: NextRequest) {
     // Filter external registrations by metric
     const filteredExternalRegs = externalRegs.filter((reg: any) => {
       const watchTimeMinutes = reg.watchTimeMinutes || 0;
-      const attendedLive = reg.attended;
-      const hasReplay = !reg.attended && watchTimeMinutes > 0;
+      // Same rules as /api/reports: `attended` is the platform's merged flag;
+      // rows synced since the split was stored carry attendedLive/-Replay.
+      const attendedLive = reg.attendedLive ?? reg.attended;
+      const hasReplay =
+        !attendedLive && ((reg.attendedReplay ?? false) || (!reg.attended && watchTimeMinutes > 0));
       const isEngaged = watchTimeMinutes >= engagementMinutes;
 
       switch (metric) {
@@ -327,8 +330,6 @@ export async function GET(request: NextRequest) {
           return isEngaged && hasReplay;
 
         // --- Session clock -------------------------------------------------
-        // extReg.attended is written only by the attendance sync from the
-        // platform's live-room report, so it means the live broadcast.
         case 'sessionRegistered':
           return true;
         case 'sessionLive':
@@ -358,10 +359,11 @@ export async function GET(request: NextRequest) {
         return `${h}h ${m}m ${s}s`;
       };
 
+      const wasLive = reg.attendedLive ?? reg.attended;
       const attendedStatus = (isSessionMetric && !extSettled(reg))
         ? 'Upcoming'
-        : reg.attended ? 'Attended Live' :
-          (watchTimeMinutes > 0 ? 'Watched Replay' : 'Missed');
+        : wasLive ? 'Attended Live' :
+          ((reg.attendedReplay ?? false) || watchTimeMinutes > 0 ? 'Watched Replay' : 'Missed');
 
       return {
         id: `ext_${reg.id}`,
@@ -376,7 +378,8 @@ export async function GET(request: NextRequest) {
         totalTimeStayed: formatDuration(watchTimeSeconds),
         totalTimeSeconds: watchTimeSeconds,
         sawOffer: 'N/A',
-        replayWatched: (!reg.attended && watchTimeMinutes > 0) ? 'Yes' : 'No',
+        replayWatched:
+          (reg.attendedReplay ?? false) || (!reg.attended && watchTimeMinutes > 0) ? 'Yes' : 'No',
         status: attendedStatus,
         leftAt: reg.leftAt,
         engagement: 0,

@@ -415,10 +415,18 @@ export async function GET(request: NextRequest) {
 
       for (const extReg of filteredExtRegs) {
         const watchTimeMinutes = extReg.watchTimeMinutes || 0;
+        // `attended` is the platform's MERGED flag (live OR replay), so on
+        // its own it cannot say who only watched the replay - which kept the
+        // replay columns at zero. Rows synced since the split was stored
+        // carry attendedLive/attendedReplay; older rows fall back to the
+        // merged flag (counted as live, replay unknowable).
+        const wasLive = extReg.attendedLive ?? extReg.attended;
+        const watchedReplay =
+          (extReg.attendedReplay ?? false) || (!extReg.attended && watchTimeMinutes > 0);
 
-        if (extReg.attended) {
+        if (wasLive) {
           liveAttendees++;
-        } else if (watchTimeMinutes > 0) {
+        } else if (watchedReplay) {
           replayAttendees++;
         } else {
           missedTotal++;
@@ -427,9 +435,9 @@ export async function GET(request: NextRequest) {
         // Check engagement
         if (watchTimeMinutes >= engagementMinutes) {
           engagedTotal++;
-          if (extReg.attended) {
+          if (wasLive) {
             engagedLive++;
-          } else if (watchTimeMinutes > 0) {
+          } else if (watchedReplay) {
             engagedReplay++;
           }
         }
@@ -484,14 +492,17 @@ export async function GET(request: NextRequest) {
 
         sessionSettled++;
 
-        // Unlike Registration.attended, this flag is written only by the
-        // attendance sync from the external platform's live-room report, so
-        // it means the live broadcast and needs no replay discriminator.
+        // `attended` is the platform's MERGED flag (live OR replay). Use the
+        // stored split when the sync has written it; older rows fall back to
+        // the merged flag (counted as live, replay unknowable).
         const watchTimeMinutes = extReg.watchTimeMinutes || 0;
-        if (extReg.attended) sessionLive++;
+        const wasLive = extReg.attendedLive ?? extReg.attended;
+        const watchedReplay =
+          (extReg.attendedReplay ?? false) || (!extReg.attended && watchTimeMinutes > 0);
+        if (wasLive) sessionLive++;
         else sessionMissed++;
 
-        if (!extReg.attended && watchTimeMinutes > 0) sessionReplay++;
+        if (!wasLive && watchedReplay) sessionReplay++;
 
         if (watchTimeMinutes >= engagementMinutes) sessionEngaged++;
 

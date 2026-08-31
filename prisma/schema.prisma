@@ -1436,6 +1436,11 @@ model ExternalWebinarRegistration {
   leftAt              DateTime?
   watchTimeMinutes    Int       @default(0)
   watchTimePercentage Int       @default(0)
+  // Live/replay split. Null = row last synced before the split was stored;
+  // readers fall back to the merged `attended` + summed watchTimeMinutes.
+  attendedLive           Boolean?
+  attendedReplay         Boolean?
+  replayWatchTimeMinutes Int?
 
   // Tagging status
   attendanceTagsApplied   Boolean   @default(false)

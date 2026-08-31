@@ -162,6 +162,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
   total: number
   new: number
   attendanceUpdated: number
+  splitBackfilled?: number
   facebookSent: number
   tagsApplied: number
   smsSent: number
@@ -208,6 +209,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
 
   let newCount = 0
   let attendanceUpdated = 0
+  let splitBackfilled = 0
   let fbSentCount = 0
   let tagsApplied = 0
   let smsSent = 0
@@ -215,7 +217,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
   // Get existing registrations
   const existingRegs = await prisma.externalWebinarRegistration.findMany({
     where: { externalWebinarId: extWebinar.id },
-    select: { email: true, attended: true, watchTimeMinutes: true, attendanceTagsApplied: true, postSessionSmsSent: true, registeredAt: true, scheduledStartTime: true }
+    select: { email: true, attended: true, attendedLive: true, watchTimeMinutes: true, attendanceTagsApplied: true, postSessionSmsSent: true, registeredAt: true, scheduledStartTime: true }
   })
   const existingEmails = new Map(existingRegs.map(r => [r.email.toLowerCase(), r]))
 
@@ -257,7 +259,11 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, registrantTz)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, registrantTz, {
+        attendedLive,
+        attendedReplay,
+        replayMinutes,
+      })
       if (isNew) {
         newCount++
         
@@ -295,17 +301,30 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         }
       }
     } else {
-      // Existing registration - update attendance if changed
-      if (existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended) {
+      // Existing registration - update attendance if changed, or if the row
+      // predates the stored live/replay split (attendedLive == null) so the
+      // regular sync gradually backfills it.
+      const dataChanged =
+        existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended
+      if (dataChanged || existing.attendedLive == null) {
+        // A pure split backfill (dataChanged false) must be side-effect-free:
+        // it stores attendedLive/-Replay on an old row and nothing else - no
+        // joinedAt re-stamp, no tag reset, no Emaan push. Otherwise the first
+        // sync after deploy would re-date, re-tag and re-push a whole week of
+        // unchanged people.
         await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
           attendedLive,
           liveMinutes,
           attendedReplay,
           replayMinutes,
-        })
-        attendanceUpdated++
-        // Reset tag status so tags are re-evaluated based on new watch time
-        existing.attendanceTagsApplied = false
+        }, { dataChanged, previousAttended: existing.attended })
+        if (dataChanged) {
+          attendanceUpdated++
+          // Reset tag status so tags are re-evaluated based on new watch time
+          existing.attendanceTagsApplied = false
+        } else {
+          splitBackfilled++
+        }
       } else if (!existing.scheduledStartTime && scheduledStartTime) {
         // Backfill scheduledStartTime for existing registrations that are missing it
         await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
@@ -313,7 +332,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
           liveMinutes,
           attendedReplay,
           replayMinutes,
-        })
+        }, { dataChanged: false, previousAttended: existing.attended })
       }
 
       // Apply attendance tags if not already applied and enough time has passed
@@ -347,6 +366,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     total: registrants.length,
     new: newCount,
     attendanceUpdated,
+    splitBackfilled,
     facebookSent: fbSentCount,
     tagsApplied,
     smsSent,
@@ -363,7 +383,8 @@ async function createRegistration(
   attended: boolean,
   leadPageId: string | null,
   scheduledStartTime: Date | null,
-  registrantTz?: string | null
+  registrantTz?: string | null,
+  detail?: { attendedLive: boolean; attendedReplay: boolean; replayMinutes: number }
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -380,6 +401,9 @@ async function createRegistration(
         country: getRegistrantCountry(registrant) || undefined,
         attended,
         watchTimeMinutes,
+        attendedLive: detail?.attendedLive,
+        attendedReplay: detail?.attendedReplay,
+        replayWatchTimeMinutes: detail?.replayMinutes,
         scheduledStartTime,
         privacyConsent: true,
       }
@@ -403,17 +427,21 @@ async function updateAttendance(
   attended: boolean,
   scheduledStartTime?: Date | null,
   /**
-   * The live/replay split, passed through rather than stored: this table keeps
-   * one merged `attended` and one summed watch time, but Emaan needs them apart
-   * to tell "missed it, watched the replay" from "attended live".
+   * The live/replay split. Stored on the row (the reports need it to tell
+   * "missed it, watched the replay" from "attended live") and passed through
+   * to Emaan, which needs the same distinction for its tagging.
    */
   detail?: {
     attendedLive: boolean
     liveMinutes: number
     attendedReplay: boolean
     replayMinutes: number
-  }
+  },
+  /** Absent = behave like a genuine attendance change (old callers). */
+  sync?: { dataChanged: boolean; previousAttended: boolean }
 ): Promise<void> {
+  const dataChanged = sync?.dataChanged ?? true
+  const previousAttended = sync?.previousAttended ?? false
   const updated = await prisma.externalWebinarRegistration.update({
     where: {
       externalWebinarId_email: { externalWebinarId, email }
@@ -421,8 +449,17 @@ async function updateAttendance(
     data: {
       watchTimeMinutes,
       attended,
-      attendanceTagsApplied: false,
-      joinedAt: attended ? new Date() : undefined,
+      ...(detail
+        ? {
+            attendedLive: detail.attendedLive,
+            attendedReplay: detail.attendedReplay,
+            replayWatchTimeMinutes: detail.replayMinutes,
+          }
+        : {}),
+      ...(dataChanged ? { attendanceTagsApplied: false } : {}),
+      // joinedAt approximates when they showed up; stamp it only when
+      // attendance genuinely flipped to true, never on a backfill re-write.
+      joinedAt: attended && !previousAttended ? new Date() : undefined,
       ...(scheduledStartTime ? { scheduledStartTime } : {}),
       updatedAt: new Date(),
     },
@@ -447,6 +484,7 @@ async function updateAttendance(
   // (Live-Zoom picks never reach here — WebinarJam knows nothing about them —
   // so they stay unattended in Emaan, which is honest: no attendance source for
   // them exists anywhere in this app.)
+  if (!dataChanged) return
   void pushRegistrationUpdateToEmaan({
     email: updated.email,
     name: updated.name,

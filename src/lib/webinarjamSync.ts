@@ -215,6 +215,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     select: { 
       email: true, 
       attended: true, 
+      attendedLive: true,
       watchTimeMinutes: true, 
       attendanceTagsApplied: true, 
       postSessionSmsSent: true,
@@ -230,7 +231,9 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const existing = existingEmails.get(email)
     
     // Parse attendance data
-    const watchTimeMinutes = parseWatchTime(registrant.time_live) + parseWatchTime(registrant.time_replay)
+    const liveMinutes = parseWatchTime(registrant.time_live)
+    const replayMinutes = parseWatchTime(registrant.time_replay)
+    const watchTimeMinutes = liveMinutes + replayMinutes
     // API may return number (1) or string ("Yes") for attended fields
     const attendedLive = registrant.attended_live === 1 || registrant.attended_live === '1' || String(registrant.attended_live).toLowerCase() === 'yes'
     const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
@@ -256,7 +259,11 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       const splitTestVariant = linkedLeadPage?.splitTestVariants?.[0]
       
       // New registration - create it
-      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, registrantTz)
+      const isNew = await createRegistration(extWebinar, registrant, watchTimeMinutes, attended, linkedLeadPageId, scheduledStartTime, registrantTz, {
+        attendedLive,
+        attendedReplay,
+        replayMinutes,
+      })
       if (isNew) {
         newCount++
         
@@ -294,13 +301,26 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         }
       }
     } else {
-      // Existing registration - update attendance if changed
-      if (existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended) {
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
-        attendanceUpdated++
+      // Existing registration - update attendance if changed, or if the row
+      // predates the stored live/replay split (attendedLive == null).
+      const dataChanged =
+        existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended
+      if (dataChanged || existing.attendedLive == null) {
+        // Pure split backfill (dataChanged false): store the split, touch
+        // nothing else - in particular never re-stamp joinedAt.
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
+          attendedLive,
+          attendedReplay,
+          replayMinutes,
+        }, { dataChanged, previousAttended: existing.attended })
+        if (dataChanged) attendanceUpdated++
       } else if (!existing.scheduledStartTime && scheduledStartTime) {
         // Backfill scheduledStartTime for existing records missing it
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
+          attendedLive,
+          attendedReplay,
+          replayMinutes,
+        }, { dataChanged: false, previousAttended: existing.attended })
       }
 
       // Determine when this registrant's session ended
@@ -403,7 +423,8 @@ async function createRegistration(
   attended: boolean,
   leadPageId: string | null,
   scheduledStartTime: Date | null,
-  registrantTz?: string | null
+  registrantTz?: string | null,
+  detail?: { attendedLive: boolean; attendedReplay: boolean; replayMinutes: number }
 ): Promise<boolean> {
   try {
     await prisma.externalWebinarRegistration.create({
@@ -420,6 +441,9 @@ async function createRegistration(
         country: getRegistrantCountry(registrant) || undefined,
         attended,
         watchTimeMinutes,
+        attendedLive: detail?.attendedLive,
+        attendedReplay: detail?.attendedReplay,
+        replayWatchTimeMinutes: detail?.replayMinutes,
         scheduledStartTime,
         privacyConsent: true,
       }
@@ -440,8 +464,12 @@ async function updateAttendance(
   email: string,
   watchTimeMinutes: number,
   attended: boolean,
-  scheduledStartTime?: Date | null
+  scheduledStartTime?: Date | null,
+  detail?: { attendedLive: boolean; attendedReplay: boolean; replayMinutes: number },
+  /** Absent = behave like a genuine attendance change (old callers). */
+  sync?: { dataChanged: boolean; previousAttended: boolean }
 ): Promise<void> {
+  const previousAttended = sync?.previousAttended ?? false
   await prisma.externalWebinarRegistration.update({
     where: {
       externalWebinarId_email: { externalWebinarId, email }
@@ -449,7 +477,16 @@ async function updateAttendance(
     data: {
       watchTimeMinutes,
       attended,
-      joinedAt: attended ? new Date() : undefined,
+      ...(detail
+        ? {
+            attendedLive: detail.attendedLive,
+            attendedReplay: detail.attendedReplay,
+            replayWatchTimeMinutes: detail.replayMinutes,
+          }
+        : {}),
+      // Stamp only on a genuine flip to attended; a backfill must not
+      // re-date when someone showed up.
+      joinedAt: attended && !previousAttended ? new Date() : undefined,
       ...(scheduledStartTime ? { scheduledStartTime } : {}),
       updatedAt: new Date(),
     }
