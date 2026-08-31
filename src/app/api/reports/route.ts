@@ -434,6 +434,70 @@ export async function GET(request: NextRequest) {
           }
         }
       }
+
+      // --- External registrations on the SESSION clock -------------------
+      // The session-clock counters above are filled from prisma.registration
+      // alone, so a day whose webinar actually ran on EverWebinar/Zoom
+      // reported only the stray internal rows and hid the real audience.
+      // External registrations carry their own scheduledStartTime and their
+      // own attended flag synced back from the platform, so they belong on
+      // the same clock as the internal ones. Selected independently by
+      // scheduledStartTime, exactly as allSessionRegistrations is.
+      const extSessionWhere: any = {
+        scheduledStartTime: {
+          gte: currentDate,
+          lt: nextDate,
+        },
+      };
+      if (extWebinarFilterIds.length > 0) {
+        extSessionWhere.externalWebinarId = { in: extWebinarFilterIds };
+      }
+      const extSessionRegs = await prisma.externalWebinarRegistration.findMany({
+        where: extSessionWhere,
+        include: {
+          externalWebinar: {
+            select: {
+              webinarDurationMinutes: true,
+            }
+          }
+        }
+      });
+
+      const filteredExtSessionRegs = extSessionRegs.filter((reg: any) => {
+        return !isTestUser(reg.name || '', reg.email || '')
+      });
+
+      for (const extReg of filteredExtSessionRegs) {
+        sessionRegistered++;
+
+        const settled = isSessionSettled(
+          extReg.scheduledStartTime,
+          extReg.externalWebinar?.webinarDurationMinutes,
+          nowMs
+        );
+        if (!settled) {
+          // Same rule as the internal pass: the session hasn't finished, so
+          // attendance isn't knowable and this person is not yet a no-show.
+          sessionUpcoming++;
+          continue;
+        }
+
+        sessionSettled++;
+
+        // Unlike Registration.attended, this flag is written only by the
+        // attendance sync from the external platform's live-room report, so
+        // it means the live broadcast and needs no replay discriminator.
+        const watchTimeMinutes = extReg.watchTimeMinutes || 0;
+        if (extReg.attended) sessionLive++;
+        else sessionMissed++;
+
+        if (!extReg.attended && watchTimeMinutes > 0) sessionReplay++;
+
+        if (watchTimeMinutes >= engagementMinutes) sessionEngaged++;
+
+        // External registrations carry no sales relation, so sessionSales is
+        // left to the internal pass.
+      }
       } // end of else (external webinar filter)
 
       // Calculate total attendees (live + replay)
