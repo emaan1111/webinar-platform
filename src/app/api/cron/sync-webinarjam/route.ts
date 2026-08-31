@@ -225,7 +225,13 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     const existing = existingEmails.get(email)
     
     // Parse attendance data
-    const watchTimeMinutes = parseWatchTime(registrant.time_live) + parseWatchTime(registrant.time_replay)
+    // Kept apart as well as summed: WP2's own column stores the total, but Emaan
+    // applies the fully/partly threshold to each separately, and summing them
+    // makes a ten-minute live viewer who later watched the whole recording look
+    // like a full live attendee.
+    const liveMinutes = parseWatchTime(registrant.time_live)
+    const replayMinutes = parseWatchTime(registrant.time_replay)
+    const watchTimeMinutes = liveMinutes + replayMinutes
     // API may return number (1) or string ("Yes") for attended fields
     const attendedLive = registrant.attended_live === 1 || registrant.attended_live === '1' || String(registrant.attended_live).toLowerCase() === 'yes'
     const attendedReplay = registrant.attended_replay === 1 || registrant.attended_replay === '1' || String(registrant.attended_replay).toLowerCase() === 'yes'
@@ -291,13 +297,23 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
     } else {
       // Existing registration - update attendance if changed
       if (existing.watchTimeMinutes !== watchTimeMinutes || existing.attended !== attended) {
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
+          attendedLive,
+          liveMinutes,
+          attendedReplay,
+          replayMinutes,
+        })
         attendanceUpdated++
         // Reset tag status so tags are re-evaluated based on new watch time
         existing.attendanceTagsApplied = false
       } else if (!existing.scheduledStartTime && scheduledStartTime) {
         // Backfill scheduledStartTime for existing registrations that are missing it
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime)
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
+          attendedLive,
+          liveMinutes,
+          attendedReplay,
+          replayMinutes,
+        })
       }
 
       // Apply attendance tags if not already applied and enough time has passed
@@ -385,7 +401,18 @@ async function updateAttendance(
   email: string,
   watchTimeMinutes: number,
   attended: boolean,
-  scheduledStartTime?: Date | null
+  scheduledStartTime?: Date | null,
+  /**
+   * The live/replay split, passed through rather than stored: this table keeps
+   * one merged `attended` and one summed watch time, but Emaan needs them apart
+   * to tell "missed it, watched the replay" from "attended live".
+   */
+  detail?: {
+    attendedLive: boolean
+    liveMinutes: number
+    attendedReplay: boolean
+    replayMinutes: number
+  }
 ): Promise<void> {
   const updated = await prisma.externalWebinarRegistration.update({
     where: {
@@ -434,8 +461,10 @@ async function updateAttendance(
       replayRoomUrl: updated.replayRoomUrl,
       sessionType: 'everwebinar',
       registeredAt: updated.registeredAt,
-      attended: updated.attended,
-      watchTimeMinutes: updated.watchTimeMinutes,
+      attended: detail ? detail.attendedLive : updated.attended,
+      watchTimeMinutes: detail ? detail.liveMinutes : updated.watchTimeMinutes,
+      attendedReplay: detail?.attendedReplay ?? false,
+      replayMinutes: detail?.replayMinutes ?? 0,
     },
   }).catch((err) => console.error('Emaan attendance push error:', err))
 }
