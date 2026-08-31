@@ -19,6 +19,7 @@ import {
   Pencil,
   Trash2,
   X,
+  AlertTriangle,
 } from 'lucide-react'
 
 interface LinkedWebinar {
@@ -107,6 +108,27 @@ const emptyForm = (): FormState => ({
   external: [],
   internal: [],
 })
+
+/**
+ * A finished session that still has no recording link.
+ *
+ * This is the only nudge the design can honestly offer — there is no
+ * notification system here to hook, and it sits in the list the host is already
+ * looking at. It matters because a replay email for this session is queued and
+ * deliberately waiting: it retries hourly for two days rather than mail a
+ * broken link, and then gives up. The badge is the difference between "I
+ * forgot" and "nobody ever got the replay".
+ *
+ * Only sessions that actually ran. A session two minutes past its start time
+ * has not been recorded yet, so nagging about it would train people to ignore
+ * the badge — wait until it is plausibly over.
+ */
+const SESSION_LIKELY_OVER_MS = 3 * 60 * 60 * 1000
+
+function needsReplayLink(s: { scheduledAt: string; replayUrl: string | null }): boolean {
+  if (s.replayUrl) return false
+  return Date.now() > new Date(s.scheduledAt).getTime() + SESSION_LIKELY_OVER_MS
+}
 
 export default function SessionsPage() {
   const [sessions, setSessions] = useState<ZoomSessionSummary[]>([])
@@ -383,6 +405,14 @@ export default function SessionsPage() {
                       {s.zoomLink && (
                         <span className="inline-flex items-center gap-1 text-blue-600">
                           <Video className="w-3.5 h-3.5" /> Zoom
+                        </span>
+                      )}
+                      {needsReplayLink(s) && (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-800 text-xs font-medium"
+                          title="This session has finished and has no recording link. Replay emails for it are waiting — they go out within the hour once you add one."
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" /> Replay link missing
                         </span>
                       )}
                     </div>
