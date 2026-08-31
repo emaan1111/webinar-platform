@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth'
 import {
   readEmaanRoutes,
   writeEmaanRoutes,
+  readEmaanSyncUrl,
+  writeEmaanSyncUrl,
   EmaanGlobalRoute,
   EmaanScope,
   EmaanAppliesTo,
@@ -70,8 +72,8 @@ export async function GET() {
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
-    const routes = await readEmaanRoutes()
-    return NextResponse.json({ routes })
+    const [routes, syncWebhookUrl] = await Promise.all([readEmaanRoutes(), readEmaanSyncUrl()])
+    return NextResponse.json({ routes, syncWebhookUrl })
   } catch (error) {
     console.error('Failed to load Emaan routes:', error)
     return NextResponse.json({ error: 'Unable to load Emaan routes' }, { status: 500 })
@@ -105,8 +107,22 @@ export async function PUT(request: Request) {
       )
     }
 
+    // The update channel is saved alongside the routes. Blank clears it, which
+    // switches update pushes off without touching the registration pushes.
+    const rawSync = body?.syncWebhookUrl
+    if (rawSync !== undefined) {
+      const syncUrl = String(rawSync ?? '').trim()
+      if (syncUrl && !isHttpUrl(syncUrl)) {
+        return NextResponse.json(
+          { error: 'The update webhook must be a valid http(s) URL' },
+          { status: 400 },
+        )
+      }
+      await writeEmaanSyncUrl(syncUrl)
+    }
+
     await writeEmaanRoutes(routes)
-    return NextResponse.json({ routes })
+    return NextResponse.json({ routes, syncWebhookUrl: await readEmaanSyncUrl() })
   } catch (error) {
     console.error('Failed to save Emaan routes:', error)
     return NextResponse.json({ error: 'Unable to save Emaan routes' }, { status: 500 })

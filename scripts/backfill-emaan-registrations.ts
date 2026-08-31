@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client'
 import { pushRegistrationUpdatesToEmaan } from '../src/lib/emaan'
+import { readEmaanSyncUrl } from '../src/lib/emaanSettings'
 
 /**
  * Backfill existing external-webinar registrations into Emaan.
@@ -15,14 +16,14 @@ import { pushRegistrationUpdatesToEmaan } from '../src/lib/emaan'
  *      silently never reaches it — no contact, no reminder, no stats row.
  *      Re-running this over the last few days is the only way back.
  *
- * Targets EMAAN_WEBINAR_SYNC_URL, which must be a tag-less, list-less Emaan
- * webhook endpoint. That matters: Emaan fires tag_applied on every post and its
+ * Targets the sync URL from Settings → Emaan, which must be a tag-less,
+ * list-less Emaan webhook endpoint. That matters: Emaan fires tag_applied on every post and its
  * workflow enrolment has no re-entry guard, so backfilling through the TAGGED
  * registration URL would enrol every historical registrant into the reminder
  * workflow and mail them all at once.
  *
  * Usage:
- *   EMAAN_WEBINAR_SYNC_URL=https://… npx tsx scripts/backfill-emaan-registrations.ts [days]
+ *   npx tsx scripts/backfill-emaan-registrations.ts [days]
  *
  * `days` is how far back to go by session date; default 90. Pass `all` for
  * every registration ever.
@@ -31,9 +32,9 @@ import { pushRegistrationUpdatesToEmaan } from '../src/lib/emaan'
 const prisma = new PrismaClient()
 
 async function main(): Promise<void> {
-  if (!process.env.EMAAN_WEBINAR_SYNC_URL?.trim()) {
-    console.error('EMAAN_WEBINAR_SYNC_URL is not set — nothing would be pushed.')
-    console.error('It must point at an Emaan webhook endpoint with NO tags and NO lists.')
+  if (!(await readEmaanSyncUrl())) {
+    console.error('No Emaan sync URL configured — nothing would be pushed.')
+    console.error('Set it in Settings → Emaan. It must be an endpoint with NO tags and NO lists.')
     process.exit(1)
   }
 

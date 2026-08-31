@@ -1,3 +1,4 @@
+import { readEmaanSyncUrl } from './emaanSettings'
 /**
  * Emaan email-management integration.
  *
@@ -153,12 +154,12 @@ export function resolveEmaanTargets(input: ResolveEmaanTargetsInput): string[] {
  * fires list_added and tag_applied on every post, new or not, and its workflow
  * enrolment has no re-entry guard — so re-posting to a tagged endpoint would
  * enrol the registrant into the registration workflow again, every time. This
- * targets EMAAN_WEBINAR_SYNC_URL instead, which must point at an Emaan webhook
+ * targets the sync URL from Settings → Emaan instead, which must point at a webhook
  * endpoint configured with NO tags and NO lists. Emaan still updates the
  * registration row (that is keyed on the contact and webinar, not the tag), so
  * the session time, room link and attendance all land without side effects.
  *
- * No-ops when the env var is unset, so this is safe to deploy before the
+ * No-ops when that setting is blank, so this is safe to deploy before the
  * endpoint exists.
  */
 export async function pushRegistrationUpdateToEmaan(input: {
@@ -167,10 +168,10 @@ export async function pushRegistrationUpdateToEmaan(input: {
   phone?: string | null
   webinar: WebinarPushInput
 }): Promise<boolean> {
-  const url = process.env.EMAAN_WEBINAR_SYNC_URL
-  if (!url || !url.trim()) return false
+  const url = await readEmaanSyncUrl()
+  if (!url) return false
   return pushLeadToEmaan({
-    webhookUrl: url.trim(),
+    webhookUrl: url,
     email: input.email,
     name: input.name,
     phone: input.phone,
@@ -196,8 +197,8 @@ export async function pushRegistrationUpdatesToEmaan(
   }>,
   opts: { batchSize?: number; pauseMs?: number } = {},
 ): Promise<{ pushed: number; failed: number }> {
-  const url = process.env.EMAAN_WEBINAR_SYNC_URL
-  if (!url || !url.trim() || rows.length === 0) return { pushed: 0, failed: 0 }
+  const url = await readEmaanSyncUrl()
+  if (!url || rows.length === 0) return { pushed: 0, failed: 0 }
 
   const batchSize = opts.batchSize ?? 4
   const pauseMs = opts.pauseMs ?? 1000

@@ -31,6 +31,7 @@ function newRoute(): EmaanRoute {
 
 export default function EmaanSettingsPage() {
   const [routes, setRoutes] = useState<EmaanRoute[]>([])
+  const [syncWebhookUrl, setSyncWebhookUrl] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
@@ -42,6 +43,8 @@ export default function EmaanSettingsPage() {
         if (!res.ok) throw new Error('Failed to load')
         const data = await res.json()
         setRoutes(Array.isArray(data.routes) ? data.routes : [])
+      setSyncWebhookUrl(typeof data.syncWebhookUrl === 'string' ? data.syncWebhookUrl : '')
+        setSyncWebhookUrl(typeof data.syncWebhookUrl === 'string' ? data.syncWebhookUrl : '')
       } catch {
         setMessage({ type: 'error', text: 'Could not load Emaan routes.' })
       } finally {
@@ -62,7 +65,7 @@ export default function EmaanSettingsPage() {
       const res = await fetch('/api/settings/emaan-routes', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ routes }),
+        body: JSON.stringify({ routes, syncWebhookUrl }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Save failed')
@@ -106,7 +109,37 @@ export default function EmaanSettingsPage() {
 
         <Card>
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="bg-white rounded-xl border border-gray-200 p-5 mb-6">
+            <h2 className="text-lg font-semibold text-gray-900">Update webhook</h2>
+            <p className="mt-1 text-sm text-gray-600">
+              Where Emaan is told when something about a registration <em>changes</em> — a Zoom
+              session moved or got a new link, attendance came back from WebinarJam, a replay link
+              was added, or the backfill script ran. Registrations themselves go through the routes
+              below, not this.
+            </p>
+            <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+              <strong className="font-semibold">This must be a webhook with no tags and no lists.</strong>{' '}
+              Emaan applies an endpoint&rsquo;s tags on every post, and starts a workflow each time —
+              so a tagged URL here would re-enrol people on every update, sending them duplicate
+              reminders, and a backfill would email everyone at once.
+            </div>
+            <label className="mt-3 block text-sm">
+              <span className="font-medium text-gray-700">Emaan webhook URL</span>
+              <input
+                type="url"
+                value={syncWebhookUrl}
+                onChange={(e) => setSyncWebhookUrl(e.target.value)}
+                placeholder="https://your-emaan-app/webhooks/in/…"
+                className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+              />
+              <span className="mt-1 block text-xs text-gray-500">
+                Leave blank to switch updates off — registrations keep working, but attendance and
+                replay links stop reaching Emaan.
+              </span>
+            </label>
+          </div>
+
+          <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900">Global routes</h2>
               <button
                 type="button"
