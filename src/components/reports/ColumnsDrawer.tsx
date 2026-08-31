@@ -191,7 +191,7 @@ export default function ColumnsDrawer({ open, onClose, grid, engagementMinutes }
         <section className="border-b border-gray-200 px-6 py-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Views</span>
-            <span className="text-xs text-gray-400">★ = opens by default</span>
+            <span className="text-xs text-gray-400">★ = default on a first visit; otherwise your last view comes back</span>
           </div>
           <div className="flex flex-wrap gap-2">
             {grid.views.map(view => (
@@ -531,8 +531,8 @@ function ViewChip({ view, active, isDefault, onSelect, onSetDefault, onRename, o
         type="button"
         onClick={onSetDefault}
         className={`rounded-full p-1 ${isDefault ? 'text-amber-500' : 'text-gray-300 hover:text-amber-400'}`}
-        aria-label={isDefault ? `${view.name} is the default view` : `Make ${view.name} the default view`}
-        title={isDefault ? 'Default view' : 'Make default'}
+        aria-label={isDefault ? `${view.name} is the default view for new visits` : `Make ${view.name} the default view for new visits`}
+        title={isDefault ? 'Default view: opens on a first visit' : 'Make default for new visits'}
       >
         <Star className="w-3.5 h-3.5" fill={isDefault ? 'currentColor' : 'none'} />
       </button>
