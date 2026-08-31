@@ -6,7 +6,7 @@ import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { sendEmail } from '@/lib/email'
 import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime, getOneClickUnsubscribeUrl } from '@/lib/emailTracking'
-import { pushLeadToEmaan, resolveEmaanTargets } from '@/lib/emaan'
+import { pushLeadToEmaan, resolveEmaanTargets, buildWebinarPushFields } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
 import { getLinkedZoomSessions, LinkedZoomSession } from '@/lib/zoomSessions'
 
@@ -475,11 +475,20 @@ export async function POST(
             name,
             email: email.toLowerCase(),
             phone: fullPhone,
-            customFields: {
-              webinar_name: externalWebinar.externalWebinarName || externalWebinar.name,
-              webinar_time: registration.scheduledStartTime?.toISOString(),
-              session_type: isZoomPick ? 'zoom' : 'everwebinar',
-            },
+            // Built by a shared helper so the several push sites (here, a host
+            // editing a Zoom session, the attendance sync, the backfill) can't
+            // drift apart. Blank values are dropped by pushLeadToEmaan, so a
+            // Zoom pick simply omits the replay key rather than sending null.
+            customFields: buildWebinarPushFields({
+              externalWebinarId: externalWebinar.id,
+              webinarName: externalWebinar.externalWebinarName || externalWebinar.name,
+              scheduledStartTime: registration.scheduledStartTime,
+              timezone: registration.timezone,
+              liveRoomUrl: registration.liveRoomUrl,
+              replayRoomUrl: registration.replayRoomUrl,
+              sessionType: isZoomPick ? 'zoom' : 'everwebinar',
+              registeredAt: registration.registeredAt,
+            }),
           }).catch(err => console.error('Emaan push error:', err))
         }
       } catch (err) {

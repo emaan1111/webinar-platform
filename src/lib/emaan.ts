@@ -29,6 +29,60 @@ export interface EmaanLeadInput {
 }
 
 /**
+ * The webinar fields Emaan needs from one registration.
+ *
+ * Emaan turns these into a real WebinarRegistration row — the table its stats
+ * report reads, and the one its reminder emails read to know WHICH session
+ * they are about. Built in one place because there are several push sites
+ * (registration, a host editing a Zoom session, the WebinarJam attendance
+ * sync, the backfill script) and drift between them would show up as wrong
+ * dates in someone's inbox.
+ *
+ * Two rules Emaan depends on:
+ *   - webinar_time is ALWAYS `.toISOString()`, so it carries an explicit Z.
+ *     Emaan refuses a bare wall clock rather than reading it in its own
+ *     server timezone, which would shift an Australian session by ten hours.
+ *   - webinar_timezone is the REGISTRANT's own IANA zone, used only to render
+ *     their local time. It is never used to compute an instant.
+ */
+export interface WebinarPushInput {
+  externalWebinarId: string
+  webinarName: string
+  scheduledStartTime: Date | null
+  timezone?: string | null
+  liveRoomUrl?: string | null
+  replayRoomUrl?: string | null
+  sessionType: 'zoom' | 'everwebinar'
+  registeredAt?: Date | null
+  /** Only sent by the attendance re-push; omitted entirely at registration. */
+  attended?: boolean
+  watchTimeMinutes?: number
+}
+
+export function buildWebinarPushFields(
+  input: WebinarPushInput,
+): Record<string, CustomFieldValue> {
+  const fields: Record<string, CustomFieldValue> = {
+    webinar_external_id: input.externalWebinarId,
+    webinar_name: input.webinarName,
+    webinar_time: input.scheduledStartTime?.toISOString(),
+    webinar_timezone: input.timezone || undefined,
+    webinar_join_url: input.liveRoomUrl || undefined,
+    webinar_replay_url: input.replayRoomUrl || undefined,
+    webinar_registered_at: input.registeredAt?.toISOString(),
+    session_type: input.sessionType,
+  }
+  // Only include attendance when we actually have it. Sending attended=false
+  // at registration would tell Emaan the person definitively did not show up
+  // to a webinar that has not happened yet.
+  if (input.attended !== undefined) {
+    fields.webinar_attended_live = input.attended
+    fields.webinar_minutes_live = input.watchTimeMinutes ?? 0
+  }
+  return fields
+}
+
+/**
  * Decide which Emaan webhook URLs a single registration should be pushed to.
  *
  * Combines the webinar's own per-webinar URL with any matching global routes,
