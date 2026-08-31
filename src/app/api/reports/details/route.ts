@@ -1,6 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime } from 'date-fns-tz';
+import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
+
+/**
+ * Metrics counted on the SESSION clock - selected by the day the webinar RAN
+ * rather than the day the person signed up. /api/reports builds these columns
+ * from a separate query keyed on scheduledStartTime, so the drill-down has to
+ * select the same way or it lists a different population than the cell that
+ * was clicked.
+ */
+const SESSION_METRICS = new Set([
+  'sessionRegistered',
+  'sessionLive',
+  'sessionMissed',
+  'sessionUpcoming',
+  'sessionReplay',
+  'sessionEngaged',
+]);
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,6 +38,7 @@ export async function GET(request: NextRequest) {
     const extWebinarIds = webinarIds.filter(id => id.startsWith('ext_')).map(id => id.replace('ext_', ''));
     const hasInternalFilter = internalWebinarIds.length > 0;
     const hasExternalFilter = extWebinarIds.length > 0;
+    const isSessionMetric = SESSION_METRICS.has(metric || '');
 
     if ((!date && (!startDateParam || !endDateParam)) || !metric) {
       return NextResponse.json(
@@ -79,11 +97,15 @@ export async function GET(request: NextRequest) {
 
     const allRegistrations = await prisma.registration.findMany({
       where: {
-        registeredAt: {
-          gte: start,
-          lt: end
-        },
-        ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
+        ...(isSessionMetric
+          ? { scheduledStartTime: { gte: start, lt: end } }
+          : { registeredAt: { gte: start, lt: end } }),
+        // Mirrors /api/reports: when the filter names only external webinars,
+        // internal registrations are excluded outright rather than all let
+        // through, so the list matches the number it was opened from.
+        ...(internalWebinarIds.length > 0
+          ? { webinarId: { in: internalWebinarIds } }
+          : (webinarIds.length > 0 ? { webinarId: '__none__' } : {}))
       },
       include: {
         user: {
@@ -122,6 +144,12 @@ export async function GET(request: NextRequest) {
         }, 0);
         return maxVideoPosition > 0 ? maxVideoPosition : (reg.lastWatchedPosition || 0);
     };
+
+    // One clock for the whole request, so a session can't settle midway
+    // through the list and split people across two answers.
+    const nowMs = Date.now();
+    const internalSettled = (reg: any) =>
+      isSessionSettled(reg.scheduledStartTime, reg.webinar?.duration, nowMs);
 
     // Filter based on metric
     const filteredRegistrations = registrations.filter(reg => {
@@ -162,6 +190,24 @@ export async function GET(request: NextRequest) {
                  const scheduledEnd = new Date(scheduledStart.getTime() + reg.webinar.duration * 60 * 1000);
                  return now > scheduledEnd;
             }
+
+            // --- Session clock: the webinars that RAN in this window --------
+            // Same shared rules /api/reports counted with, so each list is
+            // exactly the people behind the cell.
+            case 'sessionRegistered':
+                return true;
+            case 'sessionLive':
+                return internalSettled(reg) && attendedLiveBroadcast(reg);
+            case 'sessionMissed':
+                return internalSettled(reg) && !attendedLiveBroadcast(reg);
+            case 'sessionUpcoming':
+                return !internalSettled(reg);
+            case 'sessionReplay':
+                return internalSettled(reg) && !attendedLiveBroadcast(reg) &&
+                       Boolean(reg.watchedReplay || reg.sessions.length > 0);
+            case 'sessionEngaged':
+                return internalSettled(reg) && isEngaged;
+
             default:
                 return false;
         }
@@ -178,9 +224,20 @@ export async function GET(request: NextRequest) {
         };
 
         const sessionDate = reg.sessions.length > 0 ? reg.sessions[0].joinedAt : null;
-        const attendedStatus = reg.attended ? 'Attended Live' : 
+        // On the session clock the status has to be read off the same rules
+        // the count used, or a row can show "Attended Live" inside a Missed
+        // list - Registration.attended is set by replay sessions too.
+        const attendedStatus = isSessionMetric
+          ? (!internalSettled(reg)
+              ? 'Upcoming'
+              : attendedLiveBroadcast(reg)
+                ? 'Attended Live'
+                : (reg.watchedReplay || reg.sessions.length > 0)
+                  ? 'Watched Replay'
+                  : 'Missed')
+          : (reg.attended ? 'Attended Live' :
                                (reg.sessions.length > 0 ? 'Watched Replay' : 
-                                (new Date() > new Date(reg.scheduledStartTime || 0) ? 'Missed' : 'Upcoming'));
+                                (new Date() > new Date(reg.scheduledStartTime || 0) ? 'Missed' : 'Upcoming')));
 
         // Check if offer seen
         const sawOffer = reg.offerAnalytics.some((oa: any) => oa.sawOffer) || reg.sessions.some((s: any) => s.engagements && s.engagements.some((e: any) => e.eventType === 'offer_view')); // Simplifying assumption if engagement events not loaded detailed
@@ -199,6 +256,7 @@ export async function GET(request: NextRequest) {
             timezone: reg.timezone || '-',
             webinarTitle: reg.webinar.title,
             registeredAt: reg.registeredAt,
+            scheduledStartTime: reg.scheduledStartTime,
             attendedAt: sessionDate, // Date Webinar Attended
             totalTimeStayed: formatDuration(watchTimeSeconds),
             totalTimeSeconds: watchTimeSeconds,
@@ -218,12 +276,9 @@ export async function GET(request: NextRequest) {
     const includeExternal = webinarIds.length === 0 || hasExternalFilter;
     let externalDetails: any[] = [];
     if (includeExternal) {
-    const extWhere: any = {
-      registeredAt: {
-        gte: start,
-        lt: end,
-      },
-    };
+    const extWhere: any = isSessionMetric
+      ? { scheduledStartTime: { gte: start, lt: end } }
+      : { registeredAt: { gte: start, lt: end } };
     if (extWebinarIds.length > 0) {
       extWhere.externalWebinarId = { in: extWebinarIds };
     }
@@ -244,6 +299,9 @@ export async function GET(request: NextRequest) {
     const externalRegs = allExternalRegs.filter((reg: any) =>
       !isTestUser(reg.name || '', reg.email || '')
     );
+
+    const extSettled = (reg: any) =>
+      isSessionSettled(reg.scheduledStartTime, reg.externalWebinar?.webinarDurationMinutes, nowMs);
 
     // Filter external registrations by metric
     const filteredExternalRegs = externalRegs.filter((reg: any) => {
@@ -267,6 +325,23 @@ export async function GET(request: NextRequest) {
           return isEngaged && attendedLive;
         case 'engagedReplay':
           return isEngaged && hasReplay;
+
+        // --- Session clock -------------------------------------------------
+        // extReg.attended is written only by the attendance sync from the
+        // platform's live-room report, so it means the live broadcast.
+        case 'sessionRegistered':
+          return true;
+        case 'sessionLive':
+          return extSettled(reg) && attendedLive;
+        case 'sessionMissed':
+          return extSettled(reg) && !attendedLive;
+        case 'sessionUpcoming':
+          return !extSettled(reg);
+        case 'sessionReplay':
+          return extSettled(reg) && hasReplay;
+        case 'sessionEngaged':
+          return extSettled(reg) && isEngaged;
+
         default:
           return false;
       }
@@ -283,8 +358,10 @@ export async function GET(request: NextRequest) {
         return `${h}h ${m}m ${s}s`;
       };
 
-      const attendedStatus = reg.attended ? 'Attended Live' :
-        (watchTimeMinutes > 0 ? 'Watched Replay' : 'Missed');
+      const attendedStatus = (isSessionMetric && !extSettled(reg))
+        ? 'Upcoming'
+        : reg.attended ? 'Attended Live' :
+          (watchTimeMinutes > 0 ? 'Watched Replay' : 'Missed');
 
       return {
         id: `ext_${reg.id}`,
@@ -294,6 +371,7 @@ export async function GET(request: NextRequest) {
         timezone: reg.timezone || '-',
         webinarTitle: reg.externalWebinar?.externalWebinarName || reg.externalWebinar?.name || 'External Webinar',
         registeredAt: reg.registeredAt,
+        scheduledStartTime: reg.scheduledStartTime,
         attendedAt: reg.joinedAt,
         totalTimeStayed: formatDuration(watchTimeSeconds),
         totalTimeSeconds: watchTimeSeconds,
@@ -311,8 +389,11 @@ export async function GET(request: NextRequest) {
     } // end if (includeExternal)
 
     // Merge and sort
+    // A session-clock list is about a webinar that ran, so order it by when
+    // the session was; sign-up lists stay newest-registration-first.
+    const sortKey = isSessionMetric ? 'scheduledStartTime' : 'registeredAt';
     const allDetails = [...details, ...externalDetails].sort((a: any, b: any) =>
-      new Date(b.registeredAt).getTime() - new Date(a.registeredAt).getTime()
+      new Date(b[sortKey] || 0).getTime() - new Date(a[sortKey] || 0).getTime()
     );
 
     return NextResponse.json({

@@ -415,6 +415,12 @@ export default function ReportsPage() {
       </Link>
     )
 
+    // The session-clock columns are drillable too - they are the only place
+    // the real audience is counted, so "who are these people?" has to be one
+    // click away. A missing value stays a dash rather than a link to zero.
+    const renderSessionLink = (value: number | undefined, metric: string) =>
+      value == null ? <span>-</span> : renderLink(value, metric)
+
     switch (columnId) {
       case 'date':
         return formatDateLabel(report.date)
@@ -435,17 +441,17 @@ export default function ReportsPage() {
       case 'registrations':
         return renderLink(report.registrations, 'registrations')
       case 'sessionRegistered':
-        return <span>{report.sessionRegistered?.toLocaleString() ?? '-'}</span>
+        return renderSessionLink(report.sessionRegistered, 'sessionRegistered')
       case 'sessionLive':
-        return <span>{report.sessionLive?.toLocaleString() ?? '-'}</span>
+        return renderSessionLink(report.sessionLive, 'sessionLive')
       case 'sessionMissed':
-        return <span>{report.sessionMissed?.toLocaleString() ?? '-'}</span>
+        return renderSessionLink(report.sessionMissed, 'sessionMissed')
       case 'sessionUpcoming':
-        return <span>{report.sessionUpcoming?.toLocaleString() ?? '-'}</span>
+        return renderSessionLink(report.sessionUpcoming, 'sessionUpcoming')
       case 'sessionReplay':
-        return <span>{report.sessionReplay?.toLocaleString() ?? '-'}</span>
+        return renderSessionLink(report.sessionReplay, 'sessionReplay')
       case 'sessionEngaged':
-        return <span>{report.sessionEngaged?.toLocaleString() ?? '-'}</span>
+        return renderSessionLink(report.sessionEngaged, 'sessionEngaged')
       case 'sessionAttendanceRate':
         return <PercentageCell value={report.sessionAttendanceRate ?? 0} />
       case 'sessionReplayRate':
@@ -1419,12 +1425,12 @@ export default function ReportsPage() {
                         else if (columnId === 'fbSpend') totalValue = `$${totals.spend.toFixed(2)}`
                         else if (columnId === 'visitors') totalValue = totals.visitors.toLocaleString()
                         else if (columnId === 'registrations') totalValue = renderTotalLink(totals.registrations, 'registrations')
-                        else if (columnId === 'sessionRegistered') totalValue = <span>{totals.sessionRegistered.toLocaleString()}</span>
-                        else if (columnId === 'sessionLive') totalValue = <span>{totals.sessionLive.toLocaleString()}</span>
-                        else if (columnId === 'sessionMissed') totalValue = <span>{totals.sessionMissed.toLocaleString()}</span>
-                        else if (columnId === 'sessionUpcoming') totalValue = <span>{totals.sessionUpcoming.toLocaleString()}</span>
-                        else if (columnId === 'sessionReplay') totalValue = <span>{totals.sessionReplay.toLocaleString()}</span>
-                        else if (columnId === 'sessionEngaged') totalValue = <span>{totals.sessionEngaged.toLocaleString()}</span>
+                        else if (columnId === 'sessionRegistered') totalValue = renderTotalLink(totals.sessionRegistered, 'sessionRegistered')
+                        else if (columnId === 'sessionLive') totalValue = renderTotalLink(totals.sessionLive, 'sessionLive')
+                        else if (columnId === 'sessionMissed') totalValue = renderTotalLink(totals.sessionMissed, 'sessionMissed')
+                        else if (columnId === 'sessionUpcoming') totalValue = renderTotalLink(totals.sessionUpcoming, 'sessionUpcoming')
+                        else if (columnId === 'sessionReplay') totalValue = renderTotalLink(totals.sessionReplay, 'sessionReplay')
+                        else if (columnId === 'sessionEngaged') totalValue = renderTotalLink(totals.sessionEngaged, 'sessionEngaged')
                         else if (columnId === 'sessionAttendanceRate') totalValue = <PercentageCell value={totals.sessionAttendanceRate} />
                         else if (columnId === 'sessionReplayRate') totalValue = <PercentageCell value={totals.sessionReplayRate} />
                         else if (columnId === 'sessionEngagedPerRegistered') totalValue = <PercentageCell value={totals.sessionEngagedPerRegistered} />

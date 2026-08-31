@@ -136,7 +136,14 @@ export default function ReportDetailsPage() {
           'salesTotal': 'Sales (Total)',
           'salesLive': 'Sales (Live)',
           'salesReplay': 'Sales (Replay)',
-          'pastRegistrationCount': 'Eligible Past Registrations'
+          'pastRegistrationCount': 'Eligible Past Registrations',
+          // Session clock: selected by the day the webinar RAN.
+          'sessionRegistered': 'Registered (ran today)',
+          'sessionLive': 'Live Attendees (ran today)',
+          'sessionMissed': 'Missed (ran today)',
+          'sessionUpcoming': 'Yet to Run',
+          'sessionReplay': 'Replay Viewers (ran today)',
+          'sessionEngaged': 'Engaged (ran today)'
       }
       return labels[m] || m
   }
