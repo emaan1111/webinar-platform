@@ -1,9 +1,8 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
+import ReportsSubNav from '@/components/reports/ReportsSubNav'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import MultiSelect from '@/components/ui/MultiSelect'
@@ -16,9 +15,7 @@ import {
   Download,
   TrendingUp,
   TrendingDown,
-  AlertCircle,
-  BarChart3,
-  FileText
+  AlertCircle
 } from 'lucide-react'
 
 type ReportsMetrics = {
@@ -44,7 +41,6 @@ export default function ReportsChartsPage() {
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   // Shared with the Key Metrics tab, so both bucket days the same way.
   const { timezone, setTimezone } = useTimezonePreference()
-  const pathname = usePathname()
 
   // Calendar dates in the selected zone rather than UTC.
   const zonedDate = (d: Date) => formatInTimeZone(d, timezone || 'UTC', 'yyyy-MM-dd')
@@ -168,7 +164,7 @@ export default function ReportsChartsPage() {
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Reports - Charts & Trends</h1>
+              <h1 className="text-2xl font-semibold tracking-tight text-gray-900">Reports · Charts &amp; Trends</h1>
               <p className="mt-1 text-sm text-gray-500">
                 Visualize registration, attendance, and engagement trends over time
               </p>
@@ -194,31 +190,8 @@ export default function ReportsChartsPage() {
             </div>
           </div>
 
-          {/* Sub-navigation tabs */}
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              {[
-                { href: '/dashboard/reports', label: 'Key Metrics', icon: FileText },
-                { href: '/dashboard/reports/charts', label: 'Charts & Trends', icon: BarChart3 }
-              ].map(({ href, label, icon: Icon }) => {
-                const isActive = pathname === href
-                return (
-                  <Link
-                    key={href}
-                    href={href}
-                    className={`border-b-2 py-4 px-1 text-sm font-medium inline-flex items-center gap-2 ${
-                      isActive
-                        ? 'border-blue-500 text-blue-600'
-                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                  >
-                    <Icon className="w-4 h-4" />
-                    {label}
-                  </Link>
-                )
-              })}
-            </nav>
-          </div>
+          {/* Sub-navigation tabs (shared with Key Metrics) */}
+          <ReportsSubNav />
         </div>
 
         {warning && (
