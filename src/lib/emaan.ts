@@ -65,9 +65,19 @@ export interface WebinarPushInput {
   webinarReplayUrl?: string | null
   sessionType: 'zoom' | 'everwebinar'
   registeredAt?: Date | null
-  /** Only sent by the attendance re-push; omitted entirely at registration. */
+  /**
+   * Only sent by the attendance re-push; omitted entirely at registration.
+   *
+   * Live and replay are kept apart. Merging them — one `attended` boolean and a
+   * watch time summing both — made someone who missed the session and watched
+   * the recording arrive at Emaan looking like a live attendee, so they were
+   * tagged attended rather than missed-then-replay, and the replay tag could
+   * never fire at all.
+   */
   attended?: boolean
   watchTimeMinutes?: number
+  attendedReplay?: boolean
+  replayMinutes?: number
 }
 
 export function buildWebinarPushFields(
@@ -87,9 +97,11 @@ export function buildWebinarPushFields(
   // Only include attendance when we actually have it. Sending attended=false
   // at registration would tell Emaan the person definitively did not show up
   // to a webinar that has not happened yet.
-  if (input.attended !== undefined) {
-    fields.webinar_attended_live = input.attended
+  if (input.attended !== undefined || input.attendedReplay !== undefined) {
+    fields.webinar_attended_live = input.attended ?? false
     fields.webinar_minutes_live = input.watchTimeMinutes ?? 0
+    fields.webinar_attended_replay = input.attendedReplay ?? false
+    fields.webinar_minutes_replay = input.replayMinutes ?? 0
   }
   return fields
 }
