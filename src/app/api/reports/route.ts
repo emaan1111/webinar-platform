@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { requestFacebookInsights } from '@/lib/facebookAds';
+import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -216,6 +217,44 @@ export async function GET(request: NextRequest) {
         return !isTestUser(name, email)
       })
 
+      // ---------------------------------------------------------------------
+      // The webinar half of the row, on the SESSION clock.
+      //
+      // The query above selects people by the day they SIGNED UP, which is the
+      // only basis on which cost-per-registration is true: that is the day the
+      // ad spend bought them. It is the wrong basis for attendance, because
+      // someone who signs up today for next week's webinar cannot have
+      // attended it yet — they sit in the denominator with no possible
+      // outcome and drag the rate down.
+      //
+      // So attendance, engagement and sales are counted over the sessions that
+      // actually RAN on this day, selected independently by scheduledStartTime.
+      // Registrations with no scheduled start are absent from this query
+      // entirely; they are counted below as a disclosed gap rather than being
+      // given a substitute date.
+      // ---------------------------------------------------------------------
+      const allSessionRegistrations = await prisma.registration.findMany({
+        where: {
+          scheduledStartTime: {
+            gte: currentDate,
+            lt: nextDate
+          },
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {}))
+        },
+        include: {
+          user: { select: { name: true, email: true } },
+          webinar: { select: { duration: true } },
+          sessions: true,
+          sales: true
+        }
+      });
+
+      const sessionRegistrations = allSessionRegistrations.filter((reg: any) => {
+        const name = reg.name || reg.user?.name || ''
+        const email = reg.email || reg.user?.email || ''
+        return !isTestUser(name, email)
+      })
+
       // Get page visits (for visitor count)
       const pageVisits = await prisma.pageVisit.findMany({
         where: {
@@ -242,15 +281,64 @@ export async function GET(request: NextRequest) {
       let salesReplay = 0;
       let missedTotal = 0;
 
+      // --- Session-clock counters: the webinars that RAN on this day --------
+      // sessionRegistered = sessionLive + sessionMissed + sessionUpcoming,
+      // an identity that holds exactly so a row can be checked by eye.
+      const nowMs = Date.now();
+      let sessionRegistered = 0;      // registered for a session that ran today
+      let sessionSettled = 0;         // ...whose session has actually finished
+      let sessionLive = 0;            // ...and who attended the live broadcast
+      let sessionMissed = 0;          // ...and who did not
+      let sessionUpcoming = 0;        // session today but not finished yet
+      let sessionEngaged = 0;
+      let sessionSales = 0;
+      let sessionReplay = 0;
+
+      for (const reg of sessionRegistrations) {
+        sessionRegistered++;
+
+        const settled = isSessionSettled(
+          reg.scheduledStartTime,
+          reg.webinar?.duration,
+          nowMs
+        );
+        if (!settled) {
+          // The session hasn't finished. Attendance is not yet knowable, so
+          // this person is reported separately rather than counted as a
+          // no-show against a webinar that hasn't happened.
+          sessionUpcoming++;
+          continue;
+        }
+
+        sessionSettled++;
+
+        const wasLive = attendedLiveBroadcast(reg);
+        if (wasLive) sessionLive++;
+        else sessionMissed++;
+
+        if (!wasLive && (reg.watchedReplay || reg.sessions.length > 0)) {
+          sessionReplay++;
+        }
+
+        const maxPos = reg.sessions.reduce(
+          (max: number, s: any) => Math.max(max, s.videoPosition || 0),
+          0
+        );
+        const watched = maxPos > 0 ? maxPos : (reg.lastWatchedPosition || 0);
+        if (watched / 60 >= engagementMinutes) sessionEngaged++;
+
+        sessionSales += reg.sales.length;
+      }
+
       for (const reg of registrations) {
         // Check if attended live
         const attendedLive = reg.attended;
         const hasReplaySessions = !reg.attended && reg.sessions.length > 0;
-        
+
         if (attendedLive) {
           liveAttendees++;
         }
-        
+
         // Check if watched replay (has sessions but didn't attend live)
         if (hasReplaySessions) {
           replayAttendees++;
@@ -425,6 +513,21 @@ export async function GET(request: NextRequest) {
       const engagementRateReplay = replayAttendees > 0 ? (engagedReplay / replayAttendees) * 100 : 0;
       const engagementRateTotal = totalAttendees > 0 ? (engagedTotal / totalAttendees) * 100 : 0;
 
+      // --- Session-clock rates ---------------------------------------------
+      // Every one of these divides by sessions that have FINISHED, so a
+      // webinar still to run can't drag the number down, and each is filed
+      // under the day the webinar ran rather than the day people signed up.
+      const sessionAttendanceRate =
+        sessionSettled > 0 ? (sessionLive / sessionSettled) * 100 : 0;
+      const sessionEngagedPerRegistered =
+        sessionSettled > 0 ? (sessionEngaged / sessionSettled) * 100 : 0;
+      const sessionEngagementRateLive =
+        sessionLive > 0 ? (sessionEngaged / sessionLive) * 100 : 0;
+      const sessionSalesPerRegistered =
+        sessionSettled > 0 ? (sessionSales / sessionSettled) * 100 : 0;
+      const sessionReplayRate =
+        sessionSettled > 0 ? (sessionReplay / sessionSettled) * 100 : 0;
+
       reports.push({
         // The bucket label must be the date in the viewer's timezone, not the
         // UTC date of its midnight boundary - for zones ahead of UTC those are
@@ -448,7 +551,24 @@ export async function GET(request: NextRequest) {
         replayAttendees,
         pastRegistrationCount,
         pastAttendees,
-        
+
+        // --- The webinar half: sessions that RAN on this day ---------------
+        // Counted on the session clock and divided by finished sessions only.
+        // sessionRegistered = sessionLive + sessionMissed + sessionUpcoming.
+        sessionRegistered,
+        sessionSettled,
+        sessionLive,
+        sessionMissed,
+        sessionUpcoming,
+        sessionEngaged,
+        sessionSales,
+        sessionReplay,
+        sessionAttendanceRate,
+        sessionEngagedPerRegistered,
+        sessionEngagementRateLive,
+        sessionSalesPerRegistered,
+        sessionReplayRate,
+
         // Engagement
         engagedTotal,
         engagedLive,
@@ -496,13 +616,39 @@ export async function GET(request: NextRequest) {
 
     console.log(`✅ Generated ${reports.length} daily reports`);
 
+    // How many registrations in this range carry no scheduled session time.
+    // They are invisible to every session-clock column, so the report says so
+    // rather than quietly understating the webinar half.
+    const [rangeRegistrationCount, missingSessionDateCount] = await Promise.all([
+      prisma.registration.count({
+        where: {
+          registeredAt: { gte: fromDate, lte: toDate },
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
+        }
+      }),
+      prisma.registration.count({
+        where: {
+          registeredAt: { gte: fromDate, lte: toDate },
+          scheduledStartTime: null,
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
+        }
+      })
+    ]);
+
+    const coverageWarning = missingSessionDateCount > 0
+      ? `${missingSessionDateCount} of ${rangeRegistrationCount} registrations in this range have no scheduled session time, so they are left out of the webinar columns (Registered, Live, Missed, Engaged, % Attendance).`
+      : null;
+
     return NextResponse.json({
       success: true,
       reports,
       dateRange: { from, to },
       engagementMinutes,
       timestamp: new Date().toISOString(),
-      warning: fbWarning
+      warning: fbWarning,
+      coverageWarning,
+      missingSessionDateCount,
+      rangeRegistrationCount
     }, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'

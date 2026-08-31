@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
@@ -92,6 +93,10 @@ export async function GET(request: NextRequest) {
       webinarId: webinarIds.length > 0 ? { in: webinarIds } : undefined,
     };
 
+    // The main population is selected by SIGNUP date. Registration counts,
+    // per-page and per-country breakdowns all belong on that clock: it is the
+    // day the traffic arrived. Attendance does NOT - see sessionRegistrations
+    // below, which selects by the day the webinar actually ran.
     if (dateFilter || dateFilterEnd) {
       whereClause.registeredAt = {
         ...(dateFilter && { gte: dateFilter }),
@@ -119,32 +124,66 @@ export async function GET(request: NextRequest) {
       orderBy: { registeredAt: 'desc' },
     });
 
+    // ---------------------------------------------------------------------
+    // Attendance population, on the SESSION clock.
+    //
+    // Attendance is a property of the session, so it is selected by the day
+    // the webinar RAN. Selecting it by signup date puts someone who signed up
+    // today for next week's webinar into today's denominator, where they
+    // cannot possibly have attended and can only drag the rate down.
+    // ---------------------------------------------------------------------
+    const sessionWhere: any = {
+      webinarId: webinarIds.length > 0 ? { in: webinarIds } : undefined,
+    };
+    if (dateFilter || dateFilterEnd) {
+      sessionWhere.scheduledStartTime = {
+        ...(dateFilter && { gte: dateFilter }),
+        ...(dateFilterEnd && { lte: dateFilterEnd }),
+      };
+    } else {
+      sessionWhere.scheduledStartTime = { not: null };
+    }
+
+    const sessionRegistrations = await prisma.registration.findMany({
+      where: sessionWhere,
+      include: {
+        webinar: { select: { duration: true } },
+        sessions: true,
+      },
+    });
+
     // Get webinar IDs from results for filtering other queries
     const resultWebinarIds = [...new Set(registrations.map(r => r.webinarId))];
 
     // Calculate metrics
     const totalRegistrations = registrations.length;
     
-    // For attendance metrics, only count registrations for past webinars
-    const pastRegistrations = registrations.filter((r: any) => {
-      if (!r.scheduledStartTime || !r.webinar?.duration) {
-        return false; // Can't determine if past
-      }
-      
-      const now = new Date();
-      const scheduledStart = new Date(r.scheduledStartTime);
-      const scheduledEnd = new Date(scheduledStart.getTime() + r.webinar.duration * 60 * 1000);
-      
-      return now > scheduledEnd; // Only include webinars that have ended
-    });
-    
+    // For attendance metrics, only count sessions that have actually finished.
+    // The shared rule adds a settling buffer after the scheduled end, so a
+    // session that finished twenty minutes ago doesn't read as 0% while its
+    // attendance is still being recorded - and so this page and the reports
+    // table always agree about when a no-show becomes a no-show.
+    const nowMs = Date.now();
+    const pastRegistrations = sessionRegistrations.filter((r: any) =>
+      isSessionSettled(r.scheduledStartTime, r.webinar?.duration, nowMs)
+    );
+
+    // Registered for a session in this range whose webinar has not finished.
+    // Reported separately so the parts add up:
+    //   sessionRegistered = attended + noShows + upcoming
+    const upcomingRegistrations = sessionRegistrations.length - pastRegistrations.length;
+    const sessionRegistered = sessionRegistrations.length;
+
     const totalPastRegistrations = pastRegistrations.length;
-    const totalAttended = pastRegistrations.filter((r: any) => r.attended).length;
+    // `attended` alone counts replay-only viewers as live attendees; the
+    // shared rule requires that they were actually in the room during the
+    // broadcast. See src/lib/attendance.ts.
+    const totalAttended = pastRegistrations.filter((r: any) => attendedLiveBroadcast(r)).length;
     const attendanceRate = totalPastRegistrations > 0 
       ? (totalAttended / totalPastRegistrations) * 100 
       : 0;
 
-    const noShows = pastRegistrations.filter((r: any) => !r.attended).length;
+    const noShows = totalPastRegistrations - totalAttended;
     const noShowRate = totalPastRegistrations > 0
       ? (noShows / totalPastRegistrations) * 100
       : 0;
@@ -702,6 +741,12 @@ export async function GET(request: NextRequest) {
           completionRate: Math.round(combinedCompletionRate * 10) / 10,
           // Split out so rates that only apply to one side (offers, engagement)
           // can be measured against the right denominator.
+          // Registered for a session that ran in this range, and how many of
+          // those sessions have not finished yet. Together with attended and
+          // noShows these satisfy:
+          //   sessionRegistered = internalAttended + internalNoShows + upcomingRegistrations
+          sessionRegistered,
+          upcomingRegistrations,
           internalRegistrations: totalRegistrations,
           internalPastRegistrations: totalPastRegistrations,
           internalAttended: totalAttended,

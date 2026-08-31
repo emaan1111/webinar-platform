@@ -47,6 +47,23 @@ type ReportData = {
   replayAttendees: number
   pastRegistrationCount: number
   pastAttendees: number
+
+  // Webinar half - counted on the SESSION clock (the day the webinar ran),
+  // and divided by sessions that have actually finished.
+  // sessionRegistered = sessionLive + sessionMissed + sessionUpcoming
+  sessionRegistered: number
+  sessionSettled: number
+  sessionLive: number
+  sessionMissed: number
+  sessionUpcoming: number
+  sessionEngaged: number
+  sessionSales: number
+  sessionReplay: number
+  sessionAttendanceRate: number
+  sessionEngagedPerRegistered: number
+  sessionEngagementRateLive: number
+  sessionSalesPerRegistered: number
+  sessionReplayRate: number
   
   // Engagement
   engagedTotal: number
@@ -108,6 +125,7 @@ export default function ReportsPage() {
   const [showSettings, setShowSettings] = useState(false)
   const [showColumnSelector, setShowColumnSelector] = useState(false)
   const [fbWarning, setFbWarning] = useState<string | null>(null)
+  const [coverageWarning, setCoverageWarning] = useState<string | null>(null)
   const [selectedColumns, setSelectedColumns] = useState<string[]>([])
   const [savedViews, setSavedViews] = useState<any[]>([])
   const [currentView, setCurrentView] = useState<string>('default')
@@ -139,17 +157,35 @@ export default function ReportsPage() {
       { id: 'fbCpc', label: 'FB CPC', group: 'Facebook' },
     ],
     attendance: [
-      { id: 'totalAttendees', label: 'Total Attendees', group: 'Attendance' },
-      { id: 'liveAttendees', label: 'Live Attendees', group: 'Attendance' },
-      { id: 'replayAttendees', label: 'Replay Attendees', group: 'Attendance' },
+      // --- Webinars that ran in the period (session clock) ---------------
+      // These are the trustworthy ones: filed under the day the webinar ran,
+      // and every rate divides by sessions that have actually finished.
+      { id: 'sessionRegistered', label: 'Registered (ran today)', group: 'Attendance' },
+      { id: 'sessionLive', label: 'Live Attendees (ran today)', group: 'Attendance' },
+      { id: 'sessionMissed', label: 'Missed', group: 'Attendance' },
+      { id: 'sessionUpcoming', label: 'Yet to run', group: 'Attendance' },
+      { id: 'sessionAttendanceRate', label: '% Attendance', group: 'Attendance' },
+      { id: 'sessionReplay', label: 'Replay Watchers (ran today)', group: 'Attendance' },
+      { id: 'sessionReplayRate', label: '% Replay', group: 'Attendance' },
+      // --- Legacy: everything below is filed by SIGNUP date ---------------
+      // Kept so saved views keep working. A "live attendee" here is someone
+      // who signed up that day and attended whenever their session ran, and
+      // the rates divide by everyone who signed up - including people whose
+      // webinar has not happened yet.
+      { id: 'totalAttendees', label: 'Total Attendees (by signup)', group: 'Attendance' },
+      { id: 'liveAttendees', label: 'Live Attendees (by signup)', group: 'Attendance' },
+      { id: 'replayAttendees', label: 'Replay Attendees (by signup)', group: 'Attendance' },
       { id: 'pastRegistrationCount', label: 'Eligible Registrations (Past)', group: 'Attendance' },
-      { id: 'attendanceRate', label: '% Attendance (Total)', group: 'Attendance' },
-      { id: 'realAttendanceRate', label: '% Real Attendance (Past Only)', group: 'Attendance' },
-      { id: 'liveAttendanceRate', label: '% Live Attendance', group: 'Attendance' },
-      { id: 'replayAttendanceRate', label: '% Replay Attendance', group: 'Attendance' },
+      { id: 'attendanceRate', label: '% Attendance (by signup, incl. unrun)', group: 'Attendance' },
+      { id: 'realAttendanceRate', label: '% Real Attendance (by signup, past only)', group: 'Attendance' },
+      { id: 'liveAttendanceRate', label: '% Live Attendance (by signup, incl. unrun)', group: 'Attendance' },
+      { id: 'replayAttendanceRate', label: '% Replay Attendance (by signup, incl. unrun)', group: 'Attendance' },
     ],
     engagement: [
-      { id: 'engagedTotal', label: 'Engaged (Total)', group: 'Engagement' },
+      { id: 'sessionEngaged', label: 'Engaged (ran today)', group: 'Engagement' },
+      { id: 'sessionEngagedPerRegistered', label: '% Engaged / Registered', group: 'Engagement' },
+      { id: 'sessionEngagementRateLive', label: '% Engaged / Live', group: 'Engagement' },
+      { id: 'engagedTotal', label: 'Engaged (Total, by signup)', group: 'Engagement' },
       { id: 'engagedLive', label: 'Engaged (Live)', group: 'Engagement' },
       { id: 'engagedReplay', label: 'Engaged (Replay)', group: 'Engagement' },
       { id: 'engagedPerVisitor', label: '% Eng/Visitor (Total)', group: 'Engagement' },
@@ -190,7 +226,7 @@ export default function ReportsPage() {
     essential: {
       name: 'Essential',
       description: 'Key metrics only',
-      columns: ['date', 'fbSpend', 'fbClicks', 'visitors', 'registrations', 'totalAttendees', 'salesTotal', 'registrationRate', 'attendanceRate', 'costPerRegistration']
+      columns: ['date', 'fbSpend', 'fbClicks', 'visitors', 'registrations', 'sessionRegistered', 'sessionLive', 'sessionUpcoming', 'sessionAttendanceRate', 'salesTotal', 'registrationRate', 'costPerRegistration']
     },
     salesFocus: {
       name: 'Sales Focus',
@@ -205,7 +241,7 @@ export default function ReportsPage() {
     liveVsReplay: {
       name: 'Live vs Replay',
       description: 'Compare live and replay performance',
-      columns: ['date', 'liveAttendees', 'replayAttendees', 'engagedLive', 'engagedReplay', 'salesLive', 'salesReplay', 'liveRevenue', 'replayRevenue', 'liveAttendanceRate', 'replayAttendanceRate', 'engagementRateLive', 'engagementRateReplay']
+      columns: ['date', 'sessionRegistered', 'sessionLive', 'sessionReplay', 'sessionMissed', 'sessionUpcoming', 'sessionAttendanceRate', 'sessionReplayRate', 'sessionEngaged', 'sessionEngagementRateLive', 'liveRevenue', 'replayRevenue']
     },
     facebook: {
       name: 'Facebook Ads',
@@ -398,6 +434,26 @@ export default function ReportsPage() {
         return report.visitors.toLocaleString()
       case 'registrations':
         return renderLink(report.registrations, 'registrations')
+      case 'sessionRegistered':
+        return <span>{report.sessionRegistered?.toLocaleString() ?? '-'}</span>
+      case 'sessionLive':
+        return <span>{report.sessionLive?.toLocaleString() ?? '-'}</span>
+      case 'sessionMissed':
+        return <span>{report.sessionMissed?.toLocaleString() ?? '-'}</span>
+      case 'sessionUpcoming':
+        return <span>{report.sessionUpcoming?.toLocaleString() ?? '-'}</span>
+      case 'sessionReplay':
+        return <span>{report.sessionReplay?.toLocaleString() ?? '-'}</span>
+      case 'sessionEngaged':
+        return <span>{report.sessionEngaged?.toLocaleString() ?? '-'}</span>
+      case 'sessionAttendanceRate':
+        return <PercentageCell value={report.sessionAttendanceRate ?? 0} />
+      case 'sessionReplayRate':
+        return <PercentageCell value={report.sessionReplayRate ?? 0} />
+      case 'sessionEngagedPerRegistered':
+        return <PercentageCell value={report.sessionEngagedPerRegistered ?? 0} />
+      case 'sessionEngagementRateLive':
+        return <PercentageCell value={report.sessionEngagementRateLive ?? 0} />
       case 'totalAttendees':
         return renderLink(report.totalAttendees, 'totalAttendees')
       case 'liveAttendees':
@@ -556,6 +612,9 @@ export default function ReportsPage() {
         if (data.warning) {
           setFbWarning(data.warning)
         }
+        // Registrations with no scheduled session time are invisible to every
+        // session-clock column. Say so rather than quietly understating them.
+        setCoverageWarning(data.coverageWarning ?? null)
       }
     } catch (error) {
       console.error('Error fetching reports:', error)
@@ -645,7 +704,15 @@ export default function ReportsPage() {
       engagedReplay: acc.engagedReplay + r.engagedReplay,
       salesTotal: acc.salesTotal + r.salesTotal,
       salesLive: acc.salesLive + r.salesLive,
-      salesReplay: acc.salesReplay + r.salesReplay
+      salesReplay: acc.salesReplay + r.salesReplay,
+      sessionRegistered: acc.sessionRegistered + (r.sessionRegistered || 0),
+      sessionSettled: acc.sessionSettled + (r.sessionSettled || 0),
+      sessionLive: acc.sessionLive + (r.sessionLive || 0),
+      sessionMissed: acc.sessionMissed + (r.sessionMissed || 0),
+      sessionUpcoming: acc.sessionUpcoming + (r.sessionUpcoming || 0),
+      sessionEngaged: acc.sessionEngaged + (r.sessionEngaged || 0),
+      sessionSales: acc.sessionSales + (r.sessionSales || 0),
+      sessionReplay: acc.sessionReplay + (r.sessionReplay || 0)
     }), {
       spend: 0,
       revenue: 0,
@@ -663,11 +730,27 @@ export default function ReportsPage() {
       engagedReplay: 0,
       salesTotal: 0,
       salesLive: 0,
-      salesReplay: 0
+      salesReplay: 0,
+      sessionRegistered: 0,
+      sessionSettled: 0,
+      sessionLive: 0,
+      sessionMissed: 0,
+      sessionUpcoming: 0,
+      sessionEngaged: 0,
+      sessionSales: 0,
+      sessionReplay: 0
     })
 
     return {
       ...totals,
+      // Session-clock rates, recomputed from the summed counts. Averaging the
+      // daily percentages instead would weight a 2-registrant day the same as
+      // a 200-registrant one.
+      sessionAttendanceRate: totals.sessionSettled > 0 ? (totals.sessionLive / totals.sessionSettled) * 100 : 0,
+      sessionReplayRate: totals.sessionSettled > 0 ? (totals.sessionReplay / totals.sessionSettled) * 100 : 0,
+      sessionEngagedPerRegistered: totals.sessionSettled > 0 ? (totals.sessionEngaged / totals.sessionSettled) * 100 : 0,
+      sessionEngagementRateLive: totals.sessionLive > 0 ? (totals.sessionEngaged / totals.sessionLive) * 100 : 0,
+      sessionSalesPerRegistered: totals.sessionSettled > 0 ? (totals.sessionSales / totals.sessionSettled) * 100 : 0,
       profit: totals.revenue - totals.spend,
       roi: totals.spend > 0 ? ((totals.revenue - totals.spend) / totals.spend) * 100 : 0,
       averageOrderValue: totals.salesTotal > 0 ? totals.revenue / totals.salesTotal : 0,
@@ -1193,6 +1276,26 @@ export default function ReportsPage() {
         )}
 
         {/* Facebook API Warning */}
+        {coverageWarning && (
+          <div className="bg-amber-50 border-l-4 border-amber-400 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-amber-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-amber-800">
+                  Some registrations have no session date
+                </h3>
+                <div className="mt-2 text-sm text-amber-700">
+                  <p>{coverageWarning}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {fbWarning && (
           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
             <div className="flex">
@@ -1316,6 +1419,16 @@ export default function ReportsPage() {
                         else if (columnId === 'fbSpend') totalValue = `$${totals.spend.toFixed(2)}`
                         else if (columnId === 'visitors') totalValue = totals.visitors.toLocaleString()
                         else if (columnId === 'registrations') totalValue = renderTotalLink(totals.registrations, 'registrations')
+                        else if (columnId === 'sessionRegistered') totalValue = <span>{totals.sessionRegistered.toLocaleString()}</span>
+                        else if (columnId === 'sessionLive') totalValue = <span>{totals.sessionLive.toLocaleString()}</span>
+                        else if (columnId === 'sessionMissed') totalValue = <span>{totals.sessionMissed.toLocaleString()}</span>
+                        else if (columnId === 'sessionUpcoming') totalValue = <span>{totals.sessionUpcoming.toLocaleString()}</span>
+                        else if (columnId === 'sessionReplay') totalValue = <span>{totals.sessionReplay.toLocaleString()}</span>
+                        else if (columnId === 'sessionEngaged') totalValue = <span>{totals.sessionEngaged.toLocaleString()}</span>
+                        else if (columnId === 'sessionAttendanceRate') totalValue = <PercentageCell value={totals.sessionAttendanceRate} />
+                        else if (columnId === 'sessionReplayRate') totalValue = <PercentageCell value={totals.sessionReplayRate} />
+                        else if (columnId === 'sessionEngagedPerRegistered') totalValue = <PercentageCell value={totals.sessionEngagedPerRegistered} />
+                        else if (columnId === 'sessionEngagementRateLive') totalValue = <PercentageCell value={totals.sessionEngagementRateLive} />
                         else if (columnId === 'totalAttendees') totalValue = renderTotalLink(totals.totalAttendees, 'totalAttendees')
                         else if (columnId === 'liveAttendees') totalValue = renderTotalLink(totals.liveAttendees, 'liveAttendees')
                         else if (columnId === 'replayAttendees') totalValue = renderTotalLink(totals.replayAttendees, 'replayAttendees')
