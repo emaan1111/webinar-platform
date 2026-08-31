@@ -240,4 +240,47 @@ describe('ReportsTable', () => {
     expect(screen.getAllByRole('row')[1].querySelector('td')!.textContent).toContain('Aug 2')
     expect(screen.getByRole('button', { name: 'Compact rows' })).toHaveAttribute('aria-pressed', 'true')
   })
+
+  it('clears the sort when the sorted column leaves the view', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const firstDateCell = () => screen.getAllByRole('row')[1].querySelector('td')!.textContent
+    const sortVisitors = screen.getByRole('button', { name: 'Sort by Visitors' })
+    await user.click(sortVisitors)
+    await user.click(sortVisitors) // desc → Aug 2 first
+    expect(firstDateCell()).toContain('Aug 2')
+
+    await user.click(screen.getByRole('button', { name: /View Essential/ }))
+    await user.click(screen.getByRole('menuitem', { name: /Live vs Replay/ }))
+    expect(headerLabels()).not.toContain('Visitors')
+    expect(firstDateCell()).toContain('Aug 1')
+  })
+
+  it('header menu is keyboard operable: focus enters, arrows move, Escape hands focus back', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    const trigger = screen.getByRole('button', { name: 'Options for Visitors' })
+    trigger.focus()
+    await user.keyboard('{Enter}')
+    expect(screen.getByRole('menuitem', { name: 'Sort low → high' })).toHaveFocus()
+    await user.keyboard('{ArrowDown}')
+    expect(screen.getByRole('menuitem', { name: 'Sort high → low' })).toHaveFocus()
+    await user.keyboard('{ArrowUp}{ArrowUp}')
+    expect(screen.getByRole('menuitem', { name: 'Hide column' })).toHaveFocus()
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    expect(trigger).toHaveFocus()
+  })
+
+  it('the + popover focuses its search box and starts empty on every open', async () => {
+    const user = userEvent.setup()
+    render(<Harness />)
+    await user.click(screen.getByRole('button', { name: 'Add column' }))
+    const box = screen.getByPlaceholderText('Find a column…')
+    expect(box).toHaveFocus()
+    await user.type(box, 'revenue')
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('button', { name: 'Add column' }))
+    expect(screen.getByPlaceholderText('Find a column…')).toHaveValue('')
+  })
 })

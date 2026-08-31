@@ -66,16 +66,27 @@ export function useReportGrid() {
     const resolvedDefault = storedDefault && allIds.has(storedDefault) ? storedDefault : DEFAULT_VIEW_ID
     setDefaultViewIdState(resolvedDefault)
 
+    const all = [...PREDEFINED_VIEWS, ...views]
+    const defaultView = all.find(v => v.id === resolvedDefault) ?? PREDEFINED_VIEWS[0]
     const working = parseWorkingState(readStorage(STORAGE_KEYS.working))
     if (working) {
-      setColumnsState(working.columns)
-      setViewId(allIds.has(working.viewId) ? working.viewId : resolvedDefault)
       setSort(working.sort)
       setDensity(working.density)
+      const workingView = all.find(v => v.id === working.viewId)
+      const unsaved = !workingView || !sameOrder(workingView.columns, working.columns)
+      if (unsaved) {
+        // Unsaved tweaks survive a refresh - losing them would be worse than
+        // skipping the default view for one visit.
+        setColumnsState(working.columns)
+        setViewId(workingView ? workingView.id : '')
+      } else {
+        // Nothing unsaved, so the starred view opens as promised.
+        setColumnsState(normalizeColumnIds(defaultView.columns))
+        setViewId(defaultView.id)
+      }
     } else {
-      const view = [...PREDEFINED_VIEWS, ...views].find(v => v.id === resolvedDefault) ?? PREDEFINED_VIEWS[0]
-      setColumnsState(normalizeColumnIds(view.columns))
-      setViewId(view.id)
+      setColumnsState(normalizeColumnIds(defaultView.columns))
+      setViewId(defaultView.id)
     }
     setHydrated(true)
   }, [])
@@ -91,6 +102,11 @@ export function useReportGrid() {
     const state: WorkingState = { viewId, columns, sort, density }
     writeStorage(STORAGE_KEYS.working, JSON.stringify(state))
   }, [hydrated, viewId, columns, sort, density])
+
+  // A sort on a column that is no longer shown would reorder rows invisibly.
+  useEffect(() => {
+    if (sort && !columns.includes(sort.columnId)) setSort(null)
+  }, [columns, sort])
 
   const persistViews = useCallback((views: ReportView[]) => {
     setSavedViews(views)
@@ -192,8 +208,8 @@ export function useReportGrid() {
       persistViews(savedViews.filter(v => v.id !== id))
       if (defaultViewId === id) setDefaultViewId(DEFAULT_VIEW_ID)
       if (viewId === id) {
-        // Keep the columns on screen; they just stop belonging to a view.
-        setViewId(DEFAULT_VIEW_ID)
+        // Keep the columns on screen; they just stop belonging to any view.
+        setViewId('')
       }
     },
     [defaultViewId, persistViews, savedViews, setDefaultViewId, viewId]

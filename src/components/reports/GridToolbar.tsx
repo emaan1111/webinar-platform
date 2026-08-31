@@ -54,7 +54,10 @@ export default function GridToolbar({
       {/* View switcher */}
       <button
         type="button"
-        onClick={e => setViewAnchor(e.currentTarget)}
+        onClick={e => {
+          const el = e.currentTarget
+          setViewAnchor(prev => (prev ? null : el))
+        }}
         className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-900 shadow-sm hover:bg-gray-50"
         aria-haspopup="menu"
         aria-expanded={Boolean(viewAnchor)}
@@ -84,7 +87,10 @@ export default function GridToolbar({
           )}
           <button
             type="button"
-            onClick={e => setSaveAnchor(e.currentTarget)}
+            onClick={e => {
+              const el = e.currentTarget
+              setSaveAnchor(prev => (prev ? null : el))
+            }}
             className="rounded-md px-2 py-1 font-medium text-blue-700 hover:bg-blue-50"
           >
             Save as…
@@ -187,6 +193,7 @@ export default function GridToolbar({
           <label className="block text-xs font-medium text-gray-600">Save these columns as a view</label>
           <input
             ref={saveInput}
+            data-autofocus
             value={saveName}
             onChange={e => setSaveName(e.target.value)}
             placeholder="e.g. Monday check-in"
@@ -277,7 +284,7 @@ function ViewSection({
             <button
               type="button"
               onClick={() => grid.setDefaultViewId(view.id)}
-              className={`shrink-0 rounded p-1 ${
+              className={`shrink-0 rounded p-1 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 isDefault ? 'text-amber-500' : 'text-gray-300 opacity-0 hover:text-amber-400 group-hover:opacity-100'
               }`}
               aria-label={isDefault ? 'Default view' : `Make ${view.name} the default`}

@@ -25,6 +25,9 @@ import { ReportView } from '@/lib/reports/state'
 import type { ReportGrid } from '@/lib/reports/useReportGrid'
 import { Button } from '@/components/ui/Button'
 
+const FOCUSABLE =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 interface ColumnsDrawerProps {
   open: boolean
   onClose: () => void
@@ -45,24 +48,67 @@ export default function ColumnsDrawer({ open, onClose, grid, engagementMinutes }
   const [dragId, setDragId] = useState<string | null>(null)
   const [dropTarget, setDropTarget] = useState<{ id: string; side: 'before' | 'after' } | null>(null)
   const saveInputRef = useRef<HTMLInputElement>(null)
+  const asideRef = useRef<HTMLElement>(null)
+  const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const restoreFocusRef = useRef<HTMLElement | null>(null)
+  // Read by the keydown handler, which is bound once per open.
+  const formOpenRef = useRef(false)
+  formOpenRef.current = Boolean(renaming || savingAs)
 
   const anyLegacySelected = useMemo(
     () => grid.columns.some(id => getColumn(id)?.legacy),
     [grid.columns]
   )
 
-  // Escape closes, body stops scrolling behind the panel.
+  // While open: focus lives inside the panel (Tab wraps), Escape closes, and
+  // the page behind stops scrolling. On close: focus goes back where it was
+  // and the transient form state is cleared so the next open starts clean.
   useEffect(() => {
     if (!open) return
+    restoreFocusRef.current = document.activeElement as HTMLElement | null
+    const focusTimer = setTimeout(() => closeButtonRef.current?.focus(), 0)
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') {
+        // First Escape backs out of a rename / save-as form; the next closes.
+        if (formOpenRef.current) {
+          setRenaming(null)
+          setSavingAs(false)
+          setSaveName('')
+        } else {
+          onClose()
+        }
+        return
+      }
+      if (e.key !== 'Tab' || !asideRef.current) return
+      const nodes = Array.from(asideRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
+        el => el.offsetParent !== null || el === document.activeElement
+      )
+      if (nodes.length === 0) return
+      const first = nodes[0]
+      const last = nodes[nodes.length - 1]
+      const inside = asideRef.current.contains(document.activeElement)
+      if (e.shiftKey && (!inside || document.activeElement === first)) {
+        e.preventDefault()
+        last.focus()
+      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+        e.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKey)
     const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
+      clearTimeout(focusTimer)
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = prev
+      setQuery('')
+      setSavingAs(false)
+      setSaveName('')
+      setRenaming(null)
+      setDragId(null)
+      setDropTarget(null)
+      restoreFocusRef.current?.focus?.()
     }
   }, [open, onClose])
 
@@ -119,7 +165,7 @@ export default function ColumnsDrawer({ open, onClose, grid, engagementMinutes }
     <div className="fixed inset-0 z-40" role="dialog" aria-modal="true" aria-labelledby="columns-drawer-title">
       <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-[1px]" onClick={onClose} />
 
-      <aside className="absolute inset-y-0 right-0 flex w-full max-w-[860px] flex-col bg-white shadow-2xl">
+      <aside ref={asideRef} className="absolute inset-y-0 right-0 flex w-full max-w-[860px] flex-col bg-white shadow-2xl">
         {/* Header */}
         <header className="flex items-start justify-between gap-4 border-b border-gray-200 px-6 py-4">
           <div>
@@ -131,9 +177,10 @@ export default function ColumnsDrawer({ open, onClose, grid, engagementMinutes }
             </p>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+            className="rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -160,7 +207,9 @@ export default function ColumnsDrawer({ open, onClose, grid, engagementMinutes }
                   view.builtIn
                     ? undefined
                     : () => {
-                        if (confirm(`Delete the view "${view.name}"?`)) grid.deleteView(view.id)
+                        if (!confirm(`Delete the view "${view.name}"?`)) return
+                        if (renaming?.id === view.id) setRenaming(null)
+                        grid.deleteView(view.id)
                       }
                 }
               />

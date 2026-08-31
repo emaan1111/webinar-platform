@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useMemo } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Calendar, Filter, Timer, X } from 'lucide-react'
 import { formatInTimeZone } from 'date-fns-tz'
 import MultiSelect from '@/components/ui/MultiSelect'
@@ -92,9 +92,24 @@ export default function ReportsToolbar({
     })?.key
   }, [dateRange, timezone])
 
-  const engagementOptions = ENGAGEMENT_OPTIONS.includes(engagementMinutes)
-    ? ENGAGEMENT_OPTIONS
-    : [...ENGAGEMENT_OPTIONS, engagementMinutes].sort((a, b) => a - b)
+  // Threshold: a handful of presets, plus "Custom…" for any 1-180 minutes.
+  // The custom value applies on blur / Enter rather than on every keystroke,
+  // since each change refetches the whole report.
+  const isPreset = ENGAGEMENT_OPTIONS.includes(engagementMinutes)
+  const [customOpen, setCustomOpen] = useState(false)
+  const [customValue, setCustomValue] = useState(String(engagementMinutes))
+  useEffect(() => {
+    setCustomValue(String(engagementMinutes))
+  }, [engagementMinutes])
+  const commitCustom = () => {
+    const n = Math.round(Number(customValue))
+    if (n >= 1 && n <= 180) {
+      if (n !== engagementMinutes) onEngagementMinutesChange(n)
+    } else {
+      setCustomValue(String(engagementMinutes))
+    }
+  }
+  const showCustom = customOpen || !isPreset
 
   const dayCount = useMemo(() => {
     if (!dateRange.from || !dateRange.to) return 0
@@ -159,17 +174,44 @@ export default function ReportsToolbar({
             <Timer className="h-4 w-4 text-gray-400" aria-hidden />
             <span className="hidden lg:inline">Engaged after</span>
             <select
-              value={engagementMinutes}
-              onChange={e => onEngagementMinutesChange(Number(e.target.value))}
+              value={showCustom ? 'custom' : String(engagementMinutes)}
+              onChange={e => {
+                if (e.target.value === 'custom') {
+                  setCustomOpen(true)
+                  setCustomValue(String(engagementMinutes))
+                } else {
+                  setCustomOpen(false)
+                  onEngagementMinutesChange(Number(e.target.value))
+                }
+              }}
               className="rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
               title="Minutes someone must watch to count as engaged"
             >
-              {engagementOptions.map(m => (
+              {ENGAGEMENT_OPTIONS.map(m => (
                 <option key={m} value={m}>
                   {m} min
                 </option>
               ))}
+              <option value="custom">Custom…</option>
             </select>
+            {showCustom && (
+              <span className="inline-flex items-center gap-1">
+                <input
+                  type="number"
+                  min={1}
+                  max={180}
+                  value={customValue}
+                  onChange={e => setCustomValue(e.target.value)}
+                  onBlur={commitCustom}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') commitCustom()
+                  }}
+                  className="w-16 rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+                  aria-label="Custom engagement threshold in minutes"
+                />
+                <span className="text-xs text-gray-500">min</span>
+              </span>
+            )}
           </label>
 
           <TimezoneSelector

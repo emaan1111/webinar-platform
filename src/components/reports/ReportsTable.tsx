@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useCallback, useMemo, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   ArrowDown,
@@ -72,6 +72,17 @@ export default function ReportsTable({
     [grid.columns]
   )
   const rows = useMemo(() => sortReports(reports, grid.sort), [reports, grid.sort])
+  // Dates are unique per day, except that a DST fall-back can hand the API
+  // the same calendar day twice - so keys get a suffix when that happens.
+  const rowKeys = useMemo(() => {
+    const seen = new Map<string, number>()
+    return rows.map(r => {
+      const n = (seen.get(r.date) ?? 0) + 1
+      seen.set(r.date, n)
+      return n > 1 ? `${r.date}#${n}` : r.date
+    })
+  }, [rows])
+  const withYear = useMemo(() => new Set(reports.map(r => r.date.slice(0, 4))).size > 1, [reports])
   const ctx = useMemo(() => ({ engagementMinutes }), [engagementMinutes])
 
   const compact = grid.density === 'compact'
@@ -83,7 +94,13 @@ export default function ReportsTable({
 
   // --- header drag & drop -------------------------------------------------
   const onHeaderDragOver = (e: React.DragEvent<HTMLTableCellElement>, id: string) => {
-    if (!dragId || dragId === id || id === DATE_COLUMN_ID) return
+    if (!dragId || dragId === id) return
+    if (id === DATE_COLUMN_ID) {
+      // Nothing can go before the date column: no drop, and no stale
+      // indicator left behind on the last header we passed over.
+      if (dropTarget) setDropTarget(null)
+      return
+    }
     e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
     const rect = e.currentTarget.getBoundingClientRect()
@@ -114,6 +131,10 @@ export default function ReportsTable({
       )}
 
       <div
+        onDragOver={e => {
+          // Dragging over rows or empty space: no drop here, so no indicator.
+          if (dragId && dropTarget && !(e.target as HTMLElement).closest('th')) setDropTarget(null)
+        }}
         className={`overflow-auto rounded-b-xl max-h-[calc(100vh-13rem)] ${
           loading && reports.length > 0 ? 'opacity-60 transition-opacity' : ''
         }`}
@@ -180,7 +201,10 @@ export default function ReportsTable({
                       {!isDate && (
                         <button
                           type="button"
-                          onClick={e => setMenuFor({ id: col.id, anchor: e.currentTarget })}
+                          onClick={e => {
+                            const el = e.currentTarget
+                            setMenuFor(prev => (prev?.id === col.id ? null : { id: col.id, anchor: el }))
+                          }}
                           className={`rounded p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-700 ${
                             menuFor?.id === col.id ? 'bg-gray-200 text-gray-700' : 'opacity-0 group-hover/th:opacity-100 focus:opacity-100'
                           }`}
@@ -205,13 +229,17 @@ export default function ReportsTable({
               })}
               <th
                 scope="col"
+                onDragOver={() => dropTarget && setDropTarget(null)}
                 // Pinned to the right edge so "add a column" is reachable
                 // without scrolling to the end of a wide table.
                 className={`sticky right-0 top-0 z-20 w-12 border-b border-gray-200 bg-gray-50 shadow-[inset_1px_0_0_#e5e7eb] ${cellPad} text-left`}
               >
                 <button
                   type="button"
-                  onClick={e => setAddAnchor(e.currentTarget)}
+                  onClick={e => {
+                    const el = e.currentTarget
+                    setAddAnchor(prev => (prev ? null : el))
+                  }}
                   className={`inline-flex h-7 w-7 items-center justify-center rounded-md border border-dashed text-gray-400 transition-colors hover:border-blue-400 hover:bg-blue-50 hover:text-blue-600 ${
                     addAnchor ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-gray-300'
                   }`}
@@ -243,8 +271,8 @@ export default function ReportsTable({
                     <td className="border-b border-gray-100" />
                   </tr>
                 ))
-              : rows.map(row => (
-                  <tr key={row.date} className="group/row">
+              : rows.map((row, r) => (
+                  <tr key={rowKeys[r]} className="group/row">
                     {columns.map((col, c) => {
                       const numeric = isNumericKind(col)
                       return (
@@ -260,6 +288,7 @@ export default function ReportsTable({
                             col={col}
                             value={col.value(row)}
                             href={col.metric ? buildDetailsHref(col.metric, { date: row.date }) : undefined}
+                            withYear={withYear}
                           />
                         </td>
                       )
@@ -351,17 +380,19 @@ function Cell({
   value,
   href,
   emphasis = false,
+  withYear = false,
 }: {
   col: ReportColumn
   value: number | string | null | undefined
   href?: string
   emphasis?: boolean
+  withYear?: boolean
 }) {
   if (value == null || value === '') return <span className="text-gray-300">—</span>
 
   if (col.kind === 'date' && typeof value === 'string') {
     return (
-      <span title={formatDateLong(value)}>{formatDateLabel(value)}</span>
+      <span title={formatDateLong(value)}>{formatDateLabel(value, withYear)}</span>
     )
   }
 
@@ -373,7 +404,9 @@ function Cell({
     return (
       <span className={`inline-flex items-center gap-1.5 ${zero ? 'text-gray-300' : ''}`}>
         <span className={`inline-block h-1.5 w-1.5 rounded-full ${zero ? 'bg-gray-200' : toneClass(n, col.tone, col.signed)}`} aria-hidden />
-        <span className={col.signed && !zero ? (n > 0 ? 'text-emerald-700' : 'text-red-600') : ''}>{formatPercent(n)}</span>
+        <span className={col.signed && !zero ? (n > 0 ? 'text-emerald-700' : 'text-red-600') : ''}>
+          {formatPercent(n, col.decimals)}
+        </span>
       </span>
     )
   }
@@ -498,6 +531,11 @@ function AddColumnPopover({
   onOpenColumns: () => void
 }) {
   const [query, setQuery] = useState('')
+  // Each open starts with an empty search; the component stays mounted
+  // between opens, so the state has to be cleared by hand.
+  useEffect(() => {
+    if (!anchor) setQuery('')
+  }, [anchor])
   const q = query.trim().toLowerCase()
   const showLegacy = Boolean(q)
 
@@ -518,7 +556,7 @@ function AddColumnPopover({
         <div className="relative">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
-            autoFocus
+            data-autofocus
             value={query}
             onChange={e => setQuery(e.target.value)}
             placeholder="Find a column…"
@@ -551,8 +589,9 @@ function AddColumnPopover({
                 <button
                   key={col.id}
                   type="button"
+                  data-nav
                   onClick={() => grid.toggleColumn(col.id)}
-                  className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm hover:bg-gray-100 ${
+                  className={`flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-sm hover:bg-gray-100 focus:outline-none focus-visible:bg-gray-100 ${
                     on ? 'text-gray-900' : 'text-gray-700'
                   }`}
                   title={col.description}

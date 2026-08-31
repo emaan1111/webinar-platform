@@ -149,6 +149,8 @@ export interface ReportColumn {
   tone?: PercentTone
   /** Colour by sign (profit, ROI). */
   signed?: boolean
+  /** Decimal places for percentages (default 1). */
+  decimals?: number
   /** Signup-clock columns kept so old saved views still work. */
   legacy?: boolean
   value: (row: ReportRow) => number | string | null | undefined
@@ -253,6 +255,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     kind: 'percent',
     description: 'Clicks ÷ impressions.',
     caption: 'Facebook',
+    decimals: 2,
     value: r => r.fbResults.ctr,
     total: t => t.ctr,
   },
@@ -498,7 +501,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Engaged (ran today)',
     group: 'engagement',
     kind: 'count',
-    description: 'Live attendees who watched past the engagement threshold.',
+    description: 'Registrants, live or on replay, who watched past the engagement threshold.',
     caption: ctx => `${ctx.engagementMinutes}m+ · session day`,
     clock: 'session',
     metric: 'sessionEngaged',
@@ -524,7 +527,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: '% Engaged / Live',
     group: 'engagement',
     kind: 'percent',
-    description: 'Engaged ÷ live attendees.',
+    description: 'Engaged ÷ live attendees. Engaged includes replay watchers, so this can exceed 100%.',
     caption: 'session day',
     clock: 'session',
     tone: ENGAGEMENT_TONE,
@@ -835,11 +838,11 @@ export const REPORT_COLUMNS: ReportColumn[] = [
   },
 ]
 
-const COLUMN_INDEX: Record<string, ReportColumn> = Object.fromEntries(
-  REPORT_COLUMNS.map(c => [c.id, c])
-)
+// A Map, not an object: ids come from localStorage, and a plain object would
+// happily return Object.prototype for '__proto__' or 'constructor'.
+const COLUMN_INDEX = new Map<string, ReportColumn>(REPORT_COLUMNS.map(c => [c.id, c]))
 
-export const getColumn = (id: string): ReportColumn | undefined => COLUMN_INDEX[id]
+export const getColumn = (id: string): ReportColumn | undefined => COLUMN_INDEX.get(id)
 
 export const ALL_COLUMN_IDS = REPORT_COLUMNS.map(c => c.id)
 
@@ -972,7 +975,7 @@ const currencyFormatter = new Intl.NumberFormat('en-US', {
 
 export const formatCurrency = (n: number) => currencyFormatter.format(n)
 export const formatCount = (n: number) => n.toLocaleString('en-US')
-export const formatPercent = (n: number) => `${n.toFixed(1)}%`
+export const formatPercent = (n: number, decimals = 1) => `${n.toFixed(decimals)}%`
 
 // report.date is a plain yyyy-MM-dd already expressed in the viewer's
 // timezone, so parse it as a local date - new Date('2026-08-27') is UTC
@@ -982,11 +985,12 @@ export const parseReportDate = (value: string) => {
   return new Date(y, m - 1, d)
 }
 
-export const formatDateLabel = (value: string) =>
+export const formatDateLabel = (value: string, withYear = false) =>
   parseReportDate(value).toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
     day: 'numeric',
+    ...(withYear ? { year: 'numeric' as const } : {}),
   })
 
 export const formatDateLong = (value: string) =>

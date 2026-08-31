@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { useTimezonePreference } from '@/lib/useTimezonePreference'
 import { computeTotals, ReportRow } from '@/lib/reports/columns'
 import { buildReportCsv, downloadCsv } from '@/lib/reports/csv'
+import { sortReports } from '@/lib/reports/state'
 import { useReportGrid } from '@/lib/reports/useReportGrid'
 import ReportsSubNav from '@/components/reports/ReportsSubNav'
 import ReportsToolbar, { DateRange, presetRange, WebinarOption } from '@/components/reports/ReportsToolbar'
@@ -33,6 +34,7 @@ export default function ReportsPage() {
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [drawerOpen, setDrawerOpen] = useState(false)
   const requestRef = useRef<AbortController | null>(null)
+  const rangeSeeded = useRef(false)
 
   const grid = useReportGrid()
 
@@ -54,12 +56,13 @@ export default function ReportsPage() {
     }
   }, [])
 
-  // Seed the default range (last 30 days) once the timezone is known. Only
-  // when empty - switching zones keeps the dates you picked, it just reads
-  // them in the new zone.
+  // Seed the default range (last 30 days) exactly once, when the timezone is
+  // first known. Switching zones keeps the dates you picked, and a date input
+  // that is momentarily empty mid-edit must not snap the range back.
   useEffect(() => {
-    if (!timezone || dateRange.from) return
-    setDateRange(presetRange('last30', timezone))
+    if (!timezone || rangeSeeded.current) return
+    rangeSeeded.current = true
+    if (!dateRange.from) setDateRange(presetRange('last30', timezone))
   }, [timezone, dateRange.from])
 
   // Internal + external webinars for the filter.
@@ -145,7 +148,13 @@ export default function ReportsPage() {
   )
 
   const exportCsv = () => {
-    const csv = buildReportCsv({ columnIds: grid.columns, reports, totals, engagementMinutes })
+    // Same rows, same order, same columns as the screen.
+    const csv = buildReportCsv({
+      columnIds: grid.columns,
+      reports: sortReports(reports, grid.sort),
+      totals,
+      engagementMinutes,
+    })
     downloadCsv(`webinar-reports-${dateRange.from}-to-${dateRange.to}.csv`, csv)
   }
 
