@@ -1940,6 +1940,21 @@ model Payment {
 // is the registrants of the linked webinars whose chosen time matches the
 // session's exact start time. Reporting/management only — does not change the
 // registrant-facing flow.
+/// Small key/value store for app settings that must survive a deploy.
+///
+/// The settings files under `data/` are written to the container's own disk —
+/// the Railway volume is mounted elsewhere — so anything saved there is lost on
+/// the next deploy or restart. That is survivable for branding; it is not for
+/// integration wiring, where a silently-blank value means pushes stop and
+/// nothing reports an error.
+model AppSetting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @default(now())
+
+  @@map("app_settings")
+}
+
 model ZoomSession {
   id          String   @id @default(cuid())
   name        String

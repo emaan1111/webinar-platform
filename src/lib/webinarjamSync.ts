@@ -2,7 +2,10 @@
  * WebinarJam/EverWebinar Sync Library
  * 
  * Syncs registrations and attendance data from WebinarJam/EverWebinar
- * Called by the main cron job (process-reminders)
+ * Called by the main cron job (process-reminders) and, on demand, by
+ * POST /api/cron/sync-webinarjam (the dashboard's Sync button). One
+ * implementation on purpose: a second copy of this sync used to live in that
+ * route and only IT pushed attendance to Emaan — and only THIS one ran.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -26,6 +29,7 @@ import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic } from '@/lib/mautic'
 import { sendClickSendSMS } from '@/lib/clicksend'
 import { fromZonedTime } from 'date-fns-tz'
+import { pushRegistrationUpdateToEmaan } from '@/lib/emaan'
 
 export interface WebinarJamSyncStats {
   webinarsProcessed: number
@@ -310,6 +314,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         // nothing else - in particular never re-stamp joinedAt.
         await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
           attendedLive,
+          liveMinutes,
           attendedReplay,
           replayMinutes,
         }, { dataChanged, previousAttended: existing.attended })
@@ -318,6 +323,7 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         // Backfill scheduledStartTime for existing records missing it
         await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
           attendedLive,
+          liveMinutes,
           attendedReplay,
           replayMinutes,
         }, { dataChanged: false, previousAttended: existing.attended })
@@ -465,12 +471,23 @@ async function updateAttendance(
   watchTimeMinutes: number,
   attended: boolean,
   scheduledStartTime?: Date | null,
-  detail?: { attendedLive: boolean; attendedReplay: boolean; replayMinutes: number },
+  /**
+   * The live/replay split. Stored on the row (the reports need it to tell
+   * "missed it, watched the replay" from "attended live") and passed through
+   * to Emaan, which needs the same distinction for its tagging.
+   */
+  detail?: {
+    attendedLive: boolean
+    liveMinutes: number
+    attendedReplay: boolean
+    replayMinutes: number
+  },
   /** Absent = behave like a genuine attendance change (old callers). */
   sync?: { dataChanged: boolean; previousAttended: boolean }
 ): Promise<void> {
   const previousAttended = sync?.previousAttended ?? false
-  await prisma.externalWebinarRegistration.update({
+  const dataChanged = sync?.dataChanged ?? true
+  const updated = await prisma.externalWebinarRegistration.update({
     where: {
       externalWebinarId_email: { externalWebinarId, email }
     },
@@ -484,13 +501,64 @@ async function updateAttendance(
             replayWatchTimeMinutes: detail.replayMinutes,
           }
         : {}),
+      // A genuine change re-opens tagging so the category can be corrected on
+      // the next pass; a pure backfill must not re-tag anyone.
+      ...(dataChanged ? { attendanceTagsApplied: false } : {}),
       // Stamp only on a genuine flip to attended; a backfill must not
       // re-date when someone showed up.
       joinedAt: attended && !previousAttended ? new Date() : undefined,
       ...(scheduledStartTime ? { scheduledStartTime } : {}),
       updatedAt: new Date(),
-    }
+    },
+    select: {
+      email: true,
+      name: true,
+      phone: true,
+      timezone: true,
+      liveRoomUrl: true,
+      replayRoomUrl: true,
+      registeredAt: true,
+      attended: true,
+      watchTimeMinutes: true,
+      externalWebinar: { select: { name: true, externalWebinarName: true } },
+    },
   })
+
+  // Push attendance on to Emaan. This is the ONLY place attendance leaves this
+  // app: Emaan learns about registrants from the registration push, but nothing
+  // else ever marks them attended — so without this every EverWebinar
+  // registrant reads there as "missed" once their session is three hours old,
+  // and the attended/replay tags never fire. Fire-and-forget: a sync run must
+  // not fail because Emaan is slow. (Live-Zoom picks never reach here —
+  // WebinarJam knows nothing about them — so they stay unattended in Emaan,
+  // which is honest: no attendance source for them exists anywhere in this app.)
+  if (!dataChanged) return
+  void pushRegistrationUpdateToEmaan({
+    email: updated.email,
+    name: updated.name,
+    phone: updated.phone,
+    webinar: {
+      externalWebinarId,
+      webinarName:
+        updated.externalWebinar.externalWebinarName || updated.externalWebinar.name,
+      // Attendance only — deliberately no session time. The scheduledStartTime
+      // on this row is not trustworthy (parseApiDate has stored WebinarJam's
+      // wall-clock time as UTC on some rows), and Emaan overwrites its session
+      // time with whatever arrives — moving that person's reminders and their
+      // stats day with it. With the field absent, Emaan keeps the instant the
+      // registration push gave it.
+      scheduledStartTime: null,
+      timezone: updated.timezone,
+      liveRoomUrl: updated.liveRoomUrl,
+      replayRoomUrl: updated.replayRoomUrl,
+      sessionType: 'everwebinar',
+      registeredAt: updated.registeredAt,
+      attended: detail ? detail.attendedLive : updated.attended,
+      watchTimeMinutes: detail ? detail.liveMinutes : updated.watchTimeMinutes,
+      attendedReplay: detail?.attendedReplay ?? false,
+      replayMinutes: detail?.replayMinutes ?? 0,
+    },
+  }).catch((err) => console.error('Emaan attendance push error:', err))
 }
 
 /**

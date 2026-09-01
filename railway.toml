@@ -10,22 +10,14 @@ restartPolicyMaxRetries = 3
 healthcheckPath = "/api/health"
 healthcheckTimeout = 100
 
-# Cron job to process reminders every 5 minutes
-# This will automatically send reminder emails and apply ClickFunnels tags
-[[cron]]
-schedule = "*/5 * * * *"
-command = "curl -X POST -H 'Authorization: Bearer $CRON_SECRET' https://$RAILWAY_PUBLIC_DOMAIN/api/cron/process-reminders"
-
-# Attendance sync, every 15 minutes.
+# No [[cron]] blocks here: Railway has no such config key, so the two that used
+# to sit here were silently ignored. Railway's own cron is a per-service
+# `cronSchedule` that re-runs the start command and expects it to exit — not
+# something a web server can use.
 #
-# Nothing scheduled this before — it ran only when someone clicked "Sync" on the
-# external-webinars dashboard. That left attendance permanently stale, which is
-# invisible until something depends on it: Emaan's stats read 0% attendance for
-# every EverWebinar pick, and every registrant eventually looks like a no-show,
-# so an "attended" or "missed" automation tags the wrong people.
-#
-# Fifteen minutes rather than five: this one calls the WebinarJam API per
-# webinar, and attendance is not final until well after a session ends anyway.
-[[cron]]
-schedule = "*/15 * * * *"
-command = "curl -X POST -H 'Authorization: Bearer $CRON_SECRET' https://$RAILWAY_PUBLIC_DOMAIN/api/cron/sync-webinarjam"
+# What actually drives the background work is an external scheduler POSTing
+# /api/cron/process-reminders every couple of minutes (see RAILWAY_CRON_SETUP.md,
+# "External Cron Service"). That route runs the WebinarJam attendance sync too
+# (lib/webinarjamSync), which pushes attendance on to Emaan, so nothing else
+# needs scheduling. /api/cron/sync-webinarjam remains as the dashboard's
+# manual "Sync" trigger and runs the same shared implementation.
