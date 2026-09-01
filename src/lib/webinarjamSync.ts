@@ -312,7 +312,15 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       if (dataChanged || existing.attendedLive == null) {
         // Pure split backfill (dataChanged false): store the split, touch
         // nothing else - in particular never re-stamp joinedAt.
-        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, scheduledStartTime, {
+        //
+        // Never replace a scheduledStartTime the row already has. A lead-page
+        // registration stores the exact instant the picker booked; the value
+        // derived here comes from the API's wall-clock string parsed in a
+        // GUESSED zone, and when the guess fails (the API sends no country for
+        // registrants we created) that wall clock is read as UTC - 11 AM Sydney
+        // became 11:00Z, ten hours late, and the reports filed a finished
+        // session under "yet to run". Only fill in a row that has none.
+        await updateAttendance(extWebinar.id, email, watchTimeMinutes, attended, existing.scheduledStartTime ? null : scheduledStartTime, {
           attendedLive,
           liveMinutes,
           attendedReplay,
