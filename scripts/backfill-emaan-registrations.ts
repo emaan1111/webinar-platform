@@ -65,6 +65,9 @@ async function main(): Promise<void> {
       scheduledStartTime: true,
       attended: true,
       watchTimeMinutes: true,
+      attendedLive: true,
+      attendedReplay: true,
+      replayWatchTimeMinutes: true,
       externalWebinarId: true,
       externalWebinar: { select: { name: true, externalWebinarName: true } },
     },
@@ -97,9 +100,17 @@ async function main(): Promise<void> {
         sessionType: /zoom\.us/i.test(r.liveRoomUrl ?? '') ? 'zoom' : 'everwebinar',
         registeredAt: r.registeredAt,
         // Past sessions carry real attendance; upcoming ones are all false/0,
-        // which is correct — nobody has attended them yet.
-        attended: r.attended,
-        watchTimeMinutes: r.watchTimeMinutes,
+        // which is correct — nobody has attended them yet. Live and replay go
+        // separately; rows from before the split carry one merged flag and
+        // one summed watch time, read the way the reports read them — as
+        // live, replay unknowable.
+        attended: r.attendedLive ?? r.attended,
+        watchTimeMinutes:
+          r.attendedLive == null
+            ? r.watchTimeMinutes
+            : Math.max(0, r.watchTimeMinutes - (r.replayWatchTimeMinutes ?? 0)),
+        attendedReplay: r.attendedReplay ?? false,
+        replayMinutes: r.replayWatchTimeMinutes ?? 0,
       },
     })),
   )
