@@ -287,8 +287,8 @@ function ViewSection({
               className={`shrink-0 rounded p-1 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-blue-500 ${
                 isDefault ? 'text-amber-500' : 'text-gray-300 opacity-0 hover:text-amber-400 group-hover:opacity-100'
               }`}
-              aria-label={isDefault ? 'Default view' : `Make ${view.name} the default`}
-              title={isDefault ? 'Opens by default' : 'Make default'}
+              aria-label={isDefault ? 'Default view for new visits' : `Make ${view.name} the default for new visits`}
+              title={isDefault ? 'Default view: opens on a first visit' : 'Make default for new visits'}
             >
               <Star className="h-3.5 w-3.5" fill={isDefault ? 'currentColor' : 'none'} />
             </button>

@@ -31,12 +31,30 @@ const readStorage = (key: string) => {
   }
 }
 
-const writeStorage = (key: string, value: string) => {
+const writeStorage = (key: string, value: string): boolean => {
   try {
     localStorage.setItem(key, value)
+    return true
   } catch {
     /* private mode / quota - the grid still works, it just won't remember */
+    return false
   }
+}
+
+/**
+ * The stored view list, or null when it is missing or corrupt. Corrupt is
+ * deliberately NOT [] here: treating garbage as an empty list once turned a
+ * rename into a wipe of every saved view.
+ */
+const readStoredViews = (): ReportView[] | null => {
+  const raw = readStorage(STORAGE_KEYS.savedViews)
+  if (raw == null) return null
+  try {
+    if (!Array.isArray(JSON.parse(raw))) return null
+  } catch {
+    return null
+  }
+  return parseSavedViews(raw)
 }
 
 /**
@@ -55,10 +73,18 @@ export function useReportGrid() {
   const [density, setDensity] = useState<Density>('comfortable')
   const [hydrated, setHydrated] = useState(false)
   const skipPersist = useRef(true)
+  // Mirror of savedViews that is updated synchronously, so two mutations in
+  // one tick never build on the same stale snapshot.
+  const savedViewsRef = useRef<ReportView[]>([])
+  // Set once a localStorage write fails (quota, private mode). From then on
+  // storage is stale, so mutations must base themselves on memory or every
+  // save after the first would vanish from the list mid-session.
+  const storageBroken = useRef(false)
 
   // --- load ---------------------------------------------------------------
   useEffect(() => {
     const views = parseSavedViews(readStorage(STORAGE_KEYS.savedViews))
+    savedViewsRef.current = views
     setSavedViews(views)
 
     const storedDefault = readStorage(STORAGE_KEYS.defaultView)
@@ -70,20 +96,16 @@ export function useReportGrid() {
     const defaultView = all.find(v => v.id === resolvedDefault) ?? PREDEFINED_VIEWS[0]
     const working = parseWorkingState(readStorage(STORAGE_KEYS.working))
     if (working) {
+      // Whatever was on screen comes back - a saved view, a built-in one, or
+      // unsaved tweaks. Opening the starred default here instead made a
+      // freshly saved custom view vanish on the next visit, which read as
+      // "custom views are not saving". The star only decides the first visit
+      // (and what remains if the last-used view was deleted elsewhere).
       setSort(working.sort)
       setDensity(working.density)
       const workingView = all.find(v => v.id === working.viewId)
-      const unsaved = !workingView || !sameOrder(workingView.columns, working.columns)
-      if (unsaved) {
-        // Unsaved tweaks survive a refresh - losing them would be worse than
-        // skipping the default view for one visit.
-        setColumnsState(working.columns)
-        setViewId(workingView ? workingView.id : '')
-      } else {
-        // Nothing unsaved, so the starred view opens as promised.
-        setColumnsState(normalizeColumnIds(defaultView.columns))
-        setViewId(defaultView.id)
-      }
+      setColumnsState(working.columns)
+      setViewId(workingView ? workingView.id : '')
     } else {
       setColumnsState(normalizeColumnIds(defaultView.columns))
       setViewId(defaultView.id)
@@ -109,9 +131,25 @@ export function useReportGrid() {
   }, [columns, sort])
 
   const persistViews = useCallback((views: ReportView[]) => {
+    savedViewsRef.current = views
     setSavedViews(views)
-    writeStorage(STORAGE_KEYS.savedViews, JSON.stringify(views))
+    if (!writeStorage(STORAGE_KEYS.savedViews, JSON.stringify(views))) {
+      storageBroken.current = true
+    }
   }, [])
+
+  // Every view mutation re-reads storage first: another tab may have saved
+  // its own view since this tab loaded, and building on stale in-memory
+  // state would overwrite that tab's list wholesale. Storage is only trusted
+  // as the base while it is present, parseable, and writes are still landing;
+  // otherwise this tab's own list is the best truth available.
+  const mutateViews = useCallback(
+    (mutate: (views: ReportView[]) => ReportView[]) => {
+      const stored = storageBroken.current ? null : readStoredViews()
+      persistViews(mutate(stored ?? savedViewsRef.current))
+    },
+    [persistViews]
+  )
 
   // --- derived ------------------------------------------------------------
   const allViews = useMemo(() => [...PREDEFINED_VIEWS, ...savedViews], [savedViews])
@@ -170,31 +208,47 @@ export function useReportGrid() {
         columns,
         createdAt: new Date().toISOString(),
       }
-      persistViews([...savedViews, view])
+      mutateViews(base => [...base, view])
       setViewId(view.id)
       return view.id
     },
-    [columns, persistViews, savedViews]
+    [columns, mutateViews]
   )
 
   const updateView = useCallback(
     (id: string) => {
       if (isBuiltInView(id)) return
-      persistViews(
-        savedViews.map(v => (v.id === id ? { ...v, columns, updatedAt: new Date().toISOString() } : v))
-      )
+      const meta = savedViewsRef.current.find(v => v.id === id)
+      mutateViews(base => {
+        if (base.some(v => v.id === id)) {
+          return base.map(v => (v.id === id ? { ...v, columns, updatedAt: new Date().toISOString() } : v))
+        }
+        // Another tab deleted this view while it was being edited here.
+        // "Update" still means "keep these columns under this name" - so the
+        // view is recreated rather than the save silently thrown away.
+        return [
+          ...base,
+          {
+            id,
+            name: meta?.name ?? 'Restored view',
+            columns,
+            createdAt: meta?.createdAt ?? new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ]
+      })
       setViewId(id)
     },
-    [columns, persistViews, savedViews]
+    [columns, mutateViews]
   )
 
   const renameView = useCallback(
     (id: string, name: string) => {
       const trimmed = name.trim()
       if (!trimmed || isBuiltInView(id)) return
-      persistViews(savedViews.map(v => (v.id === id ? { ...v, name: trimmed } : v)))
+      mutateViews(base => base.map(v => (v.id === id ? { ...v, name: trimmed } : v)))
     },
-    [persistViews, savedViews]
+    [mutateViews]
   )
 
   const setDefaultViewId = useCallback((id: string) => {
@@ -205,14 +259,17 @@ export function useReportGrid() {
   const deleteView = useCallback(
     (id: string) => {
       if (isBuiltInView(id)) return
-      persistViews(savedViews.filter(v => v.id !== id))
-      if (defaultViewId === id) setDefaultViewId(DEFAULT_VIEW_ID)
+      mutateViews(base => base.filter(v => v.id !== id))
+      // Another tab may have re-starred a different view since this tab
+      // loaded; only clear the stored default when it still points here.
+      const storedDefault = readStorage(STORAGE_KEYS.defaultView) ?? defaultViewId
+      if (storedDefault === id) setDefaultViewId(DEFAULT_VIEW_ID)
       if (viewId === id) {
         // Keep the columns on screen; they just stop belonging to any view.
         setViewId('')
       }
     },
-    [defaultViewId, persistViews, savedViews, setDefaultViewId, viewId]
+    [defaultViewId, mutateViews, setDefaultViewId, viewId]
   )
 
   return {
