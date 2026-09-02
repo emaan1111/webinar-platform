@@ -182,6 +182,10 @@ export default function AnalyticsPage() {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Kept apart from `error` (which every analytics fetch clears): a webinar list
+  // that fails to load has to stay visible, or the dashboard quietly reports
+  // hosted-only numbers as if they were everything.
+  const [listError, setListError] = useState('')
   const [resetting, setResetting] = useState(false)
 
   // Fetch webinars list (internal + external - both feed the same dashboard)
@@ -192,17 +196,30 @@ export default function AnalyticsPage() {
         fetch('/api/external-webinars').then(r => r.json()),
       ])
 
+      const failures: string[] = []
+
       if (internalRes.status === 'fulfilled' && Array.isArray(internalRes.value?.webinars)) {
         setWebinars(internalRes.value.webinars)
-      } else if (internalRes.status === 'rejected') {
-        console.error('Failed to fetch webinars:', internalRes.reason)
+      } else {
+        // A 500 still "fulfills" with { error }, so check the shape, not just the status.
+        const reason = internalRes.status === 'rejected' ? internalRes.reason : internalRes.value?.error
+        console.error('Failed to fetch webinars:', reason)
+        failures.push(`hosted webinars${reason ? ` (${String(reason)})` : ''}`)
       }
 
       if (externalRes.status === 'fulfilled' && Array.isArray(externalRes.value)) {
         setExternalWebinars(externalRes.value)
-      } else if (externalRes.status === 'rejected') {
-        console.error('Failed to fetch external webinars:', externalRes.reason)
+      } else {
+        const reason = externalRes.status === 'rejected' ? externalRes.reason : externalRes.value?.error
+        console.error('Failed to fetch external webinars:', reason)
+        failures.push(`external webinars${reason ? ` (${String(reason)})` : ''}`)
       }
+
+      setListError(
+        failures.length > 0
+          ? `Could not load ${failures.join(' or ')}, so they are missing from every number below.`
+          : ''
+      )
 
       // Select everything by default
       setSelectedWebinars(['all'])
@@ -906,6 +923,16 @@ export default function AnalyticsPage() {
             </Button>
           </div>
         </div>
+
+        {listError && (
+          <Card>
+            <CardBody>
+              <div className="text-center py-4 text-amber-700">
+                <p>{listError}</p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {error && (
           <Card>
