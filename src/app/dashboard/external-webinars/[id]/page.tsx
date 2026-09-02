@@ -616,8 +616,8 @@ export default function ExternalWebinarDetailPage() {
                     <Bell className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">Reminder Emails</p>
-                    <p className="text-xs text-gray-500">Before webinar starts</p>
+                    <p className="font-medium text-gray-900">Reminders</p>
+                    <p className="text-xs text-gray-500">Email &amp; SMS before webinar starts</p>
                   </div>
                 </div>
               </Link>

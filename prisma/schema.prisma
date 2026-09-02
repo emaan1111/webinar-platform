@@ -1568,6 +1568,8 @@ model ReminderEmailTemplate {
   subjectB           String? // A/B test: alternate subject line
   htmlBody           String           @db.Text
   fromName           String?
+  channel            ReminderChannel  @default(EMAIL) // EMAIL, SMS, or BOTH
+  smsBody            String?          @db.Text // message sent when channel is SMS/BOTH
   minutesBefore      Int // e.g. 1440 (24hr), 120 (2hr), 60 (1hr), 10, 1
   isActive           Boolean          @default(true)
   skipIfJoined       Boolean          @default(true) // Smart skip: don't send if already joined webinar
@@ -1589,8 +1591,9 @@ model ReminderEmailSend {
   templateId             String
   registrationId         String?
   externalRegistrationId String?
-  to                     String
+  to                     String // email address, or phone number for SMS sends
   subject                String
+  channel                ReminderChannel @default(EMAIL)
   abVariant              String    @default("A") // A or B
   isResend               Boolean   @default(false) // true if this is a non-opener resend
   status                 String    @default("PENDING") // PENDING, SENDING, SENT, FAILED, SKIPPED, CANCELLED

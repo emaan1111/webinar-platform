@@ -24,6 +24,8 @@ interface TemplateStats {
   clickRate: number
 }
 
+type Channel = 'EMAIL' | 'SMS' | 'BOTH'
+
 interface Template {
   id: string
   externalWebinarId: string
@@ -32,6 +34,8 @@ interface Template {
   subjectB: string | null
   htmlBody: string
   fromName: string | null
+  channel: Channel
+  smsBody: string | null
   minutesBefore: number
   isActive: boolean
   skipIfJoined: boolean
@@ -48,6 +52,21 @@ const PLACEHOLDERS = [
   { tag: '{{webinar_title}}', desc: 'Webinar title' },
   { tag: '{{webinar_time}}', desc: 'Scheduled time (local)' },
 ]
+
+const SMS_PLACEHOLDERS = [
+  { tag: '{{name}}', desc: 'Attendee name' },
+  { tag: '{{webinar_title}}', desc: 'Webinar title' },
+  { tag: '{{webinar_time}}', desc: 'Scheduled time (local)' },
+  { tag: '{{join_link}}', desc: 'Link to join the webinar' },
+]
+
+const CHANNEL_OPTIONS: { value: Channel; label: string }[] = [
+  { value: 'EMAIL', label: 'Email' },
+  { value: 'SMS', label: 'SMS' },
+  { value: 'BOTH', label: 'Email + SMS' },
+]
+
+const DEFAULT_SMS = 'Hi {{name}}! {{webinar_title}} starts at {{webinar_time}}. Join here: {{join_link}}'
 
 const TIMING_PRESETS = [
   { label: '24 hours before', value: 1440 },
@@ -86,6 +105,8 @@ export default function ExternalReminderEmailsPage() {
   const [formSubject, setFormSubject] = useState('')
   const [formSubjectB, setFormSubjectB] = useState('')
   const [formHtml, setFormHtml] = useState('')
+  const [formChannel, setFormChannel] = useState<Channel>('EMAIL')
+  const [formSmsBody, setFormSmsBody] = useState('')
   const [formMinutesBefore, setFormMinutesBefore] = useState(60)
   const [formSkipIfJoined, setFormSkipIfJoined] = useState(true)
   const [formResendToNonOpeners, setFormResendToNonOpeners] = useState(false)
@@ -113,6 +134,7 @@ export default function ExternalReminderEmailsPage() {
     setEditing(null); setCreating(true)
     setFormName('Reminder'); setFormFromName(''); setFormSubject('Reminder: {{webinar_title}} starts soon')
     setFormSubjectB(''); setFormHtml(DEFAULT_HTML); setFormMinutesBefore(60)
+    setFormChannel('EMAIL'); setFormSmsBody(DEFAULT_SMS)
     setFormSkipIfJoined(true); setFormResendToNonOpeners(false)
     setFormResendAfterHours(''); setFormResendSubject('')
   }
@@ -120,20 +142,26 @@ export default function ExternalReminderEmailsPage() {
   const startEdit = (t: Template) => {
     setCreating(false); setEditing(t)
     setFormName(t.name); setFormFromName(t.fromName || ''); setFormSubject(t.subject)
-    setFormSubjectB(t.subjectB || ''); setFormHtml(t.htmlBody); setFormMinutesBefore(t.minutesBefore)
+    setFormSubjectB(t.subjectB || ''); setFormHtml(t.htmlBody || DEFAULT_HTML); setFormMinutesBefore(t.minutesBefore)
+    setFormChannel(t.channel || 'EMAIL'); setFormSmsBody(t.smsBody || DEFAULT_SMS)
     setFormSkipIfJoined(t.skipIfJoined); setFormResendToNonOpeners(t.resendToNonOpeners)
     setFormResendAfterHours(t.resendAfterHours ?? ''); setFormResendSubject(t.resendSubject || '')
   }
 
   const cancelEdit = () => { setEditing(null); setCreating(false) }
 
+  const usesEmail = formChannel === 'EMAIL' || formChannel === 'BOTH'
+  const usesSms = formChannel === 'SMS' || formChannel === 'BOTH'
+
   const handleSave = async () => {
-    if (!formSubject.trim() || !formHtml.trim()) return
+    if (usesEmail && (!formSubject.trim() || !formHtml.trim())) return
+    if (usesSms && !formSmsBody.trim()) return
     setSaving(true)
     try {
       const payload = {
         name: formName, fromName: formFromName || null, subject: formSubject,
         subjectB: formSubjectB || null, htmlBody: formHtml, minutesBefore: formMinutesBefore,
+        channel: formChannel, smsBody: formSmsBody || null,
         skipIfJoined: formSkipIfJoined, resendToNonOpeners: formResendToNonOpeners,
         resendAfterHours: formResendAfterHours || null, resendSubject: formResendSubject || null,
       }
@@ -184,8 +212,8 @@ export default function ExternalReminderEmailsPage() {
               <Button variant="secondary" size="sm"><ArrowLeft className="w-4 h-4" /></Button>
             </Link>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">Reminder Emails</h1>
-              <p className="text-sm text-gray-500">Schedule reminder emails before the webinar starts</p>
+              <h1 className="text-2xl font-bold text-gray-900">Reminders</h1>
+              <p className="text-sm text-gray-500">Schedule email and SMS reminders before the webinar starts</p>
             </div>
           </div>
           {!creating && !editing && (
@@ -232,6 +260,21 @@ export default function ExternalReminderEmailsPage() {
                   </div>
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Send Via</label>
+                  <div className="flex flex-wrap gap-2">
+                    {CHANNEL_OPTIONS.map((c) => (
+                      <button key={c.value} type="button" onClick={() => setFormChannel(c.value)}
+                        className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${formChannel === c.value ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+                        {c.label}
+                      </button>
+                    ))}
+                  </div>
+                  {usesSms && (
+                    <p className="mt-1 text-xs text-gray-500">SMS is only sent to registrants who provided a phone number.</p>
+                  )}
+                </div>
+                {usesEmail && (<>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">From Name <span className="text-gray-400 font-normal">(optional)</span></label>
                   <input type="text" value={formFromName} onChange={(e) => setFormFromName(e.target.value)}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
@@ -247,11 +290,13 @@ export default function ExternalReminderEmailsPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     placeholder="Alternative subject for A/B testing" />
                 </div>
+                </>)}
                 <div className="flex items-center gap-3">
                   <input type="checkbox" id="skipIfJoined" checked={formSkipIfJoined} onChange={(e) => setFormSkipIfJoined(e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
                   <label htmlFor="skipIfJoined" className="text-sm text-gray-700">Skip if attendee already joined</label>
                 </div>
+                {usesEmail && (<>
                 <div className="flex items-center gap-3">
                   <input type="checkbox" id="resendNonOpeners" checked={formResendToNonOpeners} onChange={(e) => setFormResendToNonOpeners(e.target.checked)}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
@@ -289,9 +334,30 @@ export default function ExternalReminderEmailsPage() {
                     <EmailEditor value={formHtml} onChange={setFormHtml} placeholder="Compose your reminder email..." />
                   </div>
                 </div>
+                </>)}
+                {usesSms && (
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">SMS Message</label>
+                    <textarea value={formSmsBody} onChange={(e) => setFormSmsBody(e.target.value)} rows={4}
+                      className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      placeholder={DEFAULT_SMS} />
+                    <div className="mt-1 flex items-start justify-between gap-4">
+                      <div className="flex flex-wrap gap-2">
+                        {SMS_PLACEHOLDERS.map((p) => (
+                          <button key={p.tag} type="button" onClick={() => setFormSmsBody((prev) => prev + p.tag)}
+                            className="inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200" title={p.desc}>
+                            <Copy className="w-3 h-3" /> {p.tag}
+                          </button>
+                        ))}
+                      </div>
+                      <span className="text-xs text-gray-400 whitespace-nowrap">{formSmsBody.length} chars</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2 pt-2">
                   <Button variant="secondary" size="sm" onClick={cancelEdit}>Cancel</Button>
-                  <Button size="sm" onClick={handleSave} disabled={saving || !formSubject.trim() || !formHtml.trim()}>
+                  <Button size="sm" onClick={handleSave}
+                    disabled={saving || (usesEmail && (!formSubject.trim() || !formHtml.trim())) || (usesSms && !formSmsBody.trim())}>
                     {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                     {creating ? 'Create' : 'Save'}
                   </Button>
@@ -331,12 +397,19 @@ export default function ExternalReminderEmailsPage() {
                         <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                           {formatMinutes(t.minutesBefore)}
                         </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                          {t.channel === 'BOTH' ? 'Email + SMS' : t.channel === 'SMS' ? 'SMS' : 'Email'}
+                        </span>
                       </div>
-                      <p className="text-sm text-gray-600 truncate mb-2">Subject: {t.subject}</p>
+                      <p className="text-sm text-gray-600 truncate mb-2">
+                        {t.channel === 'SMS' ? `SMS: ${t.smsBody || ''}` : `Subject: ${t.subject}`}
+                      </p>
                       <div className="flex items-center gap-4 text-xs text-gray-500">
                         <span className="flex items-center gap-1"><Bell className="w-3.5 h-3.5" /> {t.stats.totalSent} sent</span>
-                        <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {t.stats.openRate}% opened</span>
-                        <span className="flex items-center gap-1"><MousePointer className="w-3.5 h-3.5" /> {t.stats.clickRate}% clicked</span>
+                        {t.channel !== 'SMS' && (<>
+                          <span className="flex items-center gap-1"><Eye className="w-3.5 h-3.5" /> {t.stats.openRate}% opened</span>
+                          <span className="flex items-center gap-1"><MousePointer className="w-3.5 h-3.5" /> {t.stats.clickRate}% clicked</span>
+                        </>)}
                       </div>
                     </div>
                     <div className="flex items-center gap-1 flex-shrink-0">
@@ -360,8 +433,9 @@ export default function ExternalReminderEmailsPage() {
         <div className="flex items-start gap-2 p-3 text-xs text-gray-500 bg-gray-50 rounded-lg border border-gray-200">
           <Info className="w-4 h-4 flex-shrink-0 mt-0.5" />
           <div>
-            <strong>How it works:</strong> Reminder emails are automatically scheduled when someone registers. They are sent at the configured
-            time before the webinar starts. A/B testing splits recipients 50/50 between subject A and B.
+            <strong>How it works:</strong> Reminders are automatically scheduled when someone registers (and for everyone already registered
+            for a future session when you create or edit a template). They are sent at the configured time before the webinar starts.
+            SMS goes only to registrants who provided a phone number. A/B testing splits recipients 50/50 between subject A and B.
           </div>
         </div>
       </div>
