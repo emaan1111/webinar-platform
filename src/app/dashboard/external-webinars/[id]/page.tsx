@@ -88,8 +88,9 @@ export default function ExternalWebinarDetailPage() {
   const [copiedEmbed, setCopiedEmbed] = useState(false)
   const [copiedPopup, setCopiedPopup] = useState(false)
 
-  // Copy emails from internal webinar
+  // Copy emails from another webinar (internal or external)
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
+  const [externalWebinars, setExternalWebinars] = useState<{ id: string; name: string }[]>([])
   const [zoomSessions, setZoomSessions] = useState<
     { id: string; name: string; scheduledAt: string; timezone: string; zoomLink: string | null; isActive: boolean }[]
   >([])
@@ -98,6 +99,7 @@ export default function ExternalWebinarDetailPage() {
   // System Countdown templates the host can render on the built-in countdown page
   const [countdownTemplates, setCountdownTemplates] = useState<{ id: string; name: string }[]>([])
   const [showCopyPanel, setShowCopyPanel] = useState(false)
+  // Encoded as "internal:<id>" or "external:<id>" so one <select> can list both kinds
   const [selectedSourceId, setSelectedSourceId] = useState('')
   const [copyTypes, setCopyTypes] = useState<string[]>(['confirmation', 'reminder', 'followup'])
   const [copying, setCopying] = useState(false)
@@ -138,6 +140,7 @@ export default function ExternalWebinarDetailPage() {
   useEffect(() => {
     fetchWebinar()
     fetchInternalWebinars()
+    fetchExternalWebinars()
     fetchZoomSessions()
     fetchThankYouTemplates()
     fetchCountdownTemplates()
@@ -176,6 +179,19 @@ export default function ExternalWebinarDetailPage() {
     } catch {}
   }
 
+  const fetchExternalWebinars = async () => {
+    try {
+      const res = await fetch('/api/external-webinars')
+      if (!res.ok) return
+      const data = await res.json()
+      const list = Array.isArray(data) ? data : []
+      // Exclude this webinar — copying onto itself would only duplicate templates
+      setExternalWebinars(
+        list.filter((w: any) => w.id !== id).map((w: any) => ({ id: w.id, name: w.name }))
+      )
+    } catch {}
+  }
+
   const fetchZoomSessions = async () => {
     try {
       const res = await fetch('/api/zoom-sessions')
@@ -196,13 +212,17 @@ export default function ExternalWebinarDetailPage() {
 
   const handleCopyEmails = async () => {
     if (!selectedSourceId) return
+    const sep = selectedSourceId.indexOf(':')
+    const sourceType = selectedSourceId.slice(0, sep)
+    const sourceWebinarId = selectedSourceId.slice(sep + 1)
+    if ((sourceType !== 'internal' && sourceType !== 'external') || !sourceWebinarId) return
     setCopying(true)
     setCopyResult('')
     try {
       const res = await fetch(`/api/external-webinars/${id}/copy-emails`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceWebinarId: selectedSourceId, types: copyTypes }),
+        body: JSON.stringify({ sourceWebinarId, sourceType, types: copyTypes }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Copy failed')
@@ -507,7 +527,7 @@ export default function ExternalWebinarDetailPage() {
           <CardBody>
             {showCopyPanel && (
               <div className="mb-4 p-4 bg-purple-50 border border-purple-200 rounded-lg space-y-3">
-                <p className="text-sm font-medium text-purple-900">Copy email templates from an internal webinar</p>
+                <p className="text-sm font-medium text-purple-900">Copy email templates from another webinar</p>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Source Webinar</label>
                   <select
@@ -516,9 +536,20 @@ export default function ExternalWebinarDetailPage() {
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
                   >
                     <option value="">Select a webinar...</option>
-                    {internalWebinars.map((w) => (
-                      <option key={w.id} value={w.id}>{w.title}</option>
-                    ))}
+                    {internalWebinars.length > 0 && (
+                      <optgroup label="Internal Webinars">
+                        {internalWebinars.map((w) => (
+                          <option key={`internal:${w.id}`} value={`internal:${w.id}`}>{w.title}</option>
+                        ))}
+                      </optgroup>
+                    )}
+                    {externalWebinars.length > 0 && (
+                      <optgroup label="External Webinars">
+                        {externalWebinars.map((w) => (
+                          <option key={`external:${w.id}`} value={`external:${w.id}`}>{w.name}</option>
+                        ))}
+                      </optgroup>
+                    )}
                   </select>
                 </div>
                 <div>

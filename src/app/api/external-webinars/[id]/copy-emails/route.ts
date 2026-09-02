@@ -5,8 +5,12 @@ import { prisma } from '@/lib/prisma'
 
 /**
  * POST /api/external-webinars/[id]/copy-emails
- * Copy email templates from an internal webinar to this external webinar.
- * Body: { sourceWebinarId: string, types?: ('confirmation' | 'reminder' | 'followup')[] }
+ * Copy email templates from another webinar (internal or external) to this external webinar.
+ * Body: {
+ *   sourceWebinarId: string,
+ *   sourceType?: 'internal' | 'external',   // defaults to 'internal'
+ *   types?: ('confirmation' | 'reminder' | 'followup')[]
+ * }
  */
 export async function POST(
   request: Request,
@@ -17,10 +21,16 @@ export async function POST(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const { sourceWebinarId, types } = await request.json()
+  const { sourceWebinarId, sourceType = 'internal', types } = await request.json()
 
   if (!sourceWebinarId) {
     return NextResponse.json({ error: 'sourceWebinarId is required' }, { status: 400 })
+  }
+  if (sourceType !== 'internal' && sourceType !== 'external') {
+    return NextResponse.json({ error: "sourceType must be 'internal' or 'external'" }, { status: 400 })
+  }
+  if (sourceType === 'external' && sourceWebinarId === params.id) {
+    return NextResponse.json({ error: 'Cannot copy a webinar\'s templates onto itself' }, { status: 400 })
   }
 
   // Verify external webinar exists
@@ -31,14 +41,29 @@ export async function POST(
     return NextResponse.json({ error: 'External webinar not found' }, { status: 404 })
   }
 
-  // Verify source webinar exists
-  const sourceWebinar = await prisma.webinar.findUnique({
-    where: { id: sourceWebinarId },
-    select: { id: true, title: true },
-  })
-  if (!sourceWebinar) {
-    return NextResponse.json({ error: 'Source webinar not found' }, { status: 404 })
+  // Verify source webinar exists and build the template filter for it
+  let sourceTitle: string
+  if (sourceType === 'external') {
+    const src = await prisma.externalWebinar.findUnique({
+      where: { id: sourceWebinarId },
+      select: { id: true, name: true },
+    })
+    if (!src) {
+      return NextResponse.json({ error: 'Source webinar not found' }, { status: 404 })
+    }
+    sourceTitle = src.name
+  } else {
+    const src = await prisma.webinar.findUnique({
+      where: { id: sourceWebinarId },
+      select: { id: true, title: true },
+    })
+    if (!src) {
+      return NextResponse.json({ error: 'Source webinar not found' }, { status: 404 })
+    }
+    sourceTitle = src.title
   }
+  const sourceWhere =
+    sourceType === 'external' ? { externalWebinarId: sourceWebinarId } : { webinarId: sourceWebinarId }
 
   const copyTypes = types || ['confirmation', 'reminder', 'followup']
   const results = { confirmation: 0, reminder: 0, followup: 0 }
@@ -46,7 +71,7 @@ export async function POST(
   // Copy confirmation email templates
   if (copyTypes.includes('confirmation')) {
     const templates = await prisma.confirmationEmailTemplate.findMany({
-      where: { webinarId: sourceWebinarId },
+      where: sourceWhere,
     })
     for (const t of templates) {
       await prisma.confirmationEmailTemplate.create({
@@ -66,7 +91,7 @@ export async function POST(
   // Copy reminder email templates
   if (copyTypes.includes('reminder')) {
     const templates = await prisma.reminderEmailTemplate.findMany({
-      where: { webinarId: sourceWebinarId },
+      where: sourceWhere,
     })
     for (const t of templates) {
       await prisma.reminderEmailTemplate.create({
@@ -92,7 +117,8 @@ export async function POST(
   // Copy follow-up email templates
   if (copyTypes.includes('followup')) {
     const templates = await prisma.followUpEmailTemplate.findMany({
-      where: { webinarId: sourceWebinarId },
+      where: sourceWhere,
+      orderBy: { sortOrder: 'asc' },
     })
     for (const t of templates) {
       await prisma.followUpEmailTemplate.create({
@@ -121,7 +147,7 @@ export async function POST(
 
   return NextResponse.json({
     success: true,
-    message: `Copied ${total} template(s) from "${sourceWebinar.title}"`,
+    message: `Copied ${total} template(s) from "${sourceTitle}"`,
     results,
   })
 }
