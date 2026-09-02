@@ -13,4 +13,10 @@ cmds = [
 ]
 
 [start]
-cmd = "DATABASE_URL=${DATABASE_PRIVATE_URL:-$DATABASE_URL} node .next/standalone/server.js"
+# Route through `npm run start` so the schema sync in package.json runs here too
+# (this cmd overrides package.json's start, and prisma/migrations/ is gitignored,
+# so `migrate deploy` never applied anything — new columns only reached prod when
+# someone remembered to run db push by hand). `prisma db push` applies additive
+# changes on its own and refuses destructive ones in a non-interactive shell, so
+# a column drop fails the deploy loudly instead of silently breaking the app.
+cmd = "DATABASE_URL=${DATABASE_PRIVATE_URL:-$DATABASE_URL} npm run start"

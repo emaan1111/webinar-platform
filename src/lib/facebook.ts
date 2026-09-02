@@ -27,6 +27,11 @@ const pixelId = process.env.FB_PIXEL_ID
 const accessToken = process.env.FB_ACCESS_TOKEN
 const testEventCode = process.env.FB_TEST_EVENT_CODE
 
+// Meta blocks events without event_source_url, so never let it go out empty
+// even if NEXT_PUBLIC_APP_URL is missing from the environment.
+const DEFAULT_EVENT_SOURCE_URL =
+  process.env.NEXT_PUBLIC_APP_URL || 'https://emaanpowerclasses.com/'
+
 // Initialize the Facebook API
 if (accessToken && pixelId) {
   bizSdk.FacebookAdsApi.init(accessToken)
@@ -47,6 +52,21 @@ function normalizePhone(phone: string | null | undefined): string | undefined {
   if (!phone) return undefined
   // Remove all non-digit characters except + at the start
   return phone.replace(/[^\d+]/g, '')
+}
+
+/**
+ * Meta requires client_ip_address and client_user_agent to be sent together;
+ * an IP on its own gets the event flagged. The WebinarJam sync only has an IP
+ * (no browser context), so in that case send neither.
+ */
+function pairIpWithUserAgent(data: FacebookEventData): {
+  ipAddress?: string
+  userAgent?: string
+} {
+  const ipAddress =
+    data.ipAddress && data.ipAddress !== 'unknown' ? data.ipAddress : undefined
+  if (!ipAddress || !data.userAgent) return {}
+  return { ipAddress, userAgent: data.userAgent }
 }
 
 export interface FacebookEventData {
@@ -87,14 +107,16 @@ export async function sendFacebookRegistration(data: FacebookEventData): Promise
       lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined
     }
 
+    const { ipAddress, userAgent } = pairIpWithUserAgent(data)
+
     // Create user data with hashed PII
     const userData = new UserData()
       .setEmails([hashData(data.email)])
       .setPhones(data.phone ? [hashData(normalizePhone(data.phone))] : undefined)
       .setFirstNames(firstName ? [hashData(firstName)] : undefined)
       .setLastNames(lastName ? [hashData(lastName)] : undefined)
-      .setClientIpAddress(data.ipAddress)
-      .setClientUserAgent(data.userAgent)
+      .setClientIpAddress(ipAddress)
+      .setClientUserAgent(userAgent)
       .setFbc(data.fbc) // Facebook click ID from _fbc cookie
       .setFbp(data.fbp) // Facebook browser ID from _fbp cookie
 
@@ -118,7 +140,7 @@ export async function sendFacebookRegistration(data: FacebookEventData): Promise
       .setEventTime(Math.floor(Date.now() / 1000))
       .setUserData(userData)
       .setCustomData(customData)
-      .setEventSourceUrl(data.eventSourceUrl || process.env.NEXT_PUBLIC_APP_URL)
+      .setEventSourceUrl(data.eventSourceUrl || DEFAULT_EVENT_SOURCE_URL)
       .setActionSource('website')
 
     // Create event request
@@ -175,13 +197,15 @@ export async function sendFacebookCustomEvent(
       lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined
     }
 
+    const { ipAddress, userAgent } = pairIpWithUserAgent(data)
+
     const userData = new UserData()
       .setEmails([hashData(data.email)])
       .setPhones(data.phone ? [hashData(normalizePhone(data.phone))] : undefined)
       .setFirstNames(firstName ? [hashData(firstName)] : undefined)
       .setLastNames(lastName ? [hashData(lastName)] : undefined)
-      .setClientIpAddress(data.ipAddress)
-      .setClientUserAgent(data.userAgent)
+      .setClientIpAddress(ipAddress)
+      .setClientUserAgent(userAgent)
       .setFbc(data.fbc)
       .setFbp(data.fbp)
 
@@ -201,7 +225,7 @@ export async function sendFacebookCustomEvent(
       .setEventTime(Math.floor(Date.now() / 1000))
       .setUserData(userData)
       .setCustomData(customData)
-      .setEventSourceUrl(data.eventSourceUrl || process.env.NEXT_PUBLIC_APP_URL)
+      .setEventSourceUrl(data.eventSourceUrl || DEFAULT_EVENT_SOURCE_URL)
       .setActionSource('website')
 
     const eventsData = [serverEvent]
