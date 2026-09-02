@@ -1149,10 +1149,11 @@ model EventRegistration {
 }
 
 model SMSSettings {
-  id               String   @id @default("default")
-  blockedTimezones String[] @default([])
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @default(now())
+  id                  String   @id @default("default")
+  blockedTimezones    String[] @default([])
+  allowedCountryCodes String[] @default([]) // dialing codes ("1", "44", "61"); empty = every country
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now())
 
   @@map("sms_settings")
 }
