@@ -16,6 +16,7 @@ import {
   applyRegistrantFilterParams,
   EMPTY_REGISTRANT_FILTERS,
   RegistrantFilters,
+  sanitizeRegistrantFilters,
 } from '@/lib/reports/registrantFilters'
 import SummaryTiles from '@/components/reports/SummaryTiles'
 import GridToolbar from '@/components/reports/GridToolbar'
@@ -50,14 +51,7 @@ function loadStoredRange(timezone: string): DateRange | null {
 function loadStoredRegistrantFilters(): RegistrantFilters {
   try {
     const raw = localStorage.getItem(REGISTRANT_FILTERS_KEY)
-    if (!raw) return EMPTY_REGISTRANT_FILTERS
-    const stored = JSON.parse(raw)
-    return {
-      countries: Array.isArray(stored?.countries) ? stored.countries.filter((v: unknown) => typeof v === 'string') : [],
-      countriesMode: stored?.countriesMode === 'exclude' ? 'exclude' : 'include',
-      timezones: Array.isArray(stored?.timezones) ? stored.timezones.filter((v: unknown) => typeof v === 'string') : [],
-      timezonesMode: stored?.timezonesMode === 'exclude' ? 'exclude' : 'include',
-    }
+    return raw ? sanitizeRegistrantFilters(JSON.parse(raw)) : EMPTY_REGISTRANT_FILTERS
   } catch {
     return EMPTY_REGISTRANT_FILTERS
   }
@@ -84,7 +78,18 @@ export default function ReportsPage() {
   const requestRef = useRef<AbortController | null>(null)
   const rangeSeeded = useRef(false)
 
-  const grid = useReportGrid()
+  const changeRegistrantFilters = useCallback((filters: RegistrantFilters) => {
+    setRegistrantFilters(filters)
+    try {
+      localStorage.setItem(REGISTRANT_FILTERS_KEY, JSON.stringify(filters))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // Custom views snapshot the registrant filter: saving one captures it, and
+  // loading one applies (or clears) it.
+  const grid = useReportGrid({ registrantFilters, onApplyViewFilters: changeRegistrantFilters })
 
   // Engagement threshold survives a refresh.
   useEffect(() => {
@@ -132,14 +137,6 @@ export default function ReportsPage() {
   // Registrant country/timezone filter survives a refresh too.
   useEffect(() => {
     setRegistrantFilters(loadStoredRegistrantFilters())
-  }, [])
-  const changeRegistrantFilters = useCallback((filters: RegistrantFilters) => {
-    setRegistrantFilters(filters)
-    try {
-      localStorage.setItem(REGISTRANT_FILTERS_KEY, JSON.stringify(filters))
-    } catch {
-      /* ignore */
-    }
   }, [])
 
   // The countries and timezones actually on file, for the filter dropdowns.

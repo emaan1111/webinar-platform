@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { Check, ChevronDown, Columns3, Download, RefreshCw, Rows3, Rows4, Star } from 'lucide-react'
+import { Check, ChevronDown, Columns3, Download, Globe2, RefreshCw, Rows3, Rows4, Star } from 'lucide-react'
 import type { ReportGrid } from '@/lib/reports/useReportGrid'
 import Popover, { MenuDivider, MenuItem } from './Popover'
 
@@ -191,6 +191,10 @@ export default function GridToolbar({
           }}
         >
           <label className="block text-xs font-medium text-gray-600">Save these columns as a view</label>
+          <p className="text-xs text-gray-400">
+            The current registrant country/timezone filter is saved with it and comes back when the
+            view is opened.
+          </p>
           <input
             ref={saveInput}
             data-autofocus
@@ -279,6 +283,14 @@ function ViewSection({
                 <span className="block truncate text-sm text-gray-900">{view.name}</span>
                 {view.description && <span className="block truncate text-xs text-gray-500">{view.description}</span>}
               </span>
+              {(view.filters?.countries.length || view.filters?.timezones.length) ? (
+                <span
+                  className="shrink-0 text-gray-400"
+                  title="Opens with a saved registrant country/timezone filter"
+                >
+                  <Globe2 className="h-3.5 w-3.5" />
+                </span>
+              ) : null}
               <span className="shrink-0 text-xs tabular-nums text-gray-400">{view.columns.length} cols</span>
             </button>
             <button

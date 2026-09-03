@@ -153,6 +153,28 @@ describe('persistence parsing', () => {
     ])
   })
 
+  it('keeps a filter snapshot when present and leaves it absent when not', () => {
+    const raw = JSON.stringify([
+      {
+        id: 'custom_1',
+        name: 'India only',
+        columns: ['date'],
+        filters: { countries: ['India'], countriesMode: 'exclude', timezones: 'junk' },
+      },
+      { id: 'custom_2', name: 'Pre-filter view', columns: ['date'] },
+    ])
+    const [withFilters, legacy] = parseSavedViews(raw)
+    expect(withFilters.filters).toEqual({
+      countries: ['India'],
+      countriesMode: 'exclude',
+      timezones: [],
+      timezonesMode: 'include',
+    })
+    // Absent means "don't touch the active filter when loading this view",
+    // so it must not be filled in with an empty snapshot.
+    expect('filters' in legacy).toBe(false)
+  })
+
   it('returns [] / null on garbage', () => {
     expect(parseSavedViews('{not json')).toEqual([])
     expect(parseSavedViews(null)).toEqual([])

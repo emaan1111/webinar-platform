@@ -61,6 +61,43 @@ export function applyRegistrantFilterParams(params: URLSearchParams, f: Registra
   }
 }
 
+/**
+ * A RegistrantFilters from untrusted input (localStorage, a saved view).
+ * Garbage in any field degrades to that field's empty default.
+ */
+export function sanitizeRegistrantFilters(raw: unknown): RegistrantFilters {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const list = (v: unknown) =>
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map(x => x.trim())
+      : []
+  return {
+    countries: list(r.countries),
+    countriesMode: r.countriesMode === 'exclude' ? 'exclude' : 'include',
+    timezones: list(r.timezones),
+    timezonesMode: r.timezonesMode === 'exclude' ? 'exclude' : 'include',
+  }
+}
+
+/**
+ * Same effective filter? Selection order never matters, and the include/
+ * exclude mode only matters once something is selected - so flipping the mode
+ * of an empty filter is not a change.
+ */
+export function registrantFiltersEqual(a: RegistrantFilters, b: RegistrantFilters): boolean {
+  const norm = (values: string[]) => [...values].sort().join('\u0000')
+  const fieldEqual = (
+    av: string[],
+    bv: string[],
+    am: RegistrantFilterMode,
+    bm: RegistrantFilterMode
+  ) => norm(av) === norm(bv) && (av.length === 0 || am === bm)
+  return (
+    fieldEqual(a.countries, b.countries, a.countriesMode, b.countriesMode) &&
+    fieldEqual(a.timezones, b.timezones, a.timezonesMode, b.timezonesMode)
+  )
+}
+
 function fieldClause(field: 'country' | 'timezone', values: string[], mode: RegistrantFilterMode) {
   if (mode === 'include') {
     return { [field]: { in: values } }

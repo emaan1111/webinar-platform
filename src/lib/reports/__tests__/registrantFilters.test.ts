@@ -4,7 +4,9 @@ import {
   EMPTY_REGISTRANT_FILTERS,
   hasRegistrantFilters,
   parseRegistrantFilters,
+  registrantFiltersEqual,
   registrantFilterWhere,
+  sanitizeRegistrantFilters,
 } from '../registrantFilters'
 
 describe('parseRegistrantFilters', () => {
@@ -48,6 +50,52 @@ describe('applyRegistrantFilterParams', () => {
     const params = new URLSearchParams()
     applyRegistrantFilterParams(params, EMPTY_REGISTRANT_FILTERS)
     expect(params.toString()).toBe('')
+  })
+})
+
+describe('sanitizeRegistrantFilters', () => {
+  it('degrades garbage to the empty filter', () => {
+    expect(sanitizeRegistrantFilters(null)).toEqual(EMPTY_REGISTRANT_FILTERS)
+    expect(sanitizeRegistrantFilters('nope')).toEqual(EMPTY_REGISTRANT_FILTERS)
+    expect(sanitizeRegistrantFilters({ countries: 'India', timezonesMode: 7 })).toEqual(
+      EMPTY_REGISTRANT_FILTERS
+    )
+  })
+
+  it('keeps valid entries, trims them and drops non-strings', () => {
+    const f = sanitizeRegistrantFilters({
+      countries: [' India ', 42, '', 'US'],
+      countriesMode: 'exclude',
+      timezones: ['UTC'],
+    })
+    expect(f).toEqual({
+      countries: ['India', 'US'],
+      countriesMode: 'exclude',
+      timezones: ['UTC'],
+      timezonesMode: 'include',
+    })
+  })
+})
+
+describe('registrantFiltersEqual', () => {
+  const base = {
+    countries: ['India', 'US'],
+    countriesMode: 'include' as const,
+    timezones: [],
+    timezonesMode: 'include' as const,
+  }
+
+  it('ignores selection order', () => {
+    expect(registrantFiltersEqual(base, { ...base, countries: ['US', 'India'] })).toBe(true)
+  })
+
+  it('sees a different selection or mode as different', () => {
+    expect(registrantFiltersEqual(base, { ...base, countries: ['India'] })).toBe(false)
+    expect(registrantFiltersEqual(base, { ...base, countriesMode: 'exclude' })).toBe(false)
+  })
+
+  it('ignores the mode of an empty selection', () => {
+    expect(registrantFiltersEqual(base, { ...base, timezonesMode: 'exclude' })).toBe(true)
   })
 })
 
