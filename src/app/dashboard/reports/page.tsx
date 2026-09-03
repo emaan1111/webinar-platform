@@ -11,13 +11,57 @@ import { buildReportCsv, downloadCsv } from '@/lib/reports/csv'
 import { sortReports } from '@/lib/reports/state'
 import { useReportGrid } from '@/lib/reports/useReportGrid'
 import ReportsSubNav from '@/components/reports/ReportsSubNav'
-import ReportsToolbar, { DateRange, presetRange, WebinarOption } from '@/components/reports/ReportsToolbar'
+import ReportsToolbar, { DateRange, isPresetKey, matchPresetKey, presetRange, WebinarOption } from '@/components/reports/ReportsToolbar'
+import {
+  applyRegistrantFilterParams,
+  EMPTY_REGISTRANT_FILTERS,
+  RegistrantFilters,
+} from '@/lib/reports/registrantFilters'
 import SummaryTiles from '@/components/reports/SummaryTiles'
 import GridToolbar from '@/components/reports/GridToolbar'
 import ReportsTable from '@/components/reports/ReportsTable'
 import ColumnsDrawer from '@/components/reports/ColumnsDrawer'
 
 const ENGAGEMENT_KEY = 'reportEngagementMinutes'
+const DATE_RANGE_KEY = 'reportDateRange.v1'
+const REGISTRANT_FILTERS_KEY = 'reportRegistrantFilters.v1'
+
+/**
+ * Restore the saved date range. A preset ("last 7 days") is re-evaluated
+ * against today, so it stays relative; explicit dates come back as picked.
+ */
+function loadStoredRange(timezone: string): DateRange | null {
+  try {
+    const raw = localStorage.getItem(DATE_RANGE_KEY)
+    if (!raw) return null
+    const stored = JSON.parse(raw)
+    if (typeof stored?.preset === 'string' && isPresetKey(stored.preset)) {
+      return presetRange(stored.preset, timezone)
+    }
+    if (typeof stored?.from === 'string' && typeof stored?.to === 'string' && stored.from && stored.to) {
+      return { from: stored.from, to: stored.to }
+    }
+  } catch {
+    /* ignore */
+  }
+  return null
+}
+
+function loadStoredRegistrantFilters(): RegistrantFilters {
+  try {
+    const raw = localStorage.getItem(REGISTRANT_FILTERS_KEY)
+    if (!raw) return EMPTY_REGISTRANT_FILTERS
+    const stored = JSON.parse(raw)
+    return {
+      countries: Array.isArray(stored?.countries) ? stored.countries.filter((v: unknown) => typeof v === 'string') : [],
+      countriesMode: stored?.countriesMode === 'exclude' ? 'exclude' : 'include',
+      timezones: Array.isArray(stored?.timezones) ? stored.timezones.filter((v: unknown) => typeof v === 'string') : [],
+      timezonesMode: stored?.timezonesMode === 'exclude' ? 'exclude' : 'include',
+    }
+  } catch {
+    return EMPTY_REGISTRANT_FILTERS
+  }
+}
 
 export default function ReportsPage() {
   const [loading, setLoading] = useState(true)
@@ -32,6 +76,10 @@ export default function ReportsPage() {
   const [coverageWarning, setCoverageWarning] = useState<string | null>(null)
   const [webinars, setWebinars] = useState<WebinarOption[]>([])
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
+  const [countryOptions, setCountryOptions] = useState<string[]>([])
+  const [timezoneOptions, setTimezoneOptions] = useState<string[]>([])
+  const [registrantFilters, setRegistrantFilters] = useState<RegistrantFilters>(EMPTY_REGISTRANT_FILTERS)
+  const [filterNote, setFilterNote] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const requestRef = useRef<AbortController | null>(null)
   const rangeSeeded = useRef(false)
@@ -56,14 +104,59 @@ export default function ReportsPage() {
     }
   }, [])
 
-  // Seed the default range (last 30 days) exactly once, when the timezone is
-  // first known. Switching zones keeps the dates you picked, and a date input
-  // that is momentarily empty mid-edit must not snap the range back.
+  // Seed the range exactly once, when the timezone is first known: whatever
+  // was used last visit, else the default (last 7 days). Switching zones keeps
+  // the dates you picked, and a date input that is momentarily empty mid-edit
+  // must not snap the range back.
   useEffect(() => {
     if (!timezone || rangeSeeded.current) return
     rangeSeeded.current = true
-    if (!dateRange.from) setDateRange(presetRange('last30', timezone))
+    if (!dateRange.from) setDateRange(loadStoredRange(timezone) ?? presetRange('last7', timezone))
   }, [timezone, dateRange.from])
+
+  // Remember the range for the next visit. An active preset is stored by name
+  // so "7d" is still the LAST 7 days tomorrow; custom dates are stored as-is.
+  useEffect(() => {
+    if (!rangeSeeded.current || !dateRange.from || !dateRange.to || !timezone) return
+    try {
+      const preset = matchPresetKey(dateRange, timezone)
+      localStorage.setItem(
+        DATE_RANGE_KEY,
+        JSON.stringify(preset ? { preset } : { from: dateRange.from, to: dateRange.to })
+      )
+    } catch {
+      /* ignore */
+    }
+  }, [dateRange, timezone])
+
+  // Registrant country/timezone filter survives a refresh too.
+  useEffect(() => {
+    setRegistrantFilters(loadStoredRegistrantFilters())
+  }, [])
+  const changeRegistrantFilters = useCallback((filters: RegistrantFilters) => {
+    setRegistrantFilters(filters)
+    try {
+      localStorage.setItem(REGISTRANT_FILTERS_KEY, JSON.stringify(filters))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // The countries and timezones actually on file, for the filter dropdowns.
+  useEffect(() => {
+    const fetchFilterOptions = async () => {
+      try {
+        const res = await fetch('/api/reports/filter-options')
+        if (!res.ok) return
+        const data = await res.json()
+        setCountryOptions(Array.isArray(data.countries) ? data.countries : [])
+        setTimezoneOptions(Array.isArray(data.timezones) ? data.timezones : [])
+      } catch (err) {
+        console.error('Error fetching report filter options:', err)
+      }
+    }
+    fetchFilterOptions()
+  }, [])
 
   // Internal + external webinars for the filter.
   useEffect(() => {
@@ -106,6 +199,7 @@ export default function ReportsPage() {
         timezone,
       })
       if (selectedWebinars.length > 0) params.set('webinarIds', selectedWebinars.join(','))
+      applyRegistrantFilterParams(params, registrantFilters)
       const response = await fetch(`/api/reports?${params.toString()}`, { signal: controller.signal })
       if (!response.ok) {
         const body = await response.json().catch(() => ({}))
@@ -117,6 +211,7 @@ export default function ReportsPage() {
       // Registrations with no scheduled session time are invisible to every
       // session-clock column. Say so rather than quietly understating them.
       setCoverageWarning(data.coverageWarning ?? null)
+      setFilterNote(data.filterNote ?? null)
       setLastUpdated(new Date())
     } catch (err: any) {
       if (err?.name === 'AbortError') return
@@ -125,7 +220,7 @@ export default function ReportsPage() {
     } finally {
       if (requestRef.current === controller) setLoading(false)
     }
-  }, [dateRange, engagementMinutes, selectedWebinars, timezone])
+  }, [dateRange, engagementMinutes, selectedWebinars, timezone, registrantFilters])
 
   useEffect(() => {
     fetchReports()
@@ -142,9 +237,10 @@ export default function ReportsPage() {
       const params = new URLSearchParams({ ...dateParams, metric, engagementMinutes: String(engagementMinutes) })
       if (timezone) params.set('timezone', timezone)
       if (selectedWebinars.length > 0) params.set('webinarIds', selectedWebinars.join(','))
+      applyRegistrantFilterParams(params, registrantFilters)
       return `/dashboard/reports/details?${params.toString()}`
     },
-    [engagementMinutes, selectedWebinars, timezone]
+    [engagementMinutes, selectedWebinars, timezone, registrantFilters]
   )
 
   const exportCsv = () => {
@@ -195,6 +291,10 @@ export default function ReportsPage() {
           webinars={webinars}
           selectedWebinars={selectedWebinars}
           onSelectedWebinarsChange={setSelectedWebinars}
+          countryOptions={countryOptions}
+          timezoneOptions={timezoneOptions}
+          registrantFilters={registrantFilters}
+          onRegistrantFiltersChange={changeRegistrantFilters}
           loading={loading}
         />
 
@@ -203,6 +303,8 @@ export default function ReportsPage() {
         {coverageWarning && (
           <Notice title="Some registrations have no session date">{coverageWarning}</Notice>
         )}
+
+        {filterNote && <Notice title="Registrant filter active">{filterNote}</Notice>}
 
         {fbWarning && (
           <Notice title="Facebook Ads data unavailable">

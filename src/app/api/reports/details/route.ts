@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime } from 'date-fns-tz';
 import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
+import { parseRegistrantFilters, registrantFilterWhere } from '@/lib/reports/registrantFilters';
 
 /**
  * Metrics counted on the SESSION clock - selected by the day the webinar RAN
@@ -39,6 +40,9 @@ export async function GET(request: NextRequest) {
     const hasInternalFilter = internalWebinarIds.length > 0;
     const hasExternalFilter = extWebinarIds.length > 0;
     const isSessionMetric = SESSION_METRICS.has(metric || '');
+    // Same country/timezone filter /api/reports counted with - the drill-down
+    // must list exactly the people behind the cell that was clicked.
+    const registrantWhere = registrantFilterWhere(parseRegistrantFilters(searchParams));
 
     if ((!date && (!startDateParam || !endDateParam)) || !metric) {
       return NextResponse.json(
@@ -105,7 +109,8 @@ export async function GET(request: NextRequest) {
         // through, so the list matches the number it was opened from.
         ...(internalWebinarIds.length > 0
           ? { webinarId: { in: internalWebinarIds } }
-          : (webinarIds.length > 0 ? { webinarId: '__none__' } : {}))
+          : (webinarIds.length > 0 ? { webinarId: '__none__' } : {})),
+        ...registrantWhere
       },
       include: {
         user: {
@@ -277,8 +282,8 @@ export async function GET(request: NextRequest) {
     let externalDetails: any[] = [];
     if (includeExternal) {
     const extWhere: any = isSessionMetric
-      ? { scheduledStartTime: { gte: start, lt: end } }
-      : { registeredAt: { gte: start, lt: end } };
+      ? { scheduledStartTime: { gte: start, lt: end }, ...registrantWhere }
+      : { registeredAt: { gte: start, lt: end }, ...registrantWhere };
     if (extWebinarIds.length > 0) {
       extWhere.externalWebinarId = { in: extWebinarIds };
     }

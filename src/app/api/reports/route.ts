@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { requestFacebookInsights } from '@/lib/facebookAds';
 import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
+import { parseRegistrantFilters, registrantFilterWhere, hasRegistrantFilters } from '@/lib/reports/registrantFilters';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -21,6 +22,11 @@ export async function GET(request: NextRequest) {
     const internalWebinarIds = webinarIds.filter(id => !id.startsWith('ext_'));
     const extWebinarFilterIds = webinarIds.filter(id => id.startsWith('ext_')).map(id => id.replace('ext_', ''));
     const timezone = searchParams.get('timezone') || 'UTC';
+    // Country/timezone include-exclude filter. Applied to every registration
+    // query below (both clocks, internal and external), so an excluded
+    // registrant is not counted at all - anywhere.
+    const registrantFilters = parseRegistrantFilters(searchParams);
+    const registrantWhere = registrantFilterWhere(registrantFilters);
 
     if (!from || !to) {
       return NextResponse.json(
@@ -173,7 +179,8 @@ export async function GET(request: NextRequest) {
             gte: currentDate,
             lt: nextDate
           },
-          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {}))
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {})),
+          ...registrantWhere
         },
         include: {
           user: {
@@ -239,7 +246,8 @@ export async function GET(request: NextRequest) {
             gte: currentDate,
             lt: nextDate
           },
-          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {}))
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : (webinarIds.length > 0 && internalWebinarIds.length === 0 ? { webinarId: '__none__' } : {})),
+          ...registrantWhere
         },
         include: {
           user: { select: { name: true, email: true } },
@@ -392,6 +400,7 @@ export async function GET(request: NextRequest) {
             gte: currentDate,
             lt: nextDate,
           },
+          ...registrantWhere,
         };
         if (extWebinarFilterIds.length > 0) {
           extWhere.externalWebinarId = { in: extWebinarFilterIds };
@@ -456,6 +465,7 @@ export async function GET(request: NextRequest) {
           gte: currentDate,
           lt: nextDate,
         },
+        ...registrantWhere,
       };
       if (extWebinarFilterIds.length > 0) {
         extSessionWhere.externalWebinarId = { in: extWebinarFilterIds };
@@ -698,20 +708,29 @@ export async function GET(request: NextRequest) {
       prisma.registration.count({
         where: {
           registeredAt: { gte: fromDate, lte: toDate },
-          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {}),
+          ...registrantWhere
         }
       }),
       prisma.registration.count({
         where: {
           registeredAt: { gte: fromDate, lte: toDate },
           scheduledStartTime: null,
-          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {})
+          ...(internalWebinarIds.length > 0 ? { webinarId: { in: internalWebinarIds } } : {}),
+          ...registrantWhere
         }
       })
     ]);
 
     const coverageWarning = missingSessionDateCount > 0
       ? `${missingSessionDateCount} of ${rangeRegistrationCount} registrations in this range have no scheduled session time, so they are left out of the webinar columns (Registered, Live, Missed, Engaged, % Attendance).`
+      : null;
+
+    // Page visits and ad spend carry no registrant location, so they cannot be
+    // filtered the way registrations are. Disclose it rather than letting the
+    // mixed-population rates pass as filtered.
+    const filterNote = hasRegistrantFilters(registrantFilters)
+      ? 'Country/timezone filters apply to registrants only. Visitors, ad spend and the rates built on them (registration rate, cost per registration) still count everyone.'
       : null;
 
     return NextResponse.json({
@@ -722,6 +741,7 @@ export async function GET(request: NextRequest) {
       timestamp: new Date().toISOString(),
       warning: fbWarning,
       coverageWarning,
+      filterNote,
       missingSessionDateCount,
       rangeRegistrationCount
     }, {

@@ -26,6 +26,12 @@ export default function ReportDetailsPage() {
   const webinarIds = searchParams.get('webinarIds')
   const timezone = searchParams.get('timezone')
   const engagementMinutes = searchParams.get('engagementMinutes')
+  // Country/timezone registrant filter, carried over from the reports grid so
+  // this list matches the number that was clicked.
+  const countries = searchParams.get('countries')
+  const countriesMode = searchParams.get('countriesMode')
+  const timezones = searchParams.get('timezones')
+  const timezonesMode = searchParams.get('timezonesMode')
   
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<any[]>([])
@@ -35,7 +41,7 @@ export default function ReportDetailsPage() {
     if ((date || (startDate && endDate)) && metric) {
       fetchDetails()
     }
-  }, [date, startDate, endDate, metric, webinarIds, timezone, engagementMinutes])
+  }, [date, startDate, endDate, metric, webinarIds, timezone, engagementMinutes, countries, countriesMode, timezones, timezonesMode])
 
   const fetchDetails = async () => {
     setLoading(true)
@@ -49,7 +55,11 @@ export default function ReportDetailsPage() {
       // Fall back to the browser zone for links saved before these params existed.
       url += `&timezone=${encodeURIComponent(timezone || Intl.DateTimeFormat().resolvedOptions().timeZone)}`
       if (engagementMinutes) url += `&engagementMinutes=${engagementMinutes}`
-      
+      if (countries) url += `&countries=${encodeURIComponent(countries)}`
+      if (countriesMode) url += `&countriesMode=${encodeURIComponent(countriesMode)}`
+      if (timezones) url += `&timezones=${encodeURIComponent(timezones)}`
+      if (timezonesMode) url += `&timezonesMode=${encodeURIComponent(timezonesMode)}`
+
       const response = await fetch(url)
       const result = await response.json()
       

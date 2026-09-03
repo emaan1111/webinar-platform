@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Calendar, Filter, Timer, X } from 'lucide-react'
+import { Calendar, Filter, Globe2, Timer, X } from 'lucide-react'
 import { formatInTimeZone } from 'date-fns-tz'
 import MultiSelect from '@/components/ui/MultiSelect'
 import TimezoneSelector from '@/components/dashboard/TimezoneSelector'
+import { RegistrantFilterMode, RegistrantFilters } from '@/lib/reports/registrantFilters'
 
 export interface DateRange {
   from: string
@@ -26,6 +27,11 @@ interface ReportsToolbarProps {
   webinars: WebinarOption[]
   selectedWebinars: string[]
   onSelectedWebinarsChange: (ids: string[]) => void
+  /** Distinct values on file, from /api/reports/filter-options. */
+  countryOptions: string[]
+  timezoneOptions: string[]
+  registrantFilters: RegistrantFilters
+  onRegistrantFiltersChange: (filters: RegistrantFilters) => void
   loading: boolean
 }
 
@@ -70,6 +76,21 @@ export function presetRange(key: PresetKey, timezone: string, now: Date = new Da
   }
 }
 
+/**
+ * Which preset (if any) the given range is, today, in the given timezone.
+ * Used to persist the range as "last 7 days" rather than two fixed dates, so
+ * it comes back relative to the day it is reopened.
+ */
+export function matchPresetKey(range: DateRange, timezone: string, now: Date = new Date()): PresetKey | null {
+  for (const p of PRESETS) {
+    const r = presetRange(p.key, timezone, now)
+    if (r.from === range.from && r.to === range.to) return p.key
+  }
+  return null
+}
+
+export const isPresetKey = (key: string): key is PresetKey => PRESETS.some(p => p.key === key)
+
 const ENGAGEMENT_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90]
 
 export default function ReportsToolbar({
@@ -82,6 +103,10 @@ export default function ReportsToolbar({
   webinars,
   selectedWebinars,
   onSelectedWebinarsChange,
+  countryOptions,
+  timezoneOptions,
+  registrantFilters,
+  onRegistrantFiltersChange,
   loading,
 }: ReportsToolbarProps) {
   const activePreset = useMemo(() => {
@@ -255,6 +280,102 @@ export default function ReportsToolbar({
           )}
         </div>
       )}
+
+      {/* Registrant location filter: who counts at all. An excluded */}
+      {/* registrant disappears from every number, not just one column. */}
+      {(countryOptions.length > 0 || timezoneOptions.length > 0) && (
+        <div className="flex flex-wrap items-start gap-x-6 gap-y-3 border-t border-gray-100 px-4 py-3">
+          <div className="flex items-center gap-2 pt-1.5 text-sm text-gray-600">
+            <Globe2 className="h-4 w-4 text-gray-400" aria-hidden />
+            <span>Registrants</span>
+          </div>
+
+          {countryOptions.length > 0 && (
+            <RegistrantFilterField
+              label="Countries"
+              options={countryOptions}
+              selected={registrantFilters.countries}
+              mode={registrantFilters.countriesMode}
+              onChange={(countries, countriesMode) =>
+                onRegistrantFiltersChange({ ...registrantFilters, countries, countriesMode })
+              }
+            />
+          )}
+
+          {timezoneOptions.length > 0 && (
+            <RegistrantFilterField
+              label="Timezones"
+              options={timezoneOptions}
+              selected={registrantFilters.timezones}
+              mode={registrantFilters.timezonesMode}
+              onChange={(timezones, timezonesMode) =>
+                onRegistrantFiltersChange({ ...registrantFilters, timezones, timezonesMode })
+              }
+            />
+          )}
+
+          {(registrantFilters.countries.length > 0 || registrantFilters.timezones.length > 0) && (
+            <button
+              type="button"
+              onClick={() =>
+                onRegistrantFiltersChange({
+                  countries: [],
+                  countriesMode: 'include',
+                  timezones: [],
+                  timezonesMode: 'include',
+                })
+              }
+              className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            >
+              <X className="h-3.5 w-3.5" />
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * One include/exclude multi-select: "Include only" narrows the report to the
+ * chosen values, "Exclude" drops them from every count entirely. Registrants
+ * with no value on file stay in under Exclude and drop out under Include only.
+ */
+function RegistrantFilterField({
+  label,
+  options,
+  selected,
+  mode,
+  onChange,
+}: {
+  label: string
+  options: string[]
+  selected: string[]
+  mode: RegistrantFilterMode
+  onChange: (selected: string[], mode: RegistrantFilterMode) => void
+}) {
+  return (
+    <div className="flex min-w-[300px] flex-1 items-center gap-2">
+      <span className="pt-0 text-sm text-gray-500">{label}</span>
+      <select
+        value={mode}
+        onChange={e => onChange(selected, e.target.value === 'exclude' ? 'exclude' : 'include')}
+        className="rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+        aria-label={`${label}: include or exclude`}
+        title="Include only counts just the selected; Exclude drops the selected from every number"
+      >
+        <option value="include">Include only</option>
+        <option value="exclude">Exclude</option>
+      </select>
+      <div className="min-w-[180px] flex-1 [&_button]:py-1.5 [&_button]:text-sm">
+        <MultiSelect
+          options={options}
+          selected={selected}
+          onChange={values => onChange(values, mode)}
+          placeholder={`All ${label.toLowerCase()}`}
+        />
+      </div>
     </div>
   )
 }
