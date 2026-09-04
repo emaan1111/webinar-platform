@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { isWithinBookingWindow, describeBookingWindow, BOOKING_WINDOW_ERROR } from '@/lib/bookingWindow'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
@@ -170,6 +171,9 @@ export async function POST(
         description: true,
         duration: true,
         sendCalendarInvite: true,
+        // Booking window (how close / how far ahead a registrant may book)
+        minBookingLeadMinutes: true,
+        maxBookingLeadMinutes: true,
         enableABTesting: true,
         trafficSplitPercent: true,
         // ClickFunnels Custom Tags
@@ -194,6 +198,27 @@ export async function POST(
           headers: corsHeaders
         }
       )
+    }
+
+    // Booking window — the picker already hides times the host has ruled out, but a page
+    // left open drifts out of the window (a slot 13 hours away creeps inside a 12-hour
+    // ceiling; a just-in-time pick ages past a floor), and nothing stops a direct POST.
+    // Re-check against the live setting before creating anything.
+    if (scheduledStartTime) {
+      const requestedStart = new Date(scheduledStartTime)
+      if (
+        !Number.isNaN(requestedStart.getTime()) &&
+        !isWithinBookingWindow(requestedStart, webinar)
+      ) {
+        console.warn(
+          `⛔ ${email} picked ${requestedStart.toISOString()} for ${webinar.title}, ` +
+            `outside the booking window (${describeBookingWindow(webinar)})`
+        )
+        return NextResponse.json(
+          { error: BOOKING_WINDOW_ERROR },
+          { status: 400, headers: corsHeaders }
+        )
+      }
     }
 
     // Get test group if A/B testing is enabled

@@ -79,6 +79,18 @@ export async function GET(
 }
 
 // PUT - Update an external webinar
+/**
+ * Coerce a booking-window bound coming off the settings form. Blank, zero, negative and
+ * unparseable values all mean "no bound" — a cleared field must reopen that side of the
+ * window, never collapse it to a rule that forbids every session.
+ */
+function toLeadMinutes(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return null
+  return Math.round(n)
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -133,6 +145,8 @@ export async function PUT(
       showJustInTime,
       jitLeadMinutes,
       recurringSlotsToShow,
+      minBookingLeadMinutes,
+      maxBookingLeadMinutes,
       thankYouUrl,
       thankYouTemplateId,
       countdownTemplateId,
@@ -227,6 +241,14 @@ export async function PUT(
             recurringSlotsToShow === null || recurringSlotsToShow === ''
               ? null
               : Number(recurringSlotsToShow),
+        }),
+        // Booking window. A blank / zero / negative value clears the bound rather than
+        // forbidding everything, matching how the picker treats an unset bound.
+        ...(minBookingLeadMinutes !== undefined && {
+          minBookingLeadMinutes: toLeadMinutes(minBookingLeadMinutes),
+        }),
+        ...(maxBookingLeadMinutes !== undefined && {
+          maxBookingLeadMinutes: toLeadMinutes(maxBookingLeadMinutes),
         }),
         ...(thankYouUrl !== undefined && { thankYouUrl: thankYouUrl || null }),
         ...(thankYouTemplateId !== undefined && { thankYouTemplateId: thankYouTemplateId || null }),

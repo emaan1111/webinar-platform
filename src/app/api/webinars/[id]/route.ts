@@ -115,6 +115,9 @@ export async function PATCH(
       'hasChat',
       'hasReactions',
       'maxSchedulesToShow',
+      // Booking window (how close / how far ahead a registrant may book)
+      'minBookingLeadMinutes',
+      'maxBookingLeadMinutes',
       'registrationPageId',
       'thankYouTemplateId',
       'countdownPageId',
@@ -163,7 +166,7 @@ export async function PATCH(
         let value = bodyData[field]
         
         // Convert string numbers to integers for numeric fields
-        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent' || field === 'mostlyAttendedThreshold' || field === 'postSessionSMSMinutesAfter' || field === 'postSessionSMSMinWatchedMinutes' || field === 'postSessionSMSMinWatchedPercentage') {
+        if (field === 'duration' || field === 'videoDuration' || field === 'replayDurationDays' || field === 'trafficSplitPercent' || field === 'mostlyAttendedThreshold' || field === 'postSessionSMSMinutesAfter' || field === 'postSessionSMSMinWatchedMinutes' || field === 'postSessionSMSMinWatchedPercentage' || field === 'minBookingLeadMinutes' || field === 'maxBookingLeadMinutes') {
           // For postSessionSMSMinutesAfter, default to 0 instead of null (schema doesn't allow null)
           if (field === 'postSessionSMSMinutesAfter') {
             value = value ? parseInt(value) : 0

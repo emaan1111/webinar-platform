@@ -82,6 +82,12 @@ model Webinar {
   hasReactions                       Boolean                     @default(true)
   showElapsedTime                    Boolean                     @default(true)
   maxSchedulesToShow                 Int                         @default(3)
+  /// Booking window: refuse a session that starts sooner than this many minutes
+  /// from now (null = no floor) or later than this many minutes from now
+  /// (null = no ceiling). Enforced when the picker is built AND again at
+  /// registration, so a stale page can't book outside the window.
+  minBookingLeadMinutes              Int?
+  maxBookingLeadMinutes              Int?
   registrationPageId                 String?
   thankYouTemplateId                 String?
   countdownTemplateId                String?
@@ -1335,6 +1341,13 @@ model ExternalWebinar {
   jitLeadMinutes         Int      @default(15) // Minutes from now the JIT option starts
   // How many upcoming recurring EverWebinar sessions (e.g. daily 11 AM) to show. null = all upcoming.
   recurringSlotsToShow   Int?     @default(2)
+  /// Booking window: refuse a session that starts sooner than this many minutes
+  /// from now (null = no floor) or later than this many minutes from now
+  /// (null = no ceiling). Applied to every picker source (Zoom, just-in-time and
+  /// recurring) and re-checked at registration. A floor above jitLeadMinutes
+  /// removes the "starting soon" option, which is the point of setting one.
+  minBookingLeadMinutes  Int?
+  maxBookingLeadMinutes  Int?
   // Where to send registrants after a scheduled/Zoom pick (read live by the embed, so changing
   // it doesn't require re-pasting the snippet). Blank = stay in the popup. JIT picks always go
   // to the countdown page regardless.

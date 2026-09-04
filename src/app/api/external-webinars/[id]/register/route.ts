@@ -9,6 +9,7 @@ import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime,
 import { pushLeadToEmaan, resolveEmaanTargets, buildWebinarPushFields } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
 import { getLinkedZoomSessions, LinkedZoomSession } from '@/lib/zoomSessions'
+import { isWithinBookingWindow, describeBookingWindow, BOOKING_WINDOW_ERROR } from '@/lib/bookingWindow'
 
 /**
  * External Webinar Registration API
@@ -205,6 +206,42 @@ export async function POST(
       }
     }
 
+    // Resolve the start time: a Zoom pick uses the session's CURRENT time (it must equal
+    // the session's scheduledAt exactly — rosters and reminder emails match on that
+    // instant), combined options use the time encoded in the id, otherwise parse the
+    // submitted value (guarding a non-date label).
+    //
+    // Resolved here, ahead of the WebinarJam call below, so the booking-window check can
+    // reject a forbidden time BEFORE we create anything on the external platform — a
+    // rejection after that call would leave an orphan EverWebinar registration.
+    let resolvedStartTime: Date | null = null
+    if (isZoomPick && (pickedZoomSession || externalWebinar.liveZoomAt)) {
+      resolvedStartTime = pickedZoomSession
+        ? new Date(pickedZoomSession.scheduledAt)
+        : new Date(externalWebinar.liveZoomAt!)
+    } else if (decodedStartTime) {
+      resolvedStartTime = decodedStartTime
+    } else if (scheduledStartTime) {
+      const parsed = new Date(scheduledStartTime)
+      resolvedStartTime = Number.isNaN(parsed.getTime()) ? null : parsed
+    }
+
+    // Booking window — the picker already hides times the host has ruled out, but a page
+    // left open long enough will drift out of the window (a slot 13 hours away creeps
+    // inside a 12-hour ceiling, a "starting soon" pick ages past a floor), and nothing
+    // stops a direct POST. Re-check against the live setting and send them back to a
+    // refreshed picker rather than booking a time the host has forbidden.
+    if (resolvedStartTime && !isWithinBookingWindow(resolvedStartTime, externalWebinar)) {
+      console.warn(
+        `⛔ ${email} picked ${resolvedStartTime.toISOString()} for ${externalWebinar.name}, ` +
+          `outside the booking window (${describeBookingWindow(externalWebinar)})`
+      )
+      return NextResponse.json(
+        { error: BOOKING_WINDOW_ERROR },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
     // The registration's scheduleId is a foreign key to a local ExternalWebinarSchedule row.
     // Picker options carry external/synthetic ids (WebinarJam schedule numbers, 'zoom', JIT),
     // which are NOT local row ids — writing one straight into the FK violates the constraint and
@@ -271,22 +308,6 @@ export async function POST(
         console.warn(`⚠️ WebinarJam registration failed: ${wjResult.error}`)
         // Don't fail the local registration if WJ fails
       }
-    }
-
-    // Resolve the start time: a Zoom pick uses the session's CURRENT time (it must equal
-    // the session's scheduledAt exactly — rosters and reminder emails match on that
-    // instant), combined options use the time encoded in the id, otherwise parse the
-    // submitted value (guarding a non-date label).
-    let resolvedStartTime: Date | null = null
-    if (isZoomPick && (pickedZoomSession || externalWebinar.liveZoomAt)) {
-      resolvedStartTime = pickedZoomSession
-        ? new Date(pickedZoomSession.scheduledAt)
-        : new Date(externalWebinar.liveZoomAt!)
-    } else if (decodedStartTime) {
-      resolvedStartTime = decodedStartTime
-    } else if (scheduledStartTime) {
-      const parsed = new Date(scheduledStartTime)
-      resolvedStartTime = Number.isNaN(parsed.getTime()) ? null : parsed
     }
 
     // Create or refresh the local registration. A repeat registration updates the

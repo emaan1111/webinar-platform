@@ -52,10 +52,31 @@ interface Webinar {
   hasChat: boolean
   hasReactions: boolean
   maxSchedulesToShow?: number
+  minBookingLeadMinutes?: number | null
+  maxBookingLeadMinutes?: number | null
   schedules: WebinarSchedule[]
   registrations?: Array<{ id: string; attended: boolean }>
   createdAt: string
   updatedAt: string
+}
+
+/**
+ * The booking window is stored in minutes but entered in hours, because that is how a host
+ * thinks about it ("nothing more than 12 hours out"). Fractions are allowed so a sub-hour
+ * floor (0.5 = 30 minutes) is still expressible. Blank means that side is unbounded.
+ */
+function minutesToHoursInput(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return ''
+  const hours = Number(minutes) / 60
+  if (!Number.isFinite(hours) || hours <= 0) return ''
+  return String(Number(hours.toFixed(2)))
+}
+
+function hoursInputToMinutes(value: string): number | null {
+  if (value === '' || value === null || value === undefined) return null
+  const hours = Number(value)
+  if (!Number.isFinite(hours) || hours <= 0) return null
+  return Math.round(hours * 60)
 }
 
 export default function ViewWebinarPage() {
@@ -64,6 +85,10 @@ export default function ViewWebinarPage() {
   const [webinar, setWebinar] = useState<Webinar | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  // Booking window inputs, kept as strings so a cleared box reads as "no limit".
+  const [minLeadHours, setMinLeadHours] = useState('')
+  const [maxLeadHours, setMaxLeadHours] = useState('')
+  const [savingWindow, setSavingWindow] = useState(false)
 
   useEffect(() => {
     if (params.id) {
@@ -82,11 +107,37 @@ export default function ViewWebinarPage() {
       console.log('Fetched webinar data:', data.webinar)
       console.log('Webinar slug:', data.webinar.slug)
       setWebinar(data.webinar)
+      setMinLeadHours(minutesToHoursInput(data.webinar.minBookingLeadMinutes))
+      setMaxLeadHours(minutesToHoursInput(data.webinar.maxBookingLeadMinutes))
     } catch (err: any) {
       setError(err.message)
       console.error('Fetch webinar error:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const saveBookingWindow = async () => {
+    const min = hoursInputToMinutes(minLeadHours)
+    const max = hoursInputToMinutes(maxLeadHours)
+    if (min !== null && max !== null && min > max) {
+      alert('The earliest must not be later than the latest — no time could satisfy both.')
+      return
+    }
+    setSavingWindow(true)
+    try {
+      const response = await fetch(`/api/webinars/${params.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ minBookingLeadMinutes: min, maxBookingLeadMinutes: max }),
+      })
+      if (!response.ok) throw new Error('Failed to save')
+      alert('Booking window updated!')
+      fetchWebinar()
+    } catch (err: any) {
+      alert('Error: ' + err.message)
+    } finally {
+      setSavingWindow(false)
     }
   }
 
@@ -394,6 +445,72 @@ export default function ViewWebinarPage() {
                   <p className="text-xs text-gray-500 mt-1">
                     For recurring schedules, this shows the next {(webinar as any).maxSchedulesToShow || 3} occurrences
                   </p>
+                </div>
+              </div>
+
+              {/* Booking window — how close / how far ahead a registrant may book */}
+              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <p className="font-medium text-gray-900">How far ahead people may book</p>
+                <p className="text-sm text-gray-600 mt-1 mb-3">
+                  Hide schedule times that are too close or too far out. Leave a box blank for no
+                  limit. Applies to the registration page and every embed — no re-paste needed.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Earliest they can book
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.25"
+                        value={minLeadHours}
+                        onChange={(e) => setMinLeadHours(e.target.value)}
+                        placeholder="No limit"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                      <span className="text-sm text-gray-500 whitespace-nowrap">hours away</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      e.g. 2 hides anything starting in the next 2 hours.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Latest they can book
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.25"
+                        value={maxLeadHours}
+                        onChange={(e) => setMaxLeadHours(e.target.value)}
+                        placeholder="No limit"
+                        className="w-full px-3 py-2 border rounded-lg"
+                      />
+                      <span className="text-sm text-gray-500 whitespace-nowrap">hours away</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      e.g. 12 hides anything more than 12 hours out.
+                    </p>
+                  </div>
+                </div>
+                {(() => {
+                  const min = hoursInputToMinutes(minLeadHours)
+                  const max = hoursInputToMinutes(maxLeadHours)
+                  return min !== null && max !== null && min > max ? (
+                    <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                      The earliest is later than the latest, so no time can ever satisfy both and the
+                      registration page will show no times. Widen one of them.
+                    </p>
+                  ) : null
+                })()}
+                <div className="mt-3">
+                  <Button size="sm" onClick={saveBookingWindow} disabled={savingWindow}>
+                    {savingWindow ? 'Saving…' : 'Save booking window'}
+                  </Button>
                 </div>
               </div>
 

@@ -29,6 +29,27 @@ import {
   ChevronDown
 } from 'lucide-react'
 
+/**
+ * The booking window is stored in minutes but entered in hours, because that is how a host
+ * thinks about it ("nothing more than 12 hours out"). Fractions are allowed so a sub-hour
+ * floor (0.5 = 30 minutes) is still expressible.
+ */
+function minutesToHoursInput(minutes: number | null | undefined): string {
+  if (minutes === null || minutes === undefined) return ''
+  const hours = Number(minutes) / 60
+  if (!Number.isFinite(hours) || hours <= 0) return ''
+  // Trim a trailing .0 so a whole number of hours reads as "12", not "12.0".
+  return String(Number(hours.toFixed(2)))
+}
+
+/** Blank (or a non-positive value) means that side of the window is unbounded. */
+function hoursInputToMinutes(value: string): number | null {
+  if (value === '' || value === null || value === undefined) return null
+  const hours = Number(value)
+  if (!Number.isFinite(hours) || hours <= 0) return null
+  return Math.round(hours * 60)
+}
+
 interface ExternalWebinar {
   id: string
   name: string
@@ -48,6 +69,8 @@ interface ExternalWebinar {
   postSessionSMSBody?: string
   // Combined seamless picker
   combineScheduleSources?: boolean
+  minBookingLeadMinutes?: number | null
+  maxBookingLeadMinutes?: number | null
   liveZoomEnabled?: boolean
   liveZoomLink?: string
   liveZoomAt?: string
@@ -123,6 +146,8 @@ export default function ExternalWebinarDetailPage() {
     postSessionSMSBody: '',
     // Combined seamless picker
     combineScheduleSources: false,
+    minBookingLeadHours: '' as string,
+    maxBookingLeadHours: '' as string,
     // Linked Zoom sessions = the Zoom times offered on the registration picker.
     zoomSessionIds: [] as string[],
     zoomOnlySchedule: false,
@@ -275,6 +300,8 @@ export default function ExternalWebinarDetailPage() {
         autoSendPostSessionSMS: data.autoSendPostSessionSMS ?? false,
         postSessionSMSBody: data.postSessionSMSBody || '',
         combineScheduleSources: data.combineScheduleSources ?? false,
+        minBookingLeadHours: minutesToHoursInput(data.minBookingLeadMinutes),
+        maxBookingLeadHours: minutesToHoursInput(data.maxBookingLeadMinutes),
         zoomSessionIds: (data.zoomSessionLinks?.length
           ? data.zoomSessionLinks.map((l: { zoomSessionId: string }) => l.zoomSessionId)
           : data.liveZoomSessionId
@@ -306,6 +333,9 @@ export default function ExternalWebinarDetailPage() {
           formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
             ? null
             : Number(formData.recurringSlotsToShow),
+        // Entered in hours, stored in minutes.
+        minBookingLeadMinutes: hoursInputToMinutes(formData.minBookingLeadHours),
+        maxBookingLeadMinutes: hoursInputToMinutes(formData.maxBookingLeadHours),
       }
       const response = await fetch(`/api/external-webinars/${id}`, {
         method: 'PUT',
@@ -818,6 +848,79 @@ export default function ExternalWebinarDetailPage() {
 
               </div>
             )}
+            </div>
+
+            {/* Booking window — applies to every source (Zoom, "starting soon", recurring),
+                including zoom-only and legacy modes, so it sits outside the block above. */}
+            <div className="mt-6 pt-6 border-t">
+              <h3 className="text-sm font-semibold text-gray-900">How far ahead people may book</h3>
+              <p className="text-xs text-gray-500 mt-1 mb-3">
+                Hide times that are too close or too far out. Leave a box blank for no limit.
+                Applies to every time in the picker. Takes effect immediately — you do{' '}
+                <strong>not</strong> need to re-paste your embed code.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Earliest they can book
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.25"
+                      value={formData.minBookingLeadHours}
+                      onChange={(e) => setFormData({ ...formData, minBookingLeadHours: e.target.value })}
+                      placeholder="No limit"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                    <span className="text-sm text-gray-500 whitespace-nowrap">hours away</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    e.g. 2 hides anything starting in the next 2 hours.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Latest they can book
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={0}
+                      step="0.25"
+                      value={formData.maxBookingLeadHours}
+                      onChange={(e) => setFormData({ ...formData, maxBookingLeadHours: e.target.value })}
+                      placeholder="No limit"
+                      className="w-full px-3 py-2 border rounded-lg"
+                    />
+                    <span className="text-sm text-gray-500 whitespace-nowrap">hours away</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    e.g. 12 hides anything more than 12 hours out.
+                  </p>
+                </div>
+              </div>
+
+              {formData.showJustInTime &&
+                hoursInputToMinutes(formData.minBookingLeadHours) !== null &&
+                hoursInputToMinutes(formData.minBookingLeadHours)! > (formData.jitLeadMinutes || 15) && (
+                  <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    Heads up: your &quot;starting soon&quot; option is {formData.jitLeadMinutes || 15} minutes
+                    away, which is inside this floor — it will no longer be offered.
+                  </p>
+                )}
+
+              {(() => {
+                const min = hoursInputToMinutes(formData.minBookingLeadHours)
+                const max = hoursInputToMinutes(formData.maxBookingLeadHours)
+                return min !== null && max !== null && min > max ? (
+                  <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                    The earliest is later than the latest, so no time can ever satisfy both and the
+                    picker will be empty. Widen one of them.
+                  </p>
+                ) : null
+              })()}
             </div>
           </CardBody>
         </Card>

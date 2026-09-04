@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import {
+  filterToBookingWindow,
+  isWithinBookingWindow,
+  normalizeBookingWindow,
+  describeBookingWindow,
+} from '@/lib/bookingWindow'
 
 // Helper function to generate next N occurrences for recurring schedules
 function generateRecurringOccurrences(schedule: any, maxCount: number): Date[] {
@@ -75,6 +81,8 @@ export async function GET(
         duration: true,
         thumbnail: true,
         maxSchedulesToShow: true,
+        minBookingLeadMinutes: true,
+        maxBookingLeadMinutes: true,
         schedules: {
           where: {
             isActive: true
@@ -102,6 +110,11 @@ export async function GET(
     // Generate schedule instances to show
     const scheduleInstances: any[] = []
     const maxToShow = webinar.maxSchedulesToShow || 3
+    // Booking window — how close / how far ahead a registrant may book. Read live from
+    // the webinar on every page load, so changing it needs no embed re-paste.
+    const bookingWindow = normalizeBookingWindow(webinar)
+    const hasBookingWindow = bookingWindow.min !== null || bookingWindow.max !== null
+    const recurringHeadroom = hasBookingWindow ? 30 : 0
     const now = new Date()
     const webinarDurationMinutes = webinar.duration || 60 // Default to 60 minutes if not set
 
@@ -141,8 +154,11 @@ export async function GET(
           minutesFromReg: schedule.minutesFromReg
         })
       } else if (schedule.scheduleType === 'recurring') {
-        // Generate next N occurrences
-        const occurrences = generateRecurringOccurrences(schedule, maxToShow)
+        // Generate next N occurrences. With a booking window set, the soonest ones may be
+        // filtered out below (a floor skips the ones starting too soon), so generate
+        // headroom and let the window decide which survive — otherwise a 2-hour floor
+        // would blank a daily schedule instead of offering tomorrow's slot.
+        const occurrences = generateRecurringOccurrences(schedule, maxToShow + recurringHeadroom)
         occurrences.forEach((occurrence) => {
           scheduleInstances.push({
             id: `${schedule.id}-${occurrence.getTime()}`,
@@ -158,20 +174,45 @@ export async function GET(
     }
 
     // Sort by date (soonest/closest first - ascending order for upcoming events)
-    const sortedInstances = scheduleInstances
-      .filter(s => s.scheduledAt) // Only ones with dates
-      .filter(s => {
-        // Double-check all are in future
-        const scheduleDate = new Date(s.scheduledAt)
-        const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
-        return webinarEndTime.getTime() > now.getTime()
-      })
+    // The booking-window filter runs BEFORE the slice: trimming to maxToShow first would
+    // spend all the visible slots on times the window then removes, leaving an empty
+    // picker while perfectly valid later sessions existed.
+    const sortedInstances = filterToBookingWindow(
+      scheduleInstances
+        .filter(s => s.scheduledAt) // Only ones with dates
+        .filter(s => {
+          // Double-check all are in future
+          const scheduleDate = new Date(s.scheduledAt)
+          const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
+          return webinarEndTime.getTime() > now.getTime()
+        }),
+      s => s.scheduledAt,
+      webinar,
+      now
+    )
       .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()) // Ascending: soonest first
       .slice(0, maxToShow)
 
-    // Add just-in-time schedules at the end
-    const justInTimeSchedules = scheduleInstances.filter(s => s.scheduleType === 'justInTime')
+    // Add just-in-time schedules at the end. A just-in-time row has no fixed time — it
+    // starts minutesFromReg after the visitor registers — so the window judges it on that
+    // effective start. A floor above it (e.g. "nothing sooner than 2 hours" against a
+    // 15-minute just-in-time) correctly removes the option altogether.
+    const justInTimeSchedules = scheduleInstances
+      .filter(s => s.scheduleType === 'justInTime')
+      .filter(s =>
+        isWithinBookingWindow(
+          new Date(now.getTime() + (s.minutesFromReg ?? 0) * 60 * 1000),
+          webinar,
+          now
+        )
+      )
     const finalSchedules = [...sortedInstances, ...justInTimeSchedules]
+
+    if (hasBookingWindow && finalSchedules.length === 0) {
+      console.warn(
+        `⏳ Booking window (${describeBookingWindow(webinar)}) left no bookable times for webinar ${slug}`
+      )
+    }
 
     return NextResponse.json({
       webinar: {
