@@ -231,7 +231,10 @@ export async function POST(
     // inside a 12-hour ceiling, a "starting soon" pick ages past a floor), and nothing
     // stops a direct POST. Re-check against the live setting and send them back to a
     // refreshed picker rather than booking a time the host has forbidden.
-    if (resolvedStartTime && !isWithinBookingWindow(resolvedStartTime, externalWebinar)) {
+    //
+    // Live Zoom picks are exempt from both bounds, matching the picker: that session is a
+    // deliberate one-off event, bookable however far out or close it is.
+    if (!isZoomPick && resolvedStartTime && !isWithinBookingWindow(resolvedStartTime, externalWebinar)) {
       console.warn(
         `⛔ ${email} picked ${resolvedStartTime.toISOString()} for ${externalWebinar.name}, ` +
           `outside the booking window (${describeBookingWindow(externalWebinar)})`

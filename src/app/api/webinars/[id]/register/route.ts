@@ -200,11 +200,31 @@ export async function POST(
       )
     }
 
+    // Resolve the picked schedule up front. It is read further down for the Zoom access
+    // link and the CRM payload, but it is needed here first so the booking window can let
+    // a Zoom session through. Recurring picks carry a composite `<id>-<occurrence>` id
+    // that findUnique can't resolve, so this stays null for them — they are evergreen
+    // slots, which the window is meant to govern anyway.
+    let schedule = null;
+    if (scheduleId) {
+      try {
+        schedule = await prisma.webinarSchedule.findUnique({
+          where: { id: scheduleId },
+          select: { zoomLink: true, isZoomSession: true }
+        });
+      } catch (e) {
+        console.error('Error fetching schedule', e);
+      }
+    }
+
     // Booking window — the picker already hides times the host has ruled out, but a page
     // left open drifts out of the window (a slot 13 hours away creeps inside a 12-hour
     // ceiling; a just-in-time pick ages past a floor), and nothing stops a direct POST.
     // Re-check against the live setting before creating anything.
-    if (scheduledStartTime) {
+    //
+    // A Zoom session is exempt from both bounds, matching the picker: it is a real one-off
+    // event the host scheduled, bookable however far out or close it is.
+    if (scheduledStartTime && !schedule?.isZoomSession) {
       const requestedStart = new Date(scheduledStartTime)
       if (
         !Number.isNaN(requestedStart.getTime()) &&
@@ -293,17 +313,6 @@ export async function POST(
     // ====== CRITICAL: ClickFunnels sync happens BEFORE response ======
     // This ensures the registration tag is applied immediately and not killed
     // by serverless function termination
-    let schedule = null;
-    if (scheduleId) {
-      try {
-        schedule = await prisma.webinarSchedule.findUnique({
-          where: { id: scheduleId },
-          select: { zoomLink: true, isZoomSession: true }
-        });
-      } catch (e) {
-        console.error('Error fetching schedule', e);
-      }
-    }
 
     // Format times for ClickFunnels
     const formatInTimezone = (date: Date, timeZone: string) => {

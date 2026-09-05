@@ -446,14 +446,19 @@ export async function GET(
     )
 
     // Booking window — drop times the host has ruled out for being too close or too far
-    // out. Applied here, after every source has contributed, so one rule covers the Zoom
-    // sessions, the "starting soon" option and the recurring times alike. A floor above
-    // jitLeadMinutes therefore removes the just-in-time option, which is the intent of
+    // out. Covers the "starting soon" option and the recurring EverWebinar times, so a
+    // floor above jitLeadMinutes removes the just-in-time option, which is the intent of
     // setting one. Read live from the webinar, so changing it needs no embed re-paste.
+    //
+    // A linked LIVE Zoom session is exempt from both bounds. It is a real one-off event
+    // the host scheduled deliberately, not an evergreen slot the window is there to
+    // ration — hiding it for being days out (or minutes away) would mean nobody could
+    // book the session at all for most of its life. Zoom options are the `x|z|` ids.
     const offeredBeforeWindow = scheduleOptions.length
     scheduleOptions = filterToBookingWindow(
       scheduleOptions,
-      (o) => o.dateTimeUTC,
+      // Returning null opts a Zoom option out of the window entirely.
+      (o) => (o.id.startsWith('x|z|') ? null : o.dateTimeUTC),
       externalWebinar,
       now
     )

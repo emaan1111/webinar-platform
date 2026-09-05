@@ -646,8 +646,8 @@ export default function ExternalWebinarDetailPage() {
                     <Bell className="w-5 h-5 text-yellow-600" />
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900">Reminders</p>
-                    <p className="text-xs text-gray-500">Email &amp; SMS before webinar starts</p>
+                    <p className="font-medium text-gray-900">Reminder Emails</p>
+                    <p className="text-xs text-gray-500">Before webinar starts</p>
                   </div>
                 </div>
               </Link>
@@ -856,8 +856,10 @@ export default function ExternalWebinarDetailPage() {
               <h3 className="text-sm font-semibold text-gray-900">How far ahead people may book</h3>
               <p className="text-xs text-gray-500 mt-1 mb-3">
                 Hide times that are too close or too far out. Leave a box blank for no limit.
-                Applies to every time in the picker. Takes effect immediately — you do{' '}
-                <strong>not</strong> need to re-paste your embed code.
+                Applies to the &quot;starting soon&quot; option and your recurring times.{' '}
+                <strong>Linked Zoom sessions always show</strong>, however near or far they are.
+                Takes effect immediately — you do <strong>not</strong> need to re-paste your embed
+                code.
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                 <div>

@@ -94,7 +94,11 @@ export async function GET(
             minutesFromReg: true,
             timezone: true,
             useUserTimezone: true,
-            recurringPattern: true
+            recurringPattern: true,
+            // Read only to exempt Zoom sessions from the booking window below. It is
+            // deliberately NOT copied onto the returned options — the picker has never
+            // told the visitor which time is a Zoom session and must not start now.
+            isZoomSession: true
           }
         }
       }
@@ -115,6 +119,12 @@ export async function GET(
     const bookingWindow = normalizeBookingWindow(webinar)
     const hasBookingWindow = bookingWindow.min !== null || bookingWindow.max !== null
     const recurringHeadroom = hasBookingWindow ? 30 : 0
+    // Zoom sessions bypass the window entirely — a real one-off event stays bookable
+    // however far out or close it is. Matched by schedule id, since a 'specific' option
+    // carries the schedule's own id.
+    const zoomScheduleIds = new Set(
+      webinar.schedules.filter((s) => s.isZoomSession).map((s) => s.id)
+    )
     const now = new Date()
     const webinarDurationMinutes = webinar.duration || 60 // Default to 60 minutes if not set
 
@@ -186,12 +196,20 @@ export async function GET(
           const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
           return webinarEndTime.getTime() > now.getTime()
         }),
-      s => s.scheduledAt,
+      // Returning null opts a Zoom session out of the window entirely.
+      s => (zoomScheduleIds.has(s.id) ? null : s.scheduledAt),
       webinar,
       now
-    )
-      .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()) // Ascending: soonest first
-      .slice(0, maxToShow)
+    ).sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime()) // Ascending: soonest first
+
+    // "Show N schedules" caps the evergreen slots only. A Zoom session is a one-off event
+    // the host scheduled; letting the cap drop it because it sorts last would undo the
+    // window exemption above for exactly the far-out session it was meant to protect.
+    const zoomInstances = sortedInstances.filter(s => zoomScheduleIds.has(s.id))
+    const cappedInstances = [
+      ...sortedInstances.filter(s => !zoomScheduleIds.has(s.id)).slice(0, maxToShow),
+      ...zoomInstances,
+    ].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
 
     // Add just-in-time schedules at the end. A just-in-time row has no fixed time — it
     // starts minutesFromReg after the visitor registers — so the window judges it on that
@@ -206,7 +224,7 @@ export async function GET(
           now
         )
       )
-    const finalSchedules = [...sortedInstances, ...justInTimeSchedules]
+    const finalSchedules = [...cappedInstances, ...justInTimeSchedules]
 
     if (hasBookingWindow && finalSchedules.length === 0) {
       console.warn(

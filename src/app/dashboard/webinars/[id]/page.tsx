@@ -453,7 +453,8 @@ export default function ViewWebinarPage() {
                 <p className="font-medium text-gray-900">How far ahead people may book</p>
                 <p className="text-sm text-gray-600 mt-1 mb-3">
                   Hide schedule times that are too close or too far out. Leave a box blank for no
-                  limit. Applies to the registration page and every embed — no re-paste needed.
+                  limit. <strong>Zoom sessions always show</strong>, however near or far they are.
+                  Applies to the registration page and every embed — no re-paste needed.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                   <div>

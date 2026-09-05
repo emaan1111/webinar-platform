@@ -106,6 +106,23 @@ describe('filterToBookingWindow', () => {
     expect(kept).toEqual([])
   })
 
+  it('exempts an option whose start is reported as null (how Zoom sessions opt out)', () => {
+    // The external picker passes null for `x|z|` ids so a linked live Zoom session is
+    // offered however near or far it is — both bounds are bypassed, not just the ceiling.
+    const withZoom = [
+      { id: 'zoom-far', at: inHours(200) },
+      { id: 'zoom-near', at: inHours(0.1) },
+      ...options,
+    ]
+    const kept = filterToBookingWindow(
+      withZoom,
+      (o) => (o.id.startsWith('zoom-') ? null : o.at),
+      { minBookingLeadMinutes: 120, maxBookingLeadMinutes: 720 },
+      NOW
+    )
+    expect(kept.map((o) => o.id)).toEqual(['zoom-far', 'zoom-near', 'soon', 'tonight'])
+  })
+
   it('leaves an option with no resolvable start alone', () => {
     const withUnknown = [...options, { id: 'unknown', at: null as any }]
     const kept = filterToBookingWindow(
