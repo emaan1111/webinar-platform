@@ -915,6 +915,11 @@ model Survey {
   primaryColor  String           @default("#1a5c3a")
   giftTitle     String?
   giftUrl       String?
+  /// Present in production but missing from this schema until 2026-09-05, which broke
+  /// every container start: the startup `prisma db push` saw a column it had to drop,
+  /// refused (2 non-null rows), and the app never booted. Declared here to match the
+  /// live column exactly — boolean, NOT NULL, default false.
+  showOnWebinarPages Boolean      @default(false)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
   questions     SurveyQuestion[]
@@ -948,10 +953,21 @@ model SurveyResponse {
   ip        String?
   userAgent String?
   createdAt DateTime       @default(now())
+  /// Live in production but absent from this schema until 2026-09-05. All five are
+  /// 100% NULL across 111 rows, so `prisma db push` would have dropped them (and the
+  /// registrationId index) SILENTLY — no data-loss warning to stop it, unlike
+  /// Survey.showOnWebinarPages. Declared here to keep the startup push a no-op; they
+  /// belong to survey work that has not landed in the repo yet.
+  externalWebinarId String?
+  registrationId    String?
+  respondentName    String?
+  respondentEmail   String?
+  source            String?
   survey    Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   answers   SurveyAnswer[]
 
   @@index([surveyId])
+  @@index([registrationId])
   @@map("survey_responses")
 }
 
