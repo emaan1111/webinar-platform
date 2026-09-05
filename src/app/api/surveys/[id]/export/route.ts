@@ -28,7 +28,12 @@ export async function GET(
 
   // Build CSV
   const questions = survey.questions
-  const headers = ['Response #', 'Date', 'IP', ...questions.map((q) => q.question)]
+  // Name/Email/Source are blank for the standalone survey flow and filled in for the
+  // webinar poll, which knows the registrant it is being answered by.
+  const headers = [
+    'Response #', 'Date', 'Name', 'Email', 'Source', 'Registration ID', 'IP',
+    ...questions.map((q) => q.question),
+  ]
 
   const escape = (val: string) => {
     if (val.includes(',') || val.includes('"') || val.includes('\n')) {
@@ -42,6 +47,10 @@ export async function GET(
     const cells = [
       String(i + 1),
       r.createdAt.toISOString().split('T')[0],
+      r.respondentName || '',
+      r.respondentEmail || '',
+      r.source || '',
+      r.registrationId || '',
       r.ip || '',
       ...questions.map((q) => {
         const val = answerMap.get(q.id) || ''

@@ -25,6 +25,7 @@ interface Survey {
   thankYouBody: string | null
   primaryColor: string
   isActive: boolean
+  showOnWebinarPages: boolean
   questions: Question[]
   _count: { responses: number }
 }
@@ -47,6 +48,7 @@ export default function SurveyEditorPage() {
   const [thankYouBody, setThankYouBody] = useState('')
   const [giftTitle, setGiftTitle] = useState('')
   const [giftUrl, setGiftUrl] = useState('')
+  const [showOnWebinarPages, setShowOnWebinarPages] = useState(false)
 
   // New question form
   const [showAddQuestion, setShowAddQuestion] = useState(false)
@@ -77,6 +79,7 @@ export default function SurveyEditorPage() {
       setThankYouBody(s.thankYouBody || '')
       setGiftTitle(s.giftTitle || '')
       setGiftUrl(s.giftUrl || '')
+      setShowOnWebinarPages(!!s.showOnWebinarPages)
     }
     setLoading(false)
   }, [surveyId])
@@ -88,7 +91,7 @@ export default function SurveyEditorPage() {
     await fetch(`/api/surveys/${surveyId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title, description, primaryColor }),
+      body: JSON.stringify({ title, description, primaryColor, showOnWebinarPages }),
     })
     setSaving(false)
     fetchSurvey()
@@ -386,6 +389,32 @@ export default function SurveyEditorPage() {
                 <input type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-12 h-10 rounded border border-gray-300 cursor-pointer" />
                 <input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className="w-32 px-3 py-2 border border-gray-300 rounded-lg text-sm" />
               </div>
+            </div>
+            <hr className="border-gray-200" />
+            <div>
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showOnWebinarPages}
+                  onChange={(e) => setShowOnWebinarPages(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 rounded border-gray-300 text-green-700 focus:ring-green-500"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-gray-700">Show on the thank-you &amp; countdown pages</span>
+                  <span className="block text-xs text-gray-500 mt-0.5">
+                    Registrants of any external webinar see a &ldquo;take the poll&rdquo; button after they
+                    sign up, and again on the countdown page while they wait. It opens in a popup and
+                    asks one question at a time. Never shown inside the live webinar room. The survey
+                    also has to be Active. Only one survey shows at a time — the most recently saved
+                    one wins.
+                  </span>
+                </span>
+              </label>
+              {showOnWebinarPages && !survey.isActive && (
+                <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                  This survey is Inactive, so the poll won&apos;t appear yet. Activate it from the Surveys list.
+                </p>
+              )}
             </div>
             <button onClick={saveSettings} disabled={saving} className="px-6 py-2 bg-green-700 text-white rounded-lg hover:bg-green-800 disabled:opacity-50">
               {saving ? 'Saving...' : 'Save Settings'}

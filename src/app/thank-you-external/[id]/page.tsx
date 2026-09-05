@@ -1,6 +1,8 @@
 import { headers } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { TemplateRenderer } from '@/components/TemplateRenderer'
+import WebinarPoll from '@/components/poll/WebinarPoll'
+import { getWebinarPoll, replacePollPlaceholder } from '@/lib/webinarPoll'
 
 /**
  * Thank-you page for external (EverWebinar/WebinarJam/live-Zoom) registrations.
@@ -302,15 +304,42 @@ function FallbackCard({ name, time }: { name: string; time: string }) {
 export default async function ExternalThankYouPage({ params, searchParams }: PageProps) {
   const tParam = (searchParams.t || '').trim()
   const nameParam = (searchParams.name || '').trim()
-  const data = await getThankYouData(params.id, searchParams.reg)
+  const [data, poll] = await Promise.all([
+    getThankYouData(params.id, searchParams.reg),
+    getWebinarPoll(),
+  ])
+
+  // The poll sits under the template — or wherever the template puts `{{poll}}`.
+  const pollBlock = poll ? (
+    <WebinarPoll
+      poll={poll}
+      externalWebinarId={params.id}
+      registrationId={data?.registration?.id}
+      respondentName={data?.registration?.name || nameParam || undefined}
+      respondentEmail={data?.registration?.email || undefined}
+      source="thank_you"
+    />
+  ) : null
 
   // No webinar, or no template configured anywhere → simple built-in card (current behaviour).
   if (!data || !data.template) {
-    return <FallbackCard name={nameParam} time={tParam} />
+    return (
+      <>
+        <FallbackCard name={nameParam} time={tParam} />
+        {pollBlock}
+      </>
+    )
   }
 
-  const processedHtml = processTemplate(data.template.htmlCode, data, params.id, tParam, nameParam)
-  return <TemplateRenderer html={processedHtml} />
+  const processedHtml = replacePollPlaceholder(
+    processTemplate(data.template.htmlCode, data, params.id, tParam, nameParam),
+  )
+  return (
+    <>
+      <TemplateRenderer html={processedHtml} />
+      {pollBlock}
+    </>
+  )
 }
 
 export async function generateMetadata({ params, searchParams }: PageProps) {

@@ -5,6 +5,19 @@ import { headers } from 'next/headers'
 // Public: submit survey answers incrementally
 // First call: no responseId → creates SurveyResponse + first answer(s)
 // Subsequent calls: responseId included → upserts answers onto existing response
+//
+// The webinar poll (external thank-you / countdown pages) additionally passes the
+// registrant it is being answered by; that context is stored on the response so the
+// CSV export can say who said what. It is optional — the standalone /survey/[slug]
+// flow sends answers only.
+
+/** Trim identity fields to something sane before they hit the DB. */
+function clip(value: unknown, max = 300): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed.slice(0, max) : null
+}
+
 export async function POST(
   request: Request,
   { params }: { params: { id: string } }
@@ -27,19 +40,38 @@ export async function POST(
 
   const answerEntries = Object.entries(answers)
 
-  // If we already have a response, upsert answers onto it
+  const registrationId = clip(body.registrationId, 60)
+  const externalWebinarId = clip(body.externalWebinarId, 60)
+  const respondentName = clip(body.name)
+  const respondentEmail = clip(body.email)
+  const source = clip(body.source, 40)
+
+  // Resolve the response to write onto: the one the client is holding, or — when the
+  // poll is answered from a second page (thank-you then countdown) after localStorage
+  // was cleared — the one this registrant already started.
+  let target: { id: string } | null = null
   if (responseId) {
-    const existing = await prisma.surveyResponse.findFirst({
+    target = await prisma.surveyResponse.findFirst({
       where: { id: responseId, surveyId: params.id },
+      select: { id: true },
     })
-    if (!existing) {
+    if (!target) {
       return NextResponse.json({ error: 'Response not found' }, { status: 404 })
     }
+  } else if (registrationId) {
+    target = await prisma.surveyResponse.findFirst({
+      where: { surveyId: params.id, registrationId },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    })
+  }
 
+  // If we already have a response, upsert answers onto it
+  if (target) {
     for (const [questionId, value] of answerEntries) {
       const val = typeof value === 'string' ? value : JSON.stringify(value)
       const existingAnswer = await prisma.surveyAnswer.findFirst({
-        where: { responseId, questionId },
+        where: { responseId: target.id, questionId },
       })
       if (existingAnswer) {
         await prisma.surveyAnswer.update({
@@ -48,12 +80,12 @@ export async function POST(
         })
       } else {
         await prisma.surveyAnswer.create({
-          data: { responseId, questionId, value: val },
+          data: { responseId: target.id, questionId, value: val },
         })
       }
     }
 
-    return NextResponse.json({ responseId }, { status: 200 })
+    return NextResponse.json({ responseId: target.id }, { status: 200 })
   }
 
   // First call: create a new response with the initial answer(s)
@@ -66,6 +98,11 @@ export async function POST(
       surveyId: params.id,
       ip,
       userAgent,
+      externalWebinarId,
+      registrationId,
+      respondentName,
+      respondentEmail,
+      source,
       answers: {
         create: answerEntries.map(([questionId, value]) => ({
           questionId,

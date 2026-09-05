@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { getLinkedZoomSessions } from '@/lib/zoomSessions'
 import { readBrandingSettings } from '@/lib/brandingSettings'
 import { TemplateRenderer } from '@/components/TemplateRenderer'
+import WebinarPoll from '@/components/poll/WebinarPoll'
+import { getWebinarPoll, replacePollPlaceholder } from '@/lib/webinarPoll'
 import ExternalCountdownFallback from './ExternalCountdownFallback'
 
 /**
@@ -43,6 +45,7 @@ async function getCountdownData(id: string, registrationId?: string) {
       select: {
         id: true,
         name: true,
+        email: true,
         scheduledStartTime: true,
         timezone: true,
         liveRoomUrl: true,
@@ -249,24 +252,48 @@ export default async function ExternalCountdownPage({ params, searchParams }: Pa
     redirect(liveRoomUrl)
   }
 
+  // Poll under the countdown — answers save one question at a time, so a registrant
+  // who gets redirected into the live room mid-poll still leaves their answers behind.
+  const poll = await getWebinarPoll()
+  const pollBlock = poll ? (
+    <WebinarPoll
+      poll={poll}
+      externalWebinarId={params.id}
+      registrationId={registration?.id}
+      respondentName={registration?.name || undefined}
+      respondentEmail={registration?.email || undefined}
+      source="countdown"
+    />
+  ) : null
+
   // Render the selected template whenever one is set and we know the start time.
   // The live room is wired in when available (auto-enter at T-0); if it isn't yet,
   // the template still shows and simply doesn't redirect.
   if (data.template && startTime) {
-    const processedHtml = processCountdownTemplate(
-      data.template.htmlCode, data, startTime, liveRoomUrl || '', searchParams.tz,
+    const processedHtml = replacePollPlaceholder(
+      processCountdownTemplate(
+        data.template.htmlCode, data, startTime, liveRoomUrl || '', searchParams.tz,
+      ),
     )
-    return <TemplateRenderer html={processedHtml} />
+    return (
+      <>
+        <TemplateRenderer html={processedHtml} />
+        {pollBlock}
+      </>
+    )
   }
 
   // Fallback: simple built-in countdown.
   return (
-    <ExternalCountdownFallback
-      startTime={startTime ? startTime.toISOString() : null}
-      liveRoomUrl={liveRoomUrl}
-      name={name}
-      webinarName={webinarName}
-    />
+    <>
+      <ExternalCountdownFallback
+        startTime={startTime ? startTime.toISOString() : null}
+        liveRoomUrl={liveRoomUrl}
+        name={name}
+        webinarName={webinarName}
+      />
+      {pollBlock}
+    </>
   )
 }
 
