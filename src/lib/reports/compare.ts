@@ -84,8 +84,10 @@ export interface CompareRow extends CompareAccumulator {
   totalAttendees: number
   attendanceRate: number
   engagedRate: number
+  engagedPerRegistered: number
   sessionAttendanceRate: number
   sessionEngagedRate: number
+  sessionEngagedPerRegistered: number
   sessionReplayRate: number
   // null for external webinars: their platforms carry no sales relation, and
   // an unknowable number must not render as a zero.
@@ -221,13 +223,16 @@ export function finalizeCompareRow(acc: CompareAccumulator): CompareRow {
     ...acc,
     totalAttendees,
     attendanceRate: pct(totalAttendees, acc.registrations),
-    // Engagement is judged against people who actually showed up, not against
-    // everyone who registered - a webinar with many no-shows should read low
-    // on attendance, not have its engagement diluted twice. Same denominators
-    // as the daily report's engagementRateTotal / sessionEngagementRateLive.
+    // Engagement comes in both denominators: per attendee ("once they show
+    // up, do they stay?") and per registered ("of everyone who signed up, how
+    // many were held?"). Same pairs as the daily report's engagementRateTotal
+    // + engagedPerRegistered and sessionEngagementRateLive +
+    // sessionEngagedPerRegistered.
     engagedRate: pct(acc.engaged, totalAttendees),
+    engagedPerRegistered: pct(acc.engaged, acc.registrations),
     sessionAttendanceRate: pct(acc.sessionLive, acc.sessionSettled),
     sessionEngagedRate: pct(acc.sessionEngaged, acc.sessionLive),
+    sessionEngagedPerRegistered: pct(acc.sessionEngaged, acc.sessionSettled),
     sessionReplayRate: pct(acc.sessionReplay, acc.sessionSettled),
     salesCount: acc.isExternal ? null : acc.sales,
     revenueTotal: acc.isExternal ? null : acc.revenue,

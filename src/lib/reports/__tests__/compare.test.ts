@@ -50,8 +50,9 @@ describe('internal signup clock', () => {
     expect(row.revenueTotal).toBe(100)
     expect(row.averageOrderValue).toBe(100)
     expect(row.attendanceRate).toBeCloseTo((2 / 3) * 100)
-    // Engagement divides by attendees (2), not registrations (3).
+    // Both engagement denominators: per attendee (2) and per registered (3).
     expect(row.engagedRate).toBeCloseTo(50)
+    expect(row.engagedPerRegistered).toBeCloseTo((1 / 3) * 100)
   })
 })
 
@@ -76,8 +77,9 @@ describe('internal session clock', () => {
     expect(row.sessionEngaged).toBe(1)
     expect(row.sessionAttendanceRate).toBeCloseTo(50)
     expect(row.sessionReplayRate).toBeCloseTo(50)
-    // Session engagement divides by live attendees (1), not settled (2).
+    // Session engagement per live attendee (1) and per settled registrant (2).
     expect(row.sessionEngagedRate).toBeCloseTo(100)
+    expect(row.sessionEngagedPerRegistered).toBeCloseTo(50)
   })
 })
 
