@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendFacebookRegistration } from '@/lib/facebook'
+import { shouldSendPostSessionSms } from '@/lib/postSessionSms'
 import {
   isWebinarJamConfigured,
   getWebinarRegistrants,
@@ -376,9 +377,19 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         if (tagResult) tagsApplied++
       }
 
-      // Send post-session SMS if enabled, session ended, and attended (not for missed)
-      if (extWebinar.autoSendPostSessionSMS && !existing.postSessionSmsSent && sessionHasEnded && attended) {
-        const smsResult = await sendPostSessionSMS(extWebinar, email, registrant)
+      // Send post-session SMS if enabled, session ended (+ configured delay),
+      // attended (not for missed), and past the min-watched threshold
+      const smsIsDue = shouldSendPostSessionSms({
+        autoSend: extWebinar.autoSendPostSessionSMS,
+        alreadySent: existing.postSessionSmsSent,
+        attended,
+        sessionEndTime,
+        minutesAfter: extWebinar.postSessionSMSMinutesAfter,
+        watchTimeMinutes,
+        minWatchedMinutes: extWebinar.postSessionSMSMinWatchedMinutes,
+      })
+      if (smsIsDue) {
+        const smsResult = await sendPostSessionSMS(extWebinar, email, registrant, registrantTz)
         if (smsResult) smsSent++
       }
     }
@@ -720,22 +731,19 @@ async function applyAttendanceTags(
 async function sendPostSessionSMS(
   extWebinar: any,
   email: string,
-  registrant: WebinarJamRegistrant
+  registrant: WebinarJamRegistrant,
+  registrantTz?: string | null
 ): Promise<boolean> {
   const phone = getRegistrantPhone(registrant)
   if (!phone || !extWebinar.postSessionSMSBody) return false
-
-  const watchTime = parseWatchTime(registrant.time_live) + parseWatchTime(registrant.time_replay)
-  if (extWebinar.postSessionSMSMinWatchedMinutes && watchTime < extWebinar.postSessionSMSMinWatchedMinutes) {
-    return false
-  }
 
   try {
     const smsBody = extWebinar.postSessionSMSBody
       .replace(/\{\{name\}\}/g, registrant.first_name || 'there')
       .replace(/\{\{email\}\}/g, registrant.email)
+      .replace(/\{\{phone\}\}/g, phone)
 
-    const result = await sendClickSendSMS(phone, smsBody)
+    const result = await sendClickSendSMS(phone, smsBody, registrantTz)
     if (!result.success) {
       console.error(`  ❌ SMS failed for ${phone}: ${result.error}`)
       return false

@@ -67,6 +67,8 @@ interface ExternalWebinar {
   mostlyAttendedThreshold: number
   autoSendPostSessionSMS: boolean
   postSessionSMSBody?: string
+  postSessionSMSMinutesAfter?: number
+  postSessionSMSMinWatchedMinutes?: number | null
   // Combined seamless picker
   combineScheduleSources?: boolean
   minBookingLeadMinutes?: number | null
@@ -144,6 +146,8 @@ export default function ExternalWebinarDetailPage() {
     webinarDurationMinutes: 60,
     autoSendPostSessionSMS: false,
     postSessionSMSBody: '',
+    postSessionSMSMinutesAfter: 0,
+    postSessionSMSMinWatchedMinutes: '' as number | '' | string,
     // Combined seamless picker
     combineScheduleSources: false,
     minBookingLeadHours: '' as string,
@@ -299,6 +303,8 @@ export default function ExternalWebinarDetailPage() {
         webinarDurationMinutes: data.webinarDurationMinutes ?? 60,
         autoSendPostSessionSMS: data.autoSendPostSessionSMS ?? false,
         postSessionSMSBody: data.postSessionSMSBody || '',
+        postSessionSMSMinutesAfter: data.postSessionSMSMinutesAfter ?? 0,
+        postSessionSMSMinWatchedMinutes: data.postSessionSMSMinWatchedMinutes ?? '',
         combineScheduleSources: data.combineScheduleSources ?? false,
         minBookingLeadHours: minutesToHoursInput(data.minBookingLeadMinutes),
         maxBookingLeadHours: minutesToHoursInput(data.maxBookingLeadMinutes),
@@ -333,6 +339,10 @@ export default function ExternalWebinarDetailPage() {
           formData.recurringSlotsToShow === '' || formData.recurringSlotsToShow == null
             ? null
             : Number(formData.recurringSlotsToShow),
+        postSessionSMSMinWatchedMinutes:
+          formData.postSessionSMSMinWatchedMinutes === '' || formData.postSessionSMSMinWatchedMinutes == null
+            ? null
+            : Number(formData.postSessionSMSMinWatchedMinutes),
         // Entered in hours, stored in minutes.
         minBookingLeadMinutes: hoursInputToMinutes(formData.minBookingLeadHours),
         maxBookingLeadMinutes: hoursInputToMinutes(formData.maxBookingLeadHours),
@@ -1274,19 +1284,50 @@ export default function ExternalWebinarDetailPage() {
             </label>
 
             {formData.autoSendPostSessionSMS && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">SMS Message</label>
-                <textarea
-                  value={formData.postSessionSMSBody}
-                  onChange={(e) => setFormData({ ...formData, postSessionSMSBody: e.target.value })}
-                  placeholder="Thanks for attending {{name}}! Here's the replay link: ..."
-                  className="w-full px-3 py-2 border rounded-lg"
-                  rows={4}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Available variables: {'{{name}}'}, {'{{email}}'}, {'{{phone}}'}
-                </p>
-              </div>
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Min Watch Time (minutes)</label>
+                    <input
+                      type="number"
+                      value={formData.postSessionSMSMinWatchedMinutes}
+                      onChange={(e) => setFormData({ ...formData, postSessionSMSMinWatchedMinutes: e.target.value })}
+                      placeholder="e.g. 42"
+                      className="w-full px-3 py-2 border rounded-lg"
+                      min={0}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      Only text attendees who watched at least this long (live + replay). Leave blank to text everyone who attended.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Delay (minutes after session ends)</label>
+                    <input
+                      type="number"
+                      value={formData.postSessionSMSMinutesAfter}
+                      onChange={(e) => setFormData({ ...formData, postSessionSMSMinutesAfter: parseInt(e.target.value) || 0 })}
+                      className="w-full px-3 py-2 border rounded-lg"
+                      min={0}
+                    />
+                    <p className="text-xs text-gray-500 mt-1">
+                      0 = send on the first attendance sync after the session ends (syncs run every ~5 min)
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">SMS Message</label>
+                  <textarea
+                    value={formData.postSessionSMSBody}
+                    onChange={(e) => setFormData({ ...formData, postSessionSMSBody: e.target.value })}
+                    placeholder="Thanks for attending {{name}}! Here's the replay link: ..."
+                    className="w-full px-3 py-2 border rounded-lg"
+                    rows={4}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Available variables: {'{{name}}'}, {'{{email}}'}, {'{{phone}}'}
+                  </p>
+                </div>
+              </>
             )}
           </CardBody>
         </Card>
