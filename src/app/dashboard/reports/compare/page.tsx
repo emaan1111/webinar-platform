@@ -74,7 +74,7 @@ function metricGroups(engagementMinutes: number): { title: string; metrics: Metr
         { key: 'totalAttendees', label: 'Total attendees', kind: 'count', best: null },
         { key: 'attendanceRate', label: '% Attended (live + replay)', kind: 'percent', best: 'high' },
         { key: 'engaged', label: `Engaged ≥ ${engagementMinutes} min`, kind: 'count', best: null },
-        { key: 'engagedRate', label: '% Engaged of registered', kind: 'percent', best: 'high' },
+        { key: 'engagedRate', label: '% Engaged of attendees', kind: 'percent', best: 'high' },
       ],
     },
     {
@@ -86,7 +86,7 @@ function metricGroups(engagementMinutes: number): { title: string; metrics: Metr
         { key: 'sessionMissed', label: 'Missed', kind: 'count', best: null },
         { key: 'sessionUpcoming', label: 'Not finished yet', kind: 'count', best: null },
         { key: 'sessionAttendanceRate', label: '% Live attendance', kind: 'percent', best: 'high' },
-        { key: 'sessionEngagedRate', label: `% Engaged ≥ ${engagementMinutes} min`, kind: 'percent', best: 'high' },
+        { key: 'sessionEngagedRate', label: `% Engaged of live (≥ ${engagementMinutes} min)`, kind: 'percent', best: 'high' },
         { key: 'sessionReplay', label: 'Caught the replay', kind: 'count', best: null },
         { key: 'sessionReplayRate', label: '% Replay recovery', kind: 'percent', best: 'high' },
       ],
