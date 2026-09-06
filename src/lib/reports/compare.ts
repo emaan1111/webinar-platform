@@ -221,9 +221,13 @@ export function finalizeCompareRow(acc: CompareAccumulator): CompareRow {
     ...acc,
     totalAttendees,
     attendanceRate: pct(totalAttendees, acc.registrations),
-    engagedRate: pct(acc.engaged, acc.registrations),
+    // Engagement is judged against people who actually showed up, not against
+    // everyone who registered - a webinar with many no-shows should read low
+    // on attendance, not have its engagement diluted twice. Same denominators
+    // as the daily report's engagementRateTotal / sessionEngagementRateLive.
+    engagedRate: pct(acc.engaged, totalAttendees),
     sessionAttendanceRate: pct(acc.sessionLive, acc.sessionSettled),
-    sessionEngagedRate: pct(acc.sessionEngaged, acc.sessionSettled),
+    sessionEngagedRate: pct(acc.sessionEngaged, acc.sessionLive),
     sessionReplayRate: pct(acc.sessionReplay, acc.sessionSettled),
     salesCount: acc.isExternal ? null : acc.sales,
     revenueTotal: acc.isExternal ? null : acc.revenue,
