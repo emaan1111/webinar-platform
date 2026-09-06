@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { BarChart3, FileText } from 'lucide-react'
+import { BarChart3, Columns3, FileText } from 'lucide-react'
 
 const TABS = [
   { href: '/dashboard/reports', label: 'Key Metrics', icon: FileText },
   { href: '/dashboard/reports/charts', label: 'Charts & Trends', icon: BarChart3 },
+  { href: '/dashboard/reports/compare', label: 'Compare', icon: Columns3 },
 ]
 
 /** Tab strip shared by the Reports pages so they switch between each other. */
