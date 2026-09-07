@@ -171,85 +171,52 @@ export default function WebinarPoll({
     : ''
 
   /* ---------- the invitation that sits in the page ---------- */
+  // Deliberately unstyled beyond the button: this mounts inside the template (right
+  // under the video), so it inherits the surrounding colour and font rather than
+  // fighting them with a card of its own.
   const invite = (
-    <section
+    <div
       style={{
         boxSizing: 'border-box',
         width: '100%',
-        padding: '36px 20px',
-        background: '#faf9f6',
-        fontFamily: SERIF,
-        color: '#2d2a26',
+        padding: '22px 16px 6px',
+        textAlign: 'center',
       }}
     >
-      <div
-        style={{
-          boxSizing: 'border-box',
-          maxWidth: '620px',
-          margin: '0 auto',
-          background: '#fff',
-          border: '1px solid #e2ddd5',
-          borderRadius: '18px',
-          padding: '26px 24px',
-          textAlign: 'center',
-          boxShadow: '0 6px 24px rgba(45, 42, 38, 0.07)',
-        }}
-      >
-        {done ? (
-          <>
-            <div style={{ fontSize: '30px', lineHeight: 1, marginBottom: '10px' }}>🤲</div>
-            <h3 style={{ margin: '0 0 8px', fontSize: '19px', fontWeight: 600, color: primaryColor, lineHeight: 1.35 }}>
-              {poll.thankYouTitle}
-            </h3>
-            <p style={{ margin: 0, fontSize: '15px', lineHeight: 1.6, color: '#5f5950' }}>
-              {plainThankYouBody || 'Your answers are saved — thank you.'}
+      {done ? (
+        <p style={{ margin: 0, fontSize: '16px', fontWeight: 700, color: '#c62828' }}>
+          {poll.thankYouTitle}
+        </p>
+      ) : (
+        <>
+          {poll.description ? (
+            <p style={{ margin: '0 0 14px', fontSize: '16px', lineHeight: 1.55, color: 'inherit' }}>
+              {poll.description}
             </p>
-          </>
-        ) : (
-          <>
-            <p
-              style={{
-                margin: '0 0 8px',
-                fontSize: '11px',
-                fontWeight: 700,
-                letterSpacing: '1.6px',
-                textTransform: 'uppercase',
-                color: primaryColor,
-              }}
-            >
-              Before we begin
-            </p>
-            <h3 style={{ margin: '0 0 10px', fontSize: '21px', fontWeight: 600, lineHeight: 1.35 }}>
-              {poll.title}
-            </h3>
-            <p style={{ margin: '0 auto 20px', maxWidth: '440px', fontSize: '15px', lineHeight: 1.65, color: '#5f5950' }}>
-              {poll.description ||
-                `${total} quick questions so we can shape the masterclass around what you actually need.`}
-            </p>
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              style={{
-                padding: '13px 30px',
-                borderRadius: '10px',
-                border: 'none',
-                background: primaryColor,
-                color: '#fff',
-                font: 'inherit',
-                fontSize: '16px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              Answer {total} quick question{total === 1 ? '' : 's'} →
-            </button>
-            <p style={{ margin: '12px 0 0', fontSize: '12.5px', color: '#9b9590' }}>
-              Takes less than a minute
-            </p>
-          </>
-        )}
-      </div>
-    </section>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            style={{
+              display: 'inline-block',
+              padding: '15px 36px',
+              borderRadius: '10px',
+              border: 'none',
+              background: '#d32f2f',
+              color: '#ffffff',
+              fontFamily: 'inherit',
+              fontSize: '17px',
+              fontWeight: 800,
+              lineHeight: 1.2,
+              cursor: 'pointer',
+              boxShadow: '0 12px 26px -14px rgba(211,47,47,0.95)',
+            }}
+          >
+            Take the poll →
+          </button>
+        </>
+      )}
+    </div>
   )
 
   /* ---------- the modal the questions live in ---------- */
