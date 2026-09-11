@@ -13,6 +13,10 @@ import { toZonedTime, fromZonedTime, format as formatTz } from 'date-fns-tz'
 import { parseISO } from 'date-fns'
 import CountdownTemplateSelector from '@/components/dashboard/CountdownTemplateSelector'
 import {
+  SettingsVersionComment,
+  SettingsVersionHistory,
+} from '@/components/webinar/SettingsVersioning'
+import {
   ArrowLeft,
   Save,
   Calendar,
@@ -29,7 +33,8 @@ import {
   Plus,
   Trash2,
   Loader2,
-  Info
+  Info,
+  History
 } from 'lucide-react'
 
 export default function EditWebinarPage() {
@@ -39,6 +44,10 @@ export default function EditWebinarPage() {
   const [isFetching, setIsFetching] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  // The note saved alongside this settings change, and a token bumped after each
+  // save so the history panel refetches.
+  const [versionComment, setVersionComment] = useState('')
+  const [historyToken, setHistoryToken] = useState(0)
   
   const [formData, setFormData] = useState({
     title: '',
@@ -495,7 +504,9 @@ export default function EditWebinarPage() {
         offerBId: formData.offerBId || null,
         testVideo: formData.testVideo,
         videoAId: formData.videoAId || null,
-        videoBId: formData.videoBId || null
+        videoBId: formData.videoBId || null,
+        // Recorded against this change in the settings history, not stored on the webinar.
+        versionComment: versionComment.trim() || null
       }
 
       console.log('Sending webinar data:', payload)
@@ -517,6 +528,8 @@ export default function EditWebinarPage() {
       }
 
       setSuccess(true)
+      setVersionComment('')
+      setHistoryToken((n) => n + 1)
       setTimeout(() => {
         router.push('/dashboard/webinars')
       }, 1500)
@@ -2201,6 +2214,33 @@ export default function EditWebinarPage() {
                   <option value="CANCELLED">Cancelled</option>
                 </select>
               </div>
+            </CardBody>
+          </Card>
+
+          {/* Settings History */}
+          <Card>
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-gray-500" />
+                <h2 className="text-xl font-semibold">Settings History</h2>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                Every save is recorded with its comment. Restore any earlier version — the current
+                settings are saved first, so a restore can itself be undone.
+              </p>
+            </CardHeader>
+            <CardBody className="space-y-6">
+              <SettingsVersionComment
+                value={versionComment}
+                onChange={setVersionComment}
+                disabled={isLoading}
+              />
+              <SettingsVersionHistory
+                scope="internal"
+                webinarId={params.id as string}
+                reloadToken={historyToken}
+                onRestored={() => window.location.reload()}
+              />
             </CardBody>
           </Card>
 

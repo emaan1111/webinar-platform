@@ -29,6 +29,7 @@ model User {
   hostedWebinars   Webinar[]         @relation("HostedWebinars")
   popups           Popup[]
   leadPageVersions LeadPageVersion[]
+  webinarSettingsVersions WebinarSettingsVersion[]
 
   @@map("users")
 }
@@ -157,6 +158,7 @@ model Webinar {
   sales                              WebinarSale[]
   schedules                          WebinarSchedule[]
   zoomSessionLinks                   ZoomSessionWebinar[]
+  settingsVersions                   WebinarSettingsVersion[]
   host                               User                        @relation("HostedWebinars", fields: [hostId], references: [id])
 
   @@map("webinars")
@@ -1408,6 +1410,7 @@ model ExternalWebinar {
   confirmationEmails ConfirmationEmailTemplate[]
   reminderEmails     ReminderEmailTemplate[]
   followUpEmails     FollowUpEmailTemplate[]
+  settingsVersions   WebinarSettingsVersion[]
 
   @@unique([platform, externalWebinarId])
   @@index([isActive])
@@ -2029,4 +2032,40 @@ model ZoomSessionWebinar {
   @@unique([zoomSessionId, webinarId])
   @@index([zoomSessionId])
   @@map("zoom_session_webinars")
+}
+
+/// One saved snapshot of a webinar's settings, taken every time they change.
+/// Covers both internal webinars (`webinarId`) and external ones
+/// (`externalWebinarId`) so the two settings screens share one history format —
+/// exactly one of the two is set, and `webinarType` says which.
+///
+/// `settings` holds the FULL settings state as it was AFTER the change (not a
+/// patch), which is what makes restoring a version a plain overwrite rather
+/// than a replay of diffs. `changedFields` records which keys moved relative to
+/// the previous snapshot, so the history reads as a changelog without the UI
+/// having to diff every row.
+model WebinarSettingsVersion {
+  id                String   @id @default(cuid())
+  webinarType       String // "internal" | "external"
+  webinarId         String?
+  externalWebinarId String?
+  /// The host's note about WHY this change was made. Optional, but it is the
+  /// whole point of the feature — "who changed the JIT lead time and why".
+  comment           String?
+  /// "manual" (a save from the settings screen), "checkpoint" (state captured
+  /// before an untracked change or before history started) or "restore".
+  source            String   @default("manual")
+  changedFields     String[] @default([])
+  settings          Json
+  createdById       String?
+  createdByEmail    String?
+  createdAt         DateTime @default(now())
+
+  webinar         Webinar?         @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  externalWebinar ExternalWebinar? @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([webinarId, createdAt])
+  @@index([externalWebinarId, createdAt])
+  @@map("webinar_settings_versions")
 }
