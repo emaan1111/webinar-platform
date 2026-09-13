@@ -490,8 +490,15 @@ model OfferAnalytics {
 
 model WebinarSale {
   id             String        @id @default(cuid())
-  webinarId      String
+  // A sale belongs to exactly one webinar, internal OR external. Both sides are
+  // nullable because the funnel that produced the buyer decides which one is set;
+  // see the salesWebinarLink helpers for the "exactly one" invariant.
+  webinarId      String?
   registrationId String?
+  // External funnel (EverWebinar/Zoom). Most paid traffic registers here, not in
+  // the internal room, so a sale usually links through this pair.
+  externalWebinarId      String?
+  externalRegistrationId String?
   email          String
   orderId        String        @unique
   orderFormId    String?
@@ -506,10 +513,14 @@ model WebinarSale {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @default(now())
   registration   Registration? @relation(fields: [registrationId], references: [id])
-  webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  webinar        Webinar?      @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  externalWebinar        ExternalWebinar?             @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  externalRegistration   ExternalWebinarRegistration? @relation(fields: [externalRegistrationId], references: [id])
 
   @@index([webinarId])
   @@index([registrationId])
+  @@index([externalWebinarId])
+  @@index([externalRegistrationId])
   @@index([email])
   @@map("webinar_sales")
 }
@@ -1404,6 +1415,7 @@ model ExternalWebinar {
   leadPages     LeadPage[]
   registrations ExternalWebinarRegistration[]
   schedules     ExternalWebinarSchedule[]
+  sales         WebinarSale[]
   zoomSessionLinks ZoomSessionWebinar[]
   liveZoomSession  ZoomSession? @relation("ExternalWebinarLiveZoom", fields: [liveZoomSessionId], references: [id], onDelete: SetNull)
 
@@ -1500,12 +1512,17 @@ model ExternalWebinarRegistration {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
+  // Mirrors Registration.hasPurchased so buyer-aware logic (e.g. skipIfPurchased
+  // on follow-ups) reads the same flag for both registration kinds.
+  hasPurchased Boolean @default(false)
+
   // Relations
   externalWebinar        ExternalWebinar          @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
   schedule               ExternalWebinarSchedule? @relation(fields: [scheduleId], references: [id])
   confirmationEmailSends ConfirmationEmailSend[]
   reminderEmailSends     ReminderEmailSend[]
   followUpEmailSends     FollowUpEmailSend[]
+  sales                  WebinarSale[]
 
   @@unique([externalWebinarId, email])
   @@index([externalWebinarId])
