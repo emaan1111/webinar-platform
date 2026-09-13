@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUsdAudRate, usdToAud } from '@/lib/fx';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
@@ -140,6 +141,9 @@ export async function GET(request: NextRequest) {
     });
 
     // Convert to array and calculate derived metrics
+    // One rate for the whole response, so the daily figures reconcile.
+    const { rate: fxRate } = await getUsdAudRate();
+
     const result = Array.from(salesByDate.values()).map((day) => {
       const conversionRate = day.registrations > 0 
         ? (day.count / day.registrations) * 100 
@@ -153,8 +157,12 @@ export async function GET(request: NextRequest) {
         ? day.revenue / day.count
         : 0;
       
+      // Revenue is USD, adSpend is AUD (the ad account's currency), so the two
+      // have to be brought to one unit before dividing — the same mix that made
+      // profit and ROI wrong on the reports table.
+      const revenueAud = usdToAud(day.revenue, fxRate);
       const roas = day.adSpend > 0
-        ? day.revenue / day.adSpend
+        ? revenueAud / day.adSpend
         : 0;
 
       return {
@@ -166,6 +174,7 @@ export async function GET(request: NextRequest) {
         costPerSale: parseFloat(costPerSale.toFixed(2)),
         averageOrderValue: parseFloat(averageOrderValue.toFixed(2)),
         adSpend: day.adSpend,
+        revenueAud: parseFloat(revenueAud.toFixed(2)),
         roas: parseFloat(roas.toFixed(2)),
       };
     });
