@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Card, CardBody } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -43,6 +44,13 @@ const isLinked = (sale: Sale): boolean =>
 const webinarName = (sale: Sale): string =>
   sale.webinar?.title ?? sale.externalWebinar?.name ?? 'N/A'
 
+/** The attendee page keys external registrants with an `ext_` prefix. */
+const attendeeHref = (sale: Sale): string | null => {
+  if (sale.registrationId) return `/dashboard/attendees/${sale.registrationId}`
+  if (sale.externalRegistrationId) return `/dashboard/attendees/ext_${sale.externalRegistrationId}`
+  return null
+}
+
 type Stats = {
   totalSales: number
   totalRevenue: number
@@ -52,6 +60,7 @@ type Stats = {
 }
 
 export default function SalesPage() {
+  const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [sales, setSales] = useState<Sale[]>([])
   const [stats, setStats] = useState<Stats>({
@@ -339,8 +348,27 @@ export default function SalesPage() {
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredSales.map((sale) => (
-                      <tr key={sale.id} className="hover:bg-gray-50">
+                    {filteredSales.map((sale) => {
+                      const href = attendeeHref(sale)
+                      return (
+                      <tr
+                        key={sale.id}
+                        className={`hover:bg-gray-50 ${href ? 'cursor-pointer' : ''}`}
+                        {...(href
+                          ? {
+                              role: 'link',
+                              tabIndex: 0,
+                              title: 'View attendee',
+                              onClick: () => router.push(href),
+                              onKeyDown: (e: React.KeyboardEvent) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault()
+                                  router.push(href)
+                                }
+                              },
+                            }
+                          : {})}
+                      >
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                           {sale.orderId}
                         </td>
@@ -398,7 +426,8 @@ export default function SalesPage() {
                           )}
                         </td>
                       </tr>
-                    ))}
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

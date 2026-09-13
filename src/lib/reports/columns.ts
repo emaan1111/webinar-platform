@@ -71,6 +71,11 @@ export type ReportRow = {
   engagementRateReplay: number
   engagementRateTotal: number
 
+  // Sales rates
+  salesPerRegistered: number
+  salesPerAttendee: number
+  salesPerEngaged: number
+
   // Costs
   costPerRegistration: number
   costPerAttendee: number
@@ -164,6 +169,12 @@ const ATTENDANCE_TONE: PercentTone = { good: 50, warn: 25 }
 const REPLAY_TONE: PercentTone = { good: 30, warn: 15 }
 const REGISTRATION_TONE: PercentTone = { good: 20, warn: 10 }
 const ENGAGEMENT_TONE: PercentTone = { good: 50, warn: 25 }
+// Sales rates need their own bands — the attendance thresholds would paint every
+// row red. The two denominators sit an order of magnitude apart on real data:
+// sales/registrations runs ~2-5%, sales/attendees ~15-50%, so one band for both
+// would be green everywhere or red everywhere.
+const SALES_TONE: PercentTone = { good: 5, warn: 2 }
+const SALES_CONVERSION_TONE: PercentTone = { good: 20, warn: 10 }
 
 const engagedCaption = (ctx: CaptionContext) => `${ctx.engagementMinutes}m+ · signup day`
 
@@ -740,6 +751,45 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     value: r => r.salesReplay,
     total: t => t.salesReplay,
   },
+  {
+    id: 'salesPerRegistered',
+    label: '% Sales',
+    fullLabel: '% Sales (of Registrations)',
+    group: 'sales',
+    kind: 'percent',
+    description: 'Sales \u00f7 registrations.',
+    caption: 'signup day',
+    clock: 'signup',
+    tone: SALES_TONE,
+    value: r => r.salesPerRegistered,
+    total: t => t.salesPerRegistered,
+  },
+  {
+    id: 'salesPerAttendee',
+    label: '% Sales / att.',
+    fullLabel: '% Sales (of Attendees)',
+    group: 'sales',
+    kind: 'percent',
+    description: 'Sales \u00f7 attendees (live + replay).',
+    caption: 'signup day',
+    clock: 'signup',
+    tone: SALES_CONVERSION_TONE,
+    value: r => r.salesPerAttendee,
+    total: t => t.salesPerAttendee,
+  },
+  {
+    id: 'salesPerEngaged',
+    label: '% Sales / eng.',
+    fullLabel: '% Sales (of Engaged)',
+    group: 'sales',
+    kind: 'percent',
+    description: 'Sales \u00f7 engaged attendees \u2014 the closest thing to a pitch-conversion rate.',
+    caption: 'signup day',
+    clock: 'signup',
+    tone: SALES_CONVERSION_TONE,
+    value: r => r.salesPerEngaged,
+    total: t => t.salesPerEngaged,
+  },
 
   // --- Costs --------------------------------------------------------------
   {
@@ -957,6 +1007,9 @@ export function computeTotals(reports: ReportRow[]) {
     costPerRegistration: ratio(sum.spend, sum.registrations),
     costPerAttendee: ratio(sum.spend, sum.totalAttendees),
     costPerSale: ratio(sum.spend, sum.salesTotal),
+    salesPerRegistered: ratio(sum.salesTotal, sum.registrations, 100),
+    salesPerAttendee: ratio(sum.salesTotal, sum.totalAttendees, 100),
+    salesPerEngaged: ratio(sum.salesTotal, sum.engagedTotal, 100),
   }
 }
 
