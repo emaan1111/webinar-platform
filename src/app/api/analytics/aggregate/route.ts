@@ -423,10 +423,15 @@ export async function GET(request: NextRequest) {
     const conversionRate = clickedOffer > 0 ? (converted / clickedOffer) * 100 : 0;
 
     // Sales analytics
+    // A sale sits on an internal webinar or an external one. Scoping only by
+    // `webinar.hostId` drops every external sale. ExternalWebinar carries no
+    // owner column — the rest of the app treats those as shared — so external
+    // sales are matched on being external at all.
     const salesWhere: any = {
-      webinar: {
-        hostId: user.id,
-      },
+      OR: [
+        { webinar: { hostId: user.id } },
+        { externalWebinarId: { not: null } },
+      ],
     };
 
     if (webinarIds.length > 0) {

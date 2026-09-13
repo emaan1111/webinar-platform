@@ -16,16 +16,32 @@ type Sale = {
   productName: string | null
   orderFormId: string | null
   purchasedAt: Date | null
-  webinarId: string
+  webinarId: string | null
+  externalWebinarId: string | null
   registrationId: string | null
-  registration?: {
-    id: string
-    firstName: string | null
-    lastName: string | null
-    email: string
-    attended: boolean
-  } | null
+  externalRegistrationId: string | null
+  registration?: LinkedRegistration | null
+  externalRegistration?: LinkedRegistration | null
+  webinar?: { id: string; title: string } | null
+  externalWebinar?: { id: string; name: string } | null
 }
+
+type LinkedRegistration = {
+  id: string
+  name: string | null
+  email: string
+  attended: boolean
+}
+
+/** A sale links to an internal or an external registration; callers want either. */
+const linkedRegistration = (sale: Sale): LinkedRegistration | null =>
+  sale.registration ?? sale.externalRegistration ?? null
+
+const isLinked = (sale: Sale): boolean =>
+  Boolean(sale.registrationId || sale.externalRegistrationId)
+
+const webinarName = (sale: Sale): string =>
+  sale.webinar?.title ?? sale.externalWebinar?.name ?? 'N/A'
 
 type Stats = {
   totalSales: number
@@ -77,6 +93,7 @@ export default function SalesPage() {
       'Customer Name',
       'Product',
       'Status',
+      'Webinar',
       'Linked to Registration',
       'Attended Webinar'
     ]
@@ -95,13 +112,12 @@ export default function SalesPage() {
       sale.amount?.toFixed(2) || '0.00',
       sale.currency || 'USD',
       escapeCSVValue(sale.email || ''),
-      escapeCSVValue(sale.registration 
-        ? `${sale.registration.firstName || ''} ${sale.registration.lastName || ''}`.trim()
-        : 'N/A'),
+      escapeCSVValue(linkedRegistration(sale)?.name || 'N/A'),
       escapeCSVValue(sale.productName || ''),
       escapeCSVValue(sale.status || ''),
-      sale.registrationId ? 'Yes' : 'No',
-      sale.registration?.attended ? 'Yes' : 'No'
+      escapeCSVValue(webinarName(sale)),
+      isLinked(sale) ? 'Yes' : 'No',
+      linkedRegistration(sale)?.attended ? 'Yes' : 'No'
     ])
 
     const csv = [headers, ...rows].map(row => row.join(',')).join('\n')
@@ -114,8 +130,8 @@ export default function SalesPage() {
   }
 
   const filteredSales = sales.filter(sale => {
-    if (filter === 'linked') return sale.registrationId !== null
-    if (filter === 'unlinked') return sale.registrationId === null
+    if (filter === 'linked') return isLinked(sale)
+    if (filter === 'unlinked') return !isLinked(sale)
     return true
   })
 
@@ -127,7 +143,7 @@ export default function SalesPage() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Sales</h1>
             <p className="mt-1 text-sm text-gray-500">
-              All orders received from ClickFunnels
+              All orders, across internal and external webinars
             </p>
           </div>
           <div className="flex gap-3">
@@ -309,6 +325,9 @@ export default function SalesPage() {
                         Product
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Webinar
+                      </th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Status
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -337,12 +356,13 @@ export default function SalesPage() {
                           {sale.email || 'N/A'}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {sale.registration
-                            ? `${sale.registration.firstName || ''} ${sale.registration.lastName || ''}`.trim() || 'N/A'
-                            : 'N/A'}
+                          {linkedRegistration(sale)?.name || 'N/A'}
                         </td>
                         <td className="px-6 py-4 text-sm text-gray-900">
                           {sale.productName || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-500">
+                          {webinarName(sale)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <span
@@ -358,7 +378,7 @@ export default function SalesPage() {
                           </span>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          {sale.registrationId ? (
+                          {isLinked(sale) ? (
                             <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
                               Linked
                             </span>
@@ -369,9 +389,9 @@ export default function SalesPage() {
                           )}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {sale.registration?.attended ? (
+                          {linkedRegistration(sale)?.attended ? (
                             <span className="text-green-600 font-medium">Yes</span>
-                          ) : sale.registrationId ? (
+                          ) : isLinked(sale) ? (
                             <span className="text-gray-400">No</span>
                           ) : (
                             <span className="text-gray-400">-</span>
