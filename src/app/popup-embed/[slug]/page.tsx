@@ -71,6 +71,9 @@ export default function PopupEmbedPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [formError, setFormError] = useState('')
+  // Where the visitor is being sent after submit; kept so the success screen can
+  // offer a manual link when the browser refuses the scripted navigation.
+  const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
   // Webinar registration popup state (when config.externalWebinarId is set)
   const [schedules, setSchedules] = useState<ScheduleOption[]>([])
@@ -223,11 +226,12 @@ export default function PopupEmbedPage() {
       const result = await res.json()
       if (result.success) {
         if (result.redirectUrl) {
-          // Redirect parent window
-          if (window.parent !== window) {
-            window.parent.postMessage({ type: 'popupRedirect', url: result.redirectUrl }, '*')
-          }
-          window.location.href = result.redirectUrl
+          // Never navigate this frame: iOS renders a PDF loaded inside an iframe as a
+          // single, non-scrollable first page. doRedirect takes the top window instead,
+          // and the success screen keeps a tappable link if that navigation is blocked.
+          setRedirectTarget(result.redirectUrl)
+          setSuccess(true)
+          doRedirect(result.redirectUrl)
           return
         }
         setSuccess(true)
@@ -307,6 +311,20 @@ export default function PopupEmbedPage() {
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Success!</h3>
             <p className="text-gray-600">{config.successMessage}</p>
+            {redirectTarget && (
+              <>
+                <p className="text-sm text-gray-500 mt-5">Didn&apos;t open automatically?</p>
+                <a
+                  href={redirectTarget}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 px-6 py-3 rounded-lg font-semibold"
+                  style={{ background: s.buttonBg || '#4f46e5', color: s.buttonTextColor || '#fff' }}
+                >
+                  Continue
+                </a>
+              </>
+            )}
           </div>
         </div>
       </>
