@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUsdAudRate, usdToAud } from '@/lib/fx';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { requestFacebookInsights } from '@/lib/facebookAds';
@@ -155,6 +156,11 @@ export async function GET(request: NextRequest) {
     } else {
       console.warn('⚠️  No Facebook access token found');
     }
+
+    // One rate for the whole response, so every row in a table converts at the
+    // same number and the daily figures always add up to the total.
+    const fx = await getUsdAudRate();
+    const fxRate = fx.rate;
 
     // Generate reports for each day
     const reports = [];
@@ -589,7 +595,13 @@ export async function GET(request: NextRequest) {
         sumSales(registrations.filter((reg: any) => !reg.attended && reg.sessions.length > 0)) +
         sumSales(externalSalesRegs.filter((reg: any) => !extWasLive(reg) && extWatchedReplay(reg)));
       
-      const profit = revenue - spend;
+      // Sales are priced in USD; Facebook reports spend in the ad account's
+      // currency (AUD). Subtracting one from the other produced a profit figure
+      // and an ROI that were arithmetic on two different units. Convert revenue
+      // to AUD so profit and ROI compare like with like; `revenue` itself stays
+      // in USD, the currency the sale actually happened in.
+      const revenueAud = usdToAud(revenue, fxRate);
+      const profit = revenueAud - spend;
       const roi = spend > 0 ? (profit / spend) * 100 : 0;
       const averageOrderValue = salesTotal > 0 ? revenue / salesTotal : 0;
 
@@ -729,8 +741,9 @@ export async function GET(request: NextRequest) {
         costPerAttendee,
         costPerSale,
         
-        // Revenue
+        // Revenue (USD, as sold) plus the AUD conversion profit/ROI are built on
         revenue,
+        revenueAud,
         liveRevenue,
         replayRevenue,
         averageOrderValue,
@@ -781,6 +794,9 @@ export async function GET(request: NextRequest) {
       dateRange: { from, to },
       engagementMinutes,
       timestamp: new Date().toISOString(),
+      // Disclosed so the UI can label a stale or fallback rate rather than
+      // passing it off as a live quote.
+      fx: { usdToAud: fx.rate, source: fx.source, fetchedAt: fx.fetchedAt },
       warning: fbWarning,
       coverageWarning,
       filterNote,

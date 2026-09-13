@@ -83,6 +83,7 @@ export type ReportRow = {
 
   // Revenue
   revenue: number
+  revenueAud?: number
   liveRevenue?: number
   replayRevenue?: number
   averageOrderValue?: number
@@ -91,6 +92,13 @@ export type ReportRow = {
 }
 
 export type ColumnKind = 'date' | 'count' | 'currency' | 'percent'
+
+/**
+ * Which currency a `currency` column is denominated in. Ad spend arrives from
+ * Facebook in AUD and sales are priced in USD, so a money column cannot be
+ * rendered correctly without knowing which one it is.
+ */
+export type ColumnCurrency = 'AUD' | 'USD'
 
 export type ColumnGroupId =
   | 'basic'
@@ -143,6 +151,8 @@ export interface ReportColumn {
   fullLabel: string
   group: ColumnGroupId
   kind: ColumnKind
+  /** Required on `currency` columns: AUD (ad spend) or USD (sales). */
+  currency?: ColumnCurrency
   /** One-line explanation of what the number means. */
   description: string
   /** Extra line under the header label, e.g. which clock the day is cut on. */
@@ -231,6 +241,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'FB Spend',
     group: 'facebook',
     kind: 'currency',
+    currency: 'AUD',
     description: 'Facebook ad spend for the day.',
     caption: 'Facebook',
     value: r => r.fbResults.spend,
@@ -276,6 +287,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'FB CPM',
     group: 'facebook',
     kind: 'currency',
+    currency: 'AUD',
     description: 'Cost per 1,000 impressions.',
     caption: 'Facebook',
     value: r => r.fbResults.cpm,
@@ -287,6 +299,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'FB CPC',
     group: 'facebook',
     kind: 'currency',
+    currency: 'AUD',
     description: 'Cost per click.',
     caption: 'Facebook',
     value: r => r.fbResults.cpc,
@@ -798,6 +811,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Cost per Registration',
     group: 'costs',
     kind: 'currency',
+    currency: 'AUD',
     description: 'Ad spend ÷ registrations.',
     value: r => r.costPerRegistration,
     total: t => t.costPerRegistration,
@@ -808,6 +822,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Cost per Attendee',
     group: 'costs',
     kind: 'currency',
+    currency: 'AUD',
     description: 'Ad spend ÷ attendees (by signup).',
     value: r => r.costPerAttendee,
     total: t => t.costPerAttendee,
@@ -818,6 +833,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Cost per Sale',
     group: 'costs',
     kind: 'currency',
+    currency: 'AUD',
     description: 'Ad spend ÷ sales.',
     value: r => r.costPerSale,
     total: t => t.costPerSale,
@@ -827,12 +843,24 @@ export const REPORT_COLUMNS: ReportColumn[] = [
   {
     id: 'revenue',
     label: 'Revenue',
-    fullLabel: 'Revenue (Total)',
+    fullLabel: 'Revenue (Total, USD)',
     group: 'revenue',
     kind: 'currency',
-    description: 'Revenue from people who registered this day.',
+    currency: 'USD',
+    description: 'Revenue from people who registered this day, in the currency they were charged.',
     value: r => r.revenue,
     total: t => t.revenue,
+  },
+  {
+    id: 'revenueAud',
+    label: 'Revenue A$',
+    fullLabel: 'Revenue (Total, AUD)',
+    group: 'revenue',
+    kind: 'currency',
+    currency: 'AUD',
+    description: 'Revenue converted to AUD at the current rate — the figure profit is built on.',
+    value: r => r.revenueAud ?? 0,
+    total: t => t.revenueAud,
   },
   {
     id: 'liveRevenue',
@@ -840,6 +868,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Revenue (Live)',
     group: 'revenue',
     kind: 'currency',
+    currency: 'USD',
     description: 'Revenue attributed to the live session.',
     value: r => r.liveRevenue ?? 0,
     total: t => t.liveRevenue,
@@ -850,6 +879,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Revenue (Replay)',
     group: 'revenue',
     kind: 'currency',
+    currency: 'USD',
     description: 'Revenue attributed to the replay.',
     value: r => r.replayRevenue ?? 0,
     total: t => t.replayRevenue,
@@ -860,6 +890,7 @@ export const REPORT_COLUMNS: ReportColumn[] = [
     fullLabel: 'Average Order Value',
     group: 'revenue',
     kind: 'currency',
+    currency: 'USD',
     description: 'Revenue ÷ sales.',
     value: r => r.averageOrderValue ?? 0,
     total: t => t.averageOrderValue,
@@ -867,10 +898,11 @@ export const REPORT_COLUMNS: ReportColumn[] = [
   {
     id: 'profit',
     label: 'Profit',
-    fullLabel: 'Profit',
+    fullLabel: 'Profit (AUD)',
     group: 'revenue',
     kind: 'currency',
-    description: 'Revenue − ad spend.',
+    currency: 'AUD',
+    description: 'Revenue converted to AUD, minus ad spend — both sides in AUD.',
     signed: true,
     value: r => r.profit,
     total: t => t.profit,
@@ -917,6 +949,7 @@ export function computeTotals(reports: ReportRow[]) {
       acc.impressions += r.fbResults.impressions
       acc.clicks += r.fbResults.clicks
       acc.revenue += r.revenue
+      acc.revenueAud += r.revenueAud || 0
       acc.liveRevenue += r.liveRevenue || 0
       acc.replayRevenue += r.replayRevenue || 0
       acc.visitors += r.visitors
@@ -947,6 +980,7 @@ export function computeTotals(reports: ReportRow[]) {
       impressions: 0,
       clicks: 0,
       revenue: 0,
+      revenueAud: 0,
       liveRevenue: 0,
       replayRevenue: 0,
       visitors: 0,
@@ -987,8 +1021,10 @@ export function computeTotals(reports: ReportRow[]) {
     sessionEngagedPerRegistered: ratio(sum.sessionEngaged, sum.sessionSettled, 100),
     sessionEngagementRateLive: ratio(sum.sessionEngaged, sum.sessionLive, 100),
     sessionSalesPerRegistered: ratio(sum.sessionSales, sum.sessionSettled, 100),
-    profit: sum.revenue - sum.spend,
-    roi: ratio(sum.revenue - sum.spend, sum.spend, 100),
+    // Both sides in AUD. Using sum.revenue (USD) here subtracted US dollars from
+    // Australian ones, exactly as the per-row figures used to.
+    profit: sum.revenueAud - sum.spend,
+    roi: ratio(sum.revenueAud - sum.spend, sum.spend, 100),
     averageOrderValue: ratio(sum.revenue, sum.salesTotal),
     registrationRate: ratio(sum.registrations, sum.visitors, 100),
     attendanceRate: ratio(sum.totalAttendees, sum.registrations, 100),
@@ -1019,14 +1055,33 @@ export type ReportTotals = NonNullable<ReturnType<typeof computeTotals>>
 // Formatting
 // ---------------------------------------------------------------------------
 
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-})
+// A plain "$" on a table holding both AUD and USD is ambiguous exactly where it
+// matters, so each currency gets an unmistakable prefix.
+const currencyFormatters: Record<ColumnCurrency, Intl.NumberFormat> = {
+  AUD: new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'AUD',
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
+  USD: new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    currencyDisplay: 'narrowSymbol',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }),
+}
 
-export const formatCurrency = (n: number) => currencyFormatter.format(n)
+const CURRENCY_PREFIX: Record<ColumnCurrency, string> = { AUD: 'A', USD: 'US' }
+
+/**
+ * Format money with its currency made explicit: A$1,234.56 / US$1,234.56.
+ * Defaults to AUD, the base the table's profit and ROI are computed in.
+ */
+export const formatCurrency = (n: number, currency: ColumnCurrency = 'AUD') =>
+  `${CURRENCY_PREFIX[currency]}${currencyFormatters[currency].format(n)}`
 export const formatCount = (n: number) => n.toLocaleString('en-US')
 export const formatPercent = (n: number, decimals = 1) => `${n.toFixed(decimals)}%`
 

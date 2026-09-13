@@ -19,8 +19,16 @@ const CURRENCY = 'USD'
 const PRODUCT = 'Ultimate Mother'
 const COMMIT = process.argv.includes('--commit')
 
-/** Rows the operator excluded after reviewing the match report. */
-const SKIP_EMAILS = new Set(['farheen_2@hotmail.com'])
+/**
+ * Rows the operator excluded after reviewing the match report.
+ *
+ * farheen_2@hotmail.com was in here: the CSV names it "test fggb" and the email
+ * has genuinely been used for testing before. But its registration for the day
+ * of the purchase is "Ifrah Mishaal", who attended live and watched 74 minutes,
+ * so the sale is real and the CSV's name field is just stale. Trust the
+ * registration over the CSV name when the two disagree.
+ */
+const SKIP_EMAILS = new Set<string>([])
 
 /** Approved name matches: CSV email -> the external registration it belongs to. */
 const NAME_MATCH_OVERRIDES: Record<string, string> = {
@@ -62,27 +70,25 @@ type Candidate = {
 }
 
 /**
- * The registration a buyer most likely came from: the latest one at or before the
- * purchase. If every registration post-dates it — the list-add timestamp can land
- * just before the row it belongs to — take the closest one after instead.
+ * The registration a buyer most likely came from: the one nearest the purchase in
+ * time, in either direction.
  *
- * Internal and external candidates are ranked together on purpose. Ranking them
- * separately and then comparing picks the later of the two, which is wrong in the
- * fallback direction: there, closest-after wins. External breaks a tie, since the
- * paid funnel is where buyers come from.
+ * Preferring "latest at or before the purchase" reads well but is wrong here,
+ * because the CSV's timestamp is a list-add, not a transaction — it can land
+ * minutes either side of the registration it belongs to. That rule picked a
+ * registration three months earlier over one twenty-four minutes later.
+ *
+ * Internal and external candidates are ranked together; external breaks an exact
+ * tie, since the paid funnel is where buyers come from.
  */
 function pickRegistration(candidates: Candidate[], purchasedAt: Date): Candidate | null {
   if (!candidates.length) return null
+  const distance = (c: Candidate) => Math.abs(c.registeredAt.getTime() - purchasedAt.getTime())
   const externalFirst = (a: Candidate, b: Candidate) =>
     a.kind === b.kind ? 0 : a.kind === 'external' ? -1 : 1
 
-  const before = candidates
-    .filter((c) => c.registeredAt <= purchasedAt)
-    .sort((a, b) => b.registeredAt.getTime() - a.registeredAt.getTime() || externalFirst(a, b))
-  if (before.length) return before[0]
-
   return [...candidates].sort(
-    (a, b) => a.registeredAt.getTime() - b.registeredAt.getTime() || externalFirst(a, b)
+    (a, b) => distance(a) - distance(b) || externalFirst(a, b)
   )[0]
 }
 

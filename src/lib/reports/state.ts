@@ -64,6 +64,7 @@ export const PREDEFINED_VIEWS: ReportView[] = [
       'salesPerAttendee',
       'salesPerEngaged',
       'revenue',
+      'revenueAud',
       'liveRevenue',
       'replayRevenue',
       'averageOrderValue',
