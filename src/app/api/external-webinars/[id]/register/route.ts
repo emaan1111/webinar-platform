@@ -4,11 +4,12 @@ import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook
 import { registerUserToWebinar, isWebinarJamConfigured, resolveJustInTimeScheduleId } from '@/lib/webinarjam'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
-import { sendEmail } from '@/lib/email'
-import { replaceMergeTags, prepareEmailHtml, MergeTagContext, formatWebinarTime, getOneClickUnsubscribeUrl } from '@/lib/emailTracking'
+import { sendExternalConfirmationEmail } from '@/lib/externalConfirmationEmail'
 import { pushLeadToEmaan, resolveEmaanTargets, buildWebinarPushFields } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
 import { getLinkedZoomSessions, LinkedZoomSession } from '@/lib/zoomSessions'
+import { isWithinBookingWindow, describeBookingWindow, BOOKING_WINDOW_ERROR } from '@/lib/bookingWindow'
+import { isValidEmail, normalizeEmail, normalizePhone, EMAIL_ERROR } from '@/lib/contactValidation'
 
 /**
  * External Webinar Registration API
@@ -59,11 +60,6 @@ export async function POST(
       registerInWebinarJam = true,
     } = body
 
-    // Full phone (with dialing code) for local records + CRM; WebinarJam gets them separate.
-    const fullPhone = phone
-      ? `${phoneCountryCode ? phoneCountryCode + ' ' : ''}${phone}`.trim()
-      : undefined
-
     // Validation
     if (!name || !email) {
       return NextResponse.json(
@@ -71,6 +67,26 @@ export async function POST(
         { status: 400, headers: corsHeaders }
       )
     }
+
+    // A malformed address costs us the whole funnel — confirmation, reminders and
+    // the join link all ride on it — so refuse it here rather than store a lead
+    // nothing can reach. The forms check the same rule before they ever POST.
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: EMAIL_ERROR },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+    const normalizedEmail = normalizeEmail(email)
+
+    // One E.164 number for our row, Emaan and SMS. Phone is optional and no longer
+    // reaches WebinarJam, so an unsalvageable one is dropped rather than allowed to
+    // fail the registration — better a lead with no number than no lead.
+    const { e164, error: phoneError } = normalizePhone(phone, phoneCountryCode)
+    if (phoneError) {
+      console.warn(`⚠️ Discarding unusable phone for ${normalizedEmail}: ${JSON.stringify(phone)}`)
+    }
+    const fullPhone = e164 ?? undefined
 
     // Get the external webinar
     const externalWebinar = await prisma.externalWebinar.findUnique({
@@ -105,7 +121,7 @@ export async function POST(
       where: {
         externalWebinarId_email: {
           externalWebinarId: id,
-          email: email.toLowerCase(),
+          email: normalizedEmail,
         }
       }
     })
@@ -205,6 +221,45 @@ export async function POST(
       }
     }
 
+    // Resolve the start time: a Zoom pick uses the session's CURRENT time (it must equal
+    // the session's scheduledAt exactly — rosters and reminder emails match on that
+    // instant), combined options use the time encoded in the id, otherwise parse the
+    // submitted value (guarding a non-date label).
+    //
+    // Resolved here, ahead of the WebinarJam call below, so the booking-window check can
+    // reject a forbidden time BEFORE we create anything on the external platform — a
+    // rejection after that call would leave an orphan EverWebinar registration.
+    let resolvedStartTime: Date | null = null
+    if (isZoomPick && (pickedZoomSession || externalWebinar.liveZoomAt)) {
+      resolvedStartTime = pickedZoomSession
+        ? new Date(pickedZoomSession.scheduledAt)
+        : new Date(externalWebinar.liveZoomAt!)
+    } else if (decodedStartTime) {
+      resolvedStartTime = decodedStartTime
+    } else if (scheduledStartTime) {
+      const parsed = new Date(scheduledStartTime)
+      resolvedStartTime = Number.isNaN(parsed.getTime()) ? null : parsed
+    }
+
+    // Booking window — the picker already hides times the host has ruled out, but a page
+    // left open long enough will drift out of the window (a slot 13 hours away creeps
+    // inside a 12-hour ceiling, a "starting soon" pick ages past a floor), and nothing
+    // stops a direct POST. Re-check against the live setting and send them back to a
+    // refreshed picker rather than booking a time the host has forbidden.
+    //
+    // Live Zoom picks are exempt from both bounds, matching the picker: that session is a
+    // deliberate one-off event, bookable however far out or close it is.
+    if (!isZoomPick && resolvedStartTime && !isWithinBookingWindow(resolvedStartTime, externalWebinar)) {
+      console.warn(
+        `⛔ ${email} picked ${resolvedStartTime.toISOString()} for ${externalWebinar.name}, ` +
+          `outside the booking window (${describeBookingWindow(externalWebinar)})`
+      )
+      return NextResponse.json(
+        { error: BOOKING_WINDOW_ERROR },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
     // The registration's scheduleId is a foreign key to a local ExternalWebinarSchedule row.
     // Picker options carry external/synthetic ids (WebinarJam schedule numbers, 'zoom', JIT),
     // which are NOT local row ids — writing one straight into the FK violates the constraint and
@@ -251,9 +306,7 @@ export async function POST(
         {
           firstName,
           lastName,
-          email: email.toLowerCase(),
-          phone,
-          phoneCountryCode,
+          email: normalizedEmail,
           // Forward the registrant's timezone so EverWebinar books their LOCAL session
           // (e.g. 11 AM UK) instead of defaulting to EST. decodedStartTime pins the
           // session instant so the GMT offset is resolved for the right DST period.
@@ -268,25 +321,10 @@ export async function POST(
         replayRoomUrl = wjResult.replayRoomUrl
         console.log(`✅ Registered ${email} in ${externalWebinar.platform}`)
       } else {
-        console.warn(`⚠️ WebinarJam registration failed: ${wjResult.error}`)
-        // Don't fail the local registration if WJ fails
+        // Don't fail the local registration if WJ fails — the cron's room-link
+        // backfill (backfillMissingRoomLinks) re-registers this row in minutes.
+        console.warn(`⚠️ WebinarJam registration failed for ${email}: ${wjResult.error}`)
       }
-    }
-
-    // Resolve the start time: a Zoom pick uses the session's CURRENT time (it must equal
-    // the session's scheduledAt exactly — rosters and reminder emails match on that
-    // instant), combined options use the time encoded in the id, otherwise parse the
-    // submitted value (guarding a non-date label).
-    let resolvedStartTime: Date | null = null
-    if (isZoomPick && (pickedZoomSession || externalWebinar.liveZoomAt)) {
-      resolvedStartTime = pickedZoomSession
-        ? new Date(pickedZoomSession.scheduledAt)
-        : new Date(externalWebinar.liveZoomAt!)
-    } else if (decodedStartTime) {
-      resolvedStartTime = decodedStartTime
-    } else if (scheduledStartTime) {
-      const parsed = new Date(scheduledStartTime)
-      resolvedStartTime = Number.isNaN(parsed.getTime()) ? null : parsed
     }
 
     // Create or refresh the local registration. A repeat registration updates the
@@ -298,7 +336,7 @@ export async function POST(
       where: {
         externalWebinarId_email: {
           externalWebinarId: id,
-          email: email.toLowerCase(),
+          email: normalizedEmail,
         }
       },
       update: {
@@ -318,7 +356,7 @@ export async function POST(
         externalWebinarId: id,
         scheduleId: localScheduleId,
         name,
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         phone: fullPhone,
         timezone,
         scheduledStartTime: resolvedStartTime,
@@ -375,7 +413,7 @@ export async function POST(
             splitTestId: resolvedSplitTestId,
             variantId: resolvedVariantId,
             type: 'CONVERSION',
-            visitorId: `ext_${email.toLowerCase()}`,
+            visitorId: `ext_${normalizedEmail}`,
           }
         })
       ]).catch((err) => {
@@ -390,7 +428,7 @@ export async function POST(
       const { fbc, fbp } = extractFacebookCookies(cookieHeader)
 
       sendFacebookRegistration({
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         name,
         phone: fullPhone,
         ipAddress: request.headers.get('x-forwarded-for') || undefined,
@@ -432,7 +470,7 @@ export async function POST(
       
       // Sync contact to Mautic with webinar custom fields
       syncContactToMautic({
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         firstName,
         lastName,
         phone: fullPhone,
@@ -441,7 +479,7 @@ export async function POST(
       }).then(() => {
         // Apply registration tag in Mautic
         if (externalWebinar.registrationTag) {
-          return tagMauticContact(email.toLowerCase(), [externalWebinar.registrationTag])
+          return tagMauticContact(normalizedEmail, [externalWebinar.registrationTag])
         }
       }).catch(err => {
         console.error('Mautic sync error:', err)
@@ -449,7 +487,7 @@ export async function POST(
     } else if (crmIntegration === 'CLICKFUNNELS') {
       // Apply ClickFunnels registration tag if configured
       if (externalWebinar.registrationTag) {
-        applyReminderTagToContact(email.toLowerCase(), externalWebinar.registrationTag)
+        applyReminderTagToContact(normalizedEmail, externalWebinar.registrationTag)
           .catch(err => console.error('ClickFunnels tag error:', err))
       }
     }
@@ -473,7 +511,7 @@ export async function POST(
           pushLeadToEmaan({
             webhookUrl,
             name,
-            email: email.toLowerCase(),
+            email: normalizedEmail,
             phone: fullPhone,
             // Built by a shared helper so the several push sites (here, a host
             // editing a Zoom session, the attendance sync, the backfill) can't
@@ -503,47 +541,13 @@ export async function POST(
     // latency stay out of the response's critical path.
     ;(async () => {
       try {
-        const activeTemplate = await prisma.confirmationEmailTemplate.findFirst({
-          where: { externalWebinarId: id, isActive: true },
-          orderBy: { createdAt: 'desc' },
+        const sent = await sendExternalConfirmationEmail({
+          registration,
+          externalWebinarId: id,
+          webinarTitle: externalWebinar.externalWebinarName || externalWebinar.name,
+          liveRoomUrl: liveRoomUrl || null,
         })
-
-        if (activeTemplate) {
-          const webinarTitle = externalWebinar.externalWebinarName || externalWebinar.name
-          const emailCtx: MergeTagContext = {
-            name: registration.name,
-            email: registration.email,
-            webinarTitle,
-            webinarTime: formatWebinarTime(registration.scheduledStartTime, registration.timezone),
-            // For a live-Zoom pick this is the Zoom link (EverWebinar won't email them);
-            // for a normal pick it's the EverWebinar room link if the API returned one.
-            accessLink: liveRoomUrl || null,
-            // External webinars have no countdown-page slug, so the seeded templates'
-            // {{countdown_link}} would render empty. Point it at the live room too.
-            countdownLink: liveRoomUrl || null,
-          }
-
-          const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)
-          const emailSendRecord = await prisma.confirmationEmailSend.create({
-            data: {
-              templateId: activeTemplate.id,
-              externalRegistrationId: registration.id,
-              to: registration.email,
-              subject: emailSubject,
-              status: 'SENT',
-            },
-          })
-
-          const { html: emailHtml } = prepareEmailHtml(activeTemplate.htmlBody, emailCtx, emailSendRecord.id, 'confirmation')
-          await sendEmail({
-            to: registration.email,
-            subject: emailSubject,
-            htmlBody: emailHtml,
-            fromName: activeTemplate.fromName || undefined,
-            unsubscribeUrl: getOneClickUnsubscribeUrl(registration.id),
-          })
-          console.log(`📧 Confirmation email sent to ${email}`)
-        }
+        if (sent) console.log(`📧 Confirmation email sent to ${email}`)
       } catch (err) {
         console.error('⚠️ Failed to send confirmation email:', err)
       }

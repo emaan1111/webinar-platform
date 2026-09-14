@@ -22,6 +22,18 @@ import {
   toggleColumn as toggleColumnPure,
   WorkingState,
 } from './state'
+import { RegistrantFilters, registrantFiltersEqual, sanitizeRegistrantFilters } from './registrantFilters'
+
+export interface UseReportGridOptions {
+  /**
+   * The registrant country/timezone filter currently applied to the report.
+   * When given, saving a view snapshots it and it counts toward "unsaved
+   * changes" on views that carry a snapshot.
+   */
+  registrantFilters?: RegistrantFilters
+  /** Called when a loaded view carries a filter snapshot to apply. */
+  onApplyViewFilters?: (filters: RegistrantFilters) => void
+}
 
 const readStorage = (key: string) => {
   try {
@@ -62,7 +74,12 @@ const readStoredViews = (): ReportView[] | null => {
  * and the saved views those can be stored as. Everything is remembered in
  * localStorage so the grid comes back the way it was left.
  */
-export function useReportGrid() {
+export function useReportGrid(options: UseReportGridOptions = {}) {
+  const { registrantFilters, onApplyViewFilters } = options
+  // The apply callback is only used inside stable callbacks; a ref keeps a
+  // changing function identity from invalidating loadView/resetView.
+  const applyFiltersRef = useRef(onApplyViewFilters)
+  applyFiltersRef.current = onApplyViewFilters
   const [columns, setColumnsState] = useState<string[]>(() =>
     normalizeColumnIds(PREDEFINED_VIEWS[0].columns)
   )
@@ -154,7 +171,14 @@ export function useReportGrid() {
   // --- derived ------------------------------------------------------------
   const allViews = useMemo(() => [...PREDEFINED_VIEWS, ...savedViews], [savedViews])
   const currentView = useMemo(() => allViews.find(v => v.id === viewId) ?? null, [allViews, viewId])
-  const isDirty = currentView ? !sameOrder(currentView.columns, columns) : true
+  // A view that snapshots filters is also dirtied by a filter change; views
+  // without a snapshot (built-in, pre-filter saves) only care about columns.
+  const filtersDirty = Boolean(
+    currentView?.filters &&
+      registrantFilters &&
+      !registrantFiltersEqual(currentView.filters, registrantFilters)
+  )
+  const isDirty = currentView ? !sameOrder(currentView.columns, columns) || filtersDirty : true
   const canUpdateCurrentView = Boolean(currentView && !currentView.builtIn && isDirty)
 
   // --- column actions -----------------------------------------------------
@@ -189,13 +213,16 @@ export function useReportGrid() {
       const view = allViews.find(v => v.id === id)
       if (!view) return
       setColumnsState(normalizeColumnIds(view.columns))
+      if (view.filters) applyFiltersRef.current?.(view.filters)
       setViewId(view.id)
     },
     [allViews]
   )
 
   const resetView = useCallback(() => {
-    if (currentView) setColumnsState(normalizeColumnIds(currentView.columns))
+    if (!currentView) return
+    setColumnsState(normalizeColumnIds(currentView.columns))
+    if (currentView.filters) applyFiltersRef.current?.(currentView.filters)
   }, [currentView])
 
   const saveAsView = useCallback(
@@ -206,22 +233,30 @@ export function useReportGrid() {
         id: `custom_${Date.now()}`,
         name: trimmed,
         columns,
+        // Snapshot the whole filter, even when empty: loading this view then
+        // means "these columns, with this filter" - including "no filter".
+        ...(registrantFilters ? { filters: sanitizeRegistrantFilters(registrantFilters) } : {}),
         createdAt: new Date().toISOString(),
       }
       mutateViews(base => [...base, view])
       setViewId(view.id)
       return view.id
     },
-    [columns, mutateViews]
+    [columns, mutateViews, registrantFilters]
   )
 
   const updateView = useCallback(
     (id: string) => {
       if (isBuiltInView(id)) return
       const meta = savedViewsRef.current.find(v => v.id === id)
+      const snapshot = registrantFilters
+        ? { filters: sanitizeRegistrantFilters(registrantFilters) }
+        : {}
       mutateViews(base => {
         if (base.some(v => v.id === id)) {
-          return base.map(v => (v.id === id ? { ...v, columns, updatedAt: new Date().toISOString() } : v))
+          return base.map(v =>
+            v.id === id ? { ...v, columns, ...snapshot, updatedAt: new Date().toISOString() } : v
+          )
         }
         // Another tab deleted this view while it was being edited here.
         // "Update" still means "keep these columns under this name" - so the
@@ -232,6 +267,7 @@ export function useReportGrid() {
             id,
             name: meta?.name ?? 'Restored view',
             columns,
+            ...snapshot,
             createdAt: meta?.createdAt ?? new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           },
@@ -239,7 +275,7 @@ export function useReportGrid() {
       })
       setViewId(id)
     },
-    [columns, mutateViews]
+    [columns, mutateViews, registrantFilters]
   )
 
   const renameView = useCallback(

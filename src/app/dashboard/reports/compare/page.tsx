@@ -10,6 +10,7 @@ import { formatCount, formatCurrency, formatPercent } from '@/lib/reports/column
 import { CompareRow } from '@/lib/reports/compare'
 import { downloadCsv } from '@/lib/reports/csv'
 import ReportsSubNav from '@/components/reports/ReportsSubNav'
+import { reportFilterQuery } from '@/lib/reports/filterQuery'
 import ReportsToolbar, {
   DateRange,
   isPresetKey,
@@ -133,6 +134,7 @@ export default function CompareReportsPage() {
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [countryOptions, setCountryOptions] = useState<string[]>([])
   const [timezoneOptions, setTimezoneOptions] = useState<string[]>([])
+  const [hasZoomSessions, setHasZoomSessions] = useState(false)
   const [registrantFilters, setRegistrantFilters] = useState<RegistrantFilters>(EMPTY_REGISTRANT_FILTERS)
   const requestRef = useRef<AbortController | null>(null)
   const rangeSeeded = useRef(false)
@@ -196,6 +198,7 @@ export default function CompareReportsPage() {
         const data = await res.json()
         setCountryOptions(Array.isArray(data.countries) ? data.countries : [])
         setTimezoneOptions(Array.isArray(data.timezones) ? data.timezones : [])
+        setHasZoomSessions(Boolean(data.hasZoomSessions))
       } catch (err) {
         console.error('Error fetching report filter options:', err)
       }
@@ -310,6 +313,12 @@ export default function CompareReportsPage() {
         )}`
       : ''
 
+  // Handed to the Profit Planner tab so it plans this exact view.
+  const filterQuery = useMemo(
+    () => reportFilterQuery({ dateRange, engagementMinutes, selectedWebinars, registrantFilters }),
+    [dateRange, engagementMinutes, selectedWebinars, registrantFilters]
+  )
+
   return (
     <DashboardLayout>
       <div className="space-y-5">
@@ -322,7 +331,7 @@ export default function CompareReportsPage() {
               {rangeLabel && <span className="text-gray-400"> · {rangeLabel}</span>}
             </p>
           </div>
-          <ReportsSubNav />
+          <ReportsSubNav filterQuery={filterQuery} />
         </div>
 
         <ReportsToolbar
@@ -337,6 +346,7 @@ export default function CompareReportsPage() {
           onSelectedWebinarsChange={changeSelectedWebinars}
           countryOptions={countryOptions}
           timezoneOptions={timezoneOptions}
+          hasZoomSessions={hasZoomSessions}
           registrantFilters={registrantFilters}
           onRegistrantFiltersChange={changeRegistrantFilters}
           loading={loading}

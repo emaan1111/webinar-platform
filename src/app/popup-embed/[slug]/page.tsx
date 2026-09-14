@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { COMMON_TIMEZONES, timezoneLabel } from '@/lib/timezones'
+import { isValidEmail, normalizePhone, EMAIL_ERROR } from '@/lib/contactValidation'
 
 const COUNTRY_CODES = [
   { code: '+1', country: 'US' }, { code: '+44', country: 'UK' }, { code: '+91', country: 'IN' },
@@ -71,6 +72,9 @@ export default function PopupEmbedPage() {
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
   const [formError, setFormError] = useState('')
+  // Where the visitor is being sent after submit; kept so the success screen can
+  // offer a manual link when the browser refuses the scripted navigation.
+  const [redirectTarget, setRedirectTarget] = useState<string | null>(null)
   const [formData, setFormData] = useState<Record<string, any>>({})
   // Webinar registration popup state (when config.externalWebinarId is set)
   const [schedules, setSchedules] = useState<ScheduleOption[]>([])
@@ -155,15 +159,21 @@ export default function PopupEmbedPage() {
         const scheduleToUse = selectedSchedule || schedules[0]?.id
 
         if (!name || !email) { setFormError('Name and email are required'); setSubmitting(false); return }
+        if (!isValidEmail(email)) { setFormError(EMAIL_ERROR); setSubmitting(false); return }
         if (!scheduleToUse) { setFormError('Please select a time'); setSubmitting(false); return }
+
+        // Same rule as the lead-page form: fold the dialling code and the typed
+        // number into one E.164 value, and make the visitor fix what can't be.
+        const normalizedPhone = normalizePhone(phone, phoneCode)
+        if (normalizedPhone.error) { setFormError(normalizedPhone.error); setSubmitting(false); return }
 
         const res = await fetch(`/api/external-webinars/${config.externalWebinarId}/register`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name, email,
-            phone: phone || undefined,
-            phoneCountryCode: phone ? phoneCode : undefined,
+            // Already E.164, so the server has no dialling code left to re-apply.
+            phone: normalizedPhone.e164 ?? undefined,
             scheduleId: scheduleToUse,
             timezone: userTimezone,
           }),
@@ -199,12 +209,27 @@ export default function PopupEmbedPage() {
       }
     }
 
+    // Same format rules for plain lead-capture popups, which feed the same CRMs.
+    for (const field of config.fields) {
+      if (field.type === 'email') {
+        const value = (formData[field.id] || '').trim()
+        if (value && !isValidEmail(value)) { setFormError(EMAIL_ERROR); setSubmitting(false); return }
+      }
+      if (field.type === 'phone') {
+        const { error } = normalizePhone(formData[field.id], formData[field.id + '_code'] || '+1')
+        if (error) { setFormError(error); setSubmitting(false); return }
+      }
+    }
+
     // Merge phone codes with phone numbers
     const submitData: Record<string, any> = {}
     config.fields.forEach(field => {
       if (['image', 'heading', 'paragraph'].includes(field.type)) return // content elements, not data
       if (field.type === 'phone') {
-        submitData[field.id] = (formData[field.id + '_code'] || '+1') + ' ' + (formData[field.id] || '')
+        // Store one E.164 number rather than "code + space + whatever was typed",
+        // which is how the dialling code used to end up recorded twice.
+        submitData[field.id] =
+          normalizePhone(formData[field.id], formData[field.id + '_code'] || '+1').e164 || ''
       } else {
         submitData[field.id] = formData[field.id]
       }
@@ -223,11 +248,12 @@ export default function PopupEmbedPage() {
       const result = await res.json()
       if (result.success) {
         if (result.redirectUrl) {
-          // Redirect parent window
-          if (window.parent !== window) {
-            window.parent.postMessage({ type: 'popupRedirect', url: result.redirectUrl }, '*')
-          }
-          window.location.href = result.redirectUrl
+          // Never navigate this frame: iOS renders a PDF loaded inside an iframe as a
+          // single, non-scrollable first page. doRedirect takes the top window instead,
+          // and the success screen keeps a tappable link if that navigation is blocked.
+          setRedirectTarget(result.redirectUrl)
+          setSuccess(true)
+          doRedirect(result.redirectUrl)
           return
         }
         setSuccess(true)
@@ -307,6 +333,20 @@ export default function PopupEmbedPage() {
             </div>
             <h3 className="text-xl font-bold text-gray-900 mb-2">Success!</h3>
             <p className="text-gray-600">{config.successMessage}</p>
+            {redirectTarget && (
+              <>
+                <p className="text-sm text-gray-500 mt-5">Didn&apos;t open automatically?</p>
+                <a
+                  href={redirectTarget}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-2 px-6 py-3 rounded-lg font-semibold"
+                  style={{ background: s.buttonBg || '#4f46e5', color: s.buttonTextColor || '#fff' }}
+                >
+                  Continue
+                </a>
+              </>
+            )}
           </div>
         </div>
       </>

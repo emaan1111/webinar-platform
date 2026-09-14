@@ -82,6 +82,12 @@ model Webinar {
   hasReactions                       Boolean                     @default(true)
   showElapsedTime                    Boolean                     @default(true)
   maxSchedulesToShow                 Int                         @default(3)
+  /// Booking window: refuse a session that starts sooner than this many minutes
+  /// from now (null = no floor) or later than this many minutes from now
+  /// (null = no ceiling). Enforced when the picker is built AND again at
+  /// registration, so a stale page can't book outside the window.
+  minBookingLeadMinutes              Int?
+  maxBookingLeadMinutes              Int?
   registrationPageId                 String?
   thankYouTemplateId                 String?
   countdownTemplateId                String?
@@ -907,6 +913,10 @@ model Survey {
   thankYouBody  String?
   isActive      Boolean          @default(true)
   primaryColor  String           @default("#1a5c3a")
+  // Show this survey as a popup poll on the external webinar thank-you + countdown
+  // pages. Never rendered in the live webinar room — those are separate routes.
+  // At most one active survey should have it set; the most recently updated one wins.
+  showOnWebinarPages Boolean          @default(false)
   giftTitle     String?
   giftUrl       String?
   createdAt     DateTime         @default(now())
@@ -942,10 +952,21 @@ model SurveyResponse {
   ip        String?
   userAgent String?
   createdAt DateTime       @default(now())
+
+  // Who answered, when the poll is shown on a webinar page (thank-you / countdown).
+  // Denormalised on purpose: no FK, so a deleted registration never takes answers with it.
+  // Null on the standalone /survey/[slug] flow, which collects no identity.
+  externalWebinarId String?
+  registrationId    String?
+  respondentName    String?
+  respondentEmail   String?
+  source            String? // "thank_you" | "countdown" | null (standalone survey)
+
   survey    Survey         @relation(fields: [surveyId], references: [id], onDelete: Cascade)
   answers   SurveyAnswer[]
 
   @@index([surveyId])
+  @@index([registrationId])
   @@map("survey_responses")
 }
 
@@ -1334,6 +1355,13 @@ model ExternalWebinar {
   jitLeadMinutes         Int      @default(15) // Minutes from now the JIT option starts
   // How many upcoming recurring EverWebinar sessions (e.g. daily 11 AM) to show. null = all upcoming.
   recurringSlotsToShow   Int?     @default(2)
+  /// Booking window: refuse a session that starts sooner than this many minutes
+  /// from now (null = no floor) or later than this many minutes from now
+  /// (null = no ceiling). Applied to every picker source (Zoom, just-in-time and
+  /// recurring) and re-checked at registration. A floor above jitLeadMinutes
+  /// removes the "starting soon" option, which is the point of setting one.
+  minBookingLeadMinutes  Int?
+  maxBookingLeadMinutes  Int?
   // Where to send registrants after a scheduled/Zoom pick (read live by the embed, so changing
   // it doesn't require re-pasting the snippet). Blank = stay in the popup. JIT picks always go
   // to the countdown page regardless.

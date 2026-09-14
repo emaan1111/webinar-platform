@@ -78,6 +78,13 @@ export interface WebinarPushInput {
   watchTimeMinutes?: number
   attendedReplay?: boolean
   replayMinutes?: number
+  /**
+   * Crossed the webinar's mostly-attended threshold, counting live AND replay
+   * minutes together — the same rule the ClickFunnels tag uses. Sent explicitly
+   * because Emaan only sees the split minutes and would otherwise never grant a
+   * replay-only watcher the mostly-attended treatment a live one gets.
+   */
+  mostlyAttended?: boolean
 }
 
 export function buildWebinarPushFields(
@@ -102,6 +109,7 @@ export function buildWebinarPushFields(
     fields.webinar_minutes_live = input.watchTimeMinutes ?? 0
     fields.webinar_attended_replay = input.attendedReplay ?? false
     fields.webinar_minutes_replay = input.replayMinutes ?? 0
+    fields.webinar_mostly_attended = input.mostlyAttended ?? false
   }
   return fields
 }

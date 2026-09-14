@@ -1,3 +1,4 @@
+import type { ZoomSessionSlot } from '@/lib/reports/zoomSessionFilter'
 import { prisma } from '@/lib/prisma'
 
 // A linked-webinar row from ZoomSessionWebinar (only the fields we need).
@@ -125,4 +126,79 @@ export async function countRoster(scheduledAt: Date, webinars: WebinarLink[]): P
     })
   }
   return total
+}
+
+// Every (webinar, start instant) pair at which a live Zoom session is offered,
+// for the reports Zoom filter. There are four ways a registrant's chosen time
+// can be a Zoom time, and a filter that missed any of them would miscount:
+//   1. a ZoomSession linked to the webinar by a ZoomSessionWebinar join row
+//      (the checkboxes on the sessions page), external or internal;
+//   2. a ZoomSession linked by the legacy single liveZoomSessionId pointer -
+//      the same union getLinkedZoomSessions() takes, for rows where the two
+//      representations drifted;
+//   3. an external webinar's own live Zoom (liveZoomEnabled + liveZoomAt),
+//      which has no ZoomSession row behind it at all;
+//   4. an internal webinar's Zoom schedule row (WebinarSchedule.isZoomSession).
+// Duplicates across these sources are harmless - the clause builder groups
+// slots by instant and de-duplicates the webinar ids.
+export async function loadZoomSessionSlots(): Promise<ZoomSessionSlot[]> {
+  const [sessions, liveZoomWebinars, internalZoomSchedules] = await Promise.all([
+    prisma.zoomSession.findMany({
+      where: { isActive: true },
+      select: {
+        scheduledAt: true,
+        webinars: { select: { webinarType: true, externalWebinarId: true, webinarId: true } },
+        externalWebinarsLive: { select: { id: true } },
+      },
+    }),
+    prisma.externalWebinar.findMany({
+      where: { liveZoomEnabled: true, liveZoomAt: { not: null } },
+      select: { id: true, liveZoomAt: true },
+    }),
+    prisma.webinarSchedule.findMany({
+      where: { isZoomSession: true, isActive: true, scheduledAt: { not: null } },
+      select: { webinarId: true, scheduledAt: true },
+    }),
+  ])
+
+  const slots: ZoomSessionSlot[] = []
+
+  for (const session of sessions) {
+    for (const link of session.webinars) {
+      if (link.webinarType === 'external' && link.externalWebinarId) {
+        slots.push({
+          webinarType: 'external',
+          webinarId: link.externalWebinarId,
+          scheduledAt: session.scheduledAt,
+        })
+      } else if (link.webinarType === 'internal' && link.webinarId) {
+        slots.push({
+          webinarType: 'internal',
+          webinarId: link.webinarId,
+          scheduledAt: session.scheduledAt,
+        })
+      }
+    }
+    for (const webinar of session.externalWebinarsLive) {
+      slots.push({ webinarType: 'external', webinarId: webinar.id, scheduledAt: session.scheduledAt })
+    }
+  }
+
+  for (const webinar of liveZoomWebinars) {
+    if (webinar.liveZoomAt) {
+      slots.push({ webinarType: 'external', webinarId: webinar.id, scheduledAt: webinar.liveZoomAt })
+    }
+  }
+
+  for (const schedule of internalZoomSchedules) {
+    if (schedule.scheduledAt) {
+      slots.push({
+        webinarType: 'internal',
+        webinarId: schedule.webinarId,
+        scheduledAt: schedule.scheduledAt,
+      })
+    }
+  }
+
+  return slots
 }

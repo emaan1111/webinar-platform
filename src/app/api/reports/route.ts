@@ -3,7 +3,14 @@ import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { requestFacebookInsights } from '@/lib/facebookAds';
 import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
-import { parseRegistrantFilters, registrantFilterWhere, hasRegistrantFilters } from '@/lib/reports/registrantFilters';
+import {
+  combineRegistrantWhere,
+  hasLocationFilters,
+  parseRegistrantFilters,
+  registrantFilterWhere,
+} from '@/lib/reports/registrantFilters';
+import { zoomSessionFilterLabel, zoomSessionWhere } from '@/lib/reports/zoomSessionFilter';
+import { loadZoomSessionSlots } from '@/lib/zoomSessions';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
@@ -26,7 +33,7 @@ export async function GET(request: NextRequest) {
     // query below (both clocks, internal and external), so an excluded
     // registrant is not counted at all - anywhere.
     const registrantFilters = parseRegistrantFilters(searchParams);
-    const registrantWhere = registrantFilterWhere(registrantFilters);
+    const locationWhere = registrantFilterWhere(registrantFilters);
 
     if (!from || !to) {
       return NextResponse.json(
@@ -34,6 +41,24 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Zoom-session filter. Which registrations count as "on a Zoom session"
+    // depends on database state (which sessions exist, at what time, for which
+    // webinars), so the slots are loaded once for the whole request and turned
+    // into a clause per table. Skipped entirely in the default 'all' mode, so
+    // the common case costs no queries.
+    const zoomSlots =
+      registrantFilters.zoomSessions === 'all' ? [] : await loadZoomSessionSlots();
+    // One combined fragment per table: the two filters are ANDed together, so
+    // every query below narrows by location and Zoom session at once.
+    const registrantWhere = combineRegistrantWhere(
+      locationWhere,
+      zoomSessionWhere(zoomSlots, registrantFilters.zoomSessions, 'internal')
+    );
+    const extRegistrantWhere = combineRegistrantWhere(
+      locationWhere,
+      zoomSessionWhere(zoomSlots, registrantFilters.zoomSessions, 'external')
+    );
 
     // Parse dates in user's timezone
     // We convert the "local" date string (e.g. 2026-01-27 00:00:00) 
@@ -400,7 +425,7 @@ export async function GET(request: NextRequest) {
             gte: currentDate,
             lt: nextDate,
           },
-          ...registrantWhere,
+          ...extRegistrantWhere,
         };
         if (extWebinarFilterIds.length > 0) {
           extWhere.externalWebinarId = { in: extWebinarFilterIds };
@@ -465,7 +490,7 @@ export async function GET(request: NextRequest) {
           gte: currentDate,
           lt: nextDate,
         },
-        ...registrantWhere,
+        ...extRegistrantWhere,
       };
       if (extWebinarFilterIds.length > 0) {
         extSessionWhere.externalWebinarId = { in: extWebinarFilterIds };
@@ -726,11 +751,17 @@ export async function GET(request: NextRequest) {
       ? `${missingSessionDateCount} of ${rangeRegistrationCount} registrations in this range have no scheduled session time, so they are left out of the webinar columns (Registered, Live, Missed, Engaged, % Attendance).`
       : null;
 
-    // Page visits and ad spend carry no registrant location, so they cannot be
-    // filtered the way registrations are. Disclose it rather than letting the
-    // mixed-population rates pass as filtered.
-    const filterNote = hasRegistrantFilters(registrantFilters)
-      ? 'Country/timezone filters apply to registrants only. Visitors, ad spend and the rates built on them (registration rate, cost per registration) still count everyone.'
+    // Page visits and ad spend carry neither a registrant location nor a
+    // chosen session, so they cannot be filtered the way registrations are.
+    // Disclose it rather than letting the mixed-population rates pass as
+    // filtered, and name the filters that are actually on.
+    const activeFilterNames = [
+      hasLocationFilters(registrantFilters) ? 'Country/timezone' : null,
+      zoomSessionFilterLabel(registrantFilters.zoomSessions),
+    ].filter((name): name is string => name !== null);
+
+    const filterNote = activeFilterNames.length > 0
+      ? `${activeFilterNames.join(' + ')}: this filter applies to registrants only. Visitors, ad spend and the rates built on them (registration rate, cost per registration) still count everyone.`
       : null;
 
     return NextResponse.json({

@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime } from 'date-fns-tz';
-import { parseRegistrantFilters, registrantFilterWhere } from '@/lib/reports/registrantFilters';
+import {
+  combineRegistrantWhere,
+  parseRegistrantFilters,
+  registrantFilterWhere,
+} from '@/lib/reports/registrantFilters';
+import { zoomSessionWhere } from '@/lib/reports/zoomSessionFilter';
+import { loadZoomSessionSlots } from '@/lib/zoomSessions';
 import {
   addExternalSession,
   addExternalSignup,
@@ -33,7 +39,8 @@ export async function GET(request: NextRequest) {
     const engagementMinutes = parseInt(searchParams.get('engagementMinutes') || '30');
     const timezone = searchParams.get('timezone') || 'UTC';
     const webinarIds = searchParams.get('webinarIds')?.split(',').filter(Boolean) || [];
-    const registrantWhere = registrantFilterWhere(parseRegistrantFilters(searchParams));
+    const registrantFilters = parseRegistrantFilters(searchParams);
+    const locationWhere = registrantFilterWhere(registrantFilters);
 
     if (!from || !to) {
       return NextResponse.json(
@@ -96,6 +103,19 @@ export async function GET(request: NextRequest) {
       externalWebinar: { select: { webinarDurationMinutes: true } },
     } as const;
 
+    // Zoom-session filter, resolved once for the request (see /api/reports).
+    // 'all' does no work; the other modes narrow every query below.
+    const zoomSlots =
+      registrantFilters.zoomSessions === 'all' ? [] : await loadZoomSessionSlots();
+    const registrantWhere = combineRegistrantWhere(
+      locationWhere,
+      zoomSessionWhere(zoomSlots, registrantFilters.zoomSessions, 'internal')
+    );
+    const extRegistrantWhere = combineRegistrantWhere(
+      locationWhere,
+      zoomSessionWhere(zoomSlots, registrantFilters.zoomSessions, 'external')
+    );
+
     const [internalSignups, internalSessions, externalSignups, externalSessions] =
       await Promise.all([
         foundInternalIds.length > 0
@@ -123,7 +143,7 @@ export async function GET(request: NextRequest) {
               where: {
                 registeredAt: { gte: fromDate, lte: toDate },
                 externalWebinarId: { in: foundExternalIds },
-                ...registrantWhere,
+                ...extRegistrantWhere,
               },
               include: externalInclude,
             })
@@ -133,7 +153,7 @@ export async function GET(request: NextRequest) {
               where: {
                 scheduledStartTime: { gte: fromDate, lte: toDate },
                 externalWebinarId: { in: foundExternalIds },
-                ...registrantWhere,
+                ...extRegistrantWhere,
               },
               include: externalInclude,
             })

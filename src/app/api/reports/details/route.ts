@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime } from 'date-fns-tz';
 import { isSessionSettled, attendedLiveBroadcast } from '@/lib/attendance';
-import { parseRegistrantFilters, registrantFilterWhere } from '@/lib/reports/registrantFilters';
+import {
+  combineRegistrantWhere,
+  parseRegistrantFilters,
+  registrantFilterWhere,
+} from '@/lib/reports/registrantFilters';
+import { zoomSessionWhere } from '@/lib/reports/zoomSessionFilter';
+import { loadZoomSessionSlots } from '@/lib/zoomSessions';
 
 /**
  * Metrics counted on the SESSION clock - selected by the day the webinar RAN
@@ -42,7 +48,20 @@ export async function GET(request: NextRequest) {
     const isSessionMetric = SESSION_METRICS.has(metric || '');
     // Same country/timezone filter /api/reports counted with - the drill-down
     // must list exactly the people behind the cell that was clicked.
-    const registrantWhere = registrantFilterWhere(parseRegistrantFilters(searchParams));
+    // Same registrant filters as /api/reports, so a drill-down lists exactly
+    // the population the cell it was opened from counted.
+    const registrantFilters = parseRegistrantFilters(searchParams);
+    const locationWhere = registrantFilterWhere(registrantFilters);
+    const zoomSlots =
+      registrantFilters.zoomSessions === 'all' ? [] : await loadZoomSessionSlots();
+    const registrantWhere = combineRegistrantWhere(
+      locationWhere,
+      zoomSessionWhere(zoomSlots, registrantFilters.zoomSessions, 'internal')
+    );
+    const extRegistrantWhere = combineRegistrantWhere(
+      locationWhere,
+      zoomSessionWhere(zoomSlots, registrantFilters.zoomSessions, 'external')
+    );
 
     if ((!date && (!startDateParam || !endDateParam)) || !metric) {
       return NextResponse.json(
@@ -282,8 +301,8 @@ export async function GET(request: NextRequest) {
     let externalDetails: any[] = [];
     if (includeExternal) {
     const extWhere: any = isSessionMetric
-      ? { scheduledStartTime: { gte: start, lt: end }, ...registrantWhere }
-      : { registeredAt: { gte: start, lt: end }, ...registrantWhere };
+      ? { scheduledStartTime: { gte: start, lt: end }, ...extRegistrantWhere }
+      : { registeredAt: { gte: start, lt: end }, ...extRegistrantWhere };
     if (extWebinarIds.length > 0) {
       extWhere.externalWebinarId = { in: extWebinarIds };
     }

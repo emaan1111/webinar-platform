@@ -11,10 +11,13 @@ export const revalidate = 0;
  * internal and external registrations. Feeds the include/exclude filter on the
  * reports pages, so the options offered are exactly the values the filter will
  * match against (filtering is an exact match on the stored string).
+ *
+ * Also reports whether any live Zoom session exists at all, so the Zoom
+ * include/exclude control is only offered where it would do something.
  */
 export async function GET() {
   try {
-    const [regCountries, regTimezones, extCountries, extTimezones] = await Promise.all([
+    const [regCountries, regTimezones, extCountries, extTimezones, zoomSessionCount, liveZoomCount] = await Promise.all([
       prisma.registration.findMany({
         where: { country: { not: null } },
         distinct: ['country'],
@@ -34,6 +37,13 @@ export async function GET() {
         where: { timezone: { not: null } },
         distinct: ['timezone'],
         select: { timezone: true },
+      }),
+      // An external webinar's own live Zoom (liveZoomEnabled + liveZoomAt) has
+      // no ZoomSession row behind it, so both sources have to be checked -
+      // same union loadZoomSessionSlots() filters on.
+      prisma.zoomSession.count({ where: { isActive: true } }),
+      prisma.externalWebinar.count({
+        where: { liveZoomEnabled: true, liveZoomAt: { not: null } },
       }),
     ]);
 
@@ -53,6 +63,7 @@ export async function GET() {
           ...regTimezones.map(r => r.timezone),
           ...extTimezones.map(r => r.timezone),
         ]),
+        hasZoomSessions: zoomSessionCount + liveZoomCount > 0,
       },
       {
         headers: {

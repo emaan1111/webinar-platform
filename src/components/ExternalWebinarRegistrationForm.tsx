@@ -2,6 +2,7 @@
 
 import { useState, useEffect, FormEvent } from 'react'
 import { COMMON_TIMEZONES, timezoneLabel } from '@/lib/timezones'
+import { isValidEmail, normalizePhone, EMAIL_ERROR } from '@/lib/contactValidation'
 
 interface Schedule {
   id: string
@@ -149,6 +150,10 @@ export default function ExternalWebinarRegistrationForm({
   const [loading, setLoading] = useState(false)
   const [loadingSchedules, setLoadingSchedules] = useState(true)
   const [error, setError] = useState('')
+  // Per-field format errors, shown under the field itself rather than in the
+  // banner so the visitor can see which box to fix.
+  const [emailError, setEmailError] = useState('')
+  const [phoneError, setPhoneError] = useState('')
   const [success, setSuccess] = useState(false)
   const [thankYouUrl, setThankYouUrl] = useState<string | null>(null)
   // Bumped by the "Try again" button when the schedule fetch fails.
@@ -205,12 +210,32 @@ export default function ExternalWebinarRegistrationForm({
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
     setError('')
+    setEmailError('')
+    setPhoneError('')
     setLoading(true)
 
     try {
       // Validation
       if (!name.trim() || !email.trim()) {
         throw new Error('Name and email are required')
+      }
+
+      // Catch a mistyped address here: everything after this point — the
+      // confirmation, the reminders, the join link — is delivered by email.
+      if (!isValidEmail(email)) {
+        setEmailError(EMAIL_ERROR)
+        setLoading(false)
+        return
+      }
+
+      // Fold the dialling code and the typed number into one E.164 number. A
+      // visitor who types their own "+234" on top of the selector gets it
+      // deduplicated; anything still outside 7-15 digits is theirs to fix.
+      const normalizedPhone = normalizePhone(phone, phoneCountryCode)
+      if (normalizedPhone.error) {
+        setPhoneError(normalizedPhone.error)
+        setLoading(false)
+        return
       }
       
       if (!selectedSchedule && schedules.length > 1) {
@@ -229,8 +254,8 @@ export default function ExternalWebinarRegistrationForm({
         body: JSON.stringify({
           name: name.trim(),
           email: email.trim().toLowerCase(),
-          phone: phone.trim() || undefined,
-          phoneCountryCode: phone.trim() ? phoneCountryCode : undefined,
+          // Already E.164, so the server has no dialling code left to re-apply.
+          phone: normalizedPhone.e164 ?? undefined,
           scheduleId: scheduleToUse,
           scheduledStartTime: selectedScheduleData?.label,
           timezone: userTimezone,
@@ -407,11 +432,22 @@ export default function ExternalWebinarRegistrationForm({
           type="email"
           id="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value)
+            if (emailError) setEmailError('')
+          }}
+          onBlur={() => setEmailError(!email.trim() || isValidEmail(email) ? '' : EMAIL_ERROR)}
           required
-          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+          aria-invalid={emailError ? true : undefined}
+          aria-describedby={emailError ? 'email-error' : undefined}
+          className={`w-full px-3 py-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+            emailError ? 'border-red-500' : 'border-gray-300'
+          }`}
           placeholder="you@example.com"
         />
+        {emailError && (
+          <p id="email-error" className="mt-1 text-sm text-red-600">{emailError}</p>
+        )}
       </div>
 
       {/* Phone field (optional) — separate country code + number */}
@@ -433,13 +469,27 @@ export default function ExternalWebinarRegistrationForm({
             </select>
             <input
               type="tel"
+              inputMode="tel"
               id="phone"
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="flex-1 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500"
+              // Keep letters and stray punctuation out of the box entirely; the
+              // digits/length rule is then checked on blur and on submit.
+              onChange={(e) => {
+                setPhone(e.target.value.replace(/[^0-9+()\-.\s]/g, ''))
+                if (phoneError) setPhoneError('')
+              }}
+              onBlur={() => setPhoneError(normalizePhone(phone, phoneCountryCode).error || '')}
+              aria-invalid={phoneError ? true : undefined}
+              aria-describedby={phoneError ? 'phone-error' : undefined}
+              className={`flex-1 px-3 py-2 border rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500 ${
+                phoneError ? 'border-red-500' : 'border-gray-300'
+              }`}
               placeholder="555 123 4567"
             />
           </div>
+          {phoneError && (
+            <p id="phone-error" className="mt-1 text-sm text-red-600">{phoneError}</p>
+          )}
         </div>
       )}
 

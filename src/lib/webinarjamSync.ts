@@ -10,6 +10,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendFacebookRegistration } from '@/lib/facebook'
+import { shouldSendPostSessionSms } from '@/lib/postSessionSms'
 import {
   isWebinarJamConfigured,
   getWebinarRegistrants,
@@ -22,9 +23,13 @@ import {
   parseApiDate,
   guessTimezoneFromLocation,
   getAttendanceCategory,
+  registerUserToWebinar,
+  matchScheduleForSession,
   WebinarJamRegistrant,
   WebinarJamSchedule,
 } from '@/lib/webinarjam'
+import { getLinkedZoomSessions } from '@/lib/zoomSessions'
+import { sendExternalConfirmationEmail } from '@/lib/externalConfirmationEmail'
 import { applyReminderTagToContact } from '@/lib/clickfunnels'
 import { syncContactToMautic } from '@/lib/mautic'
 import { sendClickSendSMS } from '@/lib/clicksend'
@@ -39,6 +44,7 @@ export interface WebinarJamSyncStats {
   facebookEventsSent: number
   tagsApplied: number
   smsSent: number
+  roomLinksBackfilled: number
   errors: string[]
   skipped?: string
 }
@@ -57,6 +63,7 @@ export async function syncWebinarJamRegistrations(): Promise<WebinarJamSyncStats
       facebookEventsSent: 0,
       tagsApplied: 0,
       smsSent: 0,
+      roomLinksBackfilled: 0,
       errors: [],
       skipped: 'WebinarJam API not configured'
     }
@@ -91,6 +98,7 @@ export async function syncWebinarJamRegistrations(): Promise<WebinarJamSyncStats
       facebookEventsSent: 0,
       tagsApplied: 0,
       smsSent: 0,
+      roomLinksBackfilled: 0,
       errors: [],
       skipped: 'No active external webinars'
     }
@@ -106,8 +114,16 @@ export async function syncWebinarJamRegistrations(): Promise<WebinarJamSyncStats
     facebookEventsSent: 0,
     tagsApplied: 0,
     smsSent: 0,
+    roomLinksBackfilled: 0,
     errors: []
   }
+
+  // Rescue room links lost to failed signup-time calls BEFORE the attendance
+  // pass: those sessions are minutes-to-hours away, and the per-webinar sync
+  // below can take a while.
+  const linkBackfill = await backfillMissingRoomLinks()
+  stats.roomLinksBackfilled = linkBackfill.backfilled
+  stats.errors.push(...linkBackfill.errors)
 
   // Process each external webinar
   for (const extWebinar of externalWebinars) {
@@ -138,6 +154,154 @@ export async function syncWebinarJamRegistrations(): Promise<WebinarJamSyncStats
   }
 
   return stats
+}
+
+/**
+ * Rescue registrations whose signup-time WebinarJam call failed.
+ *
+ * Rows from OUR registration form (lead_page/manual) that hold no live room
+ * link and whose session is still ahead get re-registered via the API — that
+ * call is idempotent per email+schedule on WebinarJam's side and returns the
+ * per-attendee room links. On capture the row is updated (reminder emails read
+ * the link from the row at send time, so they heal automatically), Emaan gets
+ * the link through the side-effect-free sync URL, and the confirmation email —
+ * which went out with an empty join link at signup — is sent again, working.
+ *
+ * Live-Zoom picks are excluded by their exact-start-time signature: a Zoom
+ * pick's scheduledStartTime always equals the linked session's scheduledAt
+ * (rosters and reminders already rely on that invariant).
+ */
+export async function backfillMissingRoomLinks(): Promise<{ backfilled: number; errors: string[] }> {
+  const errors: string[] = []
+  let backfilled = 0
+
+  const rows = await prisma.externalWebinarRegistration.findMany({
+    where: {
+      liveRoomUrl: null,
+      scheduledStartTime: { gt: new Date() },
+      registrationSource: { in: ['lead_page', 'manual'] },
+      externalWebinar: { isActive: true, zoomOnlySchedule: false },
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      timezone: true,
+      scheduledStartTime: true,
+      registeredAt: true,
+      externalWebinar: {
+        select: {
+          id: true,
+          name: true,
+          externalWebinarName: true,
+          externalWebinarId: true,
+          platform: true,
+        },
+      },
+    },
+    orderBy: { scheduledStartTime: 'asc' },
+    // Bounded per run: the cron fires every few minutes, and a row that keeps
+    // failing must not starve the rest of that pass.
+    take: 10,
+  })
+  if (rows.length === 0) return { backfilled, errors }
+
+  // Zoom-pick exclusion needs each webinar's linked session instants, once.
+  const zoomInstants = new Map<string, Set<number>>()
+  for (const row of rows) {
+    const webinarId = row.externalWebinar.id
+    if (!zoomInstants.has(webinarId)) {
+      const sessions = await getLinkedZoomSessions(webinarId)
+      zoomInstants.set(webinarId, new Set(sessions.map((s) => s.scheduledAt.getTime())))
+    }
+  }
+
+  for (const row of rows) {
+    try {
+      const { externalWebinar } = row
+      if (!row.scheduledStartTime) continue
+      if (zoomInstants.get(externalWebinar.id)?.has(row.scheduledStartTime.getTime())) continue
+
+      const platform = externalWebinar.platform as 'webinarjam' | 'everwebinar'
+      const details = await getWebinarDetails(externalWebinar.externalWebinarId, platform)
+      const scheduleId = matchScheduleForSession(details?.schedules, row.scheduledStartTime, row.timezone)
+      if (!scheduleId) {
+        console.warn(
+          `⚠️ Room-link backfill: no schedule matches ${row.email}'s session on ${externalWebinar.name} — skipping`
+        )
+        continue
+      }
+
+      const nameParts = row.name.trim().split(' ')
+      const result = await registerUserToWebinar(
+        externalWebinar.externalWebinarId,
+        scheduleId,
+        {
+          firstName: nameParts[0],
+          lastName: nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined,
+          email: row.email,
+          timezone: row.timezone || undefined,
+          sessionAt: row.scheduledStartTime,
+        },
+        platform
+      )
+      if (!result.success || !result.liveRoomUrl) {
+        errors.push(`link backfill ${row.email}: ${result.error || 'no live room URL returned'}`)
+        continue
+      }
+
+      await prisma.externalWebinarRegistration.update({
+        where: { id: row.id },
+        data: {
+          liveRoomUrl: result.liveRoomUrl,
+          ...(result.replayRoomUrl ? { replayRoomUrl: result.replayRoomUrl } : {}),
+          updatedAt: new Date(),
+        },
+      })
+      backfilled++
+      console.log(`🔗 Room-link backfill: captured live room for ${row.email} (${externalWebinar.name})`)
+
+      // Emaan's reminders carry the join link, so hand it the late link too —
+      // via the tag/list-free sync URL (a lead-webhook re-post would re-enrol
+      // the registrant in the registration workflow).
+      void pushRegistrationUpdateToEmaan({
+        email: row.email,
+        name: row.name,
+        phone: row.phone,
+        webinar: {
+          externalWebinarId: externalWebinar.id,
+          webinarName: externalWebinar.externalWebinarName || externalWebinar.name,
+          // Trustworthy here: this instant came from our own picker at signup,
+          // unlike the sync-derived times the attendance push withholds.
+          scheduledStartTime: row.scheduledStartTime,
+          timezone: row.timezone,
+          liveRoomUrl: result.liveRoomUrl,
+          replayRoomUrl: result.replayRoomUrl,
+          sessionType: 'everwebinar',
+          registeredAt: row.registeredAt,
+        },
+      }).catch((err) => console.error('Emaan link-backfill push error:', err))
+
+      try {
+        await sendExternalConfirmationEmail({
+          registration: row,
+          externalWebinarId: externalWebinar.id,
+          webinarTitle: externalWebinar.externalWebinarName || externalWebinar.name,
+          liveRoomUrl: result.liveRoomUrl,
+        })
+      } catch (err) {
+        console.error(`⚠️ Room-link backfill: confirmation resend failed for ${row.email}:`, err)
+      }
+    } catch (error) {
+      errors.push(`link backfill ${row.email}: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
+  }
+
+  if (backfilled > 0) {
+    console.log(`✅ Room-link backfill: ${backfilled} registration(s) recovered`)
+  }
+  return { backfilled, errors }
 }
 
 /**
@@ -224,7 +388,11 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
       attendanceTagsApplied: true, 
       postSessionSmsSent: true,
       appliedTag: true,
-      scheduledStartTime: true
+      scheduledStartTime: true,
+      // Our own copy of the number — the post-session SMS used to read the phone
+      // back off the WebinarJam registrant, which stops being populated now that
+      // registrations no longer forward it there.
+      phone: true
     }
   })
   const existingEmails = new Map(existingRegs.map(r => [r.email.toLowerCase(), r]))
@@ -368,9 +536,25 @@ async function syncExternalWebinar(extWebinar: any): Promise<{
         if (tagResult) tagsApplied++
       }
 
-      // Send post-session SMS if enabled, session ended, and attended (not for missed)
-      if (extWebinar.autoSendPostSessionSMS && !existing.postSessionSmsSent && sessionHasEnded && attended) {
-        const smsResult = await sendPostSessionSMS(extWebinar, email, registrant)
+      // Send post-session SMS if enabled, session ended (+ configured delay),
+      // attended (not for missed), and past the min-watched threshold
+      const smsIsDue = shouldSendPostSessionSms({
+        autoSend: extWebinar.autoSendPostSessionSMS,
+        alreadySent: existing.postSessionSmsSent,
+        attended,
+        sessionEndTime,
+        minutesAfter: extWebinar.postSessionSMSMinutesAfter,
+        watchTimeMinutes,
+        minWatchedMinutes: extWebinar.postSessionSMSMinWatchedMinutes,
+      })
+      if (smsIsDue) {
+        const smsResult = await sendPostSessionSMS(
+          extWebinar,
+          email,
+          registrant,
+          registrantTz,
+          existing.phone
+        )
         if (smsResult) smsSent++
       }
     }
@@ -520,9 +704,29 @@ async function updateAttendance(
       registeredAt: true,
       attended: true,
       watchTimeMinutes: true,
-      externalWebinar: { select: { name: true, externalWebinarName: true } },
+      externalWebinar: {
+        select: {
+          name: true,
+          externalWebinarName: true,
+          webinarDurationMinutes: true,
+          mostlyAttendedThreshold: true,
+        },
+      },
     },
   })
+
+  // Same rule as the ClickFunnels tag: live and replay minutes count together,
+  // so someone who missed the session but watched the recording past the
+  // threshold is "mostly attended" too.
+  const totalMinutes = detail
+    ? detail.liveMinutes + detail.replayMinutes
+    : updated.watchTimeMinutes
+  const mostlyAttended =
+    getAttendanceCategory(
+      totalMinutes,
+      updated.externalWebinar.webinarDurationMinutes || 60,
+      updated.externalWebinar.mostlyAttendedThreshold || 70
+    ) === 'mostly_attended'
 
   // Push attendance on to Emaan. This is the ONLY place attendance leaves this
   // app: Emaan learns about registrants from the registration push, but nothing
@@ -557,6 +761,7 @@ async function updateAttendance(
       watchTimeMinutes: detail ? detail.liveMinutes : updated.watchTimeMinutes,
       attendedReplay: detail?.attendedReplay ?? false,
       replayMinutes: detail?.replayMinutes ?? 0,
+      mostlyAttended,
     },
   }).catch((err) => console.error('Emaan attendance push error:', err))
 }
@@ -712,22 +917,23 @@ async function applyAttendanceTags(
 async function sendPostSessionSMS(
   extWebinar: any,
   email: string,
-  registrant: WebinarJamRegistrant
+  registrant: WebinarJamRegistrant,
+  registrantTz?: string | null,
+  storedPhone?: string | null
 ): Promise<boolean> {
-  const phone = getRegistrantPhone(registrant)
+  // Our stored number is the authoritative one — registrations no longer send a
+  // phone to WebinarJam, so getRegistrantPhone only has something for people who
+  // signed up on EverWebinar directly rather than through one of our lead pages.
+  const phone = storedPhone || getRegistrantPhone(registrant)
   if (!phone || !extWebinar.postSessionSMSBody) return false
-
-  const watchTime = parseWatchTime(registrant.time_live) + parseWatchTime(registrant.time_replay)
-  if (extWebinar.postSessionSMSMinWatchedMinutes && watchTime < extWebinar.postSessionSMSMinWatchedMinutes) {
-    return false
-  }
 
   try {
     const smsBody = extWebinar.postSessionSMSBody
       .replace(/\{\{name\}\}/g, registrant.first_name || 'there')
       .replace(/\{\{email\}\}/g, registrant.email)
+      .replace(/\{\{phone\}\}/g, phone)
 
-    const result = await sendClickSendSMS(phone, smsBody)
+    const result = await sendClickSendSMS(phone, smsBody, registrantTz)
     if (!result.success) {
       console.error(`  ❌ SMS failed for ${phone}: ${result.error}`)
       return false

@@ -137,16 +137,36 @@ function getApiBase(platform: 'webinarjam' | 'everwebinar' = 'webinarjam'): stri
 
 // Abort hung WebinarJam/EverWebinar calls so a slow provider can't stall our request handlers.
 const WEBINARJAM_TIMEOUT_MS = 10_000
+// A single WebinarJam hiccup at signup used to lose the registrant's live room
+// link for good (~5% of lead-page registrations, ~2/day). Transient failures —
+// timeouts, 429s, 5xxs — get retried before the caller ever sees them. The
+// /register POST is idempotent per email+schedule on WebinarJam's side, so a
+// retry after an ambiguous timeout cannot double-register anyone.
+const WEBINARJAM_ATTEMPTS = 3
+const WEBINARJAM_RETRY_BASE_MS = 500
+
+function isTransientWjStatus(status: number): boolean {
+  return status === 429 || status >= 500
+}
 
 async function wjFetch(url: string, init: RequestInit): Promise<Response> {
-  try {
-    return await fetch(url, { ...init, signal: AbortSignal.timeout(WEBINARJAM_TIMEOUT_MS) })
-  } catch (error) {
-    if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
-      console.error(`⏱️ WebinarJam request timed out after ${WEBINARJAM_TIMEOUT_MS}ms: ${url}`)
+  let response: Response | undefined
+  for (let attempt = 1; attempt <= WEBINARJAM_ATTEMPTS; attempt++) {
+    if (attempt > 1) {
+      await new Promise((resolve) => setTimeout(resolve, WEBINARJAM_RETRY_BASE_MS * (attempt - 1)))
     }
-    throw error
+    try {
+      response = await fetch(url, { ...init, signal: AbortSignal.timeout(WEBINARJAM_TIMEOUT_MS) })
+      if (!isTransientWjStatus(response.status)) return response
+      console.warn(`⚠️ WebinarJam returned ${response.status} (attempt ${attempt}/${WEBINARJAM_ATTEMPTS}): ${url}`)
+    } catch (error) {
+      if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+        console.error(`⏱️ WebinarJam request timed out after ${WEBINARJAM_TIMEOUT_MS}ms (attempt ${attempt}/${WEBINARJAM_ATTEMPTS}): ${url}`)
+      }
+      if (attempt === WEBINARJAM_ATTEMPTS) throw error
+    }
   }
+  return response!
 }
 
 /**
@@ -273,6 +293,47 @@ export async function resolveJustInTimeScheduleId(
 }
 
 /**
+ * Recover which schedule block a registrant's chosen session belongs to, for
+ * re-registering them after the signup-time call failed (room-link backfill).
+ *
+ * These webinars run on "auto-detect the user's timezone", so a recurring block
+ * like "Every day, 11:00 AM" runs at that wall-clock time in the REGISTRANT's
+ * zone. Matching the registrant's local HH:MM of their chosen session against
+ * each block's wall-clock time therefore identifies the block they picked.
+ * Requires a UNIQUE match — with two blocks at the same wall-clock time the
+ * wrong one could book a different day. Otherwise falls back to the "Just in
+ * time" block (a JIT pick's odd minutes never match a recurring block), and
+ * returns null when there is nothing safe to book.
+ */
+export function matchScheduleForSession(
+  schedules: WebinarJamSchedule[] | undefined | null,
+  scheduledStartTime: Date,
+  timezone: string | null | undefined,
+): string | null {
+  const jit = (schedules || []).find((s) => isJustInTimeComment(s.comment))
+  if (timezone) {
+    try {
+      const localTime = new Intl.DateTimeFormat('en-GB', {
+        timeZone: timezone,
+        hour: '2-digit',
+        minute: '2-digit',
+        hourCycle: 'h23',
+      }).format(scheduledStartTime)
+      const matches = (schedules || []).filter((s) => {
+        if (isJustInTimeComment(s.comment)) return false
+        // Schedule dates arrive as "YYYY-MM-DD HH:MM" wall-clock strings.
+        const wallClock = /\b(\d{2}:\d{2})\b/.exec(s.date || '')?.[1]
+        return wallClock !== undefined && wallClock === localTime
+      })
+      if (matches.length === 1) return String(matches[0].schedule)
+    } catch {
+      // Unparseable IANA zone on the row — fall through to the JIT block.
+    }
+  }
+  return jit ? String(jit.schedule) : null
+}
+
+/**
  * Get registrants and attendance data for a webinar
  * 
  * @param webinarId - The webinar ID
@@ -393,8 +454,12 @@ export async function registerUserToWebinar(
     firstName: string
     lastName?: string
     email: string
-    phone?: string
-    phoneCountryCode?: string
+    // No phone: WebinarJam treats it as optional, nothing in this app reads it
+    // back from there, and forwarding it was the one thing that could fail a
+    // registration outright — their API rejects anything past E.164's 15 digits,
+    // and the lead-page form let visitors submit a doubled dialling code. The
+    // authoritative copy lives on our own row and goes to Emaan from there.
+
     // Registrant's IANA timezone (e.g. "Europe/London"). REQUIRED for webinars set to
     // "auto-detect the user's timezone": without it EverWebinar silently defaults to EST,
     // so a UK registrant for an "11 AM local" session gets booked at 11 AM US time.
@@ -418,8 +483,6 @@ export async function registerUserToWebinar(
     }
 
     if (data.lastName) params.last_name = data.lastName
-    if (data.phone) params.phone = data.phone
-    if (data.phoneCountryCode) params.phone_country_code = data.phoneCountryCode
     if (data.timezone) {
       const gmt = ianaToGmtOffset(data.timezone, data.sessionAt)
       if (gmt) params.timezone = gmt

@@ -9,6 +9,7 @@ interface Survey {
   title: string
   slug: string
   isActive: boolean
+  showOnWebinarPages: boolean
   createdAt: string
   _count: { questions: number; responses: number }
 }
@@ -107,6 +108,11 @@ export default function SurveysPage() {
                       <span className={`text-xs px-2 py-0.5 rounded-full ${s.isActive ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {s.isActive ? 'Active' : 'Inactive'}
                       </span>
+                      {s.showOnWebinarPages && (
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700" title="Shown as a popup poll on external webinar thank-you and countdown pages">
+                          On thank-you page
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-gray-500 mb-2">
                       {s._count.questions} questions • {s._count.responses} responses

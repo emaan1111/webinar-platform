@@ -36,6 +36,7 @@ export default function PopupLeadsPage() {
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const [loading, setLoading] = useState(true)
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     fetchPopup()
@@ -107,6 +108,15 @@ export default function PopupLeadsPage() {
 
   const fieldColumns = popup?.fields || []
 
+  const toggleCell = (key: string) => {
+    setExpandedCells(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -162,12 +172,34 @@ export default function PopupLeadsPage() {
                   {leads.map((lead, idx) => (
                     <tr key={lead.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm text-gray-500">{idx + 1 + (page - 1) * 50}</td>
-                      {fieldColumns.map(f => (
-                        <td key={f.id} className="px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate">
-                          {lead.data[f.id] !== undefined ? String(lead.data[f.id]) : '—'}
-                        </td>
-                      ))}
-                      <td className="px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate">
+                      {fieldColumns.map(f => {
+                        const value = lead.data[f.id] !== undefined ? String(lead.data[f.id]) : '—'
+                        const cellKey = `${lead.id}:${f.id}`
+                        const expanded = f.type === 'textarea' || expandedCells.has(cellKey)
+                        return (
+                          <td
+                            key={f.id}
+                            title={expanded ? undefined : value}
+                            onClick={() => f.type !== 'textarea' && toggleCell(cellKey)}
+                            className={
+                              expanded
+                                ? 'px-4 py-3 text-sm text-gray-900 min-w-[280px] max-w-xl whitespace-pre-wrap break-words align-top'
+                                : 'px-4 py-3 text-sm text-gray-900 max-w-[200px] truncate cursor-pointer'
+                            }
+                          >
+                            {value}
+                          </td>
+                        )
+                      })}
+                      <td
+                        title={lead.pageUrl || undefined}
+                        onClick={() => toggleCell(`${lead.id}:pageUrl`)}
+                        className={
+                          expandedCells.has(`${lead.id}:pageUrl`)
+                            ? 'px-4 py-3 text-sm text-gray-500 max-w-xl break-all align-top'
+                            : 'px-4 py-3 text-sm text-gray-500 max-w-[200px] truncate cursor-pointer'
+                        }
+                      >
                         {lead.pageUrl || '—'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">

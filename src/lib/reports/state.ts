@@ -5,12 +5,20 @@
  */
 
 import { ALL_COLUMN_IDS, DATE_COLUMN_ID, getColumn, ReportRow } from './columns'
+import { RegistrantFilters, sanitizeRegistrantFilters } from './registrantFilters'
 
 export interface ReportView {
   id: string
   name: string
   description?: string
   columns: string[]
+  /**
+   * Registrant country/timezone filter snapshot taken when the view was
+   * saved. Loading the view applies it - an empty snapshot clears the filter.
+   * Absent on built-in views and views saved before filters existed; loading
+   * those leaves whatever filter is active untouched.
+   */
+  filters?: RegistrantFilters
   /** Shipped with the app; cannot be edited or deleted. */
   builtIn?: boolean
   createdAt?: string
@@ -271,6 +279,9 @@ export function parseSavedViews(raw: string | null): ReportView[] {
         id: v.id,
         name: v.name,
         columns: normalizeColumnIds(v.columns),
+        // Absent stays absent (load must not touch the active filter); present
+        // is sanitized, so a corrupt snapshot degrades to "clears the filter".
+        ...(v.filters !== undefined ? { filters: sanitizeRegistrantFilters(v.filters) } : {}),
         createdAt: v.createdAt,
         updatedAt: v.updatedAt,
       }))

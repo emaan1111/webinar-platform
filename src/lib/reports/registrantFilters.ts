@@ -1,5 +1,6 @@
 /**
- * Registrant country/timezone filtering for the reports section.
+ * Registrant filtering for the reports section: where they are from, and
+ * whether they were coming to a live Zoom session.
  *
  * Both `Registration` and `ExternalWebinarRegistration` carry the same
  * nullable `country` and `timezone` columns, so one Prisma fragment serves
@@ -14,6 +15,12 @@
  *   country, so it is kept.
  */
 
+import {
+  parseZoomSessionMode,
+  sanitizeZoomSessionMode,
+  ZoomSessionFilterMode,
+} from './zoomSessionFilter'
+
 export type RegistrantFilterMode = 'include' | 'exclude'
 
 export interface RegistrantFilters {
@@ -21,6 +28,14 @@ export interface RegistrantFilters {
   countriesMode: RegistrantFilterMode
   timezones: string[]
   timezonesMode: RegistrantFilterMode
+  /**
+   * Whether registrants booked onto a live Zoom session are counted: 'all'
+   * (the default) counts everyone, 'only' narrows every number to them, and
+   * 'exclude' drops them the way an excluded country does. The slots this is
+   * matched against come from the database, so the clause lives in
+   * zoomSessionFilter.ts rather than here.
+   */
+  zoomSessions: ZoomSessionFilterMode
 }
 
 export const EMPTY_REGISTRANT_FILTERS: RegistrantFilters = {
@@ -28,6 +43,7 @@ export const EMPTY_REGISTRANT_FILTERS: RegistrantFilters = {
   countriesMode: 'include',
   timezones: [],
   timezonesMode: 'include',
+  zoomSessions: 'all',
 }
 
 const parseMode = (raw: string | null): RegistrantFilterMode =>
@@ -43,11 +59,18 @@ export function parseRegistrantFilters(searchParams: URLSearchParams): Registran
     countriesMode: parseMode(searchParams.get('countriesMode')),
     timezones: parseList(searchParams.get('timezones')),
     timezonesMode: parseMode(searchParams.get('timezonesMode')),
+    zoomSessions: parseZoomSessionMode(searchParams),
   }
 }
 
-export const hasRegistrantFilters = (f: RegistrantFilters) =>
+/** Any location filter active? Named separately because only these two can
+ *  be blamed on a country or a timezone in the "filter active" notice. */
+export const hasLocationFilters = (f: RegistrantFilters) =>
   f.countries.length > 0 || f.timezones.length > 0
+
+/** Any registrant filter at all - location or Zoom session. */
+export const hasRegistrantFilters = (f: RegistrantFilters) =>
+  hasLocationFilters(f) || f.zoomSessions !== 'all'
 
 /** Write the filter into query params - the client-side mirror of the parser. */
 export function applyRegistrantFilterParams(params: URLSearchParams, f: RegistrantFilters): void {
@@ -59,6 +82,46 @@ export function applyRegistrantFilterParams(params: URLSearchParams, f: Registra
     params.set('timezones', f.timezones.join(','))
     if (f.timezonesMode === 'exclude') params.set('timezonesMode', 'exclude')
   }
+  if (f.zoomSessions !== 'all') params.set('zoomSessions', f.zoomSessions)
+}
+
+/**
+ * A RegistrantFilters from untrusted input (localStorage, a saved view).
+ * Garbage in any field degrades to that field's empty default.
+ */
+export function sanitizeRegistrantFilters(raw: unknown): RegistrantFilters {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const list = (v: unknown) =>
+    Array.isArray(v)
+      ? v.filter((x): x is string => typeof x === 'string' && x.trim() !== '').map(x => x.trim())
+      : []
+  return {
+    countries: list(r.countries),
+    countriesMode: r.countriesMode === 'exclude' ? 'exclude' : 'include',
+    timezones: list(r.timezones),
+    timezonesMode: r.timezonesMode === 'exclude' ? 'exclude' : 'include',
+    zoomSessions: sanitizeZoomSessionMode(r.zoomSessions),
+  }
+}
+
+/**
+ * Same effective filter? Selection order never matters, and the include/
+ * exclude mode only matters once something is selected - so flipping the mode
+ * of an empty filter is not a change.
+ */
+export function registrantFiltersEqual(a: RegistrantFilters, b: RegistrantFilters): boolean {
+  const norm = (values: string[]) => [...values].sort().join('\u0000')
+  const fieldEqual = (
+    av: string[],
+    bv: string[],
+    am: RegistrantFilterMode,
+    bm: RegistrantFilterMode
+  ) => norm(av) === norm(bv) && (av.length === 0 || am === bm)
+  return (
+    fieldEqual(a.countries, b.countries, a.countriesMode, b.countriesMode) &&
+    fieldEqual(a.timezones, b.timezones, a.timezonesMode, b.timezonesMode) &&
+    a.zoomSessions === b.zoomSessions
+  )
 }
 
 function fieldClause(field: 'country' | 'timezone', values: string[], mode: RegistrantFilterMode) {
@@ -80,5 +143,17 @@ export function registrantFilterWhere(f: RegistrantFilters): { AND?: object[] } 
   const clauses: object[] = []
   if (f.countries.length > 0) clauses.push(fieldClause('country', f.countries, f.countriesMode))
   if (f.timezones.length > 0) clauses.push(fieldClause('timezone', f.timezones, f.timezonesMode))
+  return clauses.length > 0 ? { AND: clauses } : {}
+}
+
+/**
+ * Merge several `{ AND: [...] }` fragments into one. Every registrant filter
+ * returns that shape, so they can be spread into a query together without the
+ * later one's AND key overwriting the earlier one's.
+ */
+export function combineRegistrantWhere(
+  ...parts: { AND?: object[] }[]
+): { AND?: object[] } {
+  const clauses = parts.flatMap(part => part.AND ?? [])
   return clauses.length > 0 ? { AND: clauses } : {}
 }

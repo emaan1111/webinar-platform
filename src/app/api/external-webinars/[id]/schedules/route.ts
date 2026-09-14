@@ -4,6 +4,7 @@ import { getLinkedZoomSessions } from '@/lib/zoomSessions'
 import { getWebinarDetails, isWebinarJamConfigured } from '@/lib/webinarjam'
 import { toZonedTime, fromZonedTime, format } from 'date-fns-tz'
 import { addMinutes, addDays, isBefore } from 'date-fns'
+import { filterToBookingWindow, describeBookingWindow } from '@/lib/bookingWindow'
 
 /**
  * External Webinar Schedules API
@@ -254,6 +255,8 @@ export async function GET(
         showJustInTime: true,
         jitLeadMinutes: true,
         recurringSlotsToShow: true,
+        minBookingLeadMinutes: true,
+        maxBookingLeadMinutes: true,
         thankYouUrl: true,
         schedules: {
           select: {
@@ -441,6 +444,34 @@ export async function GET(
     scheduleOptions = scheduleOptions.filter(
       (o) => o.id.startsWith('x|z|') || !zoomTimes.has(new Date(o.dateTimeUTC).getTime())
     )
+
+    // Booking window — drop times the host has ruled out for being too close or too far
+    // out. Covers the "starting soon" option and the recurring EverWebinar times, so a
+    // floor above jitLeadMinutes removes the just-in-time option, which is the intent of
+    // setting one. Read live from the webinar, so changing it needs no embed re-paste.
+    //
+    // A linked LIVE Zoom session is exempt from both bounds. It is a real one-off event
+    // the host scheduled deliberately, not an evergreen slot the window is there to
+    // ration — hiding it for being days out (or minutes away) would mean nobody could
+    // book the session at all for most of its life. Zoom options are the `x|z|` ids.
+    const offeredBeforeWindow = scheduleOptions.length
+    scheduleOptions = filterToBookingWindow(
+      scheduleOptions,
+      // Returning null opts a Zoom option out of the window entirely.
+      (o) => (o.id.startsWith('x|z|') ? null : o.dateTimeUTC),
+      externalWebinar,
+      now
+    )
+    if (scheduleOptions.length !== offeredBeforeWindow) {
+      console.log(
+        `⏳ Booking window (${describeBookingWindow(externalWebinar)}) hid ` +
+          `${offeredBeforeWindow - scheduleOptions.length} of ${offeredBeforeWindow} times for ${externalWebinar.name}`
+      )
+    }
+    // The response still reports JIT only if a just-in-time option actually survived.
+    if (responseIsJIT && !scheduleOptions.some((o) => o.isJIT)) {
+      responseIsJIT = false
+    }
 
     // Sort by date/time so any live Zoom slot falls into its natural chronological place.
     scheduleOptions.sort((a, b) =>

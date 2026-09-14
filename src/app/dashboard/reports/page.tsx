@@ -11,11 +11,13 @@ import { buildReportCsv, downloadCsv } from '@/lib/reports/csv'
 import { sortReports } from '@/lib/reports/state'
 import { useReportGrid } from '@/lib/reports/useReportGrid'
 import ReportsSubNav from '@/components/reports/ReportsSubNav'
+import { reportFilterQuery } from '@/lib/reports/filterQuery'
 import ReportsToolbar, { DateRange, isPresetKey, matchPresetKey, presetRange, WebinarOption } from '@/components/reports/ReportsToolbar'
 import {
   applyRegistrantFilterParams,
   EMPTY_REGISTRANT_FILTERS,
   RegistrantFilters,
+  sanitizeRegistrantFilters,
 } from '@/lib/reports/registrantFilters'
 import SummaryTiles from '@/components/reports/SummaryTiles'
 import GridToolbar from '@/components/reports/GridToolbar'
@@ -50,14 +52,7 @@ function loadStoredRange(timezone: string): DateRange | null {
 function loadStoredRegistrantFilters(): RegistrantFilters {
   try {
     const raw = localStorage.getItem(REGISTRANT_FILTERS_KEY)
-    if (!raw) return EMPTY_REGISTRANT_FILTERS
-    const stored = JSON.parse(raw)
-    return {
-      countries: Array.isArray(stored?.countries) ? stored.countries.filter((v: unknown) => typeof v === 'string') : [],
-      countriesMode: stored?.countriesMode === 'exclude' ? 'exclude' : 'include',
-      timezones: Array.isArray(stored?.timezones) ? stored.timezones.filter((v: unknown) => typeof v === 'string') : [],
-      timezonesMode: stored?.timezonesMode === 'exclude' ? 'exclude' : 'include',
-    }
+    return raw ? sanitizeRegistrantFilters(JSON.parse(raw)) : EMPTY_REGISTRANT_FILTERS
   } catch {
     return EMPTY_REGISTRANT_FILTERS
   }
@@ -78,13 +73,25 @@ export default function ReportsPage() {
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [countryOptions, setCountryOptions] = useState<string[]>([])
   const [timezoneOptions, setTimezoneOptions] = useState<string[]>([])
+  const [hasZoomSessions, setHasZoomSessions] = useState(false)
   const [registrantFilters, setRegistrantFilters] = useState<RegistrantFilters>(EMPTY_REGISTRANT_FILTERS)
   const [filterNote, setFilterNote] = useState<string | null>(null)
   const [drawerOpen, setDrawerOpen] = useState(false)
   const requestRef = useRef<AbortController | null>(null)
   const rangeSeeded = useRef(false)
 
-  const grid = useReportGrid()
+  const changeRegistrantFilters = useCallback((filters: RegistrantFilters) => {
+    setRegistrantFilters(filters)
+    try {
+      localStorage.setItem(REGISTRANT_FILTERS_KEY, JSON.stringify(filters))
+    } catch {
+      /* ignore */
+    }
+  }, [])
+
+  // Custom views snapshot the registrant filter: saving one captures it, and
+  // loading one applies (or clears) it.
+  const grid = useReportGrid({ registrantFilters, onApplyViewFilters: changeRegistrantFilters })
 
   // Engagement threshold survives a refresh.
   useEffect(() => {
@@ -133,14 +140,6 @@ export default function ReportsPage() {
   useEffect(() => {
     setRegistrantFilters(loadStoredRegistrantFilters())
   }, [])
-  const changeRegistrantFilters = useCallback((filters: RegistrantFilters) => {
-    setRegistrantFilters(filters)
-    try {
-      localStorage.setItem(REGISTRANT_FILTERS_KEY, JSON.stringify(filters))
-    } catch {
-      /* ignore */
-    }
-  }, [])
 
   // The countries and timezones actually on file, for the filter dropdowns.
   useEffect(() => {
@@ -151,6 +150,7 @@ export default function ReportsPage() {
         const data = await res.json()
         setCountryOptions(Array.isArray(data.countries) ? data.countries : [])
         setTimezoneOptions(Array.isArray(data.timezones) ? data.timezones : [])
+        setHasZoomSessions(Boolean(data.hasZoomSessions))
       } catch (err) {
         console.error('Error fetching report filter options:', err)
       }
@@ -266,6 +266,12 @@ export default function ReportsPage() {
         )}`
       : ''
 
+  // Handed to the Profit Planner tab so it plans this exact view.
+  const filterQuery = useMemo(
+    () => reportFilterQuery({ dateRange, engagementMinutes, selectedWebinars, registrantFilters }),
+    [dateRange, engagementMinutes, selectedWebinars, registrantFilters]
+  )
+
   return (
     <DashboardLayout>
       <div className="space-y-5">
@@ -278,7 +284,7 @@ export default function ReportsPage() {
               {rangeLabel && <span className="text-gray-400"> · {rangeLabel}</span>}
             </p>
           </div>
-          <ReportsSubNav />
+          <ReportsSubNav filterQuery={filterQuery} />
         </div>
 
         <ReportsToolbar
@@ -293,6 +299,7 @@ export default function ReportsPage() {
           onSelectedWebinarsChange={setSelectedWebinars}
           countryOptions={countryOptions}
           timezoneOptions={timezoneOptions}
+          hasZoomSessions={hasZoomSessions}
           registrantFilters={registrantFilters}
           onRegistrantFiltersChange={changeRegistrantFilters}
           loading={loading}

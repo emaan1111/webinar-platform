@@ -95,3 +95,96 @@ body {
 .modal-fade {
   animation: modalFade 0.3s ease-out;
 }
+
+/* ---------------------------------------------------------------------------
+   Reports > Profit Planner sliders
+
+   A native range input, painted so the travelled part of the track is filled.
+   The page sets --p (0-100%) from the current value; both vendor track rules
+   are needed because WebKit and Gecko style the track separately.
+--------------------------------------------------------------------------- */
+.rp-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  margin: 0;
+  display: block;
+  background: transparent;
+  cursor: pointer;
+}
+
+.rp-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    #059669 0 var(--p, 0%),
+    #e5e7eb var(--p, 0%) 100%
+  );
+}
+
+.rp-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    #059669 0 var(--p, 0%),
+    #e5e7eb var(--p, 0%) 100%
+  );
+}
+
+.rp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #059669;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.rp-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #059669;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15);
+}
+
+.rp-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.35);
+}
+
+.rp-slider:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.35);
+}
+
+/* The "what if" scenario is dialled in amber so an edited column never reads
+   as measured data. */
+.rp-slider-alt::-webkit-slider-runnable-track {
+  background: linear-gradient(
+    90deg,
+    #d97706 0 var(--p, 0%),
+    #e5e7eb var(--p, 0%) 100%
+  );
+}
+
+.rp-slider-alt::-moz-range-track {
+  background: linear-gradient(
+    90deg,
+    #d97706 0 var(--p, 0%),
+    #e5e7eb var(--p, 0%) 100%
+  );
+}
+
+.rp-slider-alt::-webkit-slider-thumb {
+  border-color: #d97706;
+}
+
+.rp-slider-alt::-moz-range-thumb {
+  border-color: #d97706;
+}

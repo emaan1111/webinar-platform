@@ -1,11 +1,17 @@
 'use client'
 
 import React, { useEffect, useMemo, useState } from 'react'
-import { Calendar, Filter, Globe2, Timer, X } from 'lucide-react'
+import { Calendar, Filter, Globe2, Timer, Video, X } from 'lucide-react'
 import { formatInTimeZone } from 'date-fns-tz'
 import MultiSelect from '@/components/ui/MultiSelect'
 import TimezoneSelector from '@/components/dashboard/TimezoneSelector'
-import { RegistrantFilterMode, RegistrantFilters } from '@/lib/reports/registrantFilters'
+import {
+  EMPTY_REGISTRANT_FILTERS,
+  hasRegistrantFilters,
+  RegistrantFilterMode,
+  RegistrantFilters,
+} from '@/lib/reports/registrantFilters'
+import { ZoomSessionFilterMode } from '@/lib/reports/zoomSessionFilter'
 
 export interface DateRange {
   from: string
@@ -30,6 +36,8 @@ interface ReportsToolbarProps {
   /** Distinct values on file, from /api/reports/filter-options. */
   countryOptions: string[]
   timezoneOptions: string[]
+  /** Any live Zoom session on file - hides the Zoom control when there is none. */
+  hasZoomSessions?: boolean
   registrantFilters: RegistrantFilters
   onRegistrantFiltersChange: (filters: RegistrantFilters) => void
   loading: boolean
@@ -105,6 +113,7 @@ export default function ReportsToolbar({
   onSelectedWebinarsChange,
   countryOptions,
   timezoneOptions,
+  hasZoomSessions = false,
   registrantFilters,
   onRegistrantFiltersChange,
   loading,
@@ -281,9 +290,9 @@ export default function ReportsToolbar({
         </div>
       )}
 
-      {/* Registrant location filter: who counts at all. An excluded */}
-      {/* registrant disappears from every number, not just one column. */}
-      {(countryOptions.length > 0 || timezoneOptions.length > 0) && (
+      {/* Registrant filters: who counts at all. An excluded registrant */}
+      {/* disappears from every number, not just one column. */}
+      {(countryOptions.length > 0 || timezoneOptions.length > 0 || hasZoomSessions) && (
         <div className="flex flex-wrap items-start gap-x-6 gap-y-3 border-t border-gray-100 px-4 py-3">
           <div className="flex items-center gap-2 pt-1.5 text-sm text-gray-600">
             <Globe2 className="h-4 w-4 text-gray-400" aria-hidden />
@@ -314,17 +323,17 @@ export default function ReportsToolbar({
             />
           )}
 
-          {(registrantFilters.countries.length > 0 || registrantFilters.timezones.length > 0) && (
+          {hasZoomSessions && (
+            <ZoomSessionField
+              mode={registrantFilters.zoomSessions}
+              onChange={zoomSessions => onRegistrantFiltersChange({ ...registrantFilters, zoomSessions })}
+            />
+          )}
+
+          {hasRegistrantFilters(registrantFilters) && (
             <button
               type="button"
-              onClick={() =>
-                onRegistrantFiltersChange({
-                  countries: [],
-                  countriesMode: 'include',
-                  timezones: [],
-                  timezonesMode: 'include',
-                })
-              }
+              onClick={() => onRegistrantFiltersChange(EMPTY_REGISTRANT_FILTERS)}
               className="inline-flex items-center gap-1 rounded-md px-2 py-1.5 text-sm text-gray-600 hover:bg-gray-100 hover:text-gray-900"
             >
               <X className="h-3.5 w-3.5" />
@@ -376,6 +385,40 @@ function RegistrantFilterField({
           placeholder={`All ${label.toLowerCase()}`}
         />
       </div>
+    </div>
+  )
+}
+
+/**
+ * Whether people booked onto a live Zoom session are part of the report at
+ * all. Unlike a column toggle this changes the population every number is
+ * computed over: "Only Zoom sessions" reports that audience on its own, and
+ * "Exclude Zoom sessions" reports the rest. A registrant with no session time
+ * on file has no known Zoom slot, so they drop out under "Only" and stay
+ * under "Exclude" - the same asymmetry the location filters use.
+ */
+function ZoomSessionField({
+  mode,
+  onChange,
+}: {
+  mode: ZoomSessionFilterMode
+  onChange: (mode: ZoomSessionFilterMode) => void
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Video className="h-4 w-4 text-gray-400" aria-hidden />
+      <span className="text-sm text-gray-500">Zoom sessions</span>
+      <select
+        value={mode}
+        onChange={e => onChange(e.target.value as ZoomSessionFilterMode)}
+        className="rounded-md border border-gray-300 bg-white py-1 pl-2 pr-7 text-sm text-gray-900 focus:border-transparent focus:ring-2 focus:ring-blue-500"
+        aria-label="Include Zoom-session registrations in the report"
+        title="Whether registrations for a live Zoom session are counted in every number on this report"
+      >
+        <option value="all">Included</option>
+        <option value="only">Only Zoom sessions</option>
+        <option value="exclude">Excluded</option>
+      </select>
     </div>
   )
 }

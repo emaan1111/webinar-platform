@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
+import { isWithinBookingWindow, describeBookingWindow, BOOKING_WINDOW_ERROR } from '@/lib/bookingWindow'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
@@ -8,6 +9,7 @@ import { scheduleDelayedClickFunnelsTag, scheduleDelayedMauticTag } from '@/lib/
 import { generateReferralCode } from '@/lib/referral'
 import { sendFacebookRegistration, extractFacebookCookies } from '@/lib/facebook'
 import { sendEmail } from '@/lib/email'
+import { isValidEmail, EMAIL_ERROR } from '@/lib/contactValidation'
 import { generateICS } from '@/lib/calendarUtils'
 import { scheduleRemindersForRegistration } from '@/lib/reminders'
 import { appendUnsubscribeFooter, getUnsubscribeLink, getOneClickUnsubscribeUrl, prepareEmailHtml, replaceMergeTags } from '@/lib/emailTracking'
@@ -148,6 +150,17 @@ export async function POST(
       )
     }
 
+    // A registration nothing can be delivered to is worth less than a clear
+    // error at the form. (Phone here is a single free-text field with no
+    // dialling-code selector, so it is stored as typed — there is no country
+    // code to fold in, and inventing one would corrupt a local number.)
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: EMAIL_ERROR },
+        { status: 400, headers: corsHeaders }
+      )
+    }
+
     if (!privacyConsent) {
       return NextResponse.json(
         { error: 'You must agree to the privacy policy' },
@@ -170,6 +183,9 @@ export async function POST(
         description: true,
         duration: true,
         sendCalendarInvite: true,
+        // Booking window (how close / how far ahead a registrant may book)
+        minBookingLeadMinutes: true,
+        maxBookingLeadMinutes: true,
         enableABTesting: true,
         trafficSplitPercent: true,
         // ClickFunnels Custom Tags
@@ -194,6 +210,47 @@ export async function POST(
           headers: corsHeaders
         }
       )
+    }
+
+    // Resolve the picked schedule up front. It is read further down for the Zoom access
+    // link and the CRM payload, but it is needed here first so the booking window can let
+    // a Zoom session through. Recurring picks carry a composite `<id>-<occurrence>` id
+    // that findUnique can't resolve, so this stays null for them — they are evergreen
+    // slots, which the window is meant to govern anyway.
+    let schedule = null;
+    if (scheduleId) {
+      try {
+        schedule = await prisma.webinarSchedule.findUnique({
+          where: { id: scheduleId },
+          select: { zoomLink: true, isZoomSession: true }
+        });
+      } catch (e) {
+        console.error('Error fetching schedule', e);
+      }
+    }
+
+    // Booking window — the picker already hides times the host has ruled out, but a page
+    // left open drifts out of the window (a slot 13 hours away creeps inside a 12-hour
+    // ceiling; a just-in-time pick ages past a floor), and nothing stops a direct POST.
+    // Re-check against the live setting before creating anything.
+    //
+    // A Zoom session is exempt from both bounds, matching the picker: it is a real one-off
+    // event the host scheduled, bookable however far out or close it is.
+    if (scheduledStartTime && !schedule?.isZoomSession) {
+      const requestedStart = new Date(scheduledStartTime)
+      if (
+        !Number.isNaN(requestedStart.getTime()) &&
+        !isWithinBookingWindow(requestedStart, webinar)
+      ) {
+        console.warn(
+          `⛔ ${email} picked ${requestedStart.toISOString()} for ${webinar.title}, ` +
+            `outside the booking window (${describeBookingWindow(webinar)})`
+        )
+        return NextResponse.json(
+          { error: BOOKING_WINDOW_ERROR },
+          { status: 400, headers: corsHeaders }
+        )
+      }
     }
 
     // Get test group if A/B testing is enabled
@@ -268,17 +325,6 @@ export async function POST(
     // ====== CRITICAL: ClickFunnels sync happens BEFORE response ======
     // This ensures the registration tag is applied immediately and not killed
     // by serverless function termination
-    let schedule = null;
-    if (scheduleId) {
-      try {
-        schedule = await prisma.webinarSchedule.findUnique({
-          where: { id: scheduleId },
-          select: { zoomLink: true, isZoomSession: true }
-        });
-      } catch (e) {
-        console.error('Error fetching schedule', e);
-      }
-    }
 
     // Format times for ClickFunnels
     const formatInTimezone = (date: Date, timeZone: string) => {
