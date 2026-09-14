@@ -25,6 +25,7 @@ import {
 import {
   baselineFromTotals,
   conversionScale,
+  FxQuote,
   deriveRates,
   engagedConversionFromAttendees,
   engagedConversionFromRegistrations,
@@ -63,11 +64,17 @@ function loadStoredRange(timezone: string): DateRange | null {
 
 type ScenarioKey = 'A' | 'B'
 
-const usd = (n: number, decimals = 0) =>
-  `${n < 0 ? '−' : ''}$${Math.abs(n).toLocaleString('en-US', {
+// Facebook bills in AUD and the offer is priced in USD, so no figure on this
+// page carries a bare "$" - the report's own columns make the same distinction.
+const money = (prefix: string) => (n: number, decimals = 0) =>
+  `${n < 0 ? '−' : ''}${prefix}${Math.abs(n).toLocaleString('en-US', {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })}`
+
+/** Everything the model projects is AUD: revenue is converted before it lands. */
+const aud = money('A$')
+const usd = money('US$')
 
 const people = (n: number) =>
   n.toLocaleString('en-US', { maximumFractionDigits: n < 10 ? 1 : 0 })
@@ -82,12 +89,12 @@ interface DialDef {
 
 const TRAFFIC: DialDef[] = [
   { key: 'registrationsPerDay', label: 'Registrations a day', decimals: 0 },
-  { key: 'costPerRegistration', label: 'Cost per registration', decimals: 2, prefix: '$' },
+  { key: 'costPerRegistration', label: 'Cost per registration', decimals: 2, prefix: 'A$' },
 ]
 const OFFER: DialDef[] = [
-  { key: 'price', label: 'Sale price', decimals: 0, prefix: '$' },
+  { key: 'price', label: 'Sale price', decimals: 0, prefix: 'US$' },
   { key: 'upsellRate', label: 'Take the upsell', decimals: 0, suffix: '%' },
-  { key: 'upsellPrice', label: 'Upsell price', decimals: 0, prefix: '$' },
+  { key: 'upsellPrice', label: 'Upsell price', decimals: 0, prefix: 'US$' },
 ]
 const SUBSCRIPTION: DialDef[] = [
   { key: 'renewMonths', label: 'Renews every', decimals: 0, suffix: 'mo' },
@@ -99,6 +106,8 @@ function ProfitPlannerPage() {
   const [error, setError] = useState<string | null>(null)
   const [rows, setRows] = useState<ReportRow[]>([])
   const [notices, setNotices] = useState<string[]>([])
+  /** The rate the report converted at, so the planner converts identically. */
+  const [fx, setFx] = useState<FxQuote | null>(null)
   const [dateRange, setDateRange] = useState<DateRange>({ from: '', to: '' })
   const { timezone, setTimezone } = useTimezonePreference()
   const [engagementMinutes, setEngagementMinutes] = useState(30)
@@ -281,6 +290,7 @@ function ProfitPlannerPage() {
       }
       const data = await response.json()
       setRows(Array.isArray(data.reports) ? data.reports : [])
+      setFx(data.fx ?? null)
       setNotices(
         [data.warning, data.coverageWarning, data.filterNote].filter(
           (note: unknown): note is string => typeof note === 'string' && note.length > 0
@@ -301,7 +311,7 @@ function ProfitPlannerPage() {
   }, [fetchReports])
 
   const totals = useMemo(() => computeTotals(rows), [rows])
-  const baseline = useMemo(() => baselineFromTotals(totals), [totals])
+  const baseline = useMemo(() => baselineFromTotals(totals, fx), [totals, fx])
 
   // New data re-seeds the untouched scenarios and leaves edited ones standing.
   useEffect(() => {
@@ -442,7 +452,7 @@ function ProfitPlannerPage() {
             !active ? 'text-gray-400' : losing ? 'text-red-600' : 'text-emerald-700'
           }`}
         >
-          {usd(r.firstYear)}
+          {aud(r.firstYear)}
         </div>
         <div className="flex flex-wrap gap-x-5 gap-y-1">
           {[
@@ -455,7 +465,7 @@ function ProfitPlannerPage() {
               <div
                 className={`text-[15px] font-bold tabular-nums ${active ? 'text-gray-900' : 'text-gray-400'}`}
               >
-                {usd(item.value)}
+                {aud(item.value)}
               </div>
             </div>
           ))}
@@ -554,10 +564,10 @@ function ProfitPlannerPage() {
               { label: `Engaged ≥ ${engagementMinutes}m`, value: totals ? formatCount(totals.engagedTotal) : '—' },
               { label: 'Sales', value: totals ? formatCount(totals.salesTotal) : '—' },
               { label: 'Revenue', value: totals ? usd(totals.revenue) : '—' },
-              { label: 'Ad spend', value: totals ? usd(totals.spend) : '—' },
+              { label: 'Ad spend', value: totals ? aud(totals.spend) : '—' },
               {
                 label: 'Profit',
-                value: totals ? usd(totals.profit) : '—',
+                value: totals ? aud(totals.profit) : '—',
                 tone: totals && totals.profit < 0 ? 'text-red-600' : 'text-emerald-700',
               },
             ] as { label: string; value: string; tone?: string }[]).map(stat => (
@@ -613,14 +623,14 @@ function ProfitPlannerPage() {
           >
             {sameOutcome
               ? 'A and B come out the same.'
-              : `B makes ${usd(Math.abs(firstYearGap))} ${
+              : `B makes ${aud(Math.abs(firstYearGap))} ${
                   firstYearGap >= 0 ? 'more' : 'less'
-                } than A in the first year, and ${usd(Math.abs(secondYearGap))} ${
+                } than A in the first year, and ${aud(Math.abs(secondYearGap))} ${
                   secondYearGap >= 0 ? 'more' : 'less'
                 } in the second.`}
           </p>
           <p className="text-sm text-gray-500">
-            {current} runs {usd(results[current].adSpendPerMonth)} of ad spend a month.{' '}
+            {current} runs {aud(results[current].adSpendPerMonth)} of ad spend a month.{' '}
             {scenario.upsellRate > 0 && scenario.upsellPrice > 0
               ? `Upsell subscribers ${
                   !Number.isFinite(results[current].subscriberLifetimeMonths)
@@ -740,6 +750,27 @@ function ProfitPlannerPage() {
                   {people(rates.salesPerDay)} buying.
                 </p>
               )}
+
+              <h2 className="mb-2.5 mt-5 text-xs font-medium uppercase tracking-wide text-gray-500">
+                Exchange
+              </h2>
+              <ProfitSlider
+                id="dial-usdToAud"
+                label="A$ per US$1"
+                value={scenario.usdToAud}
+                scale={scales.dial('usdToAud')}
+                decimals={3}
+                source={isFromReport('usdToAud')}
+                compareValue={comparison.usdToAud}
+                compareLabel={other}
+                tone={current === 'A' ? 'primary' : 'alt'}
+                onChange={value => setInput('usdToAud', value)}
+                disabled={!scenarios}
+              />
+              <p className="-mt-2 mb-3 text-xs text-gray-500">
+                Ads are billed in A$ and the offer is priced in US$, so every figure above is
+                converted at this rate — the same one the report used.
+              </p>
             </div>
 
             <div>
@@ -757,7 +788,9 @@ function ProfitPlannerPage() {
         <p className="text-xs leading-relaxed text-gray-400">
           <span className="font-medium text-gray-500">Live</span> dials are measured over the range, webinars and
           filters set above; <span className="font-medium text-gray-500">Assumed</span> ones are not tracked
-          anywhere in your reports, so they start at a guess and are yours to set. The projection repeats the
+          anywhere in your reports, so they start at a guess and are yours to set. Profit is stated in A$, the
+          currency the ad spend arrives in — US$ prices are converted first, so no figure here subtracts one
+          currency from the other. The projection repeats the
           measured day, every day, for two years — it is arithmetic, not a forecast: it knows nothing of
           seasonality, rising ad costs or a saturating audience. Registrations a day is the range average, so a
           range that includes today counts a part-finished day. Ad spend is account-level, so filtering to one

@@ -8,6 +8,10 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader, CardBody } from '@/components/ui/Card'
 import {
+  SettingsVersionComment,
+  SettingsVersionHistory,
+} from '@/components/webinar/SettingsVersioning'
+import {
   ArrowLeft,
   Save,
   Loader2,
@@ -26,7 +30,8 @@ import {
   Bell,
   Send,
   ClipboardCopy,
-  ChevronDown
+  ChevronDown,
+  History
 } from 'lucide-react'
 
 /**
@@ -112,6 +117,10 @@ export default function ExternalWebinarDetailPage() {
   const [error, setError] = useState('')
   const [copiedEmbed, setCopiedEmbed] = useState(false)
   const [copiedPopup, setCopiedPopup] = useState(false)
+  // The note saved alongside the next settings change, and a token bumped after
+  // each save so the history below refetches.
+  const [versionComment, setVersionComment] = useState('')
+  const [historyToken, setHistoryToken] = useState(0)
 
   // Copy emails from another webinar (internal or external)
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
@@ -346,6 +355,8 @@ export default function ExternalWebinarDetailPage() {
         // Entered in hours, stored in minutes.
         minBookingLeadMinutes: hoursInputToMinutes(formData.minBookingLeadHours),
         maxBookingLeadMinutes: hoursInputToMinutes(formData.maxBookingLeadHours),
+        // Recorded against this change in the settings history, not stored on the webinar.
+        versionComment: versionComment.trim() || null,
       }
       const response = await fetch(`/api/external-webinars/${id}`, {
         method: 'PUT',
@@ -359,6 +370,8 @@ export default function ExternalWebinarDetailPage() {
       }
 
       alert('Saved successfully!')
+      setVersionComment('')
+      setHistoryToken((n) => n + 1)
       fetchWebinar()
     } catch (err: any) {
       alert('Error: ' + err.message)
@@ -482,6 +495,12 @@ export default function ExternalWebinarDetailPage() {
                 Registrations ({webinar._count.registrations})
               </Button>
             </Link>
+            <SettingsVersionComment
+              compact
+              value={versionComment}
+              onChange={setVersionComment}
+              disabled={saving}
+            />
             <Button onClick={handleSave} disabled={saving}>
               {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
               Save Changes
@@ -1426,6 +1445,28 @@ export default function ExternalWebinarDetailPage() {
                 <li><code className="bg-blue-100 px-1 rounded">data-lead-page-id="..."</code> - Track which lead page converted</li>
               </ul>
             </div>
+          </CardBody>
+        </Card>
+
+        {/* Settings History */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center gap-2">
+              <History className="w-5 h-5 text-gray-500" />
+              <h2 className="text-lg font-semibold">Settings History</h2>
+            </div>
+            <p className="text-sm text-gray-600 mt-1">
+              Every save is recorded with its comment. Restore any earlier version — the current
+              settings are saved first, so a restore can itself be undone.
+            </p>
+          </CardHeader>
+          <CardBody>
+            <SettingsVersionHistory
+              scope="external"
+              webinarId={id as string}
+              reloadToken={historyToken}
+              onRestored={fetchWebinar}
+            />
           </CardBody>
         </Card>
 

@@ -44,7 +44,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { blockedTimezones } = body
+    const { blockedTimezones, allowedCountryCodes } = body
 
     if (!Array.isArray(blockedTimezones)) {
       return NextResponse.json(
@@ -53,13 +53,33 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Optional so older clients that only send blockedTimezones keep working
+    let countryCodes: string[] | undefined
+    if (allowedCountryCodes !== undefined) {
+      if (!Array.isArray(allowedCountryCodes)) {
+        return NextResponse.json(
+          { error: 'allowedCountryCodes must be an array' },
+          { status: 400 }
+        )
+      }
+      countryCodes = [...new Set(
+        allowedCountryCodes
+          .map((c: unknown) => String(c).replace(/\D/g, ''))
+          .filter(Boolean)
+      )]
+    }
+
     // Upsert SMS settings
     const settings = await prisma.sMSSettings.upsert({
       where: { id: 'default' },
-      update: { blockedTimezones },
+      update: {
+        blockedTimezones,
+        ...(countryCodes !== undefined ? { allowedCountryCodes: countryCodes } : {})
+      },
       create: {
         id: 'default',
-        blockedTimezones
+        blockedTimezones,
+        allowedCountryCodes: countryCodes || []
       }
     })
 

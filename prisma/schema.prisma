@@ -29,6 +29,7 @@ model User {
   hostedWebinars   Webinar[]         @relation("HostedWebinars")
   popups           Popup[]
   leadPageVersions LeadPageVersion[]
+  webinarSettingsVersions WebinarSettingsVersion[]
 
   @@map("users")
 }
@@ -157,6 +158,7 @@ model Webinar {
   sales                              WebinarSale[]
   schedules                          WebinarSchedule[]
   zoomSessionLinks                   ZoomSessionWebinar[]
+  settingsVersions                   WebinarSettingsVersion[]
   host                               User                        @relation("HostedWebinars", fields: [hostId], references: [id])
 
   @@map("webinars")
@@ -488,8 +490,15 @@ model OfferAnalytics {
 
 model WebinarSale {
   id             String        @id @default(cuid())
-  webinarId      String
+  // A sale belongs to exactly one webinar, internal OR external. Both sides are
+  // nullable because the funnel that produced the buyer decides which one is set;
+  // see the salesWebinarLink helpers for the "exactly one" invariant.
+  webinarId      String?
   registrationId String?
+  // External funnel (EverWebinar/Zoom). Most paid traffic registers here, not in
+  // the internal room, so a sale usually links through this pair.
+  externalWebinarId      String?
+  externalRegistrationId String?
   email          String
   orderId        String        @unique
   orderFormId    String?
@@ -504,10 +513,14 @@ model WebinarSale {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @default(now())
   registration   Registration? @relation(fields: [registrationId], references: [id])
-  webinar        Webinar       @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  webinar        Webinar?      @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  externalWebinar        ExternalWebinar?             @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  externalRegistration   ExternalWebinarRegistration? @relation(fields: [externalRegistrationId], references: [id])
 
   @@index([webinarId])
   @@index([registrationId])
+  @@index([externalWebinarId])
+  @@index([externalRegistrationId])
   @@index([email])
   @@map("webinar_sales")
 }
@@ -913,6 +926,11 @@ model Survey {
   thankYouBody  String?
   isActive      Boolean          @default(true)
   primaryColor  String           @default("#1a5c3a")
+  /// Present in production but missing from this schema until 2026-09-05, which broke
+  /// every container start: the startup `prisma db push` saw a column it had to drop,
+  /// refused (2 non-null rows), and the app never booted. Declared here to match the
+  /// live column exactly — boolean, NOT NULL, default false.
+  //
   // Show this survey as a popup poll on the external webinar thank-you + countdown
   // pages. Never rendered in the live webinar room — those are separate routes.
   // At most one active survey should have it set; the most recently updated one wins.
@@ -953,6 +971,11 @@ model SurveyResponse {
   userAgent String?
   createdAt DateTime       @default(now())
 
+  /// Live in production but absent from this schema until 2026-09-05. All five are
+  /// 100% NULL across 111 rows, so `prisma db push` would have dropped them (and the
+  /// registrationId index) SILENTLY — no data-loss warning to stop it, unlike
+  /// Survey.showOnWebinarPages. Declared here to keep the startup push a no-op.
+  //
   // Who answered, when the poll is shown on a webinar page (thank-you / countdown).
   // Denormalised on purpose: no FK, so a deleted registration never takes answers with it.
   // Null on the standalone /survey/[slug] flow, which collects no identity.
@@ -1170,10 +1193,11 @@ model EventRegistration {
 }
 
 model SMSSettings {
-  id               String   @id @default("default")
-  blockedTimezones String[] @default([])
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @default(now())
+  id                  String   @id @default("default")
+  blockedTimezones    String[] @default([])
+  allowedCountryCodes String[] @default([]) // dialing codes ("1", "44", "61"); empty = every country
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now())
 
   @@map("sms_settings")
 }
@@ -1400,12 +1424,14 @@ model ExternalWebinar {
   leadPages     LeadPage[]
   registrations ExternalWebinarRegistration[]
   schedules     ExternalWebinarSchedule[]
+  sales         WebinarSale[]
   zoomSessionLinks ZoomSessionWebinar[]
   liveZoomSession  ZoomSession? @relation("ExternalWebinarLiveZoom", fields: [liveZoomSessionId], references: [id], onDelete: SetNull)
 
   confirmationEmails ConfirmationEmailTemplate[]
   reminderEmails     ReminderEmailTemplate[]
   followUpEmails     FollowUpEmailTemplate[]
+  settingsVersions   WebinarSettingsVersion[]
 
   @@unique([platform, externalWebinarId])
   @@index([isActive])
@@ -1495,12 +1521,17 @@ model ExternalWebinarRegistration {
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now())
 
+  // Mirrors Registration.hasPurchased so buyer-aware logic (e.g. skipIfPurchased
+  // on follow-ups) reads the same flag for both registration kinds.
+  hasPurchased Boolean @default(false)
+
   // Relations
   externalWebinar        ExternalWebinar          @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
   schedule               ExternalWebinarSchedule? @relation(fields: [scheduleId], references: [id])
   confirmationEmailSends ConfirmationEmailSend[]
   reminderEmailSends     ReminderEmailSend[]
   followUpEmailSends     FollowUpEmailSend[]
+  sales                  WebinarSale[]
 
   @@unique([externalWebinarId, email])
   @@index([externalWebinarId])
@@ -1601,6 +1632,8 @@ model ReminderEmailTemplate {
   subjectB           String? // A/B test: alternate subject line
   htmlBody           String           @db.Text
   fromName           String?
+  channel            ReminderChannel  @default(EMAIL) // EMAIL, SMS, or BOTH
+  smsBody            String?          @db.Text // message sent when channel is SMS/BOTH
   minutesBefore      Int // e.g. 1440 (24hr), 120 (2hr), 60 (1hr), 10, 1
   isActive           Boolean          @default(true)
   skipIfJoined       Boolean          @default(true) // Smart skip: don't send if already joined webinar
@@ -1622,8 +1655,9 @@ model ReminderEmailSend {
   templateId             String
   registrationId         String?
   externalRegistrationId String?
-  to                     String
+  to                     String // email address, or phone number for SMS sends
   subject                String
+  channel                ReminderChannel @default(EMAIL)
   abVariant              String    @default("A") // A or B
   isResend               Boolean   @default(false) // true if this is a non-opener resend
   status                 String    @default("PENDING") // PENDING, SENDING, SENT, FAILED, SKIPPED, CANCELLED
@@ -2024,4 +2058,40 @@ model ZoomSessionWebinar {
   @@unique([zoomSessionId, webinarId])
   @@index([zoomSessionId])
   @@map("zoom_session_webinars")
+}
+
+/// One saved snapshot of a webinar's settings, taken every time they change.
+/// Covers both internal webinars (`webinarId`) and external ones
+/// (`externalWebinarId`) so the two settings screens share one history format —
+/// exactly one of the two is set, and `webinarType` says which.
+///
+/// `settings` holds the FULL settings state as it was AFTER the change (not a
+/// patch), which is what makes restoring a version a plain overwrite rather
+/// than a replay of diffs. `changedFields` records which keys moved relative to
+/// the previous snapshot, so the history reads as a changelog without the UI
+/// having to diff every row.
+model WebinarSettingsVersion {
+  id                String   @id @default(cuid())
+  webinarType       String // "internal" | "external"
+  webinarId         String?
+  externalWebinarId String?
+  /// The host's note about WHY this change was made. Optional, but it is the
+  /// whole point of the feature — "who changed the JIT lead time and why".
+  comment           String?
+  /// "manual" (a save from the settings screen), "checkpoint" (state captured
+  /// before an untracked change or before history started) or "restore".
+  source            String   @default("manual")
+  changedFields     String[] @default([])
+  settings          Json
+  createdById       String?
+  createdByEmail    String?
+  createdAt         DateTime @default(now())
+
+  webinar         Webinar?         @relation(fields: [webinarId], references: [id], onDelete: Cascade)
+  externalWebinar ExternalWebinar? @relation(fields: [externalWebinarId], references: [id], onDelete: Cascade)
+  createdBy       User?            @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([webinarId, createdAt])
+  @@index([externalWebinarId, createdAt])
+  @@map("webinar_settings_versions")
 }

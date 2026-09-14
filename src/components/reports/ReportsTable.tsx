@@ -412,9 +412,11 @@ function Cell({
   }
 
   if (col.kind === 'currency') {
-    if (n === 0) return <span className="text-gray-300">{formatCurrency(0)}</span>
+    // The table holds both AUD and USD, so every money cell names its own.
+    const cur = col.currency ?? 'AUD'
+    if (n === 0) return <span className="text-gray-300">{formatCurrency(0, cur)}</span>
     const cls = col.signed ? (n > 0 ? 'text-emerald-700' : 'text-red-600') : ''
-    return <span className={cls}>{formatCurrency(n)}</span>
+    return <span className={cls}>{formatCurrency(n, cur)}</span>
   }
 
   // count

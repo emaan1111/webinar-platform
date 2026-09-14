@@ -36,30 +36,49 @@ export async function PUT(
 
   const body = await request.json()
   const { name, subject, htmlBody, fromName, minutesBefore, isActive,
-    subjectB, skipIfJoined, resendToNonOpeners, resendAfterHours, resendSubject } = body
+    subjectB, skipIfJoined, resendToNonOpeners, resendAfterHours, resendSubject,
+    channel, smsBody } = body
 
-  if (!subject || !htmlBody) {
+  const existing = await prisma.reminderEmailTemplate.findFirst({
+    where: { id: params.templateId, externalWebinarId: params.id },
+    select: { id: true, channel: true, smsBody: true },
+  })
+  if (!existing) {
+    return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+  }
+
+  const ch = channel || existing.channel
+  if (!['EMAIL', 'SMS', 'BOTH'].includes(ch)) {
     return NextResponse.json(
-      { error: 'Subject and HTML body are required' },
+      { error: 'channel must be EMAIL, SMS, or BOTH' },
       { status: 400 }
     )
   }
 
-  const existing = await prisma.reminderEmailTemplate.findFirst({
-    where: { id: params.templateId, externalWebinarId: params.id },
-    select: { id: true },
-  })
-  if (!existing) {
-    return NextResponse.json({ error: 'Template not found' }, { status: 404 })
+  if ((ch === 'EMAIL' || ch === 'BOTH') && (!subject || !htmlBody)) {
+    return NextResponse.json(
+      { error: 'Subject and HTML body are required for email reminders' },
+      { status: 400 }
+    )
+  }
+
+  const effectiveSmsBody = smsBody !== undefined ? smsBody : existing.smsBody
+  if ((ch === 'SMS' || ch === 'BOTH') && !effectiveSmsBody?.trim()) {
+    return NextResponse.json(
+      { error: 'SMS message is required for SMS reminders' },
+      { status: 400 }
+    )
   }
 
   const template = await prisma.reminderEmailTemplate.update({
     where: { id: params.templateId },
     data: {
       name: name || undefined,
-      subject,
+      channel: ch,
+      smsBody: smsBody !== undefined ? (smsBody?.trim() || null) : undefined,
+      subject: subject || undefined,
       subjectB: subjectB !== undefined ? (subjectB || null) : undefined,
-      htmlBody,
+      htmlBody: htmlBody || undefined,
       fromName: fromName !== undefined ? (fromName || null) : undefined,
       minutesBefore: typeof minutesBefore === 'number' ? minutesBefore : undefined,
       isActive: typeof isActive === 'boolean' ? isActive : undefined,
@@ -69,6 +88,20 @@ export async function PUT(
       resendSubject: resendSubject !== undefined ? (resendSubject || null) : undefined,
     },
   })
+
+  // Backfill for future registrants — e.g. a template switched from EMAIL to
+  // BOTH needs SMS sends scheduled for people who already registered.
+  // scheduleReminderEmails dedupes, so re-running it is safe.
+  ;(async () => {
+    const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
+    const future = await prisma.externalWebinarRegistration.findMany({
+      where: { externalWebinarId: params.id, scheduledStartTime: { gt: new Date() } },
+      select: { id: true },
+    })
+    for (const r of future) {
+      await scheduleReminderEmails(r.id, true)
+    }
+  })().catch((err) => console.error('Reminder backfill failed:', err))
 
   return NextResponse.json({ template })
 }

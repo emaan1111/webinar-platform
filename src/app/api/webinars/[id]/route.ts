@@ -3,6 +3,10 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getOrCreateClickFunnelsTagId } from '@/lib/clickfunnels'
+import {
+  snapshotInternalSettings,
+  tryRecordSettingsVersion,
+} from '@/lib/webinarSettingsVersions'
 
 // GET /api/webinars/[id] - Get single webinar
 export async function GET(
@@ -94,8 +98,17 @@ export async function PATCH(
       return NextResponse.json({ error: 'Webinar not found' }, { status: 404 })
     }
 
-    // Extract schedules and non-existent fields from body
-    const { schedules, registrationPopupStyle, ...bodyData } = body
+    // Settings as they stand right now, so this save can be recorded as a
+    // restorable version once it lands. Taken before anything is written.
+    const settingsBefore = await snapshotInternalSettings(params.id).catch((err) => {
+      console.error('\u26a0\ufe0f Failed to snapshot settings before update:', err)
+      return null
+    })
+
+    // Extract schedules and non-existent fields from body. versionComment is the
+    // host's note about this change; it belongs to the settings history, not to
+    // the webinar row.
+    const { schedules, registrationPopupStyle, versionComment, ...bodyData } = body
 
     // Only include fields that exist in the Webinar model
     const allowedFields = [
@@ -273,6 +286,21 @@ export async function PATCH(
         console.error('⚠️ Failed to import emailScheduler:', err)
       }
     }
+
+    // Record this change in the settings history (with the host's comment).
+    // Never allowed to fail the save itself.
+    const settingsAfter = await snapshotInternalSettings(params.id).catch(() => null)
+    await tryRecordSettingsVersion({
+      scope: 'internal',
+      id: params.id,
+      before: settingsBefore,
+      after: settingsAfter,
+      comment: versionComment,
+      author: {
+        id: (session.user as any)?.id || null,
+        email: session.user?.email || null,
+      },
+    })
 
     // Fetch updated webinar with schedules
     const updatedWebinar = await prisma.webinar.findUnique({

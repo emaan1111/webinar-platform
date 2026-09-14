@@ -31,8 +31,8 @@ export default function SummaryTiles({ totals, loading }: SummaryTilesProps) {
   const tiles: Tile[] = [
     {
       label: 'Ad spend',
-      value: formatCurrency(totals.spend),
-      sub: totals.registrations > 0 ? `${formatCurrency(totals.costPerRegistration)} per registration` : 'No registrations yet',
+      value: formatCurrency(totals.spend, 'AUD'),
+      sub: totals.registrations > 0 ? `${formatCurrency(totals.costPerRegistration, 'AUD')} per registration` : 'No registrations yet',
       icon: <DollarSign className="h-4 w-4" />,
       accent: 'bg-sky-50 text-sky-600',
     },
@@ -56,20 +56,20 @@ export default function SummaryTiles({ totals, loading }: SummaryTilesProps) {
     {
       label: 'Sales',
       value: formatCount(totals.salesTotal),
-      sub: totals.salesTotal > 0 ? `${formatCurrency(totals.costPerSale)} per sale` : 'No sales in range',
+      sub: totals.salesTotal > 0 ? `${formatCurrency(totals.costPerSale, 'AUD')} per sale` : 'No sales in range',
       icon: <ShoppingCart className="h-4 w-4" />,
       accent: 'bg-amber-50 text-amber-600',
     },
     {
       label: 'Revenue',
-      value: formatCurrency(totals.revenue),
-      sub: totals.salesTotal > 0 ? `${formatCurrency(totals.averageOrderValue)} average order` : ' ',
+      value: formatCurrency(totals.revenue, 'USD'),
+      sub: totals.salesTotal > 0 ? `${formatCurrency(totals.averageOrderValue, 'USD')} average order` : ' ',
       icon: <Receipt className="h-4 w-4" />,
       accent: 'bg-teal-50 text-teal-600',
     },
     {
       label: 'Profit',
-      value: formatCurrency(totals.profit),
+      value: formatCurrency(totals.profit, 'AUD'),
       valueClass: profitTone,
       sub: totals.spend > 0 ? `ROI ${formatPercent(totals.roi)}` : 'No ad spend recorded',
       icon: <PiggyBank className="h-4 w-4" />,

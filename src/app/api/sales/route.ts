@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { saleLinkInclude, isLinkedToRegistration } from '@/lib/sales'
 
 export async function GET(request: NextRequest) {
   try {
@@ -18,16 +19,7 @@ export async function GET(request: NextRequest) {
       orderBy: {
         purchasedAt: 'desc'
       },
-      include: {
-        registration: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            attended: true
-          }
-        }
-      }
+      include: saleLinkInclude
     })
 
     console.log(`✅ Found ${sales.length} sales`)
@@ -36,7 +28,7 @@ export async function GET(request: NextRequest) {
     const totalSales = sales.length
     const totalRevenue = sales.reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0)
     const averageOrderValue = totalSales > 0 ? totalRevenue / totalSales : 0
-    const linkedToRegistration = sales.filter((sale: any) => sale.registrationId !== null).length
+    const linkedToRegistration = sales.filter((sale: any) => isLinkedToRegistration(sale)).length
     const notLinkedToRegistration = totalSales - linkedToRegistration
 
     const stats = {
@@ -86,6 +78,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const {
       webinarId,
+      externalWebinarId,
       email,
       amount,
       currency = 'USD',
@@ -93,11 +86,18 @@ export async function POST(request: NextRequest) {
       status = 'paid',
       purchasedAt,
       orderId,
-      registrationId
+      registrationId,
+      externalRegistrationId
     } = body
 
-    if (!webinarId || typeof webinarId !== 'string') {
-      return NextResponse.json({ error: 'Webinar is required' }, { status: 400 })
+    const hasInternal = Boolean(webinarId && typeof webinarId === 'string')
+    const hasExternal = Boolean(externalWebinarId && typeof externalWebinarId === 'string')
+
+    if (hasInternal === hasExternal) {
+      return NextResponse.json(
+        { error: 'Provide exactly one of webinarId or externalWebinarId' },
+        { status: 400 }
+      )
     }
 
     if (!email || typeof email !== 'string') {
@@ -115,35 +115,61 @@ export async function POST(request: NextRequest) {
     }
 
     let linkedRegistrationId: string | null = null
+    let linkedExternalRegistrationId: string | null = null
 
-    if (registrationId && typeof registrationId === 'string') {
-      const reg = await prisma.registration.findUnique({ where: { id: registrationId } })
-      if (!reg) {
-        return NextResponse.json({ error: 'Selected registration was not found' }, { status: 404 })
-      }
-      linkedRegistrationId = reg.id
-    } else {
-      const matchingRegistration = await prisma.registration.findFirst({
-        where: {
-          webinarId,
-          email: { equals: email.trim(), mode: 'insensitive' }
-        },
-        orderBy: {
-          registeredAt: 'desc'
+    if (hasInternal) {
+      if (registrationId && typeof registrationId === 'string') {
+        const reg = await prisma.registration.findUnique({ where: { id: registrationId } })
+        if (!reg) {
+          return NextResponse.json({ error: 'Selected registration was not found' }, { status: 404 })
         }
-      })
-      linkedRegistrationId = matchingRegistration?.id || null
+        linkedRegistrationId = reg.id
+      } else {
+        const matchingRegistration = await prisma.registration.findFirst({
+          where: {
+            webinarId,
+            email: { equals: email.trim(), mode: 'insensitive' }
+          },
+          orderBy: {
+            registeredAt: 'desc'
+          }
+        })
+        linkedRegistrationId = matchingRegistration?.id || null
+      }
+    } else {
+      if (externalRegistrationId && typeof externalRegistrationId === 'string') {
+        const reg = await prisma.externalWebinarRegistration.findUnique({
+          where: { id: externalRegistrationId }
+        })
+        if (!reg) {
+          return NextResponse.json({ error: 'Selected registration was not found' }, { status: 404 })
+        }
+        linkedExternalRegistrationId = reg.id
+      } else {
+        const matchingRegistration = await prisma.externalWebinarRegistration.findFirst({
+          where: {
+            externalWebinarId,
+            email: { equals: email.trim(), mode: 'insensitive' }
+          },
+          orderBy: {
+            registeredAt: 'desc'
+          }
+        })
+        linkedExternalRegistrationId = matchingRegistration?.id || null
+      }
     }
 
     const generatedOrderId =
       (typeof orderId === 'string' && orderId.trim()) ||
-      `manual-${webinarId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+      `manual-${webinarId || externalWebinarId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
     const sale = await prisma.$transaction(async (tx) => {
       const createdSale = await tx.webinarSale.create({
         data: {
-          webinarId,
+          webinarId: hasInternal ? webinarId : null,
+          externalWebinarId: hasExternal ? externalWebinarId : null,
           registrationId: linkedRegistrationId,
+          externalRegistrationId: linkedExternalRegistrationId,
           email: email.trim(),
           orderId: generatedOrderId,
           productName: typeof productName === 'string' && productName.trim() ? productName.trim() : 'Manual Sale',
@@ -156,21 +182,19 @@ export async function POST(request: NextRequest) {
             createdBy: session.user.email
           }
         },
-        include: {
-          registration: {
-            select: {
-              id: true,
-              name: true,
-              email: true,
-              attended: true
-            }
-          }
-        }
+        include: saleLinkInclude
       })
 
       if (linkedRegistrationId) {
         await tx.registration.update({
           where: { id: linkedRegistrationId },
+          data: { hasPurchased: true }
+        })
+      }
+
+      if (linkedExternalRegistrationId) {
+        await tx.externalWebinarRegistration.update({
+          where: { id: linkedExternalRegistrationId },
           data: { hasPurchased: true }
         })
       }

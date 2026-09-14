@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth'
+import {
+  snapshotExternalSettings,
+  tryRecordSettingsVersion,
+} from '@/lib/webinarSettingsVersions'
 
 /**
  * External Webinar API - Individual operations
@@ -153,7 +157,17 @@ export async function PUT(
       // Emaan email-management integration
       emaanWebhookUrl,
       emaanSyncScope,
+      // The host's note about this change. Goes to the settings history, not
+      // to the webinar row.
+      versionComment,
     } = body
+
+    // Settings as they stand right now, so this save can be recorded as a
+    // restorable version once it lands. Taken before anything is written.
+    const settingsBefore = await snapshotExternalSettings(id).catch((err) => {
+      console.error('\u26a0\ufe0f Failed to snapshot settings before update:', err)
+      return null
+    })
 
     // Which Zoom sessions are linked to (i.e. offered as pickable times on) this
     // webinar. New clients send zoomSessionIds: string[]; older clients sent the
@@ -280,6 +294,21 @@ export async function PUT(
     }
 
     const [externalWebinar] = await prisma.$transaction(ops)
+
+    // Record this change in the settings history (with the host's comment).
+    // Never allowed to fail the save itself.
+    const settingsAfter = await snapshotExternalSettings(id).catch(() => null)
+    await tryRecordSettingsVersion({
+      scope: 'external',
+      id,
+      before: settingsBefore,
+      after: settingsAfter,
+      comment: versionComment,
+      author: {
+        id: (session.user as any)?.id || null,
+        email: session.user?.email || null,
+      },
+    })
 
     return NextResponse.json(externalWebinar)
   } catch (error) {

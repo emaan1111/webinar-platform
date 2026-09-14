@@ -64,6 +64,9 @@ const makeRow = (over: Partial<ReportRow> = {}): ReportRow => ({
   costPerAttendee: 10,
   costPerSale: 50,
   revenue: 500,
+  // Revenue is USD; profit is computed from the AUD conversion, so a row needs
+  // both. 500 USD at ~1.5 = 750 AUD.
+  revenueAud: 750,
   liveRevenue: 300,
   replayRevenue: 200,
   averageOrderValue: 250,
@@ -101,7 +104,8 @@ describe('computeTotals', () => {
     const totals = computeTotals([big, small])!
     // (50 + 0) / (100 + 2) ≈ 49%, not the 25% you would get by averaging 50 and 0.
     expect(totals.sessionAttendanceRate).toBeCloseTo(49.02, 1)
-    expect(totals.profit).toBe(1000 - 200)
+    // AUD revenue (750 x 2) minus AUD spend (100 x 2).
+    expect(totals.profit).toBe(1500 - 200)
     expect(totals.ctr).toBeCloseTo(5, 5)
     expect(totals.days).toBe(2)
   })

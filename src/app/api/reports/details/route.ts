@@ -315,7 +315,8 @@ export async function GET(request: NextRequest) {
             externalWebinarName: true,
             webinarDurationMinutes: true,
           }
-        }
+        },
+        sales: true,
       },
       orderBy: { registeredAt: 'desc' }
     });
@@ -337,6 +338,8 @@ export async function GET(request: NextRequest) {
         !attendedLive && ((reg.attendedReplay ?? false) || (!reg.attended && watchTimeMinutes > 0));
       const isEngaged = watchTimeMinutes >= engagementMinutes;
 
+      const hasSales = reg.sales.length > 0;
+
       switch (metric) {
         case 'registrations':
           return true;
@@ -352,6 +355,12 @@ export async function GET(request: NextRequest) {
           return isEngaged && attendedLive;
         case 'engagedReplay':
           return isEngaged && hasReplay;
+        case 'salesTotal':
+          return hasSales;
+        case 'salesLive':
+          return hasSales && attendedLive;
+        case 'salesReplay':
+          return hasSales && hasReplay;
 
         // --- Session clock -------------------------------------------------
         case 'sessionRegistered':

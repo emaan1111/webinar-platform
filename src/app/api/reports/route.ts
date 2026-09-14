@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getUsdAudRate, usdToAud } from '@/lib/fx';
 import { prisma } from '@/lib/prisma';
 import { fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 import { requestFacebookInsights } from '@/lib/facebookAds';
@@ -180,6 +181,11 @@ export async function GET(request: NextRequest) {
     } else {
       console.warn('⚠️  No Facebook access token found');
     }
+
+    // One rate for the whole response, so every row in a table converts at the
+    // same number and the daily figures always add up to the total.
+    const fx = await getUsdAudRate();
+    const fxRate = fx.rate;
 
     // Generate reports for each day
     const reports = [];
@@ -413,6 +419,10 @@ export async function GET(request: NextRequest) {
         }
       }
 
+      // External rows on the registration clock, hoisted so the revenue sums
+      // below can reach them; stays empty when external webinars are filtered out.
+      let externalSalesRegs: any[] = [];
+
       // --- Include External Webinar Registrations in reports ---
       // If filtering by only internal webinar IDs, skip external regs
       // If filtering by ext_ IDs, filter to those
@@ -437,7 +447,8 @@ export async function GET(request: NextRequest) {
               select: {
                 webinarDurationMinutes: true,
               }
-            }
+            },
+            sales: true
           }
         });
 
@@ -446,6 +457,7 @@ export async function GET(request: NextRequest) {
       });
 
       registrationCount += filteredExtRegs.length;
+      externalSalesRegs = filteredExtRegs;
 
       for (const extReg of filteredExtRegs) {
         const watchTimeMinutes = extReg.watchTimeMinutes || 0;
@@ -475,6 +487,20 @@ export async function GET(request: NextRequest) {
             engagedReplay++;
           }
         }
+
+        // Count sales, mirroring the internal pass. External registrations
+        // gained a sales relation when WebinarSale learned to point at them;
+        // before that these were silently zero even though the money was real.
+        if (extReg.sales.length > 0) {
+          const saleCount = extReg.sales.length;
+          salesTotal += saleCount;
+
+          if (wasLive) {
+            salesLive += saleCount;
+          } else if (watchedReplay) {
+            salesReplay += saleCount;
+          }
+        }
       }
 
       // --- External registrations on the SESSION clock -------------------
@@ -502,7 +528,8 @@ export async function GET(request: NextRequest) {
             select: {
               webinarDurationMinutes: true,
             }
-          }
+          },
+          sales: true
         }
       });
 
@@ -541,8 +568,7 @@ export async function GET(request: NextRequest) {
 
         if (watchTimeMinutes >= engagementMinutes) sessionEngaged++;
 
-        // External registrations carry no sales relation, so sessionSales is
-        // left to the internal pass.
+        sessionSales += extReg.sales.length;
       }
       } // end of else (external webinar filter)
 
@@ -570,22 +596,37 @@ export async function GET(request: NextRequest) {
       const costPerAttendee = totalAttendees > 0 ? spend / totalAttendees : 0;
       const costPerSale = salesTotal > 0 ? spend / salesTotal : 0;
 
-      // Calculate revenue metrics from actual sale amounts
-      const revenue = registrations
-        .flatMap((reg: any) => reg.sales)
-        .reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0);
+      // Calculate revenue metrics from actual sale amounts.
+      // Both registration kinds contribute: summing only the internal ones
+      // reported $0 revenue on days whose webinar ran externally.
+      const sumSales = (regs: any[]) =>
+        regs
+          .flatMap((reg: any) => reg.sales ?? [])
+          .reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0);
+
+      // The external live/replay split uses the same stored flags as the
+      // attendance counters above, not `attended`, which merges the two.
+      const extWasLive = (reg: any) => reg.attendedLive ?? reg.attended;
+      const extWatchedReplay = (reg: any) =>
+        (reg.attendedReplay ?? false) || (!reg.attended && (reg.watchTimeMinutes || 0) > 0);
+
+      const revenue = sumSales(registrations) + sumSales(externalSalesRegs);
+
+      const liveRevenue =
+        sumSales(registrations.filter((reg: any) => reg.attended)) +
+        sumSales(externalSalesRegs.filter(extWasLive));
+
+      const replayRevenue =
+        sumSales(registrations.filter((reg: any) => !reg.attended && reg.sessions.length > 0)) +
+        sumSales(externalSalesRegs.filter((reg: any) => !extWasLive(reg) && extWatchedReplay(reg)));
       
-      const liveRevenue = registrations
-        .filter((reg: any) => reg.attended)
-        .flatMap((reg: any) => reg.sales)
-        .reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0);
-      
-      const replayRevenue = registrations
-        .filter((reg: any) => !reg.attended && reg.sessions.length > 0)
-        .flatMap((reg: any) => reg.sales)
-        .reduce((sum: number, sale: any) => sum + (sale.amount || 0), 0);
-      
-      const profit = revenue - spend;
+      // Sales are priced in USD; Facebook reports spend in the ad account's
+      // currency (AUD). Subtracting one from the other produced a profit figure
+      // and an ROI that were arithmetic on two different units. Convert revenue
+      // to AUD so profit and ROI compare like with like; `revenue` itself stays
+      // in USD, the currency the sale actually happened in.
+      const revenueAud = usdToAud(revenue, fxRate);
+      const profit = revenueAud - spend;
       const roi = spend > 0 ? (profit / spend) * 100 : 0;
       const averageOrderValue = salesTotal > 0 ? revenue / salesTotal : 0;
 
@@ -622,6 +663,14 @@ export async function GET(request: NextRequest) {
       const engagementRateLive = liveAttendees > 0 ? (engagedLive / liveAttendees) * 100 : 0;
       const engagementRateReplay = replayAttendees > 0 ? (engagedReplay / replayAttendees) * 100 : 0;
       const engagementRateTotal = totalAttendees > 0 ? (engagedTotal / totalAttendees) * 100 : 0;
+
+      // --- Sales rates -----------------------------------------------------
+      // Three denominators, narrowing: everyone who signed up, everyone who
+      // turned up, everyone who actually watched. The last is the closest
+      // thing to a pitch-conversion rate.
+      const salesPerRegistered = registrationCount > 0 ? (salesTotal / registrationCount) * 100 : 0;
+      const salesPerAttendee = totalAttendees > 0 ? (salesTotal / totalAttendees) * 100 : 0;
+      const salesPerEngaged = engagedTotal > 0 ? (salesTotal / engagedTotal) * 100 : 0;
 
       // --- Session-clock rates ---------------------------------------------
       // Every one of these divides by sessions that have FINISHED, so a
@@ -706,14 +755,20 @@ export async function GET(request: NextRequest) {
         engagementRateLive,
         engagementRateReplay,
         engagementRateTotal,
+
+        // Sales rates
+        salesPerRegistered,
+        salesPerAttendee,
+        salesPerEngaged,
         
         // Costs
         costPerRegistration,
         costPerAttendee,
         costPerSale,
         
-        // Revenue
+        // Revenue (USD, as sold) plus the AUD conversion profit/ROI are built on
         revenue,
+        revenueAud,
         liveRevenue,
         replayRevenue,
         averageOrderValue,
@@ -770,6 +825,9 @@ export async function GET(request: NextRequest) {
       dateRange: { from, to },
       engagementMinutes,
       timestamp: new Date().toISOString(),
+      // Disclosed so the UI can label a stale or fallback rate rather than
+      // passing it off as a live quote.
+      fx: { usdToAud: fx.rate, source: fx.source, fetchedAt: fx.fetchedAt },
       warning: fbWarning,
       coverageWarning,
       filterNote,

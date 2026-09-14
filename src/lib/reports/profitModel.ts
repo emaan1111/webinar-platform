@@ -7,6 +7,12 @@
  * away from reality to ask "what if", which is the whole point: the seeded
  * scenario is what the funnel IS doing, the edited one is what it WOULD do.
  *
+ * Currency works the way the rest of the report works: Facebook bills the ad
+ * account in AUD while the offer is priced in USD, so every result here is in
+ * AUD and the USD prices are converted on the way in. Subtracting one currency
+ * from the other is the bug lib/fx.ts exists to prevent - the planner must not
+ * reintroduce it.
+ *
  * No React and no fetching in here, so the arithmetic can be unit-tested on
  * its own. The page in app/dashboard/reports/profit wires it to sliders.
  */
@@ -20,9 +26,8 @@ export const DAYS_PER_YEAR = 365
 /**
  * One scenario's dials.
  *
- * Rates are whole percentages (35 means 35%), money is USD - the same
- * currency the rest of the report is formatted in, so a price here and a
- * revenue column there mean the same thing.
+ * Rates are whole percentages (35 means 35%). Money is in the currency the
+ * report measured it in: ad spend AUD, prices USD, joined by `usdToAud`.
  */
 export interface ProfitInputs {
   /** New registrations bought per day. */
@@ -39,7 +44,7 @@ export interface ProfitInputs {
    * are the same number viewed through the funnel above it.
    */
   conversionOfEngaged: number
-  /** What one sale is worth. */
+  /** What one sale is worth, in USD - the currency the offer is priced in. */
   price: number
   /** % of buyers who also take the upsell. */
   upsellRate: number
@@ -48,6 +53,11 @@ export interface ProfitInputs {
   renewMonths: number
   /** % of upsell subscribers lost at each renewal. */
   churnRate: number
+  /**
+   * AUD per 1 USD, the rate every USD price is converted at. Same direction as
+   * lib/fx.ts's getUsdAudRate(), so the planner and the report agree.
+   */
+  usdToAud: number
 }
 
 export type ProfitInputKey = keyof ProfitInputs
@@ -61,10 +71,11 @@ export interface ProfitRates {
   conversionOfRegistrations: number
   conversionOfAttendees: number
   conversionOfEngaged: number
+  /** Ad spend, already AUD as Facebook reports it. */
   adSpendPerDay: number
-  /** Revenue from the sale itself. */
+  /** Revenue from the sale itself, converted to AUD. */
   coreRevenuePerDay: number
-  /** Revenue from first-time upsells only - renewals are added over time. */
+  /** First-time upsells only, in AUD - renewals are added over time. */
   firstUpsellRevenuePerDay: number
 }
 
@@ -98,8 +109,10 @@ export function deriveRates(inputs: ProfitInputs): ProfitRates {
     conversionOfAttendees,
     conversionOfRegistrations: conversionOfAttendees * pct(inputs.showUpRate),
     adSpendPerDay: inputs.registrationsPerDay * inputs.costPerRegistration,
-    coreRevenuePerDay: salesPerDay * inputs.price,
-    firstUpsellRevenuePerDay: salesPerDay * pct(inputs.upsellRate) * inputs.upsellPrice,
+    // USD prices become AUD here, once, so everything downstream is one currency.
+    coreRevenuePerDay: salesPerDay * inputs.price * inputs.usdToAud,
+    firstUpsellRevenuePerDay:
+      salesPerDay * pct(inputs.upsellRate) * inputs.upsellPrice * inputs.usdToAud,
   }
 }
 
@@ -179,6 +192,19 @@ export function engagedConversionFromAttendees(value: number, inputs: ProfitInpu
 // Seeding from a real report
 // ---------------------------------------------------------------------------
 
+/**
+ * lib/fx.ts's own last-resort rate, used only when a report arrives without
+ * one. Kept in step with FALLBACK_USD_AUD there.
+ */
+export const DEFAULT_USD_AUD = 1.3942
+
+/** What the report tells the planner about the rate it converted at. */
+export interface FxQuote {
+  usdToAud: number
+  /** 'live' | 'cached' | 'env' | 'fallback' - only the first two are quotes. */
+  source: string
+}
+
 /** Stand-ins for dials the report cannot measure, or measured as nothing. */
 export const ASSUMED: Pick<
   ProfitInputs,
@@ -198,6 +224,7 @@ export const FALLBACK_INPUTS: ProfitInputs = {
   engagedRate: 50,
   conversionOfEngaged: 8,
   ...ASSUMED,
+  usdToAud: DEFAULT_USD_AUD,
 }
 
 export interface ProfitBaseline {
@@ -216,11 +243,19 @@ export interface ProfitBaseline {
  * assumption and says so on the page, because a planner that quietly passes
  * off a guess as a measurement is worse than no planner.
  */
-export function baselineFromTotals(totals: ReportTotals | null): ProfitBaseline {
+export function baselineFromTotals(
+  totals: ReportTotals | null,
+  fx: FxQuote | null = null
+): ProfitBaseline {
+  const usdToAud = fx?.usdToAud ?? DEFAULT_USD_AUD
+  // Only a real quote counts as measured; a configured or built-in rate is a
+  // stand-in, and the report says as much in its own banner.
+  const quoted = Boolean(fx) && (fx!.source === 'live' || fx!.source === 'cached')
+
   if (!totals || totals.days <= 0) {
     return {
-      inputs: { ...FALLBACK_INPUTS },
-      fromReport: [],
+      inputs: { ...FALLBACK_INPUTS, usdToAud },
+      fromReport: quoted ? ['usdToAud'] : [],
       notes: ['No report data for this range yet, so every dial starts at a round guess.'],
     }
   }
@@ -264,6 +299,13 @@ export function baselineFromTotals(totals: ReportTotals | null): ProfitBaseline 
     notes.push('No sales in this range, so the price is an assumption - set it below.')
   }
 
+  if (quoted) measured('usdToAud')
+  else {
+    notes.push(
+      'The exchange rate is a stand-in rather than a live quote, so AUD figures may be slightly off.'
+    )
+  }
+
   return {
     inputs: {
       registrationsPerDay,
@@ -276,6 +318,7 @@ export function baselineFromTotals(totals: ReportTotals | null): ProfitBaseline 
       upsellPrice: totals.salesTotal > 0 ? Math.round(price * 1.5) : ASSUMED.upsellPrice,
       renewMonths: ASSUMED.renewMonths,
       churnRate: ASSUMED.churnRate,
+      usdToAud,
     },
     fromReport,
     notes,
@@ -315,6 +358,7 @@ const BASE_SCALES: Record<ProfitInputKey, SliderScale> = {
   upsellPrice: { min: 0, max: 10000, step: 10 },
   renewMonths: { min: 1, max: 24, step: 1 },
   churnRate: { min: 0, max: 100, step: 1 },
+  usdToAud: { min: 0.5, max: 3, step: 0.005 },
 }
 
 /** Percentages stay on their natural 0-100 scale; the rest grow to fit. */

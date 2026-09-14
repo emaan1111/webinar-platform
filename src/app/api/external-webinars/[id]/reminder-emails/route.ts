@@ -60,11 +60,27 @@ export async function POST(
 
   const body = await request.json()
   const { name, subject, htmlBody, fromName, minutesBefore, isActive,
-    subjectB, skipIfJoined, resendToNonOpeners, resendAfterHours, resendSubject } = body
+    subjectB, skipIfJoined, resendToNonOpeners, resendAfterHours, resendSubject,
+    channel, smsBody } = body
 
-  if (!subject || !htmlBody) {
+  const ch = channel || 'EMAIL'
+  if (!['EMAIL', 'SMS', 'BOTH'].includes(ch)) {
     return NextResponse.json(
-      { error: 'Subject and HTML body are required' },
+      { error: 'channel must be EMAIL, SMS, or BOTH' },
+      { status: 400 }
+    )
+  }
+
+  if ((ch === 'EMAIL' || ch === 'BOTH') && (!subject || !htmlBody)) {
+    return NextResponse.json(
+      { error: 'Subject and HTML body are required for email reminders' },
+      { status: 400 }
+    )
+  }
+
+  if ((ch === 'SMS' || ch === 'BOTH') && !smsBody?.trim()) {
+    return NextResponse.json(
+      { error: 'SMS message is required for SMS reminders' },
       { status: 400 }
     )
   }
@@ -88,9 +104,11 @@ export async function POST(
     data: {
       externalWebinarId: params.id,
       name: name || 'Reminder',
-      subject,
+      channel: ch,
+      smsBody: smsBody?.trim() || null,
+      subject: subject || name || 'SMS Reminder',
       subjectB: subjectB || null,
-      htmlBody,
+      htmlBody: htmlBody || '',
       fromName: fromName || null,
       minutesBefore,
       isActive: isActive !== false,
@@ -100,6 +118,21 @@ export async function POST(
       resendSubject: resendSubject || null,
     },
   })
+
+  // Backfill: sends are normally scheduled at registration time, so a template
+  // created after people registered would never reach them. Schedule it for
+  // everyone already signed up for a future session (runs in the background;
+  // scheduleReminderEmails dedupes and skips past send times on its own).
+  ;(async () => {
+    const { scheduleReminderEmails } = await import('@/lib/emailScheduler')
+    const future = await prisma.externalWebinarRegistration.findMany({
+      where: { externalWebinarId: params.id, scheduledStartTime: { gt: new Date() } },
+      select: { id: true },
+    })
+    for (const r of future) {
+      await scheduleReminderEmails(r.id, true)
+    }
+  })().catch((err) => console.error('Reminder backfill failed:', err))
 
   return NextResponse.json({ template }, { status: 201 })
 }

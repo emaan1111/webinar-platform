@@ -69,6 +69,7 @@ export default function ReportsPage() {
   const [engagementMinutes, setEngagementMinutes] = useState(30)
   const [fbWarning, setFbWarning] = useState<string | null>(null)
   const [coverageWarning, setCoverageWarning] = useState<string | null>(null)
+  const [fx, setFx] = useState<{ usdToAud: number; source: string } | null>(null)
   const [webinars, setWebinars] = useState<WebinarOption[]>([])
   const [selectedWebinars, setSelectedWebinars] = useState<string[]>([])
   const [countryOptions, setCountryOptions] = useState<string[]>([])
@@ -211,6 +212,7 @@ export default function ReportsPage() {
       // Registrations with no scheduled session time are invisible to every
       // session-clock column. Say so rather than quietly understating them.
       setCoverageWarning(data.coverageWarning ?? null)
+      setFx(data.fx ?? null)
       setFilterNote(data.filterNote ?? null)
       setLastUpdated(new Date())
     } catch (err: any) {
@@ -312,6 +314,14 @@ export default function ReportsPage() {
         )}
 
         {filterNote && <Notice title="Registrant filter active">{filterNote}</Notice>}
+
+        {fx && fx.source !== 'live' && fx.source !== 'cached' && (
+          <Notice title="Exchange rate unavailable">
+            Could not reach the exchange-rate service, so AUD figures use a{' '}
+            {fx.source === 'env' ? 'configured' : 'built-in fallback'} rate of 1 USD ={' '}
+            {fx.usdToAud.toFixed(4)} AUD. Revenue A$, Profit and ROI may be slightly off.
+          </Notice>
+        )}
 
         {fbWarning && (
           <Notice title="Facebook Ads data unavailable">

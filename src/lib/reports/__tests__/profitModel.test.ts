@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { ReportTotals } from '../columns'
 import {
   baselineFromTotals,
+  DEFAULT_USD_AUD,
   conversionScale,
   DAYS_PER_YEAR,
   deriveRates,
@@ -21,23 +22,35 @@ import {
  */
 function makeTotals(counts: {
   days: number
+  /** AUD, as Facebook bills it. */
   spend: number
   registrations: number
   totalAttendees: number
   engagedTotal: number
   salesTotal: number
+  /** USD, as the offer is priced. */
   revenue: number
+  /** AUD per USD the report converted at. */
+  rate?: number
 }): ReportTotals {
   const ratio = (num: number, den: number, scale = 1) => (den > 0 ? (num / den) * scale : 0)
+  const revenueAud = counts.revenue * (counts.rate ?? 1)
   return {
     ...counts,
-    profit: counts.revenue - counts.spend,
+    revenueAud,
+    // Both sides AUD, exactly as computeTotals does it.
+    profit: revenueAud - counts.spend,
     costPerRegistration: ratio(counts.spend, counts.registrations),
     attendanceRate: ratio(counts.totalAttendees, counts.registrations, 100),
     engagementRateTotal: ratio(counts.engagedTotal, counts.totalAttendees, 100),
     averageOrderValue: ratio(counts.revenue, counts.salesTotal),
   } as unknown as ReportTotals
 }
+
+// A$1.50 to the US$, so converted and unconverted figures can never be
+// confused for one another in an assertion.
+const RATE = 1.5
+const LIVE_FX = { usdToAud: RATE, source: 'live' }
 
 const REAL = makeTotals({
   days: 7,
@@ -47,11 +60,15 @@ const REAL = makeTotals({
   engagedTotal: 140,
   salesTotal: 14,
   revenue: 4158,
+  rate: RATE,
 })
 
+// Most cases care about the funnel, not the currency, so the rate is 1 unless
+// the test is about conversion.
 const inputs = (over: Partial<ProfitInputs> = {}): ProfitInputs => ({
   ...FALLBACK_INPUTS,
   upsellRate: 0,
+  usdToAud: 1,
   ...over,
 })
 
@@ -143,22 +160,35 @@ describe('the conversion dials', () => {
 })
 
 describe('baselineFromTotals', () => {
-  it('reproduces the profit the report measured', () => {
-    const { inputs: seeded } = baselineFromTotals(REAL)
+  it('reproduces the profit the report measured, in AUD', () => {
+    const { inputs: seeded } = baselineFromTotals(REAL, LIVE_FX)
     const rates = deriveRates(seeded)
+    const profitPerDay = (4158 * RATE - 2800) / 7
     expect(rates.salesPerDay).toBeCloseTo(14 / 7, 10)
-    expect(rates.coreRevenuePerDay - rates.adSpendPerDay).toBeCloseTo((4158 - 2800) / 7, 10)
-    expect(projectScenario(seeded).firstYear).toBeCloseTo(((4158 - 2800) / 7) * DAYS_PER_YEAR, 6)
+    expect(rates.coreRevenuePerDay - rates.adSpendPerDay).toBeCloseTo(profitPerDay, 10)
+    expect(projectScenario(seeded).firstYear).toBeCloseTo(profitPerDay * DAYS_PER_YEAR, 6)
+  })
+
+  it('never subtracts Australian dollars from American ones', () => {
+    // Revenue is USD and spend is AUD: doubling the rate must double the
+    // revenue side and leave the cost side exactly where it was.
+    const { inputs: seeded } = baselineFromTotals(REAL, LIVE_FX)
+    const cheap = deriveRates(seeded)
+    const dear = deriveRates({ ...seeded, usdToAud: RATE * 2 })
+    expect(dear.coreRevenuePerDay).toBeCloseTo(cheap.coreRevenuePerDay * 2, 10)
+    expect(dear.adSpendPerDay).toBe(cheap.adSpendPerDay)
   })
 
   it('reads every measurable dial off the range', () => {
-    const { inputs: seeded, fromReport } = baselineFromTotals(REAL)
+    const { inputs: seeded, fromReport } = baselineFromTotals(REAL, LIVE_FX)
     expect(seeded.registrationsPerDay).toBe(100)
     expect(seeded.costPerRegistration).toBe(4)
     expect(seeded.showUpRate).toBe(40)
     expect(seeded.engagedRate).toBe(50)
     expect(seeded.conversionOfEngaged).toBeCloseTo(10, 10)
+    // The price is USD, untouched by the rate.
     expect(seeded.price).toBe(297)
+    expect(seeded.usdToAud).toBe(RATE)
     expect(fromReport).toEqual([
       'registrationsPerDay',
       'costPerRegistration',
@@ -166,11 +196,26 @@ describe('baselineFromTotals', () => {
       'engagedRate',
       'conversionOfEngaged',
       'price',
+      'usdToAud',
     ])
   })
 
+  it('will not pass a fallback rate off as a live quote', () => {
+    const { inputs: seeded, fromReport, notes } = baselineFromTotals(REAL, {
+      usdToAud: 1.4,
+      source: 'fallback',
+    })
+    expect(seeded.usdToAud).toBe(1.4)
+    expect(fromReport).not.toContain('usdToAud')
+    expect(notes.join(' ')).toContain('stand-in')
+  })
+
+  it('falls back to fx.ts\'s own rate when the report sends none', () => {
+    expect(baselineFromTotals(REAL).inputs.usdToAud).toBe(DEFAULT_USD_AUD)
+  })
+
   it('never passes the untracked upsell off as measured', () => {
-    const { inputs: seeded, fromReport } = baselineFromTotals(REAL)
+    const { inputs: seeded, fromReport } = baselineFromTotals(REAL, LIVE_FX)
     expect(seeded.upsellRate).toBe(0)
     expect(fromReport).not.toContain('upsellRate')
     expect(fromReport).not.toContain('churnRate')
@@ -219,7 +264,7 @@ describe('baselineFromTotals', () => {
 
 describe('inputsEqual', () => {
   it('spots a moved dial and ignores floating-point dust', () => {
-    const a = baselineFromTotals(REAL).inputs
+    const a = baselineFromTotals(REAL, LIVE_FX).inputs
     expect(inputsEqual(a, { ...a })).toBe(true)
     expect(inputsEqual(a, { ...a, price: a.price + 1e-12 })).toBe(true)
     expect(inputsEqual(a, { ...a, price: a.price + 1 })).toBe(false)

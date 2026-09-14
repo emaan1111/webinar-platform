@@ -14,6 +14,7 @@ import {
   MergeTagContext,
   formatWebinarTime,
   getOneClickUnsubscribeUrl,
+  getUnsubscribeLink,
 } from '@/lib/emailTracking'
 
 export async function sendExternalConfirmationEmail(input: {
@@ -48,6 +49,9 @@ export async function sendExternalConfirmationEmail(input: {
     // External webinars have no countdown-page slug, so the seeded templates'
     // {{countdown_link}} would render empty. Point it at the live room too.
     countdownLink: liveRoomUrl,
+    // Without this, prepareEmailHtml skips the visible unsubscribe footer -
+    // the List-Unsubscribe header alone isn't shown by every mail client.
+    unsubscribeLink: getUnsubscribeLink(registration.id),
   }
 
   const emailSubject = replaceMergeTags(activeTemplate.subject, emailCtx)

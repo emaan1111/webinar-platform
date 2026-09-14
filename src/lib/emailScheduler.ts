@@ -9,6 +9,7 @@
 
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
+import { sendClickSendSMS } from '@/lib/clicksend'
 import { getUnsubscribeLink, getOneClickUnsubscribeUrl, prepareEmailHtml, formatWebinarTime, type MergeTagContext } from '@/lib/emailTracking'
 
 function isEmailUnsubscribed(registration: unknown): boolean {
@@ -86,27 +87,36 @@ export async function scheduleReminderEmails(registrationId: string, isExternal 
     // Don't schedule if the time has already passed
     if (sendAt <= now) continue
 
-    // Check if already scheduled
-    const existing = await prisma.reminderEmailSend.findFirst({
-      where: Object.assign(
-        { templateId: template.id },
-        isExternal ? { externalRegistrationId: registration.id } : { registrationId: registration.id }
-      ),
-    })
-    if (existing) continue
+    // A template can send email, SMS, or both — one send row per channel.
+    // SMS only when the registrant left a phone number.
+    const channels: ('EMAIL' | 'SMS')[] = []
+    if (template.channel === 'EMAIL' || template.channel === 'BOTH') channels.push('EMAIL')
+    if ((template.channel === 'SMS' || template.channel === 'BOTH') && registration.phone) channels.push('SMS')
 
-    await prisma.reminderEmailSend.create({
-      data: {
-        templateId: template.id,
-        registrationId: isExternal ? null : registration.id,
-        externalRegistrationId: isExternal ? registration.id : null,
-        to: registration.email,
-        subject: template.subject,
-        abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
-        status: 'PENDING',
-        scheduledFor: sendAt,
-      },
-    })
+    for (const channel of channels) {
+      // Check if already scheduled
+      const existing = await prisma.reminderEmailSend.findFirst({
+        where: Object.assign(
+          { templateId: template.id, channel },
+          isExternal ? { externalRegistrationId: registration.id } : { registrationId: registration.id }
+        ),
+      })
+      if (existing) continue
+
+      await prisma.reminderEmailSend.create({
+        data: {
+          templateId: template.id,
+          registrationId: isExternal ? null : registration.id,
+          externalRegistrationId: isExternal ? registration.id : null,
+          channel,
+          to: channel === 'SMS' ? registration.phone : registration.email,
+          subject: template.subject,
+          abVariant: template.subjectB ? (Math.random() < 0.5 ? 'A' : 'B') : 'A',
+          status: 'PENDING',
+          scheduledFor: sendAt,
+        },
+      })
+    }
   }
 }
 
@@ -320,7 +330,8 @@ export async function processPendingReminderEmails() {
         continue
       }
 
-      if (isEmailUnsubscribed(reg)) {
+      // Email-unsubscribe only blocks the email channel, not SMS
+      if (send.channel !== 'SMS' && isEmailUnsubscribed(reg)) {
         await prisma.reminderEmailSend.update({
           where: { id: send.id },
           data: { status: 'SKIPPED', errorMessage: 'Skipped: attendee unsubscribed' },
@@ -377,6 +388,44 @@ export async function processPendingReminderEmails() {
       const accessLink = isExternal ? externalRoomLink : countdownLink
       const calendarLink = webinarSlug ? `${baseUrl}/api/calendar/${webinarSlug}?r=${reg.id}` : null
       const referralLink = webinarSlug && reg.referralCode ? `${baseUrl}/w/${webinarSlug}?ref=${reg.referralCode}` : null
+
+      // SMS sends: substitute variables and send via ClickSend instead of email.
+      // Accepts {{tag}} and {tag}; join_link/access_link/countdown_link all mean
+      // the same room link so a template can't pick the "wrong" tag.
+      if (send.channel === 'SMS') {
+        const smsTemplate = send.template.smsBody || ''
+        if (!smsTemplate.trim()) {
+          await prisma.reminderEmailSend.update({
+            where: { id: send.id },
+            data: { status: 'FAILED', errorMessage: 'Template has no SMS body', retryCount: { increment: 1 } },
+          })
+          continue
+        }
+        const smsBody = smsTemplate
+          .replace(/\{\{name\}\}|\{name\}/gi, reg.name || 'there')
+          .replace(/\{\{webinar_title\}\}|\{webinar_title\}/gi, webinarTitle)
+          .replace(/\{\{webinar_time\}\}|\{webinar_time\}/gi, formatWebinarTime(reg.scheduledStartTime, reg.timezone) || '')
+          .replace(/\{\{(join_link|access_link|countdown_link)\}\}|\{(join_link|access_link|countdown_link)\}/gi, accessLink || '')
+
+        const result = await sendClickSendSMS(send.to, smsBody, reg.timezone)
+        // Blocked timezone is a deliberate skip, not a retryable failure
+        const blocked = !result.success && (result.error || '').startsWith('SMS blocked')
+        await prisma.reminderEmailSend.update({
+          where: { id: send.id },
+          data: {
+            status: result.success ? 'SENT' : blocked ? 'SKIPPED' : 'FAILED',
+            sentAt: result.success ? new Date() : undefined,
+            errorMessage: result.success ? undefined : result.error,
+            retryCount: result.success || blocked ? undefined : { increment: 1 },
+          },
+        })
+        if (result.success) {
+          console.log(`✅ Reminder SMS sent to ${send.to} (${send.template.name})`)
+        } else {
+          console.error(`⚠️ Reminder SMS ${blocked ? 'skipped' : 'failed'} for ${send.to}: ${result.error}`)
+        }
+        continue
+      }
 
       const ctx: MergeTagContext = {
         name: reg.name,
@@ -746,6 +795,7 @@ export async function processNonOpenerResends() {
       where: {
         templateId: tpl.id,
         status: 'SENT',
+        channel: 'EMAIL', // SMS sends never register opens — don't resend them
         openCount: 0,
         isResend: false,
         sentAt: { lte: cutoff },

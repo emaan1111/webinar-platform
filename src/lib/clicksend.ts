@@ -20,22 +20,27 @@ function isConfigured(): boolean {
   return Boolean(CLICK_SEND_USERNAME && CLICK_SEND_API_KEY)
 }
 
-/**
- * Check if timezone is blocked from receiving SMS
- */
-async function isTimezoneBlocked(timezone: string | null | undefined): Promise<boolean> {
-  if (!timezone) return false
-  
+async function getSmsSettings() {
   try {
-    const settings = await prisma.sMSSettings.findUnique({
+    return await prisma.sMSSettings.findUnique({
       where: { id: 'default' }
     })
-    
-    return settings?.blockedTimezones.includes(timezone) || false
   } catch (error) {
-    console.error('Error checking blocked timezones:', error)
-    return false // Don't block on error
+    console.error('Error loading SMS settings:', error)
+    return null // Don't block on error
   }
+}
+
+/**
+ * When an allowed-countries list is set, only numbers starting with one of
+ * those dialing codes go out. Numbers stored without a recognizable country
+ * code fail the check on purpose — better to skip than to text a country the
+ * host is paying to avoid.
+ */
+function isCountryAllowed(to: string, allowedCodes: string[]): boolean {
+  if (allowedCodes.length === 0) return true
+  const digits = to.replace(/\D/g, '').replace(/^00/, '')
+  return allowedCodes.some((code) => digits.startsWith(code))
 }
 
 /**
@@ -63,12 +68,24 @@ export async function sendClickSendSMS(
     }
   }
 
+  const settings = await getSmsSettings()
+
   // Check if timezone is blocked
-  if (await isTimezoneBlocked(timezone)) {
+  if (timezone && settings?.blockedTimezones?.includes(timezone)) {
     console.log(`[SMS] Blocked: timezone ${timezone} is in blocked list`)
     return {
       success: false,
       error: `SMS blocked: timezone ${timezone} is in blocked list`
+    }
+  }
+
+  // Check the allowed-countries list (empty list = every country)
+  const allowedCodes = settings?.allowedCountryCodes || []
+  if (!isCountryAllowed(to, allowedCodes)) {
+    console.log(`[SMS] Blocked: ${to} is outside the allowed country codes (${allowedCodes.join(', ')})`)
+    return {
+      success: false,
+      error: 'SMS blocked: destination is outside the allowed countries'
     }
   }
 
