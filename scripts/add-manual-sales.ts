@@ -19,7 +19,7 @@ const COMMIT = process.argv.includes('--commit')
 
 /**
  * Purchase date. These three registered for and attended the 14 Sep session
- * (72-84 minutes each), so they saw the pitch that day; the sale is dated to it.
+ * (30-84 minutes each), so they saw the pitch that day; the sale is dated to it.
  * Reports attribute sales by registration day regardless, so this only affects
  * the Sales page ordering.
  */
@@ -33,6 +33,7 @@ const ENTRIES: Entry[] = [
   // 14 Sep external row from the same funnel as the others (83 min watched).
   { email: 'nisha12773@yahoo.com',    externalRegistrationId: 'cmu1e8xsv0059qg2ip8r92ylx', who: 'Taslima Sultana' },
   { email: 'salwaumair369@gmail.com', externalRegistrationId: 'cmu1cyj6s003nqg2ihs54wcr9', who: 'salwa Umair' },
+  { email: 'sanusimodinat19@gmail.com', externalRegistrationId: 'cmu1pof1c00xtqg2iq3gmrvcv', who: 'Modinat Sanusi' },
 ]
 
 async function main() {
