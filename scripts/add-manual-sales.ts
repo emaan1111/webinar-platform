@@ -18,22 +18,26 @@ const PRODUCT = 'Ultimate Mother'
 const COMMIT = process.argv.includes('--commit')
 
 /**
- * Purchase date. These three registered for and attended the 14 Sep session
- * (30-84 minutes each), so they saw the pitch that day; the sale is dated to it.
- * Reports attribute sales by registration day regardless, so this only affects
- * the Sales page ordering.
+ * Each sale is dated to the session the buyer attended — they saw the pitch that
+ * day — because these arrive without a transaction time. Reports attribute sales
+ * by registration day regardless, so the date only affects Sales page ordering.
  */
-const PURCHASED_AT = new Date('2026-09-14T12:00:00.000Z')
-
-type Entry = { email: string; externalRegistrationId: string; who: string }
+type Entry = {
+  email: string
+  externalRegistrationId: string
+  who: string
+  /** Date of the session attended, as YYYY-MM-DD. */
+  purchasedOn: string
+}
 
 const ENTRIES: Entry[] = [
-  { email: 'shadya36@gmail.com',      externalRegistrationId: 'cmu1cp88e002tqg2ij17gy7hy', who: 'Shadya Kabir' },
+  { email: 'shadya36@gmail.com',      externalRegistrationId: 'cmu1cp88e002tqg2ij17gy7hy', who: 'Shadya Kabir',   purchasedOn: '2026-09-14' },
   // Also has an internal registration and a Nov 2025 external one; this is the
   // 14 Sep external row from the same funnel as the others (83 min watched).
-  { email: 'nisha12773@yahoo.com',    externalRegistrationId: 'cmu1e8xsv0059qg2ip8r92ylx', who: 'Taslima Sultana' },
-  { email: 'salwaumair369@gmail.com', externalRegistrationId: 'cmu1cyj6s003nqg2ihs54wcr9', who: 'salwa Umair' },
-  { email: 'sanusimodinat19@gmail.com', externalRegistrationId: 'cmu1pof1c00xtqg2iq3gmrvcv', who: 'Modinat Sanusi' },
+  { email: 'nisha12773@yahoo.com',    externalRegistrationId: 'cmu1e8xsv0059qg2ip8r92ylx', who: 'Taslima Sultana', purchasedOn: '2026-09-14' },
+  { email: 'salwaumair369@gmail.com', externalRegistrationId: 'cmu1cyj6s003nqg2ihs54wcr9', who: 'salwa Umair',    purchasedOn: '2026-09-14' },
+  { email: 'sanusimodinat19@gmail.com', externalRegistrationId: 'cmu1pof1c00xtqg2iq3gmrvcv', who: 'Modinat Sanusi', purchasedOn: '2026-09-14' },
+  { email: 'gul-786@hotmail.co.uk',   externalRegistrationId: 'cmu2qrkis004fn12ib4f3sp8i', who: 'Gul Asif',       purchasedOn: '2026-09-15' },
 ]
 
 async function main() {
@@ -66,12 +70,13 @@ async function main() {
       continue
     }
 
-    const orderId = `manual-${PURCHASED_AT.toISOString().slice(0, 10)}-${e.email.toLowerCase()}`
+    const purchasedAt = new Date(`${e.purchasedOn}T12:00:00.000Z`)
+    const orderId = `manual-${e.purchasedOn}-${e.email.toLowerCase()}`
     console.log(
       `✅ ${e.email} (${reg.name})\n` +
       `     → ${reg.externalWebinar.name.slice(0, 50)} · registered ${reg.registeredAt.toISOString().slice(0, 16)}` +
       ` · attended=${reg.attended} ${reg.watchTimeMinutes}min\n` +
-      `     → $${AMOUNT} on ${PURCHASED_AT.toISOString().slice(0, 10)} · ${orderId}`
+      `     → $${AMOUNT} on ${e.purchasedOn} · ${orderId}`
     )
 
     if (COMMIT) {
@@ -86,7 +91,7 @@ async function main() {
             amount: AMOUNT,
             currency: CURRENCY,
             status: 'paid',
-            purchasedAt: PURCHASED_AT,
+            purchasedAt,
             rawPayload: { source: 'manual_email_list', reportedAs: e.who },
           },
         })
