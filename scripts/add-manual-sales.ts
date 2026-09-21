@@ -38,6 +38,10 @@ const ENTRIES: Entry[] = [
   { email: 'salwaumair369@gmail.com', externalRegistrationId: 'cmu1cyj6s003nqg2ihs54wcr9', who: 'salwa Umair',    purchasedOn: '2026-09-14' },
   { email: 'sanusimodinat19@gmail.com', externalRegistrationId: 'cmu1pof1c00xtqg2iq3gmrvcv', who: 'Modinat Sanusi', purchasedOn: '2026-09-14' },
   { email: 'gul-786@hotmail.co.uk',   externalRegistrationId: 'cmu2qrkis004fn12ib4f3sp8i', who: 'Gul Asif',       purchasedOn: '2026-09-15' },
+  { email: 'rashmatth1@gmail.com',    externalRegistrationId: 'cmuac3tle188cqd2il0uaqcwe', who: 'Rasheeka Matthews', purchasedOn: '2026-09-20' },
+  // Registration stored as bilsidraq…sidra_bilquees@yahoo.com…drasidra; the real
+  // address is embedded and the name matches exactly. Operator confirmed the link.
+  { email: 'sidra_bilquees@yahoo.com', externalRegistrationId: 'cmu67fn6k07a4qd2is3gm5hwb', who: 'Sidra Bilquees', purchasedOn: '2026-09-18' },
 ]
 
 async function main() {
@@ -63,11 +67,19 @@ async function main() {
       skipped++
       continue
     }
-    if (reg.email.toLowerCase() !== e.email.toLowerCase()) {
-      // Guards against a transcription slip in the ids above.
+    // Guards against a transcription slip in the ids above. Containment, not
+    // equality: one registration was stored with its address mangled by an
+    // autofill glitch (name fragments interleaved around the real email), so the
+    // true address survives only as a substring. A wrong id still fails here.
+    const regEmail = reg.email.toLowerCase()
+    const wantEmail = e.email.toLowerCase()
+    if (!regEmail.includes(wantEmail)) {
       console.log(`❌ ${e.email} — id belongs to ${reg.email}, skipping`)
       skipped++
       continue
+    }
+    if (regEmail !== wantEmail) {
+      console.log(`   ℹ️  registration email is corrupted (${reg.email}) — linking on the embedded address`)
     }
 
     const purchasedAt = new Date(`${e.purchasedOn}T12:00:00.000Z`)
@@ -99,7 +111,10 @@ async function main() {
           where: { id: reg.id },
           data: { hasPurchased: true },
         })
-      })
+      },
+      // The prod DB is behind a proxy and round-trips are slow; Prisma's 5s
+      // default expires mid-transaction and rolls the pair back.
+      { maxWait: 15_000, timeout: 30_000 })
     }
     written++
   }
