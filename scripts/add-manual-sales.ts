@@ -42,6 +42,7 @@ const ENTRIES: Entry[] = [
   // Registration stored as bilsidraq…sidra_bilquees@yahoo.com…drasidra; the real
   // address is embedded and the name matches exactly. Operator confirmed the link.
   { email: 'sidra_bilquees@yahoo.com', externalRegistrationId: 'cmu67fn6k07a4qd2is3gm5hwb', who: 'Sidra Bilquees', purchasedOn: '2026-09-18' },
+  { email: 'razwana.akhtar@hotmail.co.uk', externalRegistrationId: 'cmubjyt5r01ysmu2iq6z168da', who: 'Razwana Akhtar', purchasedOn: '2026-09-21' },
 ]
 
 async function main() {
