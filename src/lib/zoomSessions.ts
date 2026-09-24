@@ -1,5 +1,6 @@
 import type { ZoomSessionSlot } from '@/lib/reports/zoomSessionFilter'
 import { prisma } from '@/lib/prisma'
+import { isZoomSessionFull } from '@/lib/zoomSessionCapacity'
 
 // A linked-webinar row from ZoomSessionWebinar (only the fields we need).
 type WebinarLink = {
@@ -28,7 +29,18 @@ export type LinkedZoomSession = {
   zoomLink: string | null
   scheduledAt: Date
   timezone: string
+  // Seats across every linked webinar; null = unlimited.
+  capacity: number | null
 }
+
+const linkedSessionSelect = {
+  id: true,
+  name: true,
+  zoomLink: true,
+  scheduledAt: true,
+  timezone: true,
+  capacity: true,
+} as const
 
 // All active Zoom sessions linked to an external webinar, soonest first.
 // A session is "linked" via a ZoomSessionWebinar join row (the checkboxes on the
@@ -44,9 +56,79 @@ export async function getLinkedZoomSessions(externalWebinarId: string): Promise<
         { externalWebinarsLive: { some: { id: externalWebinarId } } },
       ],
     },
-    select: { id: true, name: true, zoomLink: true, scheduledAt: true, timezone: true },
+    select: linkedSessionSelect,
     orderBy: { scheduledAt: 'asc' },
   })
+}
+
+// All active Zoom sessions linked to an INTERNAL webinar (ticked on the sessions
+// page), soonest first. The internal picker offers the webinar's own Zoom
+// schedule rows (WebinarSchedule.isZoomSession), which sit at the same instant as
+// the session — matching by time is how a row finds the capacity behind it.
+export async function getInternalLinkedZoomSessions(webinarId: string): Promise<LinkedZoomSession[]> {
+  return prisma.zoomSession.findMany({
+    where: { isActive: true, webinars: { some: { webinarId } } },
+    select: linkedSessionSelect,
+    orderBy: { scheduledAt: 'asc' },
+  })
+}
+
+export type ZoomSessionSeats = { capacity: number | null; registered: number; full: boolean }
+
+// Seats taken on each of the given sessions, counted the way the sessions page
+// counts a roster: registrants of every webinar the session is offered to who
+// chose this exact instant. Only sessions with a capacity are counted — the rest
+// are unlimited, so no count is needed to know they can be offered.
+export async function loadZoomSessionSeats(
+  sessions: Pick<LinkedZoomSession, 'id' | 'capacity'>[]
+): Promise<Map<string, ZoomSessionSeats>> {
+  const seats = new Map<string, ZoomSessionSeats>()
+  const limited = sessions.filter((s) => s.capacity !== null && s.capacity !== undefined)
+  if (!limited.length) return seats
+
+  const rows = await prisma.zoomSession.findMany({
+    where: { id: { in: limited.map((s) => s.id) } },
+    select: {
+      id: true,
+      scheduledAt: true,
+      capacity: true,
+      webinars: { select: { webinarType: true, externalWebinarId: true, webinarId: true } },
+      externalWebinarsLive: { select: { id: true } },
+    },
+  })
+  for (const row of rows) {
+    // Webinars offered this session by a join row OR by the legacy single pointer —
+    // the same union getLinkedZoomSessions() reads, so anyone who could pick the
+    // session is counted against it.
+    const links: WebinarLink[] = [
+      ...row.webinars,
+      ...row.externalWebinarsLive.map((w) => ({
+        webinarType: 'external',
+        externalWebinarId: w.id,
+        webinarId: null,
+      })),
+    ]
+    const registered = await countRoster(row.scheduledAt, links)
+    seats.set(row.id, {
+      capacity: row.capacity,
+      registered,
+      full: isZoomSessionFull(row.capacity, registered),
+    })
+  }
+  return seats
+}
+
+// Ids of the given sessions that have no seats left. Unlimited sessions are never
+// in the set.
+export async function fullZoomSessionIds(
+  sessions: Pick<LinkedZoomSession, 'id' | 'capacity'>[]
+): Promise<Set<string>> {
+  const seats = await loadZoomSessionSeats(sessions)
+  const full = new Set<string>()
+  seats.forEach((s, id) => {
+    if (s.full) full.add(id)
+  })
+  return full
 }
 
 // Split linked webinars into external + internal id lists.

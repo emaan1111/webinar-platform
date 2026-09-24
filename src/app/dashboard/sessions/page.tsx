@@ -39,6 +39,8 @@ interface ZoomSessionSummary {
   isActive: boolean
   webinars: LinkedWebinar[]
   registrantCount: number
+  // Seats across every linked webinar; null = unlimited.
+  capacity: number | null
 }
 
 interface Registrant {
@@ -92,6 +94,8 @@ interface FormState {
   time: string
   timezone: string
   notes: string
+  // Blank = unlimited.
+  capacity: string
   external: string[]
   internal: string[]
 }
@@ -105,6 +109,7 @@ const emptyForm = (): FormState => ({
   time: '',
   timezone: browserTz(),
   notes: '',
+  capacity: '',
   external: [],
   internal: [],
 })
@@ -244,6 +249,7 @@ export default function SessionsPage() {
       time: formatInTimeZone(new Date(s.scheduledAt), s.timezone, 'HH:mm'),
       timezone: s.timezone,
       notes: s.notes || '',
+      capacity: s.capacity == null ? '' : String(s.capacity),
       external: s.webinars.filter((w) => w.type === 'external' && w.id).map((w) => w.id as string),
       internal: s.webinars.filter((w) => w.type === 'internal' && w.id).map((w) => w.id as string),
     })
@@ -262,6 +268,11 @@ export default function SessionsPage() {
       alert('Name, date and time are required.')
       return
     }
+    const capacityText = form.capacity.trim()
+    if (capacityText !== '' && !/^\d+$/.test(capacityText)) {
+      alert('Capacity must be a whole number of seats — leave it blank for no limit.')
+      return
+    }
     setSaving(true)
     const payload = {
       name: form.name.trim(),
@@ -271,6 +282,7 @@ export default function SessionsPage() {
       time: form.time,
       timezone: form.timezone,
       notes: form.notes.trim(),
+      capacity: capacityText === '' ? null : Number(capacityText),
       webinars: [
         ...form.external.map((id) => ({ type: 'external', id })),
         ...form.internal.map((id) => ({ type: 'internal', id })),
@@ -398,8 +410,17 @@ export default function SessionsPage() {
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-600">
                       <span className="flex items-center gap-1">
                         <Users className="w-4 h-4 text-gray-400" />
-                        {s.registrantCount} registered
+                        {s.registrantCount}
+                        {s.capacity != null ? ` / ${s.capacity}` : ''} registered
                       </span>
+                      {s.capacity != null && s.registrantCount >= s.capacity && (
+                        <span
+                          className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-50 text-red-700 text-xs font-medium"
+                          title="Every seat is taken. This time is no longer offered on the registration pickers."
+                        >
+                          Full
+                        </span>
+                      )}
                       <span className="text-gray-400">·</span>
                       <span>{s.webinars.length} webinar{s.webinars.length === 1 ? '' : 's'}</span>
                       {s.zoomLink && (
@@ -461,6 +482,8 @@ export default function SessionsPage() {
                       <p className="text-sm text-gray-500">
                         {fmtSessionTime(selected.scheduledAt, selected.timezone)} · {filteredRoster.length} registrant
                         {filteredRoster.length === 1 ? '' : 's'}
+                        {selected.capacity != null &&
+                          ` · ${selected.capacity} seat${selected.capacity === 1 ? '' : 's'}`}
                       </p>
                       <p className="text-xs text-gray-400 mt-0.5">
                         Session ID: <code className="font-mono">{selected.id}</code>
@@ -643,6 +666,24 @@ export default function SessionsPage() {
                 Set this to the time registrants picked for this session. The roster = registrants of the
                 associated webinars who chose this exact slot (not the webinar's whole list).
               </p>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={form.capacity}
+                  onChange={(e) => setForm({ ...form, capacity: e.target.value })}
+                  placeholder="Unlimited"
+                  className="w-full sm:w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Seats for this session, counted across every linked webinar. Once the roster reaches
+                  it, the time disappears from the registration pickers (internal and external) until a
+                  seat frees up. Leave blank for no limit.
+                </p>
+              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Linked webinars</label>

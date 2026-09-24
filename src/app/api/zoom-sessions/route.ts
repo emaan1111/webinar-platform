@@ -4,6 +4,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { countRoster } from '@/lib/zoomSessions'
+import { parseZoomCapacity } from '@/lib/zoomSessionCapacity'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -53,9 +54,11 @@ export async function GET() {
         id: s.id,
         name: s.name,
         zoomLink: s.zoomLink,
+        replayUrl: s.replayUrl,
         scheduledAt: s.scheduledAt,
         timezone: s.timezone,
         notes: s.notes,
+        capacity: s.capacity,
         isActive: s.isActive,
         webinars: s.webinars.map((w) => ({
           type: w.webinarType,
@@ -78,7 +81,7 @@ export async function GET() {
 }
 
 // POST /api/zoom-sessions — create a session.
-// Body: { name, zoomLink?, date, time, timezone, notes?, webinars: [{type,id}] }
+// Body: { name, zoomLink?, date, time, timezone, notes?, capacity?, webinars: [{type,id}] }
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions)
@@ -87,7 +90,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json()
-    const { name, zoomLink, date, time, timezone, notes, webinars } = body || {}
+    const { name, zoomLink, date, time, timezone, notes, capacity, webinars } = body || {}
 
     if (!name || !date || !time || !timezone) {
       return NextResponse.json(
@@ -101,6 +104,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid date/time' }, { status: 400 })
     }
 
+    const parsedCapacity = parseZoomCapacity(capacity)
+    if (!parsedCapacity.ok) {
+      return NextResponse.json({ error: parsedCapacity.error }, { status: 400 })
+    }
+
     const created = await prisma.zoomSession.create({
       data: {
         name,
@@ -108,6 +116,7 @@ export async function POST(request: Request) {
         scheduledAt,
         timezone,
         notes: notes || null,
+        capacity: parsedCapacity.capacity,
         webinars: { create: buildLinkRows(Array.isArray(webinars) ? webinars : []) },
       },
       include: webinarLinkInclude,

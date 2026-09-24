@@ -7,7 +7,8 @@ import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
 import { sendExternalConfirmationEmail } from '@/lib/externalConfirmationEmail'
 import { pushLeadToEmaan, resolveEmaanTargets, buildWebinarPushFields } from '@/lib/emaan'
 import { readEmaanRoutes } from '@/lib/emaanSettings'
-import { getLinkedZoomSessions, LinkedZoomSession } from '@/lib/zoomSessions'
+import { getLinkedZoomSessions, fullZoomSessionIds, LinkedZoomSession } from '@/lib/zoomSessions'
+import { ZOOM_SESSION_FULL_ERROR } from '@/lib/zoomSessionCapacity'
 import { isWithinBookingWindow, describeBookingWindow, BOOKING_WINDOW_ERROR } from '@/lib/bookingWindow'
 import { isValidEmail, normalizeEmail, normalizePhone, EMAIL_ERROR } from '@/lib/contactValidation'
 
@@ -217,6 +218,28 @@ export async function POST(
           pickedZoomSession =
             candidates.find((s) => s.scheduledAt.getTime() > Date.now()) ||
             candidates[candidates.length - 1]
+        }
+      }
+    }
+
+    // Capacity — the picker already hides a full session, but seats fill between render
+    // and submit, and nothing stops a direct POST. Re-count before creating anything.
+    // Someone already registered for this exact session keeps their seat: a
+    // re-registration re-sends the confirmation, it doesn't take a second place.
+    if (pickedZoomSession && pickedZoomSession.capacity !== null) {
+      const alreadyIn =
+        existingReg?.scheduledStartTime?.getTime() === pickedZoomSession.scheduledAt.getTime()
+      if (!alreadyIn) {
+        const full = await fullZoomSessionIds([pickedZoomSession])
+        if (full.has(pickedZoomSession.id)) {
+          console.warn(
+            `⛔ ${normalizedEmail} picked Zoom session "${pickedZoomSession.name}" for ` +
+              `${externalWebinar.name}, but its ${pickedZoomSession.capacity} seats are taken`
+          )
+          return NextResponse.json(
+            { error: ZOOM_SESSION_FULL_ERROR },
+            { status: 400, headers: corsHeaders }
+          )
         }
       }
     }

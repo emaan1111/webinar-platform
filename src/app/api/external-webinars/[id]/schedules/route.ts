@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getLinkedZoomSessions } from '@/lib/zoomSessions'
+import { getLinkedZoomSessions, fullZoomSessionIds } from '@/lib/zoomSessions'
 import { getWebinarDetails, isWebinarJamConfigured } from '@/lib/webinarjam'
 import { toZonedTime, fromZonedTime, format } from 'date-fns-tz'
 import { addMinutes, addDays, isBefore } from 'date-fns'
@@ -291,14 +291,26 @@ export async function GET(
     // Zoom link becomes a pickable time (shown indistinguishably among evergreen options).
     // The option id carries the exact instant AND the session id so the register route
     // resolves the right session even if its time is edited between render and submit.
-    const linkedSessions = await getLinkedZoomSessions(id)
+    const linkedSessions = (await getLinkedZoomSessions(id)).filter(
+      (s) => s.zoomLink && !isBefore(s.scheduledAt, now)
+    )
+    // A session whose roster has reached its capacity is not offered. Its instant is
+    // still reserved (zoomTimes) all the same: an evergreen option at that exact time
+    // would land its registrants in the full session's roster and reminder emails.
+    const fullSessionIds = await fullZoomSessionIds(linkedSessions)
     const zoomTimes = new Set<number>()
+    const offeredTimes = new Set<number>()
     for (const s of linkedSessions) {
-      if (!s.zoomLink) continue
-      if (isBefore(s.scheduledAt, now)) continue
       const ms = s.scheduledAt.getTime()
-      if (zoomTimes.has(ms)) continue // two sessions at the same instant: first wins
       zoomTimes.add(ms)
+      if (fullSessionIds.has(s.id)) {
+        console.log(
+          `⛔ Zoom session "${s.name}" is full (${s.capacity} seats) — hidden from ${externalWebinar.name}`
+        )
+        continue
+      }
+      if (offeredTimes.has(ms)) continue // two open sessions at the same instant: first wins
+      offeredTimes.add(ms)
       scheduleOptions.push(makeOption(`x|z|${ms}|${s.id}`, s.scheduledAt, false, userTimezone))
     }
 

@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { prisma } from '@/lib/prisma'
 import { isWithinBookingWindow, describeBookingWindow, BOOKING_WINDOW_ERROR } from '@/lib/bookingWindow'
+import { getInternalLinkedZoomSessions, fullZoomSessionIds } from '@/lib/zoomSessions'
+import { ZOOM_SESSION_FULL_ERROR } from '@/lib/zoomSessionCapacity'
 import { getVisitorTestGroup } from '@/lib/abTesting'
 import { syncWebinarRegistrationToClickFunnels } from '@/lib/clickfunnels'
 import { syncContactToMautic, tagMauticContact } from '@/lib/mautic'
@@ -222,7 +224,7 @@ export async function POST(
       try {
         schedule = await prisma.webinarSchedule.findUnique({
           where: { id: scheduleId },
-          select: { zoomLink: true, isZoomSession: true }
+          select: { zoomLink: true, isZoomSession: true, scheduledAt: true }
         });
       } catch (e) {
         console.error('Error fetching schedule', e);
@@ -250,6 +252,36 @@ export async function POST(
           { error: BOOKING_WINDOW_ERROR },
           { status: 400, headers: corsHeaders }
         )
+      }
+    }
+
+    // Capacity — a Zoom session with a seat limit (set on the Sessions page) leaves the
+    // picker once full, but seats fill between render and submit, and nothing stops a
+    // direct POST. Re-count before creating anything. Someone who already holds a seat
+    // at this time may register again without taking a second one.
+    if (schedule?.isZoomSession && schedule.scheduledAt) {
+      const at = schedule.scheduledAt
+      const linked = (await getInternalLinkedZoomSessions(id)).filter(
+        (s) => s.scheduledAt.getTime() === at.getTime()
+      )
+      if (linked.length > 0) {
+        const fullIds = await fullZoomSessionIds(linked)
+        // An unlimited session at this instant is never in fullIds, so it keeps the time open.
+        const full = linked.every((s) => fullIds.has(s.id))
+        if (full) {
+          const alreadyIn = await prisma.registration.count({
+            where: { webinarId: id, email: email.trim().toLowerCase(), scheduledStartTime: at },
+          })
+          if (alreadyIn === 0) {
+            console.warn(
+              `⛔ ${email} picked the Zoom session at ${at.toISOString()} for ${webinar.title}, but its seats are taken`
+            )
+            return NextResponse.json(
+              { error: ZOOM_SESSION_FULL_ERROR },
+              { status: 400, headers: corsHeaders }
+            )
+          }
+        }
       }
     }
 

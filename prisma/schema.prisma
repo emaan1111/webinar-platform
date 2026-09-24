@@ -950,9 +950,12 @@ model SurveyQuestion {
   surveyId  String
   section   String
   question  String
-  type      String         @default("single") // single | multi
-  options   String // JSON array of option strings
-  maxSelect Int            @default(1)
+  type      String         @default("single") // single | multi | text
+  /// JSON array of option strings. A `text` question has no options: the array holds
+  /// at most one entry, used as the placeholder inside its answer box. Kept in this
+  /// column on purpose — free text needed no new column, so no production push.
+  options   String
+  maxSelect Int            @default(1) // ignored by single + text
   position  Int            @default(0)
   hidden    Boolean        @default(false)
   createdAt DateTime       @default(now())
@@ -997,7 +1000,7 @@ model SurveyAnswer {
   id         String         @id @default(cuid())
   responseId String
   questionId String
-  value      String // JSON: string for single, string[] for multi
+  value      String // JSON: string for single + text, string[] for multi
   createdAt  DateTime       @default(now())
   response   SurveyResponse @relation(fields: [responseId], references: [id], onDelete: Cascade)
   question   SurveyQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
@@ -2030,6 +2033,11 @@ model ZoomSession {
   scheduledAt DateTime // stored UTC
   timezone    String   @default("America/New_York") // tz the host entered the time in
   notes       String?
+  /// Seats on this session, counted across every linked webinar; null = unlimited.
+  /// Once the roster (registrants who chose this exact instant) reaches it, the
+  /// registration pickers stop offering the session and the register routes
+  /// refuse a late pick. 0 closes the session to new registrants.
+  capacity    Int?
   isActive    Boolean  @default(true)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @default(now())

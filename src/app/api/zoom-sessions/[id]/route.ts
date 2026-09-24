@@ -4,6 +4,7 @@ import { fromZonedTime } from 'date-fns-tz'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { loadRoster, linkedIds } from '@/lib/zoomSessions'
+import { parseZoomCapacity } from '@/lib/zoomSessionCapacity'
 import { pushRegistrationUpdatesToEmaan } from '@/lib/emaan'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,7 @@ function shapeSession(s: any) {
     scheduledAt: s.scheduledAt,
     timezone: s.timezone,
     notes: s.notes,
+    capacity: s.capacity,
     isActive: s.isActive,
     webinars: s.webinars.map((w: any) => ({
       type: w.webinarType,
@@ -85,8 +87,18 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     }
 
     const body = await request.json()
-    const { name, zoomLink, replayUrl, date, time, timezone, notes, isActive, webinars } =
-      body || {}
+    const {
+      name,
+      zoomLink,
+      replayUrl,
+      date,
+      time,
+      timezone,
+      notes,
+      capacity,
+      isActive,
+      webinars,
+    } = body || {}
 
     const data: any = {}
     if (name !== undefined) data.name = name
@@ -95,6 +107,13 @@ export async function PUT(request: Request, { params }: { params: { id: string }
     if (notes !== undefined) data.notes = notes || null
     if (isActive !== undefined) data.isActive = !!isActive
     if (timezone !== undefined) data.timezone = timezone
+    if (capacity !== undefined) {
+      const parsedCapacity = parseZoomCapacity(capacity)
+      if (!parsedCapacity.ok) {
+        return NextResponse.json({ error: parsedCapacity.error }, { status: 400 })
+      }
+      data.capacity = parsedCapacity.capacity
+    }
 
     // Recompute scheduledAt only when a new date/time (and timezone) are provided.
     if (date && time && timezone) {

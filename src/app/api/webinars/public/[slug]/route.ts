@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { getInternalLinkedZoomSessions, fullZoomSessionIds } from '@/lib/zoomSessions'
 import {
   filterToBookingWindow,
   isWithinBookingWindow,
@@ -125,6 +126,17 @@ export async function GET(
     const zoomScheduleIds = new Set(
       webinar.schedules.filter((s) => s.isZoomSession).map((s) => s.id)
     )
+    // A Zoom session that has reached its capacity is not offered. The capacity lives
+    // on the session (Sessions page), which sits at the same instant as this webinar's
+    // Zoom schedule row — the two are matched by time.
+    const fullZoomInstants = new Set<number>()
+    if (zoomScheduleIds.size > 0) {
+      const linked = await getInternalLinkedZoomSessions(webinar.id)
+      const fullIds = await fullZoomSessionIds(linked)
+      for (const s of linked) {
+        if (fullIds.has(s.id)) fullZoomInstants.add(s.scheduledAt.getTime())
+      }
+    }
     const now = new Date()
     const webinarDurationMinutes = webinar.duration || 60 // Default to 60 minutes if not set
 
@@ -133,6 +145,10 @@ export async function GET(
     for (const schedule of webinar.schedules) {
       if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
         const scheduleDate = new Date(schedule.scheduledAt)
+        if (schedule.isZoomSession && fullZoomInstants.has(scheduleDate.getTime())) {
+          console.log(`⛔ Zoom session at ${scheduleDate.toISOString()} is full — hidden from webinar ${slug}`)
+          continue
+        }
         // Calculate when the webinar ends (scheduled time + duration)
         const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
         

@@ -126,7 +126,16 @@ export default function ExternalWebinarDetailPage() {
   const [internalWebinars, setInternalWebinars] = useState<{ id: string; title: string }[]>([])
   const [externalWebinars, setExternalWebinars] = useState<{ id: string; name: string }[]>([])
   const [zoomSessions, setZoomSessions] = useState<
-    { id: string; name: string; scheduledAt: string; timezone: string; zoomLink: string | null; isActive: boolean }[]
+    {
+      id: string
+      name: string
+      scheduledAt: string
+      timezone: string
+      zoomLink: string | null
+      isActive: boolean
+      capacity: number | null
+      registrantCount: number
+    }[]
   >([])
   // System Thank-You templates the host can render on the built-in thank-you page
   const [thankYouTemplates, setThankYouTemplates] = useState<{ id: string; name: string }[]>([])
@@ -243,6 +252,8 @@ export default function ExternalWebinarDetailPage() {
           timezone: s.timezone,
           zoomLink: s.zoomLink ?? null,
           isActive: s.isActive ?? true,
+          capacity: s.capacity ?? null,
+          registrantCount: s.registrantCount ?? 0,
         }))
       )
     } catch {}
@@ -780,6 +791,11 @@ export default function ExternalWebinarDetailPage() {
                         {!s.zoomLink && (
                           <span className="block text-xs text-amber-600">
                             No Zoom link set — this session won&apos;t be offered until it has one.
+                          </span>
+                        )}
+                        {s.capacity != null && s.registrantCount >= s.capacity && (
+                          <span className="block text-xs text-amber-600">
+                            Full — {s.registrantCount} of {s.capacity} seats taken. Not offered until a seat frees up.
                           </span>
                         )}
                         {!s.isActive && (
