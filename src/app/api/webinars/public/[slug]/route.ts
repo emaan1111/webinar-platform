@@ -126,9 +126,10 @@ export async function GET(
     const zoomScheduleIds = new Set(
       webinar.schedules.filter((s) => s.isZoomSession).map((s) => s.id)
     )
-    // A Zoom session that has reached its capacity is not offered. The capacity lives
-    // on the session (Sessions page), which sits at the same instant as this webinar's
-    // Zoom schedule row — the two are matched by time.
+    // A Zoom session that has reached its capacity is still listed, flagged isFull, so
+    // the picker shows it as FULL and refuses the pick. The capacity lives on the
+    // session (Sessions page), which sits at the same instant as this webinar's Zoom
+    // schedule row — the two are matched by time.
     const fullZoomInstants = new Set<number>()
     if (zoomScheduleIds.size > 0) {
       const linked = await getInternalLinkedZoomSessions(webinar.id)
@@ -145,9 +146,9 @@ export async function GET(
     for (const schedule of webinar.schedules) {
       if (schedule.scheduleType === 'specific' && schedule.scheduledAt) {
         const scheduleDate = new Date(schedule.scheduledAt)
-        if (schedule.isZoomSession && fullZoomInstants.has(scheduleDate.getTime())) {
-          console.log(`⛔ Zoom session at ${scheduleDate.toISOString()} is full — hidden from webinar ${slug}`)
-          continue
+        const isFull = !!schedule.isZoomSession && fullZoomInstants.has(scheduleDate.getTime())
+        if (isFull) {
+          console.log(`⛔ Zoom session at ${scheduleDate.toISOString()} is full — shown as FULL on webinar ${slug}`)
         }
         // Calculate when the webinar ends (scheduled time + duration)
         const webinarEndTime = new Date(scheduleDate.getTime() + (webinarDurationMinutes * 60 * 1000))
@@ -169,7 +170,8 @@ export async function GET(
             scheduleType: 'specific',
             scheduledAt: schedule.scheduledAt,
             timezone: schedule.timezone,
-            useUserTimezone: schedule.useUserTimezone
+            useUserTimezone: schedule.useUserTimezone,
+            isFull
           })
         }
       } else if (schedule.scheduleType === 'justInTime') {

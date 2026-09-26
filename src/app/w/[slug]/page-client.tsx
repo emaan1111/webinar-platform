@@ -15,6 +15,21 @@ interface Schedule {
   timezone: string | null
   useUserTimezone: boolean
   recurringPattern: string | null
+  // A Zoom session with no seats left: listed as FULL, not pickable.
+  isFull?: boolean
+}
+
+const ALL_FULL_NOTICE = 'All sessions are currently full. Please check back later.'
+const TIME_FULL_ERROR = 'That time is full — please choose another time.'
+
+// True when every time the picker can offer is a full Zoom session — the visitor then
+// sees FULL on each one and a plain note, not a "please select" error.
+function allOfferedTimesFull(schedules: Schedule[]): boolean {
+  const now = Date.now()
+  const offered = schedules.filter(
+    (s) => s.scheduleType !== 'specific' || (s.scheduledAt && new Date(s.scheduledAt).getTime() > now)
+  )
+  return offered.length > 0 && offered.every((s) => s.isFull)
 }
 
 interface Webinar {
@@ -986,7 +1001,9 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
     }
 
     if (!selectedSchedule) {
-      newErrors.schedule = 'Please select a schedule'
+      newErrors.schedule = allOfferedTimesFull(schedules) ? ALL_FULL_NOTICE : 'Please select a schedule'
+    } else if (selectedSchedule.isFull) {
+      newErrors.schedule = TIME_FULL_ERROR
     }
 
     setErrors(newErrors)
@@ -1443,17 +1460,21 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
                         // STEP 5: Take the first N slots and convert to options
                         const finalSlots = uniqueSlots.slice(0, maxSchedulesToShow)
                         const allScheduleOptions = finalSlots.map((slot) => (
-                          <option key={slot.id} value={slot.id}>
+                          <option key={slot.id} value={slot.id} disabled={!slot.isRecurring && slot.schedule.isFull}>
                             {slot.isRecurring 
                               ? formatScheduleTime(slot.schedule, slot.time)
                               : formatScheduleTime(slot.schedule)
                             }
+                            {!slot.isRecurring && slot.schedule.isFull ? ' — FULL' : ''}
                           </option>
                         ))
                         
                         return allScheduleOptions
                       })()}
                     </select>
+                    {!schedulesLoading && allOfferedTimesFull(schedules) && (
+                      <p className="mt-2 text-sm text-amber-700">{ALL_FULL_NOTICE}</p>
+                    )}
                     {errors.schedule && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                         <AlertCircle className="w-4 h-4" />
@@ -1818,17 +1839,21 @@ export default function WebinarRegisterPage({ webinarData, registrationPage, lea
                         // STEP 5: Take the first N slots and convert to options
                         const finalSlots = uniqueSlots.slice(0, maxSchedulesToShow)
                         const allScheduleOptions = finalSlots.map((slot) => (
-                          <option key={slot.id} value={slot.id}>
+                          <option key={slot.id} value={slot.id} disabled={!slot.isRecurring && slot.schedule.isFull}>
                             {slot.isRecurring 
                               ? formatScheduleTime(slot.schedule, slot.time)
                               : formatScheduleTime(slot.schedule)
                             }
+                            {!slot.isRecurring && slot.schedule.isFull ? ' — FULL' : ''}
                           </option>
                         ))
                         
                         return allScheduleOptions
                       })()}
                     </select>
+                    {!schedulesLoading && allOfferedTimesFull(schedules) && (
+                      <p className="mt-2 text-sm text-amber-700">{ALL_FULL_NOTICE}</p>
+                    )}
                     {errors.schedule && (
                       <p className="mt-2 text-sm text-red-600 flex items-center gap-1">
                         <AlertCircle className="w-4 h-4" />

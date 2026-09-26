@@ -25,6 +25,8 @@ import { filterToBookingWindow, describeBookingWindow } from '@/lib/bookingWindo
  * In BOTH modes, every active upcoming Zoom session linked to the webinar (ticked on the
  * sessions page or on the webinar's session list) is offered as a pickable time. When the
  * webinar's zoomOnlySchedule flag is set, those Zoom sessions are the ONLY times offered.
+ * A session whose capacity is reached is still listed, flagged isFull, so the picker can
+ * show it as FULL (scarcity) without letting anyone pick it.
  */
 
 // CORS headers for cross-origin embed requests
@@ -61,6 +63,7 @@ interface ScheduleOption {
   dateTimeUTC: string // Full ISO date in UTC
   isJIT: boolean
   label: string // User-friendly label like "Sunday, April 6 at 11:00 AM"
+  isFull: boolean // A live Zoom session with no seats left: shown, but not pickable
 }
 
 /**
@@ -83,6 +86,7 @@ function makeOption(
     dateTimeUTC: utcDate.toISOString(),
     isJIT,
     label: `${format(zoned, 'EEEE, MMMM d', { timeZone: userTimezone })} at ${format(zoned, 'h:mm a', { timeZone: userTimezone })}`,
+    isFull: false,
   }
 }
 
@@ -294,24 +298,33 @@ export async function GET(
     const linkedSessions = (await getLinkedZoomSessions(id)).filter(
       (s) => s.zoomLink && !isBefore(s.scheduledAt, now)
     )
-    // A session whose roster has reached its capacity is not offered. Its instant is
-    // still reserved (zoomTimes) all the same: an evergreen option at that exact time
-    // would land its registrants in the full session's roster and reminder emails.
+    // A session whose roster has reached its capacity is still listed, flagged isFull:
+    // the picker shows it as FULL and won't let it be chosen (and the register route
+    // refuses it anyway). Its instant stays reserved (zoomTimes) all the same: an
+    // evergreen option at that exact time would land its registrants in the full
+    // session's roster and reminder emails.
     const fullSessionIds = await fullZoomSessionIds(linkedSessions)
     const zoomTimes = new Set<number>()
     const offeredTimes = new Set<number>()
-    for (const s of linkedSessions) {
+    // Open sessions first, so a full one at the same instant as an open one is the
+    // one that gets skipped rather than the one that gets shown.
+    const orderedSessions = [
+      ...linkedSessions.filter((s) => !fullSessionIds.has(s.id)),
+      ...linkedSessions.filter((s) => fullSessionIds.has(s.id)),
+    ]
+    for (const s of orderedSessions) {
       const ms = s.scheduledAt.getTime()
       zoomTimes.add(ms)
-      if (fullSessionIds.has(s.id)) {
-        console.log(
-          `⛔ Zoom session "${s.name}" is full (${s.capacity} seats) — hidden from ${externalWebinar.name}`
-        )
-        continue
-      }
-      if (offeredTimes.has(ms)) continue // two open sessions at the same instant: first wins
+      if (offeredTimes.has(ms)) continue // two sessions at the same instant: first wins
       offeredTimes.add(ms)
-      scheduleOptions.push(makeOption(`x|z|${ms}|${s.id}`, s.scheduledAt, false, userTimezone))
+      const option = makeOption(`x|z|${ms}|${s.id}`, s.scheduledAt, false, userTimezone)
+      if (fullSessionIds.has(s.id)) {
+        option.isFull = true
+        console.log(
+          `⛔ Zoom session "${s.name}" is full (${s.capacity} seats) — shown as FULL on ${externalWebinar.name}`
+        )
+      }
+      scheduleOptions.push(option)
     }
 
     if (externalWebinar.zoomOnlySchedule) {
@@ -392,6 +405,7 @@ export async function GET(
               dateTimeUTC: sessionDate.toISOString(),
               isJIT: true,
               label: `${dateLabel} at ${timeLabel}`,
+              isFull: false,
             })
           }
         }
@@ -446,6 +460,7 @@ export async function GET(
             dateTimeUTC: scheduledUTC.toISOString(),
             isJIT: false,
             label: `${dateLabel} at ${timeLabel}`,
+            isFull: false,
           })
         }
       }

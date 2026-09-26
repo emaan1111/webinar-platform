@@ -10,6 +10,8 @@ interface Schedule {
   time: string
   label: string
   isJIT: boolean
+  // A live Zoom session with no seats left: listed as FULL, not pickable.
+  isFull?: boolean
 }
 
 interface SchedulesResponse {
@@ -23,6 +25,8 @@ interface SchedulesResponse {
 }
 
 const GENERIC_LOAD_ERROR = "We couldn't load the available times right now."
+const TIME_FULL_ERROR = 'That time is full — please choose another time.'
+const ALL_FULL_NOTICE = 'All sessions are currently full. Please check back later.'
 
 // A schedule-fetch failure whose message is safe to show the registrant (as opposed to a
 // raw network error like "Failed to fetch").
@@ -192,8 +196,8 @@ export default function ExternalWebinarRegistrationForm({
         setIsJIT(data.isJIT)
         setThankYouUrl(data.thankYouUrl ?? null)
         
-        // Auto-select first schedule if only one
-        if (data.schedules.length === 1) {
+        // Auto-select first schedule if only one (never a full one)
+        if (data.schedules.length === 1 && !data.schedules[0].isFull) {
           setSelectedSchedule(data.schedules[0].id)
         }
       } catch (err) {
@@ -244,6 +248,9 @@ export default function ExternalWebinarRegistrationForm({
 
       const scheduleToUse = selectedSchedule || schedules[0]?.id
       const selectedScheduleData = schedules.find(s => s.id === scheduleToUse)
+      if (selectedScheduleData?.isFull) {
+        throw new Error(TIME_FULL_ERROR)
+      }
       const searchParams = new URLSearchParams(window.location.search)
       const effectiveSplitTestId = splitTestId || searchParams.get('st') || searchParams.get('splitTestId') || undefined
       const effectiveSplitTestVariantId = splitTestVariantId || searchParams.get('v') || searchParams.get('splitTestVariantId') || undefined
@@ -344,6 +351,10 @@ export default function ExternalWebinarRegistrationForm({
     )
   }
 
+  // Every offered time is a full Zoom session: say so plainly and keep the button off,
+  // rather than letting someone fill the form and wonder why nothing happens.
+  const allFull = schedules.every((s) => s.isFull)
+
   return (
     <form onSubmit={handleSubmit} className={`space-y-4 ${className}`}>
       {error && (
@@ -390,8 +401,13 @@ export default function ExternalWebinarRegistrationForm({
           >
             <option value="">Choose a time...</option>
             {schedules.map((schedule) => (
-              <option key={`${schedule.id}-${schedule.label}`} value={schedule.id}>
+              <option
+                key={`${schedule.id}-${schedule.label}`}
+                value={schedule.id}
+                disabled={schedule.isFull}
+              >
                 {schedule.label}
+                {schedule.isFull ? ' — FULL' : ''}
               </option>
             ))}
           </select>
@@ -403,7 +419,18 @@ export default function ExternalWebinarRegistrationForm({
         <div className="bg-gray-50 p-3 rounded-md">
           <p className="text-sm text-gray-600">
             <span className="font-medium">Date & Time:</span> {schedules[0].label}
+            {schedules[0].isFull && (
+              <span className="ml-2 inline-block px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs font-semibold align-middle">
+                FULL
+              </span>
+            )}
           </p>
+        </div>
+      )}
+
+      {allFull && (
+        <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded text-sm">
+          {ALL_FULL_NOTICE}
         </div>
       )}
 
@@ -496,10 +523,10 @@ export default function ExternalWebinarRegistrationForm({
       {/* Submit button */}
       <button
         type="submit"
-        disabled={loading}
+        disabled={loading || allFull}
         className="w-full py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-md shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {loading ? 'Registering...' : buttonText}
+        {loading ? 'Registering...' : allFull ? 'All sessions full' : buttonText}
       </button>
     </form>
   )

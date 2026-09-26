@@ -13,7 +13,11 @@ interface Schedule {
   timezone: string | null
   useUserTimezone: boolean
   recurringPattern: string | null
+  // A Zoom session with no seats left: listed as FULL, not pickable.
+  isFull?: boolean
 }
+
+const ALL_FULL_NOTICE = 'All sessions are currently full. Please check back later.'
 
 interface Webinar {
   id: string
@@ -193,7 +197,8 @@ export default function WebinarRegisterPage() {
     }
 
     if (!selectedSchedule) {
-      newErrors.schedule = 'Please select a schedule'
+      const allFull = !!webinar?.schedules.length && webinar.schedules.every((s) => s.isFull)
+      newErrors.schedule = allFull ? ALL_FULL_NOTICE : 'Please select a schedule'
     }
 
     setErrors(newErrors)
@@ -716,11 +721,16 @@ export default function WebinarRegisterPage() {
                       {webinar.schedules.map((schedule) => (
                         <div
                           key={schedule.id}
-                          onClick={() => setSelectedSchedule(schedule)}
-                          className={`p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                            selectedSchedule?.id === schedule.id
-                              ? 'border-purple-500 bg-purple-50'
-                              : 'border-gray-200 hover:border-gray-300'
+                          onClick={() => {
+                            if (!schedule.isFull) setSelectedSchedule(schedule)
+                          }}
+                          aria-disabled={schedule.isFull}
+                          className={`p-4 border-2 rounded-lg transition-all ${
+                            schedule.isFull
+                              ? 'border-gray-200 bg-gray-50 opacity-70 cursor-not-allowed'
+                              : selectedSchedule?.id === schedule.id
+                                ? 'border-purple-500 bg-purple-50 cursor-pointer'
+                                : 'border-gray-200 hover:border-gray-300 cursor-pointer'
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -728,6 +738,11 @@ export default function WebinarRegisterPage() {
                             <div className="flex-1">
                               <p className="font-medium text-gray-900">
                                 {formatScheduleTime(schedule)}
+                                {schedule.isFull && (
+                                  <span className="ml-2 inline-block px-2 py-0.5 rounded bg-red-100 text-red-700 text-xs font-semibold align-middle">
+                                    FULL
+                                  </span>
+                                )}
                               </p>
                               <p className="text-sm text-gray-600 mt-1">
                                 Duration: {webinar.duration} minutes
@@ -740,6 +755,9 @@ export default function WebinarRegisterPage() {
                         </div>
                       ))}
                     </div>
+                    {webinar.schedules.length > 0 && webinar.schedules.every((s) => s.isFull) && (
+                      <p className="mt-2 text-sm text-amber-700">{ALL_FULL_NOTICE}</p>
+                    )}
                     {errors.schedule && (
                       <p className="mt-2 text-sm text-red-600">{errors.schedule}</p>
                     )}

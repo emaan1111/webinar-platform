@@ -219,11 +219,13 @@
       </div>
     ` : '';
 
-    // Schedule field
+    // Schedule field. A full Zoom session is listed as FULL but can't be chosen; when
+    // every time is full the form says so and the button stays off.
+    const allFull = schedules.length > 0 && schedules.every(s => s.isFull);
     let scheduleField = '';
     if (schedules.length > 0) {
-      const options = schedules.map(s => 
-        `<option value="${s.id}">${s.label}</option>`
+      const options = schedules.map(s =>
+        `<option value="${s.id}"${s.isFull ? ' disabled' : ''}>${s.label}${s.isFull ? ' — FULL' : ''}</option>`
       ).join('');
       
       scheduleField = `
@@ -236,6 +238,7 @@
             <option value="">Choose your preferred time...</option>
             ${options}
           </select>
+          ${allFull ? '<p style="margin:8px 0 0;font-size:14px;color:#b45309;">All sessions are currently full. Please check back later.</p>' : ''}
           <div class="wr-timezone-row">
             <span class="wr-timezone">${icons.globe} Times shown in ${getTimezoneFriendlyName(userTimezone)}</span>
           </div>
@@ -294,7 +297,7 @@
           <!-- Buttons -->
           <div class="wr-buttons">
             ${isPopup ? '<button type="button" class="wr-btn-cancel" onclick="document.getElementById(\'wr-modal-backdrop\')?.remove()">Cancel</button>' : ''}
-            <button type="submit" class="wr-btn-submit" ${!isPopup ? 'style="width:100%"' : ''}>${buttonText}</button>
+            <button type="submit" class="wr-btn-submit" ${!isPopup ? 'style="width:100%"' : ''}${allFull ? ' disabled' : ''}>${allFull ? 'All sessions full' : buttonText}</button>
           </div>
           
           <!-- Trust Footer -->
@@ -339,6 +342,11 @@
 
     if (schedules.length > 1 && !scheduleSelect?.value) {
       renderForm('Please select a time');
+      return;
+    }
+
+    if (schedules.find(s => s.id === scheduleId)?.isFull) {
+      renderForm('That time is full — please choose another time.');
       return;
     }
 

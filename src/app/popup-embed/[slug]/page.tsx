@@ -19,7 +19,8 @@ function detectTz(): string {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York' } catch { return 'America/New_York' }
 }
 
-interface ScheduleOption { id: string; label: string; isJIT: boolean }
+// isFull: a live Zoom session with no seats left — listed as FULL, not pickable.
+interface ScheduleOption { id: string; label: string; isJIT: boolean; isFull?: boolean }
 
 interface PopupConfig {
   id: string
@@ -80,6 +81,8 @@ export default function PopupEmbedPage() {
   const [schedules, setSchedules] = useState<ScheduleOption[]>([])
   const [userTimezone, setUserTimezone] = useState<string>(detectTz())
   const [selectedSchedule, setSelectedSchedule] = useState('')
+  // Every offered time is a full Zoom session: say so and keep the button off.
+  const allFull = schedules.length > 0 && schedules.every(sc => sc.isFull)
   const [webinarThankYouUrl, setWebinarThankYouUrl] = useState<string | null>(null)
 
   useEffect(() => {
@@ -121,7 +124,7 @@ export default function PopupEmbedPage() {
         if (cancelled) return
         setSchedules(d.schedules || [])
         setWebinarThankYouUrl(d.thankYouUrl || null)
-        if ((d.schedules || []).length === 1) setSelectedSchedule(d.schedules[0].id)
+        if ((d.schedules || []).length === 1 && !d.schedules[0].isFull) setSelectedSchedule(d.schedules[0].id)
       } catch {}
     })()
     return () => { cancelled = true }
@@ -161,6 +164,9 @@ export default function PopupEmbedPage() {
         if (!name || !email) { setFormError('Name and email are required'); setSubmitting(false); return }
         if (!isValidEmail(email)) { setFormError(EMAIL_ERROR); setSubmitting(false); return }
         if (!scheduleToUse) { setFormError('Please select a time'); setSubmitting(false); return }
+        if (schedules.find(sc => sc.id === scheduleToUse)?.isFull) {
+          setFormError('That time is full — please choose another time.'); setSubmitting(false); return
+        }
 
         // Same rule as the lead-page form: fold the dialling code and the typed
         // number into one E.164 value, and make the visitor fix what can't be.
@@ -432,8 +438,17 @@ export default function PopupEmbedPage() {
                       </label>
                       <select value={selectedSchedule} onChange={e => setSelectedSchedule(e.target.value)} required style={inputStyle}>
                         <option value="">{schedules.length ? 'Choose a time…' : 'Loading times…'}</option>
-                        {schedules.map(sc => <option key={sc.id} value={sc.id}>{sc.label}</option>)}
+                        {schedules.map(sc => (
+                          <option key={sc.id} value={sc.id} disabled={sc.isFull}>
+                            {sc.label}{sc.isFull ? ' — FULL' : ''}
+                          </option>
+                        ))}
                       </select>
+                      {allFull && (
+                        <p className="mt-1 text-sm" style={{ color: '#b45309' }}>
+                          All sessions are currently full. Please check back later.
+                        </p>
+                      )}
                     </div>
                   </div>
                 )
@@ -608,7 +623,7 @@ export default function PopupEmbedPage() {
           {/* Submit Button */}
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || allFull}
             className="w-full mt-5 font-semibold transition-all hover:translate-y-[-2px] disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
             style={{
               padding: '14px',
