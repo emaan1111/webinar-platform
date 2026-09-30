@@ -156,6 +156,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { name, slug, variants } = body;
 
+    // /t/ links match slugs case-insensitively, so "Foo" and "foo" would be the same link
+    const clash = await prisma.splitTest.findFirst({
+      where: { slug: { equals: slug, mode: 'insensitive' } },
+      select: { id: true }
+    });
+    if (clash) {
+      return NextResponse.json({ error: 'A split test with this slug already exists.' }, { status: 400 });
+    }
+
     const splitTest = await prisma.splitTest.create({
       data: {
         name,

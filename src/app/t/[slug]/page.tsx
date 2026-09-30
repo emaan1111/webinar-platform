@@ -13,16 +13,22 @@ interface PageProps {
 export default async function SplitTestPage({ params }: PageProps) {
   const { slug } = params;
 
-  const splitTest = await prisma.splitTest.findUnique({
-    where: { slug },
-    include: {
-      variants: {
-        include: {
-          leadPage: true
-        }
+  const include = {
+    variants: {
+      include: {
+        leadPage: true
       }
     }
-  });
+  };
+
+  // Links get retyped by hand, so /t/lovingallah should still find "lovingAllah".
+  // An exact match wins in case two slugs differ only by case.
+  const splitTest =
+    (await prisma.splitTest.findUnique({ where: { slug }, include })) ??
+    (await prisma.splitTest.findFirst({
+      where: { slug: { equals: slug, mode: 'insensitive' } },
+      include
+    }));
 
   if (!splitTest || !splitTest.isActive || splitTest.variants.length === 0) {
     notFound();
