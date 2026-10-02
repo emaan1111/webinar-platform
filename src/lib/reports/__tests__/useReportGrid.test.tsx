@@ -1,13 +1,19 @@
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useReportGrid } from '../useReportGrid'
 import { PREDEFINED_VIEWS, STORAGE_KEYS } from '../state'
 import { getColumn } from '../columns'
+import { flush, installFakeViewsServer } from './fakeViewsServer'
 
-const settle = () => act(async () => {})
+const settle = flush
 
 describe('useReportGrid', () => {
-  beforeEach(() => localStorage.clear())
+  let server: ReturnType<typeof installFakeViewsServer>
+  beforeEach(() => {
+    localStorage.clear()
+    server = installFakeViewsServer()
+  })
+  afterEach(() => vi.unstubAllGlobals())
 
   it('restores the last-used view across reloads, not the starred default', async () => {
     const sales = PREDEFINED_VIEWS.find(v => v.id === 'salesFocus')!
@@ -15,7 +21,6 @@ describe('useReportGrid', () => {
       STORAGE_KEYS.working,
       JSON.stringify({ viewId: 'salesFocus', columns: sales.columns, sort: null, density: 'compact' })
     )
-    localStorage.setItem(STORAGE_KEYS.defaultView, 'essential')
     const { result } = renderHook(() => useReportGrid())
     await settle()
     expect(result.current.viewId).toBe('salesFocus')
@@ -25,11 +30,19 @@ describe('useReportGrid', () => {
   })
 
   it('falls back to the starred default view when there is no working state', async () => {
-    localStorage.setItem(STORAGE_KEYS.defaultView, 'facebook')
+    server.stored = { views: [], defaultViewId: 'facebook' }
     const { result } = renderHook(() => useReportGrid())
     await settle()
     expect(result.current.viewId).toBe('facebook')
+    expect(result.current.defaultViewId).toBe('facebook')
     expect(result.current.isDirty).toBe(false)
+  })
+
+  it('is not hydrated until the saved views have loaded', async () => {
+    const { result } = renderHook(() => useReportGrid())
+    expect(result.current.hydrated).toBe(false)
+    await settle()
+    expect(result.current.hydrated).toBe(true)
   })
 
   it('a saved custom view comes back as the active view on the next visit', async () => {
@@ -42,6 +55,7 @@ describe('useReportGrid', () => {
       id = first.result.current.saveAsView('Mine')
     })
     expect(id).toBeTruthy()
+    await settle()
     first.unmount()
 
     // Visit 2: the view is in the list AND it is what is on screen.
@@ -54,19 +68,113 @@ describe('useReportGrid', () => {
     expect(second.result.current.isDirty).toBe(false)
   })
 
-  it('saving does not clobber a view another tab wrote meanwhile', async () => {
-    const { result } = renderHook(() => useReportGrid())
+  it('saved views and the starred default survive clearing the browser cache', async () => {
+    const first = renderHook(() => useReportGrid())
     await settle()
-    // Another tab saves its own view after this tab loaded.
+    act(() => first.result.current.toggleColumn('profit'))
+    let id: string | null = null
+    act(() => {
+      id = first.result.current.saveAsView('Mine')
+    })
+    act(() => first.result.current.setDefaultViewId(id!))
+    await settle()
+    first.unmount()
+
+    localStorage.clear()
+
+    const second = renderHook(() => useReportGrid())
+    await settle()
+    expect(second.result.current.savedViews.map(v => v.name)).toEqual(['Mine'])
+    expect(second.result.current.defaultViewId).toBe(id)
+    // No working state left, so the starred view opens.
+    expect(second.result.current.viewId).toBe(id)
+    expect(second.result.current.columns).toContain('profit')
+  })
+
+  it('uploads views saved in this browser before the move to the server, then clears them locally', async () => {
+    server.stored = { views: [{ id: 'custom_server', name: 'Already there', columns: ['date'] }], defaultViewId: null }
     localStorage.setItem(
       STORAGE_KEYS.savedViews,
-      JSON.stringify([{ id: 'custom_other', name: 'Other tab', columns: ['date', 'visitors'] }])
+      JSON.stringify([
+        { id: 'custom_local', name: 'Local only', columns: ['date', 'visitors'] },
+        { id: 'custom_server', name: 'Stale local copy', columns: ['date', 'roi'] },
+      ])
     )
+    localStorage.setItem(STORAGE_KEYS.defaultView, 'custom_local')
+    const { result } = renderHook(() => useReportGrid())
+    await settle()
+    expect(result.current.savedViews.map(v => v.name)).toEqual(['Already there', 'Local only'])
+    expect(result.current.defaultViewId).toBe('custom_local')
+    expect(server.stored.views.map(v => v.id)).toEqual(['custom_server', 'custom_local'])
+    expect(localStorage.getItem(STORAGE_KEYS.savedViews)).toBeNull()
+    expect(localStorage.getItem(STORAGE_KEYS.defaultView)).toBeNull()
+  })
+
+  it('shows the views this browser still has when the server is unreachable, and keeps them', async () => {
+    server.fail = true
+    localStorage.setItem(
+      STORAGE_KEYS.savedViews,
+      JSON.stringify([{ id: 'custom_local', name: 'Local only', columns: ['date', 'visitors'] }])
+    )
+    const { result } = renderHook(() => useReportGrid())
+    await settle()
+    expect(result.current.hydrated).toBe(true)
+    expect(result.current.savedViews.map(v => v.name)).toEqual(['Local only'])
+    expect(result.current.viewsError).toMatch(/couldn't load/i)
+    // Not uploaded, so not cleared: the next visit tries again.
+    expect(localStorage.getItem(STORAGE_KEYS.savedViews)).not.toBeNull()
+  })
+
+  it('saving does not clobber a view another device saved meanwhile', async () => {
+    const { result } = renderHook(() => useReportGrid())
+    await settle()
+    // Another device saves its own view after this tab loaded.
+    server.stored = { views: [{ id: 'custom_other', name: 'Other device', columns: ['date', 'visitors'] }], defaultViewId: null }
     act(() => {
       result.current.saveAsView('Mine')
     })
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.savedViews)!)
-    expect(stored.map((v: any) => v.name).sort()).toEqual(['Mine', 'Other tab'])
+    await settle()
+    expect(server.stored.views.map(v => v.name).sort()).toEqual(['Mine', 'Other device'])
+    expect(result.current.savedViews.map(v => v.name).sort()).toEqual(['Mine', 'Other device'])
+  })
+
+  it('sends quick successive changes in order, and all of them land', async () => {
+    const { result } = renderHook(() => useReportGrid())
+    await settle()
+    let a: string | null = null
+    act(() => {
+      a = result.current.saveAsView('A')
+    })
+    act(() => {
+      result.current.saveAsView('B')
+    })
+    act(() => result.current.renameView(a!, 'A2'))
+    expect(result.current.savedViews.map(v => v.name)).toEqual(['A2', 'B'])
+    await settle()
+    expect(server.requests.map(r => r.action)).toEqual(['save', 'save', 'rename'])
+    expect(server.stored.views.map(v => v.name)).toEqual(['A2', 'B'])
+    expect(result.current.savedViews.map(v => v.name)).toEqual(['A2', 'B'])
+  })
+
+  it('a failed save says so and keeps the view on screen', async () => {
+    const { result } = renderHook(() => useReportGrid())
+    await settle()
+    server.fail = true
+    act(() => {
+      result.current.saveAsView('Mine')
+    })
+    await settle()
+    expect(result.current.savedViews.map(v => v.name)).toEqual(['Mine'])
+    expect(result.current.viewsError).toMatch(/couldn't save/i)
+
+    // The next save that goes through brings the list back in line.
+    server.fail = false
+    act(() => {
+      result.current.saveAsView('Again')
+    })
+    await settle()
+    expect(result.current.viewsError).toBeNull()
+    expect(result.current.savedViews.map(v => v.name)).toEqual(['Again'])
   })
 
   it('keeps unsaved columns across a reload rather than applying the default view', async () => {
@@ -108,7 +216,8 @@ describe('useReportGrid', () => {
     expect(result.current.viewId).toBe('')
     expect(result.current.columns).toContain('profit')
     expect(result.current.isDirty).toBe(true)
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.savedViews)!)).toEqual([])
+    await settle()
+    expect(server.stored.views).toEqual([])
   })
 
   it('ignores prototype-polluting ids that arrive from storage', async () => {
@@ -123,62 +232,27 @@ describe('useReportGrid', () => {
     expect(result.current.columns).toEqual(['date', 'visitors'])
   })
 
-  it('a rename does not wipe the list when storage got corrupted mid-session', async () => {
+  it('updating a view another device deleted recreates it instead of losing the save', async () => {
     const { result } = renderHook(() => useReportGrid())
     await settle()
     let id: string | null = null
     act(() => {
       id = result.current.saveAsView('Mine')
     })
-    // Something else scribbles garbage over the key.
-    localStorage.setItem(STORAGE_KEYS.savedViews, '{oops')
-    act(() => result.current.renameView(id!, 'Mine 2'))
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.savedViews)!)
-    expect(stored).toHaveLength(1)
-    expect(stored[0].name).toBe('Mine 2')
-  })
-
-  it('keeps session saves visible when localStorage writes start failing', async () => {
-    const { result } = renderHook(() => useReportGrid())
     await settle()
-    const original = Storage.prototype.setItem
-    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(function (this: Storage, key: string, value: string) {
-      if (key === STORAGE_KEYS.savedViews) throw new Error('QuotaExceededError')
-      return original.call(this, key, value)
-    })
-    try {
-      act(() => {
-        result.current.saveAsView('A')
-      })
-      act(() => {
-        result.current.saveAsView('B')
-      })
-      expect(result.current.savedViews.map(v => v.name)).toEqual(['A', 'B'])
-    } finally {
-      spy.mockRestore()
-    }
-  })
-
-  it('updating a view another tab deleted recreates it instead of losing the save', async () => {
-    const { result } = renderHook(() => useReportGrid())
-    await settle()
-    let id: string | null = null
-    act(() => {
-      id = result.current.saveAsView('Mine')
-    })
-    // Another tab deletes it.
-    localStorage.setItem(STORAGE_KEYS.savedViews, '[]')
+    // Another device deletes it.
+    server.stored = { views: [], defaultViewId: null }
     act(() => result.current.toggleColumn('roi'))
     act(() => result.current.updateView(id!))
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEYS.savedViews)!)
-    expect(stored).toHaveLength(1)
-    expect(stored[0].name).toBe('Mine')
-    expect(stored[0].columns).toContain('roi')
+    await settle()
+    expect(server.stored.views).toHaveLength(1)
+    expect(server.stored.views[0].name).toBe('Mine')
+    expect(server.stored.views[0].columns).toContain('roi')
     expect(result.current.currentView?.id).toBe(id)
     expect(result.current.isDirty).toBe(false)
   })
 
-  it('deleting a view leaves a default another tab starred meanwhile alone', async () => {
+  it('deleting a view leaves a default another device starred meanwhile alone', async () => {
     const { result } = renderHook(() => useReportGrid())
     await settle()
     let id: string | null = null
@@ -186,9 +260,12 @@ describe('useReportGrid', () => {
       id = result.current.saveAsView('Mine')
     })
     act(() => result.current.setDefaultViewId(id!))
-    // Another tab stars a different view.
-    localStorage.setItem(STORAGE_KEYS.defaultView, 'salesFocus')
+    await settle()
+    // Another device stars a different view.
+    server.stored = { ...server.stored, defaultViewId: 'salesFocus' }
     act(() => result.current.deleteView(id!))
-    expect(localStorage.getItem(STORAGE_KEYS.defaultView)).toBe('salesFocus')
+    await settle()
+    expect(server.stored.defaultViewId).toBe('salesFocus')
+    expect(result.current.defaultViewId).toBe('salesFocus')
   })
 })

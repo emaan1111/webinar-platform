@@ -1,11 +1,12 @@
 import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import ReportsTable from '../ReportsTable'
 import GridToolbar from '../GridToolbar'
 import { useReportGrid } from '../../../lib/reports/useReportGrid'
 import { computeTotals, ReportRow } from '../../../lib/reports/columns'
 import { STORAGE_KEYS } from '../../../lib/reports/state'
+import { flush, installFakeViewsServer } from '../../../lib/reports/__tests__/fakeViewsServer'
 
 vi.mock('next/link', () => ({
   default: ({ href, children, ...rest }: any) => (
@@ -100,6 +101,12 @@ function Harness() {
   )
 }
 
+/** Renders the grid and waits for the saved views to load. */
+async function renderHarness() {
+  render(<Harness />)
+  await flush()
+}
+
 const headerLabels = () =>
   screen
     .getAllByRole('columnheader')
@@ -107,15 +114,18 @@ const headerLabels = () =>
     .filter(Boolean)
 
 describe('ReportsTable', () => {
+  let server: ReturnType<typeof installFakeViewsServer>
+  afterEach(() => vi.unstubAllGlobals())
   beforeEach(() => {
     localStorage.clear()
+    server = installFakeViewsServer()
     // jsdom has no layout; Popover positions itself from the anchor rect.
     Element.prototype.getBoundingClientRect = () =>
       ({ top: 10, left: 10, right: 110, bottom: 40, width: 100, height: 30, x: 10, y: 10, toJSON: () => {} }) as DOMRect
   })
 
-  it('renders the Essential view with a totals row and drillable counts', () => {
-    render(<Harness />)
+  it('renders the Essential view with a totals row and drillable counts', async () => {
+    await renderHarness()
     expect(headerLabels()).toEqual([
       'Date',
       'Spend',
@@ -143,7 +153,7 @@ describe('ReportsTable', () => {
 
   it('hides a column from its header menu and remembers it', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     await user.click(screen.getByRole('button', { name: 'Options for FB Clicks' }))
     await user.click(screen.getByRole('menuitem', { name: 'Hide column' }))
     expect(headerLabels()).not.toContain('Clicks')
@@ -155,7 +165,7 @@ describe('ReportsTable', () => {
 
   it('moves a column with the header menu', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     await user.click(screen.getByRole('button', { name: 'Options for Visitors' }))
     await user.click(screen.getByRole('menuitem', { name: 'Move to start' }))
     expect(headerLabels().slice(0, 3)).toEqual(['Date', 'Visitors', 'Spend'])
@@ -163,7 +173,7 @@ describe('ReportsTable', () => {
 
   it('adds a column from the + popover', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     await user.click(screen.getByRole('button', { name: 'Add column' }))
     await user.type(screen.getByPlaceholderText('Find a column…'), 'profit')
     await user.click(screen.getByRole('button', { name: /^Profit/ }))
@@ -172,7 +182,7 @@ describe('ReportsTable', () => {
 
   it('sorts by clicking a header, cycling asc → desc → off', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     const firstDateCell = () => screen.getAllByRole('row')[1].querySelector('td')!.textContent
     expect(firstDateCell()).toContain('Aug 1')
 
@@ -185,8 +195,8 @@ describe('ReportsTable', () => {
     expect(firstDateCell()).toContain('Aug 1')
   })
 
-  it('reorders columns by dragging one header onto another', () => {
-    render(<Harness />)
+  it('reorders columns by dragging one header onto another', async () => {
+    await renderHarness()
     const headers = screen.getAllByRole('columnheader')
     const spend = headers[1]
     const visitors = headers[3]
@@ -203,7 +213,7 @@ describe('ReportsTable', () => {
 
   it('switches views from the toolbar and can save the current columns as a new view', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     await user.click(screen.getByRole('button', { name: /View Essential/ }))
     await user.click(screen.getByRole('menuitem', { name: /Facebook Ads/ }))
     expect(headerLabels()).toContain('Impressions')
@@ -218,7 +228,8 @@ describe('ReportsTable', () => {
 
     expect(screen.getByRole('button', { name: /View My FB view/ })).toBeInTheDocument()
     expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.savedViews)!)
+    await flush()
+    const saved = server.stored.views
     expect(saved).toHaveLength(1)
     expect(saved[0].name).toBe('My FB view')
     expect(saved[0].columns).not.toContain('fbCpm')
@@ -234,7 +245,7 @@ describe('ReportsTable', () => {
         density: 'compact',
       })
     )
-    render(<Harness />)
+    await renderHarness()
     await act(async () => {})
     expect(headerLabels()).toEqual(['Date', 'Profit', 'Visitors'])
     expect(screen.getAllByRole('row')[1].querySelector('td')!.textContent).toContain('Aug 2')
@@ -243,7 +254,7 @@ describe('ReportsTable', () => {
 
   it('clears the sort when the sorted column leaves the view', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     const firstDateCell = () => screen.getAllByRole('row')[1].querySelector('td')!.textContent
     const sortVisitors = screen.getByRole('button', { name: 'Sort by Visitors' })
     await user.click(sortVisitors)
@@ -258,7 +269,7 @@ describe('ReportsTable', () => {
 
   it('header menu is keyboard operable: focus enters, arrows move, Escape hands focus back', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     const trigger = screen.getByRole('button', { name: 'Options for Visitors' })
     trigger.focus()
     await user.keyboard('{Enter}')
@@ -274,7 +285,7 @@ describe('ReportsTable', () => {
 
   it('the + popover focuses its search box and starts empty on every open', async () => {
     const user = userEvent.setup()
-    render(<Harness />)
+    await renderHarness()
     await user.click(screen.getByRole('button', { name: 'Add column' }))
     const box = screen.getByPlaceholderText('Find a column…')
     expect(box).toHaveFocus()

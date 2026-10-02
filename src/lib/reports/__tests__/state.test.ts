@@ -1,17 +1,23 @@
 import { describe, expect, it } from 'vitest'
 import {
   addColumn,
+  applyViewsAction,
+  EMPTY_STORED_VIEWS,
+  MAX_SAVED_VIEWS,
   moveColumn,
   moveColumnBy,
   moveColumnRelative,
   nextSort,
   normalizeColumnIds,
   parseSavedViews,
+  parseStoredViews,
   parseWorkingState,
   PREDEFINED_VIEWS,
   removeColumn,
   sortReports,
+  StoredViews,
   toggleColumn,
+  ViewsActionError,
 } from '../state'
 import { ALL_COLUMN_IDS, ReportRow } from '../columns'
 
@@ -193,5 +199,106 @@ describe('persistence parsing', () => {
 
   it('the Everything view really has every column', () => {
     expect(PREDEFINED_VIEWS.find(v => v.id === 'comprehensive')?.columns).toEqual(ALL_COLUMN_IDS)
+  })
+})
+
+describe('applyViewsAction', () => {
+  const mine = { id: 'custom_1', name: 'Mine', columns: ['date', 'visitors'] }
+  const withMine: StoredViews = { views: [mine], defaultViewId: null }
+
+  it('save creates a view, and on an existing id updates columns but keeps the stored name', () => {
+    const created = applyViewsAction(EMPTY_STORED_VIEWS, { action: 'save', view: mine })
+    expect(created.views).toEqual([{ ...mine, createdAt: undefined, updatedAt: undefined }])
+
+    const renamed = applyViewsAction(created, { action: 'rename', id: 'custom_1', name: 'Renamed elsewhere' })
+    const updated = applyViewsAction(renamed, {
+      action: 'save',
+      view: { ...mine, columns: ['date', 'roi'], updatedAt: 't2' },
+    })
+    expect(updated.views).toHaveLength(1)
+    expect(updated.views[0]).toMatchObject({ name: 'Renamed elsewhere', columns: ['date', 'roi'], updatedAt: 't2' })
+  })
+
+  it('save keeps an existing filter snapshot when the update carries none', () => {
+    const filters = { countries: ['India'], countriesMode: 'exclude', timezones: [], timezonesMode: 'include', zoomSessions: 'all' }
+    const state = applyViewsAction(EMPTY_STORED_VIEWS, { action: 'save', view: { ...mine, filters } })
+    const updated = applyViewsAction(state, { action: 'save', view: { ...mine, columns: ['date', 'roi'] } })
+    expect(updated.views[0].filters).toEqual(filters)
+  })
+
+  it('refuses malformed views and built-in ids', () => {
+    expect(() => applyViewsAction(EMPTY_STORED_VIEWS, { action: 'save', view: { id: 'x', columns: [] } })).toThrow(
+      ViewsActionError
+    )
+    expect(() =>
+      applyViewsAction(EMPTY_STORED_VIEWS, { action: 'save', view: { id: 'essential', name: 'Hijack', columns: [] } })
+    ).toThrow(ViewsActionError)
+    expect(() => applyViewsAction(EMPTY_STORED_VIEWS, { action: 'nope' })).toThrow(ViewsActionError)
+    expect(() => applyViewsAction(EMPTY_STORED_VIEWS, null)).toThrow(ViewsActionError)
+  })
+
+  it(`caps the list at ${MAX_SAVED_VIEWS} views`, () => {
+    const full: StoredViews = {
+      views: Array.from({ length: MAX_SAVED_VIEWS }, (_, i) => ({ id: `custom_${i}`, name: `V${i}`, columns: ['date'] })),
+      defaultViewId: null,
+    }
+    expect(() =>
+      applyViewsAction(full, { action: 'save', view: { id: 'custom_new', name: 'One more', columns: ['date'] } })
+    ).toThrow(/at most/)
+    // Updating one that is already there is still fine.
+    expect(() => applyViewsAction(full, { action: 'save', view: { ...full.views[0], columns: ['date', 'roi'] } })).not.toThrow()
+  })
+
+  it('rename trims, and ignores a view that no longer exists', () => {
+    expect(applyViewsAction(withMine, { action: 'rename', id: 'custom_1', name: '  New  ' }).views[0].name).toBe('New')
+    expect(applyViewsAction(withMine, { action: 'rename', id: 'gone', name: 'New' })).toEqual(withMine)
+    expect(() => applyViewsAction(withMine, { action: 'rename', id: 'custom_1', name: '   ' })).toThrow(ViewsActionError)
+  })
+
+  it('delete unstars the view it removes, and only that one', () => {
+    const starred = { ...withMine, defaultViewId: 'custom_1' }
+    expect(applyViewsAction(starred, { action: 'delete', id: 'custom_1' })).toEqual(EMPTY_STORED_VIEWS)
+    const otherStarred = { ...withMine, defaultViewId: 'salesFocus' }
+    expect(applyViewsAction(otherStarred, { action: 'delete', id: 'custom_1' }).defaultViewId).toBe('salesFocus')
+  })
+
+  it('setDefault accepts built-in and saved views, stores the app default as null, ignores unknown ids', () => {
+    expect(applyViewsAction(withMine, { action: 'setDefault', id: 'custom_1' }).defaultViewId).toBe('custom_1')
+    expect(applyViewsAction(withMine, { action: 'setDefault', id: 'facebook' }).defaultViewId).toBe('facebook')
+    expect(applyViewsAction({ ...withMine, defaultViewId: 'facebook' }, { action: 'setDefault', id: 'essential' }).defaultViewId).toBeNull()
+    expect(applyViewsAction(withMine, { action: 'setDefault', id: 'gone' })).toEqual(withMine)
+  })
+
+  it('import merges by id without overwriting, and is idempotent', () => {
+    const action = {
+      action: 'import',
+      views: [
+        { id: 'custom_1', name: 'Stale copy', columns: ['date', 'roi'] },
+        { id: 'custom_2', name: 'Local', columns: ['date'] },
+        { id: 'custom_2', name: 'Duplicate', columns: ['date'] },
+      ],
+      defaultViewId: 'custom_2',
+    }
+    const once = applyViewsAction(withMine, action)
+    expect(once.views.map(v => v.name)).toEqual(['Mine', 'Local'])
+    expect(once.defaultViewId).toBe('custom_2')
+    expect(applyViewsAction(once, action)).toEqual(once)
+  })
+
+  it('import never replaces a default the server already has', () => {
+    const state = { ...withMine, defaultViewId: 'facebook' }
+    const next = applyViewsAction(state, { action: 'import', views: [], defaultViewId: 'custom_1' })
+    expect(next.defaultViewId).toBe('facebook')
+  })
+})
+
+describe('parseStoredViews', () => {
+  it('reads what the server stored and survives garbage', () => {
+    expect(parseStoredViews(null)).toEqual(EMPTY_STORED_VIEWS)
+    expect(parseStoredViews('nope')).toEqual(EMPTY_STORED_VIEWS)
+    expect(parseStoredViews({ views: 'x', defaultViewId: 7 })).toEqual(EMPTY_STORED_VIEWS)
+    expect(
+      parseStoredViews({ views: [{ id: 'custom_1', name: 'Mine', columns: ['visitors'] }], defaultViewId: 'custom_1' })
+    ).toEqual({ views: [{ id: 'custom_1', name: 'Mine', columns: ['date', 'visitors'] }], defaultViewId: 'custom_1' })
   })
 })

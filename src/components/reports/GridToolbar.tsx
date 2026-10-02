@@ -107,6 +107,15 @@ export default function GridToolbar({
         </div>
       )}
 
+      {grid.viewsError && (
+        <span
+          role="alert"
+          className="inline-flex items-center rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700 ring-1 ring-inset ring-red-200"
+        >
+          {grid.viewsError}
+        </span>
+      )}
+
       <div className="ml-auto flex items-center gap-1.5">
         {lastUpdated && (
           <span className="hidden text-xs text-gray-400 sm:inline" title={lastUpdated.toLocaleString()}>

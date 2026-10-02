@@ -1,7 +1,7 @@
 /**
  * Pure helpers for the reports grid's column order, saved views and sorting.
  * No React in here so the behaviour can be unit-tested directly; the hook in
- * useReportGrid.ts wires these to state and localStorage.
+ * useReportGrid.ts wires these to state, localStorage and the server.
  */
 
 import { ALL_COLUMN_IDS, DATE_COLUMN_ID, getColumn, ReportRow } from './columns'
@@ -258,7 +258,10 @@ export function sortReports(rows: readonly ReportRow[], sort: SortState | null):
 export type Density = 'comfortable' | 'compact'
 
 export const STORAGE_KEYS = {
-  /** Custom views - same key and shape the old page used, so nothing is lost. */
+  /**
+   * Where custom views and the starred default lived before they moved to the
+   * server. Read only to upload them once, then cleared.
+   */
   savedViews: 'reportViews',
   defaultView: 'reportDefaultView',
   /** Whatever the grid currently shows, saved or not, so a refresh keeps it. */
@@ -272,25 +275,157 @@ export interface WorkingState {
   density: Density
 }
 
+const MAX_VIEW_ID = 100
+const MAX_VIEW_NAME = 120
+export const MAX_SAVED_VIEWS = 200
+
+const cleanViewName = (name: unknown) => (typeof name === 'string' ? name.trim().slice(0, MAX_VIEW_NAME) : '')
+
+/**
+ * The well-formed custom views in an already-parsed list. Built-in ids are
+ * dropped: a custom view may not shadow one the app ships.
+ */
+export function sanitizeSavedViews(list: unknown): ReportView[] {
+  if (!Array.isArray(list)) return []
+  return list
+    .filter(
+      v =>
+        v &&
+        typeof v.id === 'string' &&
+        v.id !== '' &&
+        v.id.length <= MAX_VIEW_ID &&
+        !isBuiltInView(v.id) &&
+        cleanViewName(v.name) !== '' &&
+        Array.isArray(v.columns)
+    )
+    .map(v => ({
+      id: v.id,
+      name: cleanViewName(v.name),
+      columns: normalizeColumnIds(v.columns),
+      // Absent stays absent (load must not touch the active filter); present
+      // is sanitized, so a corrupt snapshot degrades to "clears the filter".
+      ...(v.filters !== undefined ? { filters: sanitizeRegistrantFilters(v.filters) } : {}),
+      createdAt: typeof v.createdAt === 'string' ? v.createdAt : undefined,
+      updatedAt: typeof v.updatedAt === 'string' ? v.updatedAt : undefined,
+    }))
+}
+
 export function parseSavedViews(raw: string | null): ReportView[] {
   if (!raw) return []
   try {
-    const parsed = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed
-      .filter(v => v && typeof v.id === 'string' && typeof v.name === 'string' && Array.isArray(v.columns))
-      .map(v => ({
-        id: v.id,
-        name: v.name,
-        columns: normalizeColumnIds(v.columns),
-        // Absent stays absent (load must not touch the active filter); present
-        // is sanitized, so a corrupt snapshot degrades to "clears the filter".
-        ...(v.filters !== undefined ? { filters: sanitizeRegistrantFilters(v.filters) } : {}),
-        createdAt: v.createdAt,
-        updatedAt: v.updatedAt,
-      }))
+    return sanitizeSavedViews(JSON.parse(raw))
   } catch {
     return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Saved views on the server
+// ---------------------------------------------------------------------------
+
+/** What the server keeps per user: their custom views and the starred one. */
+export interface StoredViews {
+  views: ReportView[]
+  /** null = the built-in default. */
+  defaultViewId: string | null
+}
+
+export const EMPTY_STORED_VIEWS: StoredViews = { views: [], defaultViewId: null }
+
+/**
+ * One change to a user's views. The server applies these one at a time
+ * instead of accepting a whole list, so two tabs or devices editing at once
+ * each keep their edit.
+ */
+export type ViewsAction =
+  /** Create the view, or update an existing one's columns and filters. */
+  | { action: 'save'; view: ReportView }
+  | { action: 'rename'; id: string; name: string }
+  | { action: 'delete'; id: string }
+  | { action: 'setDefault'; id: string }
+  /** Views that only ever lived in one browser's localStorage. */
+  | { action: 'import'; views: ReportView[]; defaultViewId?: string | null }
+
+export class ViewsActionError extends Error {}
+
+export function parseStoredViews(raw: unknown): StoredViews {
+  const r = (raw ?? {}) as Record<string, unknown>
+  return {
+    views: sanitizeSavedViews(r.views),
+    defaultViewId: typeof r.defaultViewId === 'string' && r.defaultViewId !== '' ? r.defaultViewId : null,
+  }
+}
+
+const knownViewId = (state: StoredViews, id: string) =>
+  isBuiltInView(id) || state.views.some(v => v.id === id)
+
+/**
+ * Applies one action. Throws ViewsActionError on malformed input. A change to
+ * a view that no longer exists (deleted on another device) is a no-op, except
+ * `save`, which recreates it - "save" means keep these columns under this name.
+ */
+export function applyViewsAction(state: StoredViews, input: unknown): StoredViews {
+  const a = (input ?? {}) as Record<string, unknown>
+  const id = typeof a.id === 'string' ? a.id : null
+  switch (a.action) {
+    case 'save': {
+      const [view] = sanitizeSavedViews([a.view])
+      if (!view) throw new ViewsActionError('Invalid view')
+      const existing = state.views.find(v => v.id === view.id)
+      if (!existing) {
+        if (state.views.length >= MAX_SAVED_VIEWS) {
+          throw new ViewsActionError(`You can keep at most ${MAX_SAVED_VIEWS} saved views`)
+        }
+        return { ...state, views: [...state.views, view] }
+      }
+      // Name and createdAt stay as stored, so this cannot undo a rename made
+      // elsewhere in the meantime.
+      const updated: ReportView = {
+        ...existing,
+        columns: view.columns,
+        ...(view.filters !== undefined ? { filters: view.filters } : {}),
+        updatedAt: view.updatedAt ?? new Date().toISOString(),
+      }
+      return { ...state, views: state.views.map(v => (v.id === view.id ? updated : v)) }
+    }
+    case 'rename': {
+      const name = cleanViewName(a.name)
+      if (!id || !name) throw new ViewsActionError('Rename needs an id and a name')
+      return { ...state, views: state.views.map(v => (v.id === id ? { ...v, name } : v)) }
+    }
+    case 'delete': {
+      if (!id) throw new ViewsActionError('Delete needs an id')
+      return {
+        views: state.views.filter(v => v.id !== id),
+        defaultViewId: state.defaultViewId === id ? null : state.defaultViewId,
+      }
+    }
+    case 'setDefault': {
+      if (!id) throw new ViewsActionError('Set default needs an id')
+      if (!knownViewId(state, id)) return state
+      return { ...state, defaultViewId: id === DEFAULT_VIEW_ID ? null : id }
+    }
+    case 'import': {
+      // Merged by id, never overwriting what the server already holds, so an
+      // upload that runs twice (two tabs, a retry) changes nothing the second time.
+      const views = [...state.views]
+      const have = new Set(views.map(v => v.id))
+      for (const view of sanitizeSavedViews(a.views)) {
+        if (have.has(view.id) || views.length >= MAX_SAVED_VIEWS) continue
+        have.add(view.id)
+        views.push(view)
+      }
+      const merged = { ...state, views }
+      const incomingDefault = typeof a.defaultViewId === 'string' ? a.defaultViewId : null
+      const adoptDefault =
+        state.defaultViewId == null &&
+        incomingDefault != null &&
+        incomingDefault !== DEFAULT_VIEW_ID &&
+        knownViewId(merged, incomingDefault)
+      return adoptDefault ? { ...merged, defaultViewId: incomingDefault } : merged
+    }
+    default:
+      throw new ViewsActionError('Unknown action')
   }
 }
 
